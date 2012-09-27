@@ -1,0 +1,13 @@
+aimbat-0.1
+==========
+First release.
+
+
+aimbat-0.1.1
+============
+* Change setup.py and package directory: modules --> src/pysmo/aimbat. 
+AIMBAT becomes a part of pysmo (https://github.com/pysmo/aimbat). 
+Python usage: import aimbat --> from pysmo import aimbat
+* Minor changes in help messages for scripts using the OptionParser module.
+* Adjust figsize-related function of ttpick.py to support backends other than Tk.
+
