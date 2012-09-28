@@ -6,7 +6,7 @@ Xiaoting Lou (xlou@u.northwestern.edu)
 03/07/2012
 """
 
-from pysmo.sacio import sacfile
+from pysmo.sac.sacio import sacfile
 from numpy import linspace, array
 from scipy import signal
 import matplotlib.pyplot as plt
@@ -29,14 +29,12 @@ y2 = signal.resample(y, nptsnew)
 fig = plt.figure(figsize=(12,4))
 ax = fig.add_subplot(111)
 trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
-
 plt.plot(x,  y, 'b-',  label='Delta = {0:.3f} s'.format(delta))
 plt.plot(x2, y2,'r--', label='Delta = {0:.3f} s'.format(deltanew))
 plt.xlabel('Time [s]')
 plt.legend(loc=2)
 plt.ticklabel_format(style='sci', scilimits=(0,0), axis='y')
 ax.text(0.98, 0.9, ifilename, transform=trans, va='center', ha='right')
-
 plt.subplots_adjust(left=0.05,right=0.98,bottom=0.13,top=0.9)
 plt.xlim(600,900)
 plt.ylim(-1.2e-5,1.8e-5)
