@@ -23,7 +23,7 @@ from pysmo.aimbat.qualctrl import getDataOpts, getAxes, PickPhaseMenuMore
 
 def getAxes(opts):
 	""" Get axes for plotting """
-	fig = figure(figsize=(13, 12.5))
+	fig = figure(figsize=(13.6, 12.7))
 	backend = get_backend().lower()
 	if backend == 'tkagg':
 		get_current_fig_manager().window.wm_geometry("1100x1050+700+0")
@@ -78,14 +78,14 @@ def main():
 	gsac, opts = getDataOpts()
 	axs = getAxes(opts)
 	ppmm = PickPhaseMenuMore(gsac, opts, axs)
-	fmt = 'pdf'
 	fmt = 'png'
+	fmt = 'pdf'
 	if opts.savefig:
 		if opts.pklfile is None:
 			fignm = 'ttpick.' + fmt
 		else:
 			fignm = opts.pklfile + '.' + fmt
-		savefig(fignm, format=fmt, dpi=300)
+		savefig(fignm, format=fmt)
 	else:
 		show()
 

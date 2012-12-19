@@ -39,6 +39,6 @@ plt.subplots_adjust(left=0.05,right=0.98,bottom=0.13,top=0.9)
 plt.xlim(600,900)
 plt.ylim(-1.2e-5,1.8e-5)
 
-fig.savefig('egsac.png', format='png', dpi=300)
+fig.savefig('egsac.pdf', format='pdf')
 plt.show()
 

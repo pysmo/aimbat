@@ -38,13 +38,13 @@ axp1.set_xlim(625, 762)
 axp2.set_xlim(-45, 65)
 # numbering
 axs = [axp0, axp1, axp2]
-labs = 'ABC'
+labs = 'abc'
 for ax, lab in  zip(axs, labs):
 	tt = '(' + lab + ')'
 	trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
 	ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)	
 
-fig.savefig('egplot.png', format='png', dpi=300)
+fig.savefig('egplot.pdf', format='pdf')
 show()
 
 

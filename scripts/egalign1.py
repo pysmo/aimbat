@@ -15,9 +15,9 @@ from pysmo.aimbat.ttconfig import PPConfig, QCConfig, CCConfig, MCConfig
 
 
 def axes1(npick=2):
-	fig = figure(figsize=(9,12))
+	fig = figure(figsize=(9.5,12.7))
 	axs = [fig.add_subplot(1,npick,i+1) for i in range(npick) ]
-	subplots_adjust(bottom=.04, top=0.97, left=.065, right=.9, wspace=.375, hspace=.1)
+	subplots_adjust(bottom=.04, top=0.97, left=.065, right=.905, wspace=.4, hspace=.1)
 	return axs
 
 def getwin(gsac, opts, pick='t2'):
@@ -76,13 +76,13 @@ if __name__ == '__main__':
 		plotwin(ax, twins[i], opts.pppara)
 		ax.set_title(tts[i])
 
-	labs = 'AB'
+	labs = 'ab'
 	for ax, lab in  zip(axs, labs):
 		tt = '(' + lab + ')'
 		trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
 		ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)	
 
-	savefig('egalignp1.png', format='png', dpi=300)
+	savefig('egalignp1.pdf', format='pdf')
 
 	show()	
 

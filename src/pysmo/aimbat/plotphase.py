@@ -42,6 +42,7 @@ Program structure:
 from pylab import *
 import os, sys, copy
 from matplotlib import transforms
+from matplotlib.font_manager import FontProperties
 from ttconfig import PPConfig, getParser
 from sacpickle import loadData, windowIndex, windowData
 from plotutils import TimeSelector, dataNorm, axLimit, pickLegend
@@ -240,7 +241,7 @@ class SingleSeisGather():
 		ylabs = range(1 , self.nseis+1)
 		self.axss.set_yticks(yticks)
 		self.axss.set_yticklabels(ylabs)
-		self.axss.set_ylabel('Trace number')
+		self.axss.set_ylabel('Trace Number')
 
 	def baseZero(self):
 		""" 
@@ -251,7 +252,10 @@ class SingleSeisGather():
 		anorm = 1./clip(self.nseis/50, 2, 10)
 		self.alphas *= anorm
 		self.opts.ynorm = -1
-		self.axss.ticklabel_format(style='sci', scilimits=(0,0), axis='y')
+		#self.axss.ticklabel_format(style='sci', scilimits=(0,0), axis='y')
+		formatter = ScalarFormatter(useMathText=True)
+		formatter.set_powerlimits((0, 0))
+		self.axss.yaxis.set_major_formatter(formatter)
 
 	def baseDist(self):
 		""" 
@@ -319,10 +323,15 @@ class SingleSeisGather():
 		axss = self.axss
 		stations = [ sacdh.netsta for sacdh in self.saclist ]
 		trans = transforms.blended_transform_factory(axss.transAxes, axss.transData)
+		font = FontProperties()
+		font.set_family('monospace')
 		for i in range(self.nseis):
-			axss.text(1.02, self.ybases[i], stations[i], transform=trans, va='center', color=self.colors[i])
+			axss.text(1.02, self.ybases[i], stations[i], transform=trans, va='center', 
+				color=self.colors[i], fontproperties=font)
 		if self.opts.stack_on:
-			axss.text(1.02, self.stackbase, 'Stack', transform=trans, va='center', color=self.stackcolor)
+			axss.text(1.02, self.stackbase, 'Stack', transform=trans, va='center',
+				color=self.stackcolor, fontproperties=font)
+
 
 	def plotStack(self):
 		""" 

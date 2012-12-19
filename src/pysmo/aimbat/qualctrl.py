@@ -28,6 +28,7 @@ import os, sys, copy
 from matplotlib.mlab import l2norm
 from matplotlib.widgets import SpanSelector, Button, CheckButtons
 from matplotlib import transforms
+from matplotlib.font_manager import FontProperties
 from ttconfig import PPConfig, QCConfig, CCConfig, MCConfig, getParser
 from sacpickle import loadData, SacDataHdrs, taperWindow
 from plotutils import TimeSelector, pickLegend
@@ -121,7 +122,10 @@ class PickPhaseMenuMore:
 			axstk.text(1,1.01,self.opts.pklfile,transform=trans, va='bottom', ha='right',color='k')
 		axpp = self.ppm.axpp
 		trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
-		axpp.text(1.025, 0, ' '*16+'qual=ccc/snr/coh', transform=trans, va='center', color='k')
+		font = FontProperties()
+		font.set_family('monospace')
+		axpp.text(1.025, 0, ' '*8+'qual= CCC/SNR/COH', transform=trans, va='center', 
+			color='k', fontproperties=font)
 
 	def plotStack(self):
 		""" Plot array stack and span """

@@ -47,7 +47,7 @@ if __name__ == '__main__':
 	xxlim = -20, 20
 
 	reltimes = [0, 1, 2, 3]
-	tlabs = 'ABCD'
+	tlabs = 'abcd'
 	npick = len(reltimes)
 	axs = axes2(npick)
 
@@ -65,6 +65,6 @@ if __name__ == '__main__':
 		trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
 		ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)	
 
-	savefig('egalignp2.png', format='png', dpi=300)
+	savefig('egalignp2.pdf', format='pdf')
 	show()	
 

@@ -42,6 +42,7 @@ from pylab import *
 import sys
 from matplotlib.widgets import Button
 from matplotlib import transforms
+from matplotlib.font_manager import FontProperties
 from ttconfig import PPConfig, getParser
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader
 from sacpickle import loadData, saveData 
@@ -168,7 +169,7 @@ class PickPhase:
 		axpp = self.axpp
 		sacdh = self.sacdh
 		if self.opts.nlab_on:
-			slab = '{0:<8s} '.format(sacdh.netsta)
+			slab = '{0:<8s}'.format(sacdh.netsta)
 		else:
 			slab = sacdh.filename.split('/')[-1]
 		if self.opts.labelqual:
@@ -176,9 +177,12 @@ class PickPhase:
 			cc = sacdh.gethdr(hdrcc)
 			sn = sacdh.gethdr(hdrsn)
 			co = sacdh.gethdr(hdrco)
-			slab += ' qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
+			slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
 		trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
-		self.stalabel = axpp.text(1.025, self.ybase, slab, transform=trans, va='center', color=self.color)
+		font = FontProperties()
+		font.set_family('monospace')
+		self.stalabel = axpp.text(1.025, self.ybase, slab, transform=trans, va='center', 
+			color=self.color, fontproperties=font)
 	
 	def on_pick(self, event):
 		""" Click a seismogram to show file name.
@@ -490,7 +494,7 @@ class PickPhaseMenu():
 		axpp = self.axpp
 		axpp.set_yticks(self.ybases)
 		axpp.set_yticklabels(self.yticks)
-		axpp.set_ylabel('Trace number')
+		axpp.set_ylabel('Trace Number')
 		axpp.axhline(y=0, lw=2, color='r')
 		if self.opts.boundlines_on:
 			for yy in range(self.azylim[0], self.azylim[1]):
@@ -523,11 +527,11 @@ class PickPhaseMenu():
 		colsel = self.opts.pppara.colorwave
 		coldel = self.opts.pppara.colorwavedel
 		axpp.annotate('Selected', xy=(1.015, self.azylim[0]), xycoords=trans, xytext=(1.03, -0.17),
-			size=11, va='top', color=colsel,
+			size=10, va='top', color=colsel,
 			bbox=dict(boxstyle="round,pad=.2", fc='w', ec=(1,.5,.5)),  
 			arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=-90,rad=20",color=colsel, lw=2),)
-		axpp.annotate('Deleted', xy=(1.015, self.azylim[1]), xycoords=trans, xytext=(1.03, 0.17),
-			size=11, va='bottom', color=coldel,
+		axpp.annotate('Deselected', xy=(1.015, self.azylim[1]), xycoords=trans, xytext=(1.03, 0.17),
+			size=10, va='bottom', color=coldel,
 			bbox=dict(boxstyle="round,pad=.2", fc='w', ec=(1,.5,.5)),  
 			arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=-90,rad=20",color=coldel, lw=2),)
 
