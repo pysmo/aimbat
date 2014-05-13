@@ -35,7 +35,7 @@ Dependencies
 * scipy
 * matplotlib
 * pysmo.sac
-
+* Tkinter
 
 Installation
 ------------
