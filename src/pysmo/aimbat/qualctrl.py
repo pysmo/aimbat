@@ -38,6 +38,9 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 
+import Tkinter
+import tkMessageBox
+
 def getOptions():
 	""" Parse arguments and options. """
 	parser = getParser()
@@ -303,6 +306,9 @@ class PickPhaseMenuMore:
 		self.tfin = self.gsac.stkdh.gethdr(hdrfin)
 
 	def ccim(self, event):
+		# running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake
+		tkMessageBox.showwarning("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+
 		""" Run iccs with time window from final stack. Time picks: hdrini, hdrmed.
 		"""
 		hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
@@ -319,6 +325,8 @@ class PickPhaseMenuMore:
 		if self.gsac.stkdh.gethdr(hdrfin) == -12345.:
 			print '*** hfinal %s is not defined. Sync first! ***' % hdrfin
 			return
+		# running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake
+		tkMessageBox.showwarning("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
 		self.cchdrs = hdrfin, hdrfin
 		self.getWindow(self.cchdrs[0])
 		self.getPicks()
