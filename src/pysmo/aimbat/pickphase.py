@@ -557,6 +557,9 @@ class PickPhaseMenu():
 		self.dmin = data[:,0].min()
 		self.dmax = data[:,1].max() 
 
+	def fron(self, event):
+		self.replot(0)
+
 	def prev(self, event):
 		self.replot(self.ipage-1)
 
@@ -572,18 +575,24 @@ class PickPhaseMenu():
 		close()
 
 	def connect(self):
+		self.axfron = self.axs['Fron']
 		self.axprev = self.axs['Prev']
 		self.axnext = self.axs['Next']
 		self.axsave = self.axs['Save']
 		self.axquit = self.axs['Quit']
+
+		self.bnfron = Button(self.axfron, 'Front')
 		self.bnprev = Button(self.axprev, 'Prev')
 		self.bnnext = Button(self.axnext, 'Next')
 		self.bnsave = Button(self.axsave, 'Save')
 		self.bnquit = Button(self.axquit, 'Quit')
+
+		self.cidprev = self.bnfron.on_clicked(self.fron)
 		self.cidprev = self.bnprev.on_clicked(self.prev)
 		self.cidnext = self.bnnext.on_clicked(self.next)
 		self.cidsave = self.bnsave.on_clicked(self.save)
 		self.cidquit = self.bnquit.on_clicked(self.quit)
+
 		self.cidpress = self.axpp.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
 	def disconnect(self):
