@@ -46,3 +46,9 @@ Installation
 	python setup.py build --fcompiler=gfortran
 	python setup.py install
 * Add the directory pysmo-aimbat-0.1.1/scripts to environment variable $PATH
+
+Filtering Data
+--------------
+* `evsacbp/sh <name of file>.sac f0 f1`, where `f0` is the lower frequency. and `f1` is the higher frequency. in hertz
+
+
