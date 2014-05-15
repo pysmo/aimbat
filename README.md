@@ -28,7 +28,10 @@ For more informaton visit
 http://www.earth.northwestern.edu/~xlou/aimbat.html
 https://github.com/pysmo/aimbat
 
-We are trying to use Sphinx to document this.
+Documentation
+-------------
+* We are trying to use Sphinx to document this.
+* Will be hosted on Github: http://blog.transifex.com/post/31979487717/hosting-sphinx-on-github
 
 Dependencies
 ------------
