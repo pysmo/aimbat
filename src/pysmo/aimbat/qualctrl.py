@@ -79,6 +79,11 @@ def getOptions():
 		sys.exit()
 	return opts, files
 
+# ############################################################################### #
+#                                                                                 #
+#                              CLASS: PickPhaseMenuMore                           #
+#                                                                                 #
+# ############################################################################### #
 
 class PickPhaseMenuMore:
 	""" Pick phase for multiple seismograms and array stack
@@ -198,6 +203,9 @@ class PickPhaseMenuMore:
 		self.span = TimeSelector(axstk, on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
+	def sortBy(self, event):
+		print 'SORTING'
+
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
 		"""
@@ -229,24 +237,29 @@ class PickPhaseMenuMore:
 
 	def connect(self):
 		""" Connect button events. """
+		# write the position for the buttons into self
 		self.axccim = self.axs['CCIM']
 		self.axccff = self.axs['CCFF']
 		self.axsync = self.axs['Sync']
 		self.axmccc = self.axs['MCCC']
-		#self.axsac1 = self.axs['SAC1']
 		self.axsac2 = self.axs['SAC2']
+		self.axsort = self.axs['Sort']
+
+		# name the buttons
 		self.bnccim = Button(self.axccim, 'ICCS-A')
 		self.bnccff = Button(self.axccff, 'ICCS-B')
 		self.bnsync = Button(self.axsync, 'Sync')
 		self.bnmccc = Button(self.axmccc, 'MCCC')
-		#self.bnsac1 = Button(self.axsac1, 'SAC P1')
 		self.bnsac2 = Button(self.axsac2, 'SAC P2')
+		self.bnsort = Button(self.axsort, 'Sort')
+
 		self.cidccim = self.bnccim.on_clicked(self.ccim)
 		self.cidccff = self.bnccff.on_clicked(self.ccff)
 		self.cidsync = self.bnsync.on_clicked(self.sync)
 		self.cidmccc = self.bnmccc.on_clicked(self.mccc)
-		#self.cidsac1 = self.bnsac1.on_clicked(self.plot1)
 		self.cidsac2 = self.bnsac2.on_clicked(self.plot2)
+		self.cidsort = self.bnsort.on_clicked(self.sortBy)
+
 		self.cidpress = self.axstk.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
 	def disconnect(self):
@@ -255,14 +268,15 @@ class PickPhaseMenuMore:
 		self.bnccff.disconnect(self.cidccff)
 		self.bnsync.disconnect(self.cidsync)
 		self.bnmccc.disconnect(self.cidmccc)
-		self.bnsac1.disconnect(self.cidsac1)
 		self.bnsac2.disconnect(self.cidsac2)
+		self.bnsort.disconnect(self.cidsort)
+
 		self.axccim.cla()
 		self.axccff.cla()
 		self.axsync.cla()
 		self.axmccc.cla()
-		self.axsac1.cla()
 		self.axsac2.cla()
+		self.axsort.cla()
 
 	def syncPick(self):
 		""" Sync final time pick hdrfin from array stack to all traces. 
@@ -448,6 +462,17 @@ class PickPhaseMenuMore:
 
 		show()
 
+# ############################################################################### #
+#                                                                                 #
+#                              CLASS: PickPhaseMenuMore                           #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                               SORTING SEISMOGRAMS                               #
+#                                                                                 #
+# ############################################################################### #
 
 def sortSeis(gsac, opts):
 	'Sort seismograms by file indices, quality factors, time difference, or a given header.'
@@ -481,6 +506,17 @@ def sortSeis(gsac, opts):
 		gsac.selist, gsac.delist = sortSeisHeader(gsac.saclist, sortby, sortincrease)
 	return
 
+# ############################################################################### #
+#                                                                                 #
+#                               SORTING SEISMOGRAMS                               #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                                  PARSING OPTIONS                                #
+#                                                                                 #
+# ############################################################################### #
 
 def getDataOpts():
 	'Get SAC Data and Options'
@@ -524,7 +560,17 @@ def getDataOpts():
 	initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
 	return gsac, opts
 
+# ############################################################################### #
+#                                                                                 #
+#                                  PARSING OPTIONS                                #
+#                                                                                 #
+# ############################################################################### #
 
+# ############################################################################### #
+#                                                                                 #
+#                        SETUP LOCATIONS OF BUTTONS AND PLOTS                     #
+#                                                                                 #
+# ############################################################################### #
 
 def getAxes(opts):
 	""" Get axes for plotting """
@@ -555,6 +601,7 @@ def getAxes(opts):
 	ysave = y1 - dy*3
 	yquit = y1 - dy*4
 	ysac2 = yquit - dy*1.5
+	ysort = ysac2 - dy*1.5
 
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
@@ -566,6 +613,7 @@ def getAxes(opts):
 	rectccff = [xm, yccff, xx, yy]
 	rectmccc = [xm, ymccc, xx, yy]
 	rectsac2 = [xm, ysac2, xx, yy]
+	rectsort = [xm, ysort, xx, yy]
 
 	axs = {}
 	axs['Seis'] = fig.add_axes(rectseis)
@@ -582,9 +630,15 @@ def getAxes(opts):
 	axs['CCFF'] = fig.add_axes(rectccff)
 	axs['MCCC'] = fig.add_axes(rectmccc)
 	axs['SAC2'] = fig.add_axes(rectsac2)
+	axs['Sort'] = fig.add_axes(rectsort)
 
 	return axs
 
+# ############################################################################### #
+#                                                                                 #
+#                        SETUP LOCATIONS OF BUTTONS AND PLOTS                     #
+#                                                                                 #
+# ############################################################################### #
 
 def main():
 	gsac, opts = getDataOpts()

@@ -86,7 +86,11 @@ try:
 except:
 	import pickle
 
-
+# ############################################################################### #
+#                                                                                 #
+#                         MANIPULATING PICKLE FILES                               #
+#                                                                                 #
+# ############################################################################### #
 
 def zipFile(zipmode='gz'):
 	""" Return file compress method: bz2 or gz.
@@ -135,6 +139,12 @@ def readPickle(picklefile, zipmode=None):
 		with contextlib.closing(zfile(picklefile+'.'+zipmode, 'rb')) as f:
 			d = pickle.load(f)
 	return d
+
+# ############################################################################### #
+#                                                                                 #
+#                         MANIPULATING PICKLE FILES                               #
+#                                                                                 #
+# ############################################################################### #
 
 # ############################################################################### #
 #                                                                                 #
@@ -454,7 +464,6 @@ def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 			nb0 = min(nb,nd)
 			data = concatenate((zpada, sacd[na0:nb0], zpadb))
 			print (saclist[i].netsta+': not enough sample around reftime. Pad left {0:d} right {1:d} zeros'.format(len(zpada),len(zpadb)))
-			print saclist[i]
 		data -= mean(data)
 		data = taper(data, taperwidth, tapertype)
 		datawin.append(data)
