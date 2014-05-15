@@ -28,6 +28,8 @@ For more informaton visit
 http://www.earth.northwestern.edu/~xlou/aimbat.html
 https://github.com/pysmo/aimbat
 
+We are trying to use Sphinx to document this.
+
 Dependencies
 ------------
 * python
