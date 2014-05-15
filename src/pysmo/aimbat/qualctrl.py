@@ -8,6 +8,7 @@
 #------------------------------------------------
 """
 Python module for interactively measuring body wave travel times and quality control.
+Used by ttpick.py
 
 	PickPhaseMenuMore
 		||
@@ -353,6 +354,7 @@ class PickPhaseMenuMore:
 			return
 		# running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake
 		tkMessageBox.showwarning("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		
 		self.cchdrs = hdrfin, hdrfin
 		self.getWindow(self.cchdrs[0])
 		self.getPicks()

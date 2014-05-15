@@ -136,6 +136,11 @@ def readPickle(picklefile, zipmode=None):
 			d = pickle.load(f)
 	return d
 
+# ############################################################################### #
+#                                                                                 #
+#                                CLASS: SacDataHdrs                               #
+#                                                                                 #
+# ############################################################################### #
 
 class SacDataHdrs:
 	""" Class for individual SAC file's data and headers.
@@ -255,6 +260,18 @@ class SacDataHdrs:
 		self.savehdrs(sacobj)
 		sacobj.close()
 
+# ############################################################################### #
+#                                                                                 #
+#                                CLASS: SacDataHdrs                               #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                                  CLASS: SacGroup                                #
+#                                                                                 #
+# ############################################################################### #
+
 class SacGroup:
 	""" Read a group of SAC files' headers and data to python objects in memory.
 		Get event information.
@@ -291,6 +308,12 @@ class SacGroup:
 		""" resample data of all sacdh """
 		for sacdh in self.saclist:
 			sacdh.resampleData(delta)
+
+# ############################################################################### #
+#                                                                                 #
+#                                  CLASS: SacGroup                                #
+#                                                                                 #
+# ############################################################################### #
 
 def resampleSeis(data, deltaold, delta):
 	""" Resample data of a seismogram if given a different positive delta """
@@ -431,6 +454,7 @@ def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 			nb0 = min(nb,nd)
 			data = concatenate((zpada, sacd[na0:nb0], zpadb))
 			print (saclist[i].netsta+': not enough sample around reftime. Pad left {0:d} right {1:d} zeros'.format(len(zpada),len(zpadb)))
+			print saclist[i]
 		data -= mean(data)
 		data = taper(data, taperwidth, tapertype)
 		datawin.append(data)
