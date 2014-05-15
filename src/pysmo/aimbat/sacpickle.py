@@ -495,7 +495,7 @@ def loadData(ifiles, opts, para):
 		opts.delta = delta
 		opts.pklfile = None
 	elif len(ifiles) > 1:
-		print('More than one pickle file given. Exit. ')
+		print('More than one pickle file given. Exit.')
 		sys.exit()
 	else:
 		if zipmode is not None:
@@ -512,6 +512,7 @@ def loadData(ifiles, opts, para):
 	print ('Read {0:d} seismograms with sampling interval: {1:f}s'.format(len(gsac.saclist), opts.delta))
 	return gsac 
 
+# saves headers for TTPICK.PY
 def saveData(gsac, opts):
 	""" Save pickle or sac files.
 	"""
@@ -521,6 +522,7 @@ def saveData(gsac, opts):
 		if 'stkdh' in gsac.__dict__:
 			gsac.stkdh.savesac()
 	elif opts.filemode == 'pkl':
+		print 'SWAG SWAG'
 		writePickle(gsac, opts.pklfile, opts.zipmode)
 	else:
 		print ('Unknown file type. Exit..')

@@ -393,7 +393,6 @@ class PickPhaseMenuMore:
 		selist = self.gsac.selist
 
 		tpicks = opts.qcpara.ichdrs + [opts.mcpara.wpick,]
-		print ('SAC Plot2')
 		npick = len(tpicks)
 		tlabs = 'ABCDE'
 
@@ -462,7 +461,10 @@ def getDataOpts():
 	qcpara = QCConfig()
 	ccpara = CCConfig()
 	mcpara = MCConfig()
+
 	gsac = loadData(ifiles, opts, pppara)
+
+
 	mcpara.delta = opts.delta
 	opts.qheaders = qcpara.qheaders
 	opts.qweights = qcpara.qweights
@@ -503,8 +505,11 @@ def getAxes(opts):
 	if backend == 'tkagg':
 		get_current_fig_manager().window.wm_geometry("1100x1050+700+0")
 	rcParams['legend.fontsize'] = 10
+
 	rectseis = [0.12, 0.04, 0.66, 0.82]
 	rectfstk = [0.12, 0.89, 0.66, 0.08]
+	rectinfo = [0.88, 0.89, 0.10, 0.09]
+
 	xx = 0.06
 	yy = 0.04
 	xm = 0.02
@@ -537,6 +542,8 @@ def getAxes(opts):
 	axs = {}
 	axs['Seis'] = fig.add_axes(rectseis)
 	axs['Fstk'] = fig.add_axes(rectfstk, sharex=axs['Seis'])
+	axs['Info'] = fig.add_axes(rectinfo)
+
 	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
