@@ -203,8 +203,10 @@ class PickPhaseMenuMore:
 		self.span = TimeSelector(axstk, on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
-	def sortBy(self, event):
+	def sorting(self, event):
+		""" Sort the seismograms in particular order """
 		print 'SORTING'
+
 
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
@@ -258,7 +260,7 @@ class PickPhaseMenuMore:
 		self.cidsync = self.bnsync.on_clicked(self.sync)
 		self.cidmccc = self.bnmccc.on_clicked(self.mccc)
 		self.cidsac2 = self.bnsac2.on_clicked(self.plot2)
-		self.cidsort = self.bnsort.on_clicked(self.sortBy)
+		self.cidsort = self.bnsort.on_clicked(self.sorting)
 
 		self.cidpress = self.axstk.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
@@ -577,7 +579,7 @@ def getAxes(opts):
 	fig = figure(figsize=(13, 12.5))
 	backend = get_backend().lower()
 	if backend == 'tkagg':
-		get_current_fig_manager().window.wm_geometry("1100x1050+700+0")
+		get_current_fig_manager().window.wm_geometry("1300x1050+700+0")
 	rcParams['legend.fontsize'] = 10
 
 	rectseis = [0.12, 0.04, 0.66, 0.82]
