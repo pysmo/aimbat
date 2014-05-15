@@ -203,15 +203,48 @@ class PickPhaseMenuMore:
 		self.span = TimeSelector(axstk, on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
+	# -------------------------------- SORTING ---------------------------------- #
+
+	# Sort seismograms by 
+	#    --------------
+	# * | file indices |
+	#    --------------
+	#                   ----- ----- ----- -----
+	# * quality factor | all | ccc | snr | coh |
+	#                   ----- ----- ----- -----
+	#                 ---- ----- ------
+	# * given header | az | baz | dist |
+	#                 ---- ----- ------
+	
 	def sorting(self, event):
 		""" Sort the seismograms in particular order """
+		gsac = self.gsac
+		print gsac
+
+		self.getSortAxes()
+		show()
+
+	def getSortAxes(given):
 		fig = figure(figsize=(6, 8))
 		backend = get_backend().lower()
 		if backend == 'tkagg':
-			print 'BACKEND'
 			get_current_fig_manager().window.wm_geometry("500x600+720+80")
-		show()
 
+		rect_fileIndices = [0.12, 0.04, 0.66, 0.82]
+		# rectfstk = [0.12, 0.89, 0.66, 0.08]
+		# rectinfo = [0.86, 0.89, 0.12, 0.09]
+
+		#xx = 0.06
+		#yy = 0.04
+		#xm = 0.02
+		#dy = 0.05
+
+		#rectfron = [xm, yfron, xx, yy]
+
+		sortAxs = {}
+		sortAxs['FileIndices'] = fig.add_axes(rect_fileIndices)
+
+	# -------------------------------- SORTING ---------------------------------- #
 
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
