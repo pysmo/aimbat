@@ -125,12 +125,11 @@ class PickPhaseMenuMore:
 		  * Depth
 		"""
 		gsac = self.gsac
-
 		# get required parameters
-		locationLat = gsac.event[6]
-		locationLon = gsac.event[7]
-		depth = gsac.event[8]
-		magnitude = gsac.event[9]
+		locationLat = round(gsac.event[6],2)
+		locationLon = round(gsac.event[7],2)
+		depth = round(gsac.event[8],2)
+		magnitude = round(gsac.event[9],2)
 
 		infoaxis = self.axs['Info']
 
@@ -138,7 +137,11 @@ class PickPhaseMenuMore:
 		infoaxis.axes.get_xaxis().set_ticks([])
 		infoaxis.axes.get_yaxis().set_visible(False)
 
-		infoaxis.text(0.1,0.9,'Magnitude: '+str(depth))
+		# write the info into the axis plot
+		infoaxis.text(0.1,0.8,'Magnitude: '+str(depth))
+		infoaxis.text(0.1,0.6,'Lat: '+str(locationLat))
+		infoaxis.text(0.1,0.4,'Lon: '+str(locationLon))
+		infoaxis.text(0.1,0.2,'Depth: '+str(depth))
 
 	def setLabels(self):
 		""" Set plot attributes """
@@ -532,7 +535,7 @@ def getAxes(opts):
 
 	rectseis = [0.12, 0.04, 0.66, 0.82]
 	rectfstk = [0.12, 0.89, 0.66, 0.08]
-	rectinfo = [0.88, 0.89, 0.10, 0.09]
+	rectinfo = [0.86, 0.89, 0.12, 0.09]
 
 	xx = 0.06
 	yy = 0.04
