@@ -46,6 +46,10 @@ Structure:
         sacdh.netsta/filename
         sacdh.staloc = [stla, stlo, stel]
 
+gsac.event parameters:
+	[ year, mon, day, isac.nzhour, isac.nzmin, isac.nzsec+isac.nzmsec*0.001, 
+	  isac.evla, isac.evlo, isac.evdp*0.001, mag ]
+
 Time array is not saved in sacdh object but is generated and used in memeory. 
 Time array is always in absolute sense. Reference time is an independent variable
  and relative is calculated whenever needed.
@@ -495,7 +499,7 @@ def loadData(ifiles, opts, para):
 		opts.delta = delta
 		opts.pklfile = None
 	elif len(ifiles) > 1:
-		print('More than one pickle file given. Exit. ')
+		print('More than one pickle file given. Exit.')
 		sys.exit()
 	else:
 		if zipmode is not None:
@@ -512,6 +516,7 @@ def loadData(ifiles, opts, para):
 	print ('Read {0:d} seismograms with sampling interval: {1:f}s'.format(len(gsac.saclist), opts.delta))
 	return gsac 
 
+# saves headers for TTPICK.PY
 def saveData(gsac, opts):
 	""" Save pickle or sac files.
 	"""

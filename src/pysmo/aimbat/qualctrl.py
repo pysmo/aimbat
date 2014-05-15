@@ -103,6 +103,7 @@ class PickPhaseMenuMore:
 				self.ccStack()
 		self.initPlot()
 		self.plotStack()
+		self.addEarthquakeInfo()
 		self.setLabels()
 		self.connect()
 
@@ -115,6 +116,31 @@ class PickPhaseMenuMore:
 		# make the legend box invisible
 		if self.opts.pick_on:
 			self.ppm.axpp.get_legend().set_visible(False)
+
+	def addEarthquakeInfo(self):
+		""" Set Earthquake Info
+		  * Magnitude
+		  * Location (Lat and Long)
+		  * Depth
+		"""
+		gsac = self.gsac
+		# get required parameters
+		locationLat = round(gsac.event[6],2)
+		locationLon = round(gsac.event[7],2)
+		depth = round(gsac.event[8],2)
+		magnitude = round(gsac.event[9],2)
+
+		infoaxis = self.axs['Info']
+
+		# remove axes markings
+		infoaxis.axes.get_xaxis().set_ticks([])
+		infoaxis.axes.get_yaxis().set_visible(False)
+
+		# write the info into the axis plot
+		infoaxis.text(0.1,0.8,'Magnitude: '+str(depth))
+		infoaxis.text(0.1,0.6,'Lat: '+str(locationLat))
+		infoaxis.text(0.1,0.4,'Lon: '+str(locationLon))
+		infoaxis.text(0.1,0.2,'Depth: '+str(depth))
 
 	def setLabels(self):
 		""" Set plot attributes """
@@ -393,7 +419,6 @@ class PickPhaseMenuMore:
 		selist = self.gsac.selist
 
 		tpicks = opts.qcpara.ichdrs + [opts.mcpara.wpick,]
-		print ('SAC Plot2')
 		npick = len(tpicks)
 		tlabs = 'ABCDE'
 
@@ -462,7 +487,10 @@ def getDataOpts():
 	qcpara = QCConfig()
 	ccpara = CCConfig()
 	mcpara = MCConfig()
+
 	gsac = loadData(ifiles, opts, pppara)
+
+
 	mcpara.delta = opts.delta
 	opts.qheaders = qcpara.qheaders
 	opts.qweights = qcpara.qweights
@@ -503,8 +531,11 @@ def getAxes(opts):
 	if backend == 'tkagg':
 		get_current_fig_manager().window.wm_geometry("1100x1050+700+0")
 	rcParams['legend.fontsize'] = 10
+
 	rectseis = [0.12, 0.04, 0.66, 0.82]
 	rectfstk = [0.12, 0.89, 0.66, 0.08]
+	rectinfo = [0.86, 0.89, 0.12, 0.09]
+
 	xx = 0.06
 	yy = 0.04
 	xm = 0.02
@@ -537,6 +568,8 @@ def getAxes(opts):
 	axs = {}
 	axs['Seis'] = fig.add_axes(rectseis)
 	axs['Fstk'] = fig.add_axes(rectfstk, sharex=axs['Seis'])
+	axs['Info'] = fig.add_axes(rectinfo)
+
 	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
