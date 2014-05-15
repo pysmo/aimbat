@@ -104,7 +104,6 @@ class PickPhaseMenuMore:
 		self.initPlot()
 		self.plotStack()
 		self.addEarthquakeInfo()
-		self.addEarthquakeInfo()
 		self.setLabels()
 		self.connect()
 

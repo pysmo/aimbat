@@ -526,7 +526,6 @@ def saveData(gsac, opts):
 		if 'stkdh' in gsac.__dict__:
 			gsac.stkdh.savesac()
 	elif opts.filemode == 'pkl':
-		print 'SWAG SWAG'
 		writePickle(gsac, opts.pklfile, opts.zipmode)
 	else:
 		print ('Unknown file type. Exit..')
