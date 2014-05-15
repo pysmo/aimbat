@@ -209,7 +209,7 @@ class PickPhaseMenuMore:
 		backend = get_backend().lower()
 		if backend == 'tkagg':
 			print 'BACKEND'
-			# get_current_fig_manager().window.wm_geometry("500x600+700+0")
+			get_current_fig_manager().window.wm_geometry("500x600+720+80")
 		show()
 
 
