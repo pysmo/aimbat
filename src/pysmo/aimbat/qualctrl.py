@@ -137,7 +137,7 @@ class PickPhaseMenuMore:
 		infoaxis.axes.get_yaxis().set_visible(False)
 
 		# write the info into the axis plot
-		infoaxis.text(0.1,0.8,'Magnitude: '+str(depth))
+		infoaxis.text(0.1,0.8,'Magnitude: '+str(magnitude))
 		infoaxis.text(0.1,0.6,'Lat: '+str(locationLat))
 		infoaxis.text(0.1,0.4,'Lon: '+str(locationLon))
 		infoaxis.text(0.1,0.2,'Depth: '+str(depth))
