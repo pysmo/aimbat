@@ -7,3 +7,8 @@ Hitting one of those buttons will undo all the work you did in manually picking 
 
 May 14, 2014:
 * Added a button to allow you to jump to the front page. Note that hitting MCCC again will do just that. 
+* Added a summary of the event at the top right hand corner. 
+  Parameters:
+  - Magnitude
+  - Location
+  - Depth
