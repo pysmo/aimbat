@@ -103,6 +103,8 @@ class PickPhaseMenuMore:
 				self.ccStack()
 		self.initPlot()
 		self.plotStack()
+		self.addEarthquakeInfo()
+		self.addEarthquakeInfo()
 		self.setLabels()
 		self.connect()
 
@@ -115,6 +117,28 @@ class PickPhaseMenuMore:
 		# make the legend box invisible
 		if self.opts.pick_on:
 			self.ppm.axpp.get_legend().set_visible(False)
+
+	def addEarthquakeInfo(self):
+		""" Set Earthquake Info
+		  * Magnitude
+		  * Location (Lat and Long)
+		  * Depth
+		"""
+		gsac = self.gsac
+
+		# get required parameters
+		locationLat = gsac.event[6]
+		locationLon = gsac.event[7]
+		depth = gsac.event[8]
+		magnitude = gsac.event[9]
+
+		infoaxis = self.axs['Info']
+
+		# remove axes markings
+		infoaxis.axes.get_xaxis().set_ticks([])
+		infoaxis.axes.get_yaxis().set_visible(False)
+
+		infoaxis.text(0.1,0.9,'Magnitude: '+str(depth))
 
 	def setLabels(self):
 		""" Set plot attributes """
