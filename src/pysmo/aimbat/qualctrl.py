@@ -205,7 +205,12 @@ class PickPhaseMenuMore:
 
 	def sorting(self, event):
 		""" Sort the seismograms in particular order """
-		print 'SORTING'
+		fig = figure(figsize=(6, 8))
+		backend = get_backend().lower()
+		if backend == 'tkagg':
+			print 'BACKEND'
+			# get_current_fig_manager().window.wm_geometry("500x600+700+0")
+		show()
 
 
 	def on_zoom(self, event):
@@ -576,7 +581,7 @@ def getDataOpts():
 
 def getAxes(opts):
 	""" Get axes for plotting """
-	fig = figure(figsize=(13, 12.5))
+	fig = figure(figsize=(14, 12.5))
 	backend = get_backend().lower()
 	if backend == 'tkagg':
 		get_current_fig_manager().window.wm_geometry("1300x1050+700+0")
