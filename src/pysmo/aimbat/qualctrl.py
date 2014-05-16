@@ -219,7 +219,6 @@ class PickPhaseMenuMore:
 	def sorting(self, event):
 		""" Sort the seismograms in particular order """
 		gsac = self.gsac
-		print gsac
 
 		sortAxes = self.getSortAxes()
 		# self.sortAxes = sortAxes
@@ -258,7 +257,11 @@ class PickPhaseMenuMore:
 		self.bnfile.on_clicked(self.sortfile)
 
 	def sortfile(self, event):
-		print 'SORT FILE'
+		""" Plot waveforms """
+		self.opts.sortby = 'i'
+		self.replot()
+		print 'DONE WITH SORT'
+		return
 
 
 	# -------------------------------- SORTING ---------------------------------- #
@@ -534,6 +537,8 @@ class PickPhaseMenuMore:
 def sortSeis(gsac, opts):
 	'Sort seismograms by file indices, quality factors, time difference, or a given header.'
 	sortby = opts.sortby
+	print 'WHAT TO SORT BY: ' 
+	print sortby 
 	# determine increase/decrease order
 	if sortby[-1] == '-':
 		sortincrease = False
