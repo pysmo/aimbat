@@ -230,19 +230,43 @@ class PickPhaseMenuMore:
 		if backend == 'tkagg':
 			get_current_fig_manager().window.wm_geometry("500x600+720+80")
 
-		rect_fileIndices = [0.12, 0.04, 0.66, 0.82]
 		# rectfstk = [0.12, 0.89, 0.66, 0.08]
 		# rectinfo = [0.86, 0.89, 0.12, 0.09]
 
-		#xx = 0.06
-		#yy = 0.04
-		#xm = 0.02
-		#dy = 0.05
+		xx = 0.06
+		yy = 0.04
+		xm = 0.02
+		dy = 0.05
+		dx = 0.07
+
+		y0 = 0.90
+
+		rectfile = [0.10, y0, xx, yy]
+		rect_quality_all = [0.10, y0-dy, xx, yy]
 
 		#rectfron = [xm, yfron, xx, yy]
 
 		sortAxs = {}
-		sortAxs['FileIndices'] = fig.add_axes(rect_fileIndices)
+		sortAxs['file'] = fig.add_axes(rectfile)
+		sortAxs['QualityAll'] = fig.add_axes(rect_quality_all)
+
+	def sort_connect(self):
+		""" Connect button events. """
+		# write the position for the buttons into self
+		self.axfile = self.axs['file']
+		self.bnfile = Button(self.axccim, 'ICCS-A')
+		self.bnfile.on_clicked(self.sortfile)
+
+	def sort_disconnect(self):
+		""" Disconnect button events. """
+		self.bnccim.disconnect(self.cidccim)
+
+
+		self.axccim.cla()
+
+	def sortfile(self):
+		print 'SORT FILE'
+
 
 	# -------------------------------- SORTING ---------------------------------- #
 
