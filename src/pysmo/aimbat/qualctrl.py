@@ -362,76 +362,91 @@ class PickPhaseMenuMore:
 	def sort_qall(self, event):
 		self.opts.sortby = 'all';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_qccc(self, event):
 		self.opts.sortby = '1';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_qsnr(self, event):
 		self.opts.sortby = '2';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_qcoh(self, event):
 		self.opts.sortby = '3';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hnpts(self, event):
 		self.opts.sortby = 'npts';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hb(self, event):
 		self.opts.sortby = 'b';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_he(self, event):
 		self.opts.sortby = 'e';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hdelta(self, event):
 		self.opts.sortby = 'delta';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hkstnm(self, event):
 		self.opts.sortby = 'kstnm';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hstla(self, event):
 		self.opts.sortby = 'stla';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hstlo(self, event):
 		self.opts.sortby = 'stlo';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hdist(self, event):
 		self.opts.sortby = 'dist';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_haz(self, event):
 		self.opts.sortby = 'az';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hbaz(self, event):
 		self.opts.sortby = 'baz';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_hgcarc(self, event):
 		self.opts.sortby = 'gcarc';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def dismiss_sort(self, event):
