@@ -71,6 +71,12 @@ def getOptions():
 		sys.exit()
 	return opts, files
 
+# ############################################################################### #
+#                                                                                 #
+#                                  CLASS: PickPhase                               #
+#                                                                                 #
+# ############################################################################### #
+
 class PickPhase:
 	""" 
 	Plot one single seismogram with given attributes.
@@ -350,6 +356,17 @@ class PickPhase:
 	def disconnectPick(self):
 		self.axpp.figure.canvas.mpl_disconnect(self.cidpick)
 
+# ############################################################################### #
+#                                                                                 #
+#                                  CLASS: PickPhase                               #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                               CLASS: PickPhaseMenu                              #
+#                                                                                 #
+# ############################################################################### #
 
 class PickPhaseMenu():
 	""" 
@@ -611,6 +628,18 @@ class PickPhaseMenu():
 		for pp in self.pps:	pp.disconnect()
 		self.axpp.cla()
 
+# ############################################################################### #
+#                                                                                 #
+#                               CLASS: PickPhaseMenu                              #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                                    SortSeis                                     #
+#                                                                                 #
+# ############################################################################### #
+
 def sortSeis(gsac, opts):
 	'Sort seismograms by file indices, quality factors, or a given header'
 	sortby = opts.sortby
@@ -637,6 +666,11 @@ def sortSeis(gsac, opts):
 		gsac.selist, gsac.delist = sortSeisHeader(gsac.saclist, sortby, sortincrease)
 	return
 
+# ############################################################################### #
+#                                                                                 #
+#                                    SortSeis                                     #
+#                                                                                 #
+# ############################################################################### #
 
 def getAxes(opts):
 	'Get axes for plotting'

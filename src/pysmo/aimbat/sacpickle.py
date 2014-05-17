@@ -86,7 +86,11 @@ try:
 except:
 	import pickle
 
-
+# ############################################################################### #
+#                                                                                 #
+#                         MANIPULATING PICKLE FILES                               #
+#                                                                                 #
+# ############################################################################### #
 
 def zipFile(zipmode='gz'):
 	""" Return file compress method: bz2 or gz.
@@ -136,6 +140,17 @@ def readPickle(picklefile, zipmode=None):
 			d = pickle.load(f)
 	return d
 
+# ############################################################################### #
+#                                                                                 #
+#                         MANIPULATING PICKLE FILES                               #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                                CLASS: SacDataHdrs                               #
+#                                                                                 #
+# ############################################################################### #
 
 class SacDataHdrs:
 	""" Class for individual SAC file's data and headers.
@@ -255,6 +270,18 @@ class SacDataHdrs:
 		self.savehdrs(sacobj)
 		sacobj.close()
 
+# ############################################################################### #
+#                                                                                 #
+#                                CLASS: SacDataHdrs                               #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                                  CLASS: SacGroup                                #
+#                                                                                 #
+# ############################################################################### #
+
 class SacGroup:
 	""" Read a group of SAC files' headers and data to python objects in memory.
 		Get event information.
@@ -291,6 +318,12 @@ class SacGroup:
 		""" resample data of all sacdh """
 		for sacdh in self.saclist:
 			sacdh.resampleData(delta)
+
+# ############################################################################### #
+#                                                                                 #
+#                                  CLASS: SacGroup                                #
+#                                                                                 #
+# ############################################################################### #
 
 def resampleSeis(data, deltaold, delta):
 	""" Resample data of a seismogram if given a different positive delta """

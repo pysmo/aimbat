@@ -8,6 +8,7 @@
 #------------------------------------------------
 """
 Python module for interactively measuring body wave travel times and quality control.
+Used by ttpick.py
 
 	PickPhaseMenuMore
 		||
@@ -78,6 +79,11 @@ def getOptions():
 		sys.exit()
 	return opts, files
 
+# ############################################################################### #
+#                                                                                 #
+#                              CLASS: PickPhaseMenuMore                           #
+#                                                                                 #
+# ############################################################################### #
 
 class PickPhaseMenuMore:
 	""" Pick phase for multiple seismograms and array stack
@@ -197,6 +203,259 @@ class PickPhaseMenuMore:
 		self.span = TimeSelector(axstk, on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
+	# -------------------------------- SORTING ---------------------------------- #
+
+	# Sort seismograms by 
+	#    --------------
+	# * | file indices |
+	#    --------------
+	#                   ----- ----- ----- -----
+	# * quality factor | all | ccc | snr | coh |
+	#                   ----- ----- ----- -----
+	#                 ---- ----- ------
+	# * given header | az | baz | dist |
+	#                 ---- ----- ------
+	
+	def sorting(self, event):
+		""" Sort the seismograms in particular order """
+		gsac = self.gsac
+		sortAxes = self.getSortAxes()
+		self.sort_connect()
+		self.sort_disconnect()
+		show()
+
+	def getSortAxes(self):
+		fig = figure(figsize=(10, 5))
+		self.figsort = fig
+
+		backend = get_backend().lower()
+		if backend == 'tkagg':
+			get_current_fig_manager().window.wm_geometry("800x400+720+80")
+
+		xx = 0.15
+		yy = 0.06
+		xm = 0.02
+		dy = 0.17
+		dx = 0.17
+		y0 = 0.90
+
+		"""Allocating size of buttons"""
+		# file indices (filenames)
+		rectfile = [0.10, y0-dy*1, xx, yy]
+		# quality
+		rectqall = [0.10+dx*0, y0-2*dy, xx, yy]
+		rectqccc = [0.10+dx*1, y0-2*dy, xx, yy]
+		rectqsnr = [0.10+dx*2, y0-2*dy, xx, yy]
+		rectqcoh = [0.10+dx*3, y0-2*dy, xx, yy]
+		# headers
+		recthnpts = [0.10+dx*0, y0-3*dy, xx, yy]
+		recthb = [0.1+dx*1, y0-3*dy, xx, yy]
+		recthe = [0.1+dx*2, y0-3*dy, xx, yy]
+		recthdelta = [0.1+dx*3, y0-3*dy, xx, yy]
+		recthkstnm = [0.1+dx*0, y0-3.5*dy, xx, yy]
+		recthstla = [0.1+dx*1, y0-3.5*dy, xx, yy]
+		recthstlo = [0.1+dx*2, y0-3.5*dy, xx, yy]
+		recthdist = [0.1+dx*3, y0-3.5*dy, xx, yy]
+		recthaz = [0.1+dx*0, y0-4*dy, xx, yy]
+		recthbaz = [0.1+dx*1, y0-4*dy, xx, yy]
+		recthgcarc = [0.1+dx*2, y0-4*dy, xx, yy]
+		# status
+		rectstat = [0.2, y0-5*dy, 0.6, yy]
+
+		"""writing buttons to axis"""
+		sortAxs = {}
+		self.figsort.text(0.1,y0-dy*0.5,'Sort by file Index Name: ')
+		sortAxs['file'] = fig.add_axes(rectfile)
+		self.figsort.text(0.1,y0-dy*1.5,'Sort by Quality: ')
+		sortAxs['qall'] = fig.add_axes(rectqall)
+		sortAxs['qccc'] = fig.add_axes(rectqccc)
+		sortAxs['qsnr'] = fig.add_axes(rectqsnr)
+		sortAxs['qcoh'] = fig.add_axes(rectqcoh)
+		self.figsort.text(0.1,y0-dy*2.5,'Sort by Header: ')
+		sortAxs['hnpts'] = fig.add_axes(recthnpts)
+		sortAxs['hb'] = fig.add_axes(recthb)
+		sortAxs['he'] = fig.add_axes(recthe)
+		sortAxs['hdelta'] = fig.add_axes(recthdelta)
+		sortAxs['hkstnm'] = fig.add_axes(recthkstnm)
+		sortAxs['hstla'] = fig.add_axes(recthstla)
+		sortAxs['hstlo'] = fig.add_axes(recthstlo)
+		sortAxs['hdist'] = fig.add_axes(recthdist)
+		sortAxs['haz'] = fig.add_axes(recthaz)
+		sortAxs['hbaz'] = fig.add_axes(recthbaz)
+		sortAxs['hgcarc'] = fig.add_axes(recthgcarc)
+		#status
+		sortAxs['stat'] = fig.add_axes(rectstat)
+		self.sortAxs = sortAxs
+
+	""" Connect button events. """
+	def sort_connect(self):
+		ion()
+
+		"""write the position for the buttons into self"""
+		self.axfile = self.sortAxs['file']
+		self.axqall = self.sortAxs['qall']
+		self.axqccc = self.sortAxs['qccc']
+		self.axqsnr = self.sortAxs['qsnr']
+		self.axqcoh = self.sortAxs['qcoh']
+		self.axqcoh = self.sortAxs['qcoh']
+		self.axhnpts = self.sortAxs['hnpts']
+		self.axhb = self.sortAxs['hb']
+		self.axhe = self.sortAxs['he']
+		self.axhdelta = self.sortAxs['hdelta']
+		self.axhkstnm = self.sortAxs['hkstnm']
+		self.axhstla = self.sortAxs['hstla']
+		self.axhstlo = self.sortAxs['hstlo']
+		self.axhdist = self.sortAxs['hdist']
+		self.axhaz = self.sortAxs['haz']
+		self.axhbaz = self.sortAxs['hbaz']
+		self.axhgcarc = self.sortAxs['hgcarc']
+		self.axstat = self.sortAxs['Quit']
+
+		"""add a button to the correct place as defined by the axes"""
+		self.bnfile = Button(self.axfile, 'File')
+		self.bnqall = Button(self.axqall, 'All')
+		self.bnqccc = Button(self.axqccc, 'CCC')
+		self.bnqsnr = Button(self.axqsnr, 'SNR')
+		self.bnqcoh = Button(self.axqcoh, 'COH')
+		self.bnhnpts = Button(self.axhnpts, 'NPTS')
+		self.bnhb = Button(self.axhb, 'B')
+		self.bnhe = Button(self.axhe, 'E')
+		self.bnhdelta = Button(self.axhdelta, 'Delta')
+		self.bnhkstnm = Button(self.axhkstnm, 'KSTNM')
+		self.bnhstla = Button(self.axhstla, 'STLA')
+		self.bnhstlo = Button(self.axhstlo, 'STLO')
+		self.bnhdist = Button(self.axhdist, 'Dist')
+		self.bnhaz = Button(self.axhaz, 'AZ')
+		self.bnhbaz = Button(self.axhbaz, 'BAZ')
+		self.bnhgcarc = Button(self.axhgcarc, 'GCARC')
+		self.bnstat = Button(self.axstat, 'Status')
+
+		""" each button changes the way the seismograms are sorted """
+		self.bnfile.on_clicked(self.sort_file)
+		self.bnqall.on_clicked(self.sort_qall)
+		self.bnqccc.on_clicked(self.sort_qccc)
+		self.bnqsnr.on_clicked(self.sort_qsnr)
+		self.bnqcoh.on_clicked(self.sort_qcoh)
+		self.bnhnpts.on_clicked(self.sort_hnpts)
+		self.bnhb.on_clicked(self.sort_hb)
+		self.bnhe.on_clicked(self.sort_he)
+		self.bnhdelta.on_clicked(self.sort_hdelta)
+		self.bnhkstnm.on_clicked(self.sort_hkstnm)
+		self.bnhstla.on_clicked(self.sort_hstla)
+		self.bnhstlo.on_clicked(self.sort_hstlo)
+		self.bnhdist.on_clicked(self.sort_hdist)
+		self.bnhaz.on_clicked(self.sort_haz)
+		self.bnhbaz.on_clicked(self.sort_hbaz)
+		self.bnhgcarc.on_clicked(self.sort_hgcarc)
+
+		# dismiss window when done
+		self.bnstat.on_clicked(self.dismiss_sort)
+
+	def sort_disconnect(self):
+		print 'lol'
+
+	def sort_file(self, event):
+		self.opts.sortby = 'i';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_qall(self, event):
+		self.opts.sortby = 'all';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_qccc(self, event):
+		self.opts.sortby = '1';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_qsnr(self, event):
+		self.opts.sortby = '2';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_qcoh(self, event):
+		self.opts.sortby = '3';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hnpts(self, event):
+		self.opts.sortby = 'npts';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hb(self, event):
+		self.opts.sortby = 'b';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_he(self, event):
+		self.opts.sortby = 'e';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hdelta(self, event):
+		self.opts.sortby = 'delta';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hkstnm(self, event):
+		self.opts.sortby = 'kstnm';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hstla(self, event):
+		self.opts.sortby = 'stla';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hstlo(self, event):
+		self.opts.sortby = 'stlo';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hdist(self, event):
+		self.opts.sortby = 'dist';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_haz(self, event):
+		self.opts.sortby = 'az';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hbaz(self, event):
+		self.opts.sortby = 'baz';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def sort_hgcarc(self, event):
+		self.opts.sortby = 'gcarc';
+		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
+		return
+
+	def dismiss_sort(self, event):
+		"""Dismiss the sorting selection popup Window"""
+		close(self.figsort)
+
+	# -------------------------------- SORTING ---------------------------------- #
+
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
 		"""
@@ -228,24 +487,29 @@ class PickPhaseMenuMore:
 
 	def connect(self):
 		""" Connect button events. """
+		# write the position for the buttons into self
 		self.axccim = self.axs['CCIM']
 		self.axccff = self.axs['CCFF']
 		self.axsync = self.axs['Sync']
 		self.axmccc = self.axs['MCCC']
-		#self.axsac1 = self.axs['SAC1']
 		self.axsac2 = self.axs['SAC2']
+		self.axsort = self.axs['Sort']
+
+		# name the buttons
 		self.bnccim = Button(self.axccim, 'ICCS-A')
 		self.bnccff = Button(self.axccff, 'ICCS-B')
 		self.bnsync = Button(self.axsync, 'Sync')
 		self.bnmccc = Button(self.axmccc, 'MCCC')
-		#self.bnsac1 = Button(self.axsac1, 'SAC P1')
 		self.bnsac2 = Button(self.axsac2, 'SAC P2')
+		self.bnsort = Button(self.axsort, 'Sort')
+
 		self.cidccim = self.bnccim.on_clicked(self.ccim)
 		self.cidccff = self.bnccff.on_clicked(self.ccff)
 		self.cidsync = self.bnsync.on_clicked(self.sync)
 		self.cidmccc = self.bnmccc.on_clicked(self.mccc)
-		#self.cidsac1 = self.bnsac1.on_clicked(self.plot1)
 		self.cidsac2 = self.bnsac2.on_clicked(self.plot2)
+		self.cidsort = self.bnsort.on_clicked(self.sorting)
+
 		self.cidpress = self.axstk.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
 	def disconnect(self):
@@ -254,14 +518,15 @@ class PickPhaseMenuMore:
 		self.bnccff.disconnect(self.cidccff)
 		self.bnsync.disconnect(self.cidsync)
 		self.bnmccc.disconnect(self.cidmccc)
-		self.bnsac1.disconnect(self.cidsac1)
 		self.bnsac2.disconnect(self.cidsac2)
+		self.bnsort.disconnect(self.cidsort)
+
 		self.axccim.cla()
 		self.axccff.cla()
 		self.axsync.cla()
 		self.axmccc.cla()
-		self.axsac1.cla()
 		self.axsac2.cla()
+		self.axsort.cla()
 
 	def syncPick(self):
 		""" Sync final time pick hdrfin from array stack to all traces. 
@@ -353,6 +618,7 @@ class PickPhaseMenuMore:
 			return
 		# running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake
 		tkMessageBox.showwarning("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		
 		self.cchdrs = hdrfin, hdrfin
 		self.getWindow(self.cchdrs[0])
 		self.getPicks()
@@ -446,10 +712,23 @@ class PickPhaseMenuMore:
 
 		show()
 
+# ############################################################################### #
+#                                                                                 #
+#                              CLASS: PickPhaseMenuMore                           #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                               SORTING SEISMOGRAMS                               #
+#                                                                                 #
+# ############################################################################### #
 
 def sortSeis(gsac, opts):
 	'Sort seismograms by file indices, quality factors, time difference, or a given header.'
 	sortby = opts.sortby
+	print 'WHAT TO SORT BY: ' 
+	print sortby 
 	# determine increase/decrease order
 	if sortby[-1] == '-':
 		sortincrease = False
@@ -479,6 +758,17 @@ def sortSeis(gsac, opts):
 		gsac.selist, gsac.delist = sortSeisHeader(gsac.saclist, sortby, sortincrease)
 	return
 
+# ############################################################################### #
+#                                                                                 #
+#                               SORTING SEISMOGRAMS                               #
+#                                                                                 #
+# ############################################################################### #
+
+# ############################################################################### #
+#                                                                                 #
+#                                  PARSING OPTIONS                                #
+#                                                                                 #
+# ############################################################################### #
 
 def getDataOpts():
 	'Get SAC Data and Options'
@@ -522,14 +812,24 @@ def getDataOpts():
 	initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
 	return gsac, opts
 
+# ############################################################################### #
+#                                                                                 #
+#                                  PARSING OPTIONS                                #
+#                                                                                 #
+# ############################################################################### #
 
+# ############################################################################### #
+#                                                                                 #
+#                        SETUP LOCATIONS OF BUTTONS AND PLOTS                     #
+#                                                                                 #
+# ############################################################################### #
 
 def getAxes(opts):
 	""" Get axes for plotting """
-	fig = figure(figsize=(13, 12.5))
+	fig = figure(figsize=(14, 12.5))
 	backend = get_backend().lower()
 	if backend == 'tkagg':
-		get_current_fig_manager().window.wm_geometry("1100x1050+700+0")
+		get_current_fig_manager().window.wm_geometry("1300x1050+700+0")
 	rcParams['legend.fontsize'] = 10
 
 	rectseis = [0.12, 0.04, 0.66, 0.82]
@@ -553,6 +853,7 @@ def getAxes(opts):
 	ysave = y1 - dy*3
 	yquit = y1 - dy*4
 	ysac2 = yquit - dy*1.5
+	ysort = ysac2 - dy*1.5
 
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
@@ -564,6 +865,7 @@ def getAxes(opts):
 	rectccff = [xm, yccff, xx, yy]
 	rectmccc = [xm, ymccc, xx, yy]
 	rectsac2 = [xm, ysac2, xx, yy]
+	rectsort = [xm, ysort, xx, yy]
 
 	axs = {}
 	axs['Seis'] = fig.add_axes(rectseis)
@@ -580,9 +882,15 @@ def getAxes(opts):
 	axs['CCFF'] = fig.add_axes(rectccff)
 	axs['MCCC'] = fig.add_axes(rectmccc)
 	axs['SAC2'] = fig.add_axes(rectsac2)
+	axs['Sort'] = fig.add_axes(rectsort)
 
 	return axs
 
+# ############################################################################### #
+#                                                                                 #
+#                        SETUP LOCATIONS OF BUTTONS AND PLOTS                     #
+#                                                                                 #
+# ############################################################################### #
 
 def main():
 	gsac, opts = getDataOpts()
