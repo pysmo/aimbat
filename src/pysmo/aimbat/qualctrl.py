@@ -221,7 +221,6 @@ class PickPhaseMenuMore:
 		gsac = self.gsac
 		sortAxes = self.getSortAxes()
 		self.sort_connect()
-		self.sort_disconnect()
 		show()
 
 	def getSortAxes(self):
@@ -346,13 +345,29 @@ class PickPhaseMenuMore:
 		self.cidhdist = self.bnhdist.on_clicked(self.sort_hdist)
 		self.cidhaz = self.bnhaz.on_clicked(self.sort_haz)
 		self.cidhbaz = self.bnhbaz.on_clicked(self.sort_hbaz)
-		self.cidgcarc = self.bnhgcarc.on_clicked(self.sort_hgcarc)
+		self.cidhgcarc = self.bnhgcarc.on_clicked(self.sort_hgcarc)
 
 		# dismiss window when done
 		self.bnstat.on_clicked(self.dismiss_sort)
 
 	def sort_disconnect(self):
 		self.bnfile.disconnect(self.cidfile)
+		self.bnqall.disconnect(self.cidqall)
+		self.bnqccc.disconnect(self.cidqccc)
+		self.bnqsnr.disconnect(self.cidqsnr)
+		self.bnqcoh.disconnect(self.cidqcoh)
+		self.bnhnpts.disconnect(self.cidhnpts)
+		self.bnhb.disconnect(self.cidhb)
+		self.bnhe.disconnect(self.cidhe)
+		self.bnhdelta.disconnect(self.cidhdelta)
+		self.bnhkstnm.disconnect(self.cidhkstnm)
+		self.bnhstla.disconnect(self.cidhstla)
+		self.bnhstlo.disconnect(self.cidhstlo)
+		self.bnhdist.disconnect(self.cidhdist)
+		self.bnhaz.disconnect(self.cidhaz)
+		self.bnhbaz.disconnect(self.cidhbaz)
+		self.bnhgcarc.disconnect(self.cidhgcarc)
+
 
 	def sort_file(self, event):
 		self.opts.sortby = 'i';
@@ -452,6 +467,7 @@ class PickPhaseMenuMore:
 
 	def dismiss_sort(self, event):
 		"""Dismiss the sorting selection popup Window"""
+		self.sort_disconnect()
 		close(self.figsort)
 
 	# -------------------------------- SORTING ---------------------------------- #
