@@ -356,6 +356,7 @@ class PickPhaseMenuMore:
 	def sort_file(self, event):
 		self.opts.sortby = 'i';
 		self.replot()
+		self.ppm.axpp.figure.canvas.draw()
 		return
 
 	def sort_qall(self, event):
