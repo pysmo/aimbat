@@ -224,67 +224,85 @@ class PickPhaseMenuMore:
 		show()
 
 	def getSortAxes(self):
-		fig = figure(figsize=(10, 5))
-		self.figsort = fig
+		figsort = figure(figsize=(10, 12))
+		self.figsort = figsort
 
 		backend = get_backend().lower()
 		if backend == 'tkagg':
-			get_current_fig_manager().window.wm_geometry("800x400+720+80")
+			get_current_fig_manager().window.wm_geometry("800x900+720+80")
 
-		xx = 0.15
-		yy = 0.06
+		x0 = 0.05
+		xx = 0.10
+		yy = 0.04
 		xm = 0.02
-		dy = 0.17
-		dx = 0.17
+		dy = 0.15
+		dx = 0.12
 		y0 = 0.90
 
 		"""Allocating size of buttons"""
 		# file indices (filenames)
-		rectfile = [0.10, y0-dy*1, xx, yy]
+		rectfile = [x0, y0-dy*1, xx, yy]
 		# quality
-		rectqall = [0.10+dx*0, y0-2*dy, xx, yy]
-		rectqccc = [0.10+dx*1, y0-2*dy, xx, yy]
-		rectqsnr = [0.10+dx*2, y0-2*dy, xx, yy]
-		rectqcoh = [0.10+dx*3, y0-2*dy, xx, yy]
+		rectqall = [x0+dx*0, y0-2*dy, xx, yy]
+		rectqccc = [x0+dx*1, y0-2*dy, xx, yy]
+		rectqsnr = [x0+dx*2, y0-2*dy, xx, yy]
+		rectqcoh = [x0+dx*3, y0-2*dy, xx, yy]
 		# headers
-		recthnpts = [0.10+dx*0, y0-3*dy, xx, yy]
-		recthb = [0.1+dx*1, y0-3*dy, xx, yy]
-		recthe = [0.1+dx*2, y0-3*dy, xx, yy]
-		recthdelta = [0.1+dx*3, y0-3*dy, xx, yy]
-		recthkstnm = [0.1+dx*0, y0-3.5*dy, xx, yy]
-		recthstla = [0.1+dx*1, y0-3.5*dy, xx, yy]
-		recthstlo = [0.1+dx*2, y0-3.5*dy, xx, yy]
-		recthdist = [0.1+dx*3, y0-3.5*dy, xx, yy]
-		recthaz = [0.1+dx*0, y0-4*dy, xx, yy]
-		recthbaz = [0.1+dx*1, y0-4*dy, xx, yy]
-		recthgcarc = [0.1+dx*2, y0-4*dy, xx, yy]
+		recthnpts = [x0+dx*0, y0-3*dy, xx, yy]
+		recthb = [x0+dx*1, y0-3*dy, xx, yy]
+		recthe = [x0+dx*2, y0-3*dy, xx, yy]
+		recthdelta = [x0+dx*3, y0-3*dy, xx, yy]
+		recthkstnm = [x0+dx*0, y0-3.5*dy, xx, yy]
+		recthstla = [x0+dx*1, y0-3.5*dy, xx, yy]
+		recthstlo = [x0+dx*2, y0-3.5*dy, xx, yy]
+		recthdist = [x0+dx*3, y0-3.5*dy, xx, yy]
+		recthaz = [x0+dx*0, y0-4*dy, xx, yy]
+		recthbaz = [x0+dx*1, y0-4*dy, xx, yy]
+		recthgcarc = [x0+dx*2, y0-4*dy, xx, yy]
 		# status
 		rectstat = [0.2, y0-5*dy, 0.6, yy]
 
 		"""writing buttons to axis"""
 		sortAxs = {}
 		self.figsort.text(0.1,y0-dy*0.5,'Sort by file Index Name: ')
-		sortAxs['file'] = fig.add_axes(rectfile)
+		sortAxs['file'] = figsort.add_axes(rectfile)
 		self.figsort.text(0.1,y0-dy*1.5,'Sort by Quality: ')
-		sortAxs['qall'] = fig.add_axes(rectqall)
-		sortAxs['qccc'] = fig.add_axes(rectqccc)
-		sortAxs['qsnr'] = fig.add_axes(rectqsnr)
-		sortAxs['qcoh'] = fig.add_axes(rectqcoh)
+		sortAxs['qall'] = figsort.add_axes(rectqall)
+		sortAxs['qccc'] = figsort.add_axes(rectqccc)
+		sortAxs['qsnr'] = figsort.add_axes(rectqsnr)
+		sortAxs['qcoh'] = figsort.add_axes(rectqcoh)
 		self.figsort.text(0.1,y0-dy*2.5,'Sort by Header: ')
-		sortAxs['hnpts'] = fig.add_axes(recthnpts)
-		sortAxs['hb'] = fig.add_axes(recthb)
-		sortAxs['he'] = fig.add_axes(recthe)
-		sortAxs['hdelta'] = fig.add_axes(recthdelta)
-		sortAxs['hkstnm'] = fig.add_axes(recthkstnm)
-		sortAxs['hstla'] = fig.add_axes(recthstla)
-		sortAxs['hstlo'] = fig.add_axes(recthstlo)
-		sortAxs['hdist'] = fig.add_axes(recthdist)
-		sortAxs['haz'] = fig.add_axes(recthaz)
-		sortAxs['hbaz'] = fig.add_axes(recthbaz)
-		sortAxs['hgcarc'] = fig.add_axes(recthgcarc)
+		sortAxs['hnpts'] = figsort.add_axes(recthnpts)
+		sortAxs['hb'] = figsort.add_axes(recthb)
+		sortAxs['he'] = figsort.add_axes(recthe)
+		sortAxs['hdelta'] = figsort.add_axes(recthdelta)
+		sortAxs['hkstnm'] = figsort.add_axes(recthkstnm)
+		sortAxs['hstla'] = figsort.add_axes(recthstla)
+		sortAxs['hstlo'] = figsort.add_axes(recthstlo)
+		sortAxs['hdist'] = figsort.add_axes(recthdist)
+		sortAxs['haz'] = figsort.add_axes(recthaz)
+		sortAxs['hbaz'] = figsort.add_axes(recthbaz)
+		sortAxs['hgcarc'] = figsort.add_axes(recthgcarc)
 		#status
-		sortAxs['stat'] = fig.add_axes(rectstat)
+		sortAxs['stat'] = figsort.add_axes(rectstat)
+
 		self.sortAxs = sortAxs
+
+		self.summarize_sort()
+
+	def summarize_sort(self):
+		sortAxs = self.sortAxs
+		figsort = self.figsort
+
+		# size of text summary box
+		rectsumm = [0.65, 0.05, 0.30, 0.90]
+
+		sortAxs['summary'] = figsort.add_axes(rectsumm)
+
+		# remove axes markings on summary field
+		sortAxs['summary'].get_xaxis().set_ticks([])
+		sortAxs['summary'].get_yaxis().set_visible([])
+
 
 	""" Connect button events. """
 	def sort_connect(self):
@@ -310,7 +328,9 @@ class PickPhaseMenuMore:
 		self.axhgcarc = self.sortAxs['hgcarc']
 		self.axstat = self.sortAxs['stat']
 
-		"""add a button to the correct place as defined by the axes"""
+		"""add a button to the correct place as defined by the axes
+		   Also label the buttons here, as seen in the GUI
+		"""
 		self.bnfile = Button(self.axfile, 'File')
 		self.bnqall = Button(self.axqall, 'All')
 		self.bnqccc = Button(self.axqccc, 'CCC')
