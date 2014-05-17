@@ -219,50 +219,167 @@ class PickPhaseMenuMore:
 	def sorting(self, event):
 		""" Sort the seismograms in particular order """
 		gsac = self.gsac
-
 		sortAxes = self.getSortAxes()
-		# self.sortAxes = sortAxes
 		self.sort_connect()
+		self.sort_disconnect()
 		show()
 
 	def getSortAxes(self):
-		fig = figure(figsize=(6, 8))
+		fig = figure(figsize=(10, 5))
+		self.figsort = fig
+
 		backend = get_backend().lower()
 		if backend == 'tkagg':
-			get_current_fig_manager().window.wm_geometry("500x600+720+80")
+			get_current_fig_manager().window.wm_geometry("800x400+720+80")
 
-		# rectfstk = [0.12, 0.89, 0.66, 0.08]
-		# rectinfo = [0.86, 0.89, 0.12, 0.09]
-
-		xx = 0.25
+		xx = 0.15
 		yy = 0.05
 		xm = 0.02
-		dy = 0.07
-		dx = 0.27
+		dy = 0.15
+		dx = 0.17
 		y0 = 0.90
 
-		rectfile = [0.10, y0, xx, yy]
-		rect_quality_all = [0.10, y0-dy, xx, yy]
+		"""Allocating size of buttons"""
+		# file indices (filenames)
+		rectfile = [0.10, y0-dy*1, xx, yy]
+		# quality
+		rectqall = [0.10+dx*0, y0-2*dy, xx, yy]
+		rectqccc = [0.10+dx*1, y0-2*dy, xx, yy]
+		rectqsnr = [0.10+dx*2, y0-2*dy, xx, yy]
+		rectqcoh = [0.10+dx*3, y0-2*dy, xx, yy]
+		# headers
+		recthnpts = [0.10+dx*0, y0-3*dy, xx, yy]
+		recthb = [0.1+dx*1, y0-3*dy, xx, yy]
+		recthe = [0.1+dx*2, y0-3*dy, xx, yy]
+		recthdelta = [0.1+dx*3, y0-3*dy, xx, yy]
+		recthkstnm = [0.1+dx*0, y0-3.5*dy, xx, yy]
+		recthstla = [0.1+dx*1, y0-3.5*dy, xx, yy]
+		recthstlo = [0.1+dx*2, y0-3.5*dy, xx, yy]
+		recthdist = [0.1+dx*3, y0-3.5*dy, xx, yy]
+		recthaz = [0.1+dx*0, y0-4*dy, xx, yy]
+		recthbaz = [0.1+dx*1, y0-4*dy, xx, yy]
+		recthgcarc = [0.1+dx*2, y0-4*dy, xx, yy]
+		# status
+		rectstat = [0.2, y0-5*dy, 0.8, yy]
 
+		"""writing buttons to axis"""
 		sortAxs = {}
+		self.figsort.text(0.1,y0-dy*0.5,'Sort by file Index Name: ')
 		sortAxs['file'] = fig.add_axes(rectfile)
-		sortAxs['QualityAll'] = fig.add_axes(rect_quality_all)
+		self.figsort.text(0.1,y0-dy*1.5,'Sort by Quality: ')
+		sortAxs['qall'] = fig.add_axes(rectqall)
+		sortAxs['qccc'] = fig.add_axes(rectqccc)
+		sortAxs['qsnr'] = fig.add_axes(rectqsnr)
+		sortAxs['qcoh'] = fig.add_axes(rectqcoh)
+		self.figsort.text(0.1,y0-dy*2.5,'Sort by Header: ')
+		sortAxs['hnpts'] = fig.add_axes(recthnpts)
+		sortAxs['hb'] = fig.add_axes(recthb)
+		sortAxs['he'] = fig.add_axes(recthe)
+		sortAxs['hdelta'] = fig.add_axes(recthdelta)
+		sortAxs['hkstnm'] = fig.add_axes(recthkstnm)
+		sortAxs['hstla'] = fig.add_axes(recthstla)
+		sortAxs['hstlo'] = fig.add_axes(recthstlo)
+		sortAxs['hdist'] = fig.add_axes(recthdist)
+		sortAxs['haz'] = fig.add_axes(recthaz)
+		sortAxs['hbaz'] = fig.add_axes(recthbaz)
+		sortAxs['hgcarc'] = fig.add_axes(recthgcarc)
+		#status
+		sortAxs['stat'] = fig.add_axes(rectstat)
 		self.sortAxs = sortAxs
 
+	""" Connect button events. """
 	def sort_connect(self):
-		""" Connect button events. """
-		# write the position for the buttons into self
+		ion()
+
+		"""write the position for the buttons into self"""
 		self.axfile = self.sortAxs['file']
-		self.bnfile = Button(self.axfile, 'File Indices')
+		self.axqall = self.sortAxs['qall']
+		self.axqccc = self.sortAxs['qccc']
+		self.axqsnr = self.sortAxs['qsnr']
+		self.axqcoh = self.sortAxs['qcoh']
+		self.axqcoh = self.sortAxs['qcoh']
+		self.axhnpts = self.sortAxs['hnpts']
+		self.axhb = self.sortAxs['hb']
+		self.axhe = self.sortAxs['he']
+		self.axhdelta = self.sortAxs['hdelta']
+		self.axhkstnm = self.sortAxs['hkstnm']
+		self.axhstla = self.sortAxs['hstla']
+		self.axhstlo = self.sortAxs['hstlo']
+		self.axhdist = self.sortAxs['hdist']
+		self.axhaz = self.sortAxs['haz']
+		self.axhbaz = self.sortAxs['hbaz']
+		self.axhgcarc = self.sortAxs['hgcarc']
+		self.axstat = self.sortAxs['stat']
+
+		"""add a button to the correct place as defined by the axes"""
+		self.bnfile = Button(self.axfile, 'File')
+		self.bnqall = Button(self.axqall, 'All')
+		self.bnqccc = Button(self.axqccc, 'CCC')
+		self.bnqsnr = Button(self.axqsnr, 'SNR')
+		self.bnqcoh = Button(self.axqcoh, 'COH')
+		self.bnhnpts = Button(self.axhnpts, 'NPTS')
+		self.bnhb = Button(self.axhb, 'B')
+		self.bnhe = Button(self.axhe, 'E')
+		self.bnhdelta = Button(self.axhdelta, 'Delta')
+		self.bnhkstnm = Button(self.axhkstnm, 'KSTNM')
+		self.bnhstla = Button(self.axhstla, 'STLA')
+		self.bnhstlo = Button(self.axhstlo, 'STLO')
+		self.bnhdist = Button(self.axhdist, 'Dist')
+		self.bnhaz = Button(self.axhaz, 'AZ')
+		self.bnhbaz = Button(self.axhbaz, 'BAZ')
+		self.bnhgcarc = Button(self.axhgcarc, 'GCARC')
+		self.bnstat = Button(self.axstat, 'Status')
+
+		""" each button changes the way the seismograms are sorted """
+		self.opts.sortby = 'i'
 		self.bnfile.on_clicked(self.sortfile)
+		self.opts.sortby = 'all'
+		self.bnqall.on_clicked(self.sortfile)
+		# self.opts.sortby = '1'
+		# self.bnqccc.on_clicked(self.sortfile)
+		# self.opts.sortby = '2'
+		# self.bnqsnr.on_clicked(self.sortfile)
+		# self.opts.sortby = '3'
+		# self.bnqcoh.on_clicked(self.sortfile)
+		# self.opts.sortby = 'npts'
+		# self.bnhnpts.on_clicked(self.sortfile)
+		# self.opts.sortby = 'b'
+		# self.bnhb.on_clicked(self.sortfile)
+		# self.opts.sortby = 'e'
+		# self.bnhe.on_clicked(self.sortfile)
+		# self.opts.sortby = 'delta'
+		# self.bnhdelta.on_clicked(self.sortfile)
+		# self.opts.sortby = 'kstnm'
+		# self.bnhkstnm.on_clicked(self.sortfile)
+		# self.opts.sortby = 'stla'
+		# self.bnhstla.on_clicked(self.sortfile)
+		# self.opts.sortby = 'stlo'
+		# self.bnhstlo.on_clicked(self.sortfile)
+		# self.opts.sortby = 'dist'
+		# self.bnhdist.on_clicked(self.sortfile)
+		# self.opts.sortby = 'az'
+		# self.bnhaz.on_clicked(self.sortfile)
+		# self.opts.sortby = 'baz'
+		# self.bnhbaz.on_clicked(self.sortfile)
+		# self.opts.sortby = 'gcarc'
+		# self.bnhgcarc.on_clicked(self.sortfile)
+
+		self.bnstat.on_clicked(self.dismiss_sort)
+
+	def sort_disconnect(self):
+		print 'lol'
 
 	def sortfile(self, event):
 		""" Plot waveforms """
-		self.opts.sortby = 'i'
 		self.replot()
-		print 'DONE WITH SORT'
+		self.bnstat.label = 'DONE!'
+		# close(self.figsort)
 		return
 
+	def dismiss_sort(self, event):
+		"""Dismiss the sorting selection popup Window"""
+		
+		close(self.figsort)
 
 	# -------------------------------- SORTING ---------------------------------- #
 
