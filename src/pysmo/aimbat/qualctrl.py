@@ -331,49 +331,106 @@ class PickPhaseMenuMore:
 		self.bnstat = Button(self.axstat, 'Status')
 
 		""" each button changes the way the seismograms are sorted """
-		self.opts.sortby = 'i'
-		self.bnfile.on_clicked(self.sortfile)
-		self.opts.sortby = 'all'
-		self.bnqall.on_clicked(self.sortfile)
-		# self.opts.sortby = '1'
-		# self.bnqccc.on_clicked(self.sortfile)
-		# self.opts.sortby = '2'
-		# self.bnqsnr.on_clicked(self.sortfile)
-		# self.opts.sortby = '3'
-		# self.bnqcoh.on_clicked(self.sortfile)
-		# self.opts.sortby = 'npts'
-		# self.bnhnpts.on_clicked(self.sortfile)
-		# self.opts.sortby = 'b'
-		# self.bnhb.on_clicked(self.sortfile)
-		# self.opts.sortby = 'e'
-		# self.bnhe.on_clicked(self.sortfile)
-		# self.opts.sortby = 'delta'
-		# self.bnhdelta.on_clicked(self.sortfile)
-		# self.opts.sortby = 'kstnm'
-		# self.bnhkstnm.on_clicked(self.sortfile)
-		# self.opts.sortby = 'stla'
-		# self.bnhstla.on_clicked(self.sortfile)
-		# self.opts.sortby = 'stlo'
-		# self.bnhstlo.on_clicked(self.sortfile)
-		# self.opts.sortby = 'dist'
-		# self.bnhdist.on_clicked(self.sortfile)
-		# self.opts.sortby = 'az'
-		# self.bnhaz.on_clicked(self.sortfile)
-		# self.opts.sortby = 'baz'
-		# self.bnhbaz.on_clicked(self.sortfile)
-		# self.opts.sortby = 'gcarc'
-		# self.bnhgcarc.on_clicked(self.sortfile)
+		self.bnfile.on_clicked(self.sort_file)
+		self.bnqall.on_clicked(self.sort_qall)
+		self.bnqccc.on_clicked(self.sort_qccc)
+		self.bnqsnr.on_clicked(self.sort_qsnr)
+		self.bnqcoh.on_clicked(self.sort_qcoh)
+		self.bnhnpts.on_clicked(self.sort_hnpts)
+		self.bnhb.on_clicked(self.sort_hb)
+		self.bnhe.on_clicked(self.sort_he)
+		self.bnhdelta.on_clicked(self.sort_hdelta)
+		self.bnhkstnm.on_clicked(self.sort_hkstnm)
+		self.bnhstla.on_clicked(self.sort_hstla)
+		self.bnhstlo.on_clicked(self.sort_hstlo)
+		self.bnhdist.on_clicked(self.sort_hdist)
+		self.bnhaz.on_clicked(self.sort_haz)
+		self.bnhbaz.on_clicked(self.sort_hbaz)
+		self.bnhgcarc.on_clicked(self.sort_hgcarc)
 
 		self.bnstat.on_clicked(self.dismiss_sort)
 
 	def sort_disconnect(self):
 		print 'lol'
 
-	def sortfile(self, event):
-		""" Plot waveforms """
+	def sort_file(self, event):
+		self.opts.sortby = 'i';
 		self.replot()
-		self.bnstat.label = 'DONE!'
-		# close(self.figsort)
+		return
+
+	def sort_qall(self, event):
+		self.opts.sortby = 'all';
+		self.replot()
+		return
+
+	def sort_qccc(self, event):
+		self.opts.sortby = '1';
+		self.replot()
+		return
+
+	def sort_qsnr(self, event):
+		self.opts.sortby = '2';
+		self.replot()
+		return
+
+	def sort_qcoh(self, event):
+		self.opts.sortby = '3';
+		self.replot()
+		return
+
+	def sort_hnpts(self, event):
+		self.opts.sortby = 'npts';
+		self.replot()
+		return
+
+	def sort_hb(self, event):
+		self.opts.sortby = 'b';
+		self.replot()
+		return
+
+	def sort_he(self, event):
+		self.opts.sortby = 'e';
+		self.replot()
+		return
+
+	def sort_hdelta(self, event):
+		self.opts.sortby = 'delta';
+		self.replot()
+		return
+
+	def sort_hkstnm(self, event):
+		self.opts.sortby = 'kstnm';
+		self.replot()
+		return
+
+	def sort_hstla(self, event):
+		self.opts.sortby = 'stla';
+		self.replot()
+		return
+
+	def sort_hstlo(self, event):
+		self.opts.sortby = 'stlo';
+		self.replot()
+		return
+
+	def sort_hdist(self, event):
+		self.opts.sortby = 'dist';
+		self.replot()
+		return
+
+	def sort_haz(self, event):
+		self.opts.sortby = 'az';
+		self.replot()
+		return
+
+	def sort_hbaz(self, event):
+		self.opts.sortby = 'baz';
+		self.replot()
+		return
+
+	def sort_hgcarc(self, event):
+		self.opts.sortby = 'gcarc';
+		self.replot()
 		return
 
 	def dismiss_sort(self, event):
