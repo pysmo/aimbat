@@ -233,9 +233,9 @@ class PickPhaseMenuMore:
 			get_current_fig_manager().window.wm_geometry("800x400+720+80")
 
 		xx = 0.15
-		yy = 0.05
+		yy = 0.06
 		xm = 0.02
-		dy = 0.15
+		dy = 0.17
 		dx = 0.17
 		y0 = 0.90
 
@@ -260,7 +260,7 @@ class PickPhaseMenuMore:
 		recthbaz = [0.1+dx*1, y0-4*dy, xx, yy]
 		recthgcarc = [0.1+dx*2, y0-4*dy, xx, yy]
 		# status
-		rectstat = [0.2, y0-5*dy, 0.8, yy]
+		rectstat = [0.2, y0-5*dy, 0.6, yy]
 
 		"""writing buttons to axis"""
 		sortAxs = {}
@@ -309,7 +309,7 @@ class PickPhaseMenuMore:
 		self.axhaz = self.sortAxs['haz']
 		self.axhbaz = self.sortAxs['hbaz']
 		self.axhgcarc = self.sortAxs['hgcarc']
-		self.axstat = self.sortAxs['stat']
+		self.axstat = self.sortAxs['Quit']
 
 		"""add a button to the correct place as defined by the axes"""
 		self.bnfile = Button(self.axfile, 'File')
@@ -348,6 +348,7 @@ class PickPhaseMenuMore:
 		self.bnhbaz.on_clicked(self.sort_hbaz)
 		self.bnhgcarc.on_clicked(self.sort_hgcarc)
 
+		# dismiss window when done
 		self.bnstat.on_clicked(self.dismiss_sort)
 
 	def sort_disconnect(self):
@@ -451,7 +452,6 @@ class PickPhaseMenuMore:
 
 	def dismiss_sort(self, event):
 		"""Dismiss the sorting selection popup Window"""
-		
 		close(self.figsort)
 
 	# -------------------------------- SORTING ---------------------------------- #
