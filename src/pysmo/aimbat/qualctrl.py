@@ -309,7 +309,7 @@ class PickPhaseMenuMore:
 		self.axhaz = self.sortAxs['haz']
 		self.axhbaz = self.sortAxs['hbaz']
 		self.axhgcarc = self.sortAxs['hgcarc']
-		self.axstat = self.sortAxs['Quit']
+		self.axstat = self.sortAxs['stat']
 
 		"""add a button to the correct place as defined by the axes"""
 		self.bnfile = Button(self.axfile, 'File')
@@ -328,31 +328,31 @@ class PickPhaseMenuMore:
 		self.bnhaz = Button(self.axhaz, 'AZ')
 		self.bnhbaz = Button(self.axhbaz, 'BAZ')
 		self.bnhgcarc = Button(self.axhgcarc, 'GCARC')
-		self.bnstat = Button(self.axstat, 'Status')
+		self.bnstat = Button(self.axstat, 'Quit')
 
 		""" each button changes the way the seismograms are sorted """
-		self.bnfile.on_clicked(self.sort_file)
-		self.bnqall.on_clicked(self.sort_qall)
-		self.bnqccc.on_clicked(self.sort_qccc)
-		self.bnqsnr.on_clicked(self.sort_qsnr)
-		self.bnqcoh.on_clicked(self.sort_qcoh)
-		self.bnhnpts.on_clicked(self.sort_hnpts)
-		self.bnhb.on_clicked(self.sort_hb)
-		self.bnhe.on_clicked(self.sort_he)
-		self.bnhdelta.on_clicked(self.sort_hdelta)
-		self.bnhkstnm.on_clicked(self.sort_hkstnm)
-		self.bnhstla.on_clicked(self.sort_hstla)
-		self.bnhstlo.on_clicked(self.sort_hstlo)
-		self.bnhdist.on_clicked(self.sort_hdist)
-		self.bnhaz.on_clicked(self.sort_haz)
-		self.bnhbaz.on_clicked(self.sort_hbaz)
-		self.bnhgcarc.on_clicked(self.sort_hgcarc)
+		self.cidfile = self.bnfile.on_clicked(self.sort_file)
+		self.cidqall = self.bnqall.on_clicked(self.sort_qall)
+		self.cidqccc = self.bnqccc.on_clicked(self.sort_qccc)
+		self.cidqsnr = self.bnqsnr.on_clicked(self.sort_qsnr)
+		self.cidqcoh = self.bnqcoh.on_clicked(self.sort_qcoh)
+		self.cidhnpts = self.bnhnpts.on_clicked(self.sort_hnpts)
+		self.cidhb = self.bnhb.on_clicked(self.sort_hb)
+		self.cidhe = self.bnhe.on_clicked(self.sort_he)
+		self.cidhdelta = self.bnhdelta.on_clicked(self.sort_hdelta)
+		self.cidhkstnm = self.bnhkstnm.on_clicked(self.sort_hkstnm)
+		self.cidhstla = self.bnhstla.on_clicked(self.sort_hstla)
+		self.cidhstlo = self.bnhstlo.on_clicked(self.sort_hstlo)
+		self.cidhdist = self.bnhdist.on_clicked(self.sort_hdist)
+		self.cidhaz = self.bnhaz.on_clicked(self.sort_haz)
+		self.cidhbaz = self.bnhbaz.on_clicked(self.sort_hbaz)
+		self.cidgcarc = self.bnhgcarc.on_clicked(self.sort_hgcarc)
 
 		# dismiss window when done
 		self.bnstat.on_clicked(self.dismiss_sort)
 
 	def sort_disconnect(self):
-		print 'lol'
+		self.bnfile.disconnect(self.cidfile)
 
 	def sort_file(self, event):
 		self.opts.sortby = 'i';
