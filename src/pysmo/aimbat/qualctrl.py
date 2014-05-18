@@ -386,7 +386,7 @@ class PickPhaseMenuMore:
 		self.bnhaz = Button(self.axhaz, 'AZ')
 		self.bnhbaz = Button(self.axhbaz, 'BAZ')
 		self.bnhgcarc = Button(self.axhgcarc, 'GCARC')
-		self.bnquit = Button(self.axquit, 'Quit')
+		self.bnquit = Button(self.axquit, 'Waiting for User input')
 
 		""" each button changes the way the seismograms are sorted """
 		self.cidfile = self.bnfile.on_clicked(self.sort_file)
@@ -426,99 +426,147 @@ class PickPhaseMenuMore:
 		self.bnhgcarc.disconnect(self.cidhgcarc)
 
 	def sort_file(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'i';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_qall(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'all';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_qccc(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = '1';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_qsnr(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = '2';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_qcoh(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = '3';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hnpts(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'npts';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hb(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'b';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_he(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'e';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hdelta(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'delta';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hkstnm(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'kstnm';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hstla(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'stla';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hstlo(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'stlo';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hdist(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'dist';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_haz(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'az';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hbaz(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'baz';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def sort_hgcarc(self, event):
+		self.bnquit.label.set_text('Processing...')
+		self.figsort.canvas.draw()
 		self.opts.sortby = 'gcarc';
 		self.replot()
 		self.ppm.axpp.figure.canvas.draw()
+		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
 
 	def dismiss_sort(self, event):
