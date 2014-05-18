@@ -38,6 +38,7 @@ from pickphase import PickPhase, PickPhaseMenu
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
+from scipy import fft
 
 import Tkinter
 import tkMessageBox
@@ -610,15 +611,21 @@ class PickPhaseMenuMore:
 		# sortAxs['file'] = figfilter.add_axes(recttitle)
 		self.filterAxs = filterAxs
 
+	"""Obtain data from the stacked array to allow filtering"""
 	def plotFilterBaseStack(self):
 		""" Plot array stack and span """
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
 		ppstk = PickPhase(self.gsac.stkdh, self.opts,self.axstk, stkybase, colorwave, 1) 
 
-		print '------------- FILTER ------------------'
-		print ppstk.time
-		print ppstk.sacdh.data
+		t = ppstk.time
+		d = ppstk.sacdh.data
+
+		signal = fft(d)
+		freq = fftfreq(signal.size, d=0.025)
+		plot(freq, signal)
+		show()
+
 
 		
 
