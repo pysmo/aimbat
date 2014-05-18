@@ -580,9 +580,34 @@ class PickPhaseMenuMore:
 	# Implement Butterworth filter
 	#
 
-
 	def filtering(self,event):
-		print 'FILTER'
+		gsac = self.gsac
+		filterAxes = self.getFilterAxes()
+		show()
+
+	def getFilterAxes(self):
+		figfilter = figure(figsize=(15, 12))
+		self.figfilter = figfilter
+
+		backend = get_backend().lower()
+		if backend == 'tkagg':
+			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
+
+		x0 = 0.05
+		xx = 0.10
+		yy = 0.04
+		xm = 0.02
+		dy = 0.15
+		dx = 0.12
+		y0 = 0.90
+
+		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
+
+		filterAxs = {}
+		self.figfilter.text(0.1,y0-dy*0.5,'Butterworth Filter')
+		# sortAxs['file'] = figfilter.add_axes(recttitle)
+		self.filterAxs = filterAxs
+
 
 	# --------------------------------- Filtering ------------------------------- #
 
