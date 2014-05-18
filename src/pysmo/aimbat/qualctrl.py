@@ -224,72 +224,128 @@ class PickPhaseMenuMore:
 		show()
 
 	def getSortAxes(self):
-		fig = figure(figsize=(10, 5))
-		self.figsort = fig
+		figsort = figure(figsize=(15, 12))
+		self.figsort = figsort
 
 		backend = get_backend().lower()
 		if backend == 'tkagg':
-			get_current_fig_manager().window.wm_geometry("800x400+720+80")
+			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
 
-		xx = 0.15
-		yy = 0.06
+		x0 = 0.05
+		xx = 0.10
+		yy = 0.04
 		xm = 0.02
-		dy = 0.17
-		dx = 0.17
+		dy = 0.15
+		dx = 0.12
 		y0 = 0.90
 
 		"""Allocating size of buttons"""
 		# file indices (filenames)
-		rectfile = [0.10, y0-dy*1, xx, yy]
+		rectfile = [x0, y0-dy*1, xx, yy]
 		# quality
-		rectqall = [0.10+dx*0, y0-2*dy, xx, yy]
-		rectqccc = [0.10+dx*1, y0-2*dy, xx, yy]
-		rectqsnr = [0.10+dx*2, y0-2*dy, xx, yy]
-		rectqcoh = [0.10+dx*3, y0-2*dy, xx, yy]
+		rectqall = [x0+dx*0, y0-2*dy, xx, yy]
+		rectqccc = [x0+dx*1, y0-2*dy, xx, yy]
+		rectqsnr = [x0+dx*2, y0-2*dy, xx, yy]
+		rectqcoh = [x0+dx*3, y0-2*dy, xx, yy]
 		# headers
-		recthnpts = [0.10+dx*0, y0-3*dy, xx, yy]
-		recthb = [0.1+dx*1, y0-3*dy, xx, yy]
-		recthe = [0.1+dx*2, y0-3*dy, xx, yy]
-		recthdelta = [0.1+dx*3, y0-3*dy, xx, yy]
-		recthkstnm = [0.1+dx*0, y0-3.5*dy, xx, yy]
-		recthstla = [0.1+dx*1, y0-3.5*dy, xx, yy]
-		recthstlo = [0.1+dx*2, y0-3.5*dy, xx, yy]
-		recthdist = [0.1+dx*3, y0-3.5*dy, xx, yy]
-		recthaz = [0.1+dx*0, y0-4*dy, xx, yy]
-		recthbaz = [0.1+dx*1, y0-4*dy, xx, yy]
-		recthgcarc = [0.1+dx*2, y0-4*dy, xx, yy]
-		# status
-		rectstat = [0.2, y0-5*dy, 0.6, yy]
+		recthnpts = [x0+dx*0, y0-3*dy, xx, yy]
+		recthb = [x0+dx*1, y0-3*dy, xx, yy]
+		recthe = [x0+dx*2, y0-3*dy, xx, yy]
+		recthdelta = [x0+dx*3, y0-3*dy, xx, yy]
+		recthstla = [x0+dx*0, y0-3.5*dy, xx, yy]
+		recthstlo = [x0+dx*1, y0-3.5*dy, xx, yy]
+		recthdist = [x0+dx*2, y0-3.5*dy, xx, yy]
+		recthaz = [x0+dx*3, y0-3.5*dy, xx, yy]
+		recthbaz = [x0+dx*0, y0-4*dy, xx, yy]
+		recthgcarc = [x0+dx*1, y0-4*dy, xx, yy]
+		# quit
+		rectquit = [0.2, y0-5*dy, 0.2, yy]
 
 		"""writing buttons to axis"""
 		sortAxs = {}
 		self.figsort.text(0.1,y0-dy*0.5,'Sort by file Index Name: ')
-		sortAxs['file'] = fig.add_axes(rectfile)
+		sortAxs['file'] = figsort.add_axes(rectfile)
 		self.figsort.text(0.1,y0-dy*1.5,'Sort by Quality: ')
-		sortAxs['qall'] = fig.add_axes(rectqall)
-		sortAxs['qccc'] = fig.add_axes(rectqccc)
-		sortAxs['qsnr'] = fig.add_axes(rectqsnr)
-		sortAxs['qcoh'] = fig.add_axes(rectqcoh)
+		sortAxs['qall'] = figsort.add_axes(rectqall)
+		sortAxs['qccc'] = figsort.add_axes(rectqccc)
+		sortAxs['qsnr'] = figsort.add_axes(rectqsnr)
+		sortAxs['qcoh'] = figsort.add_axes(rectqcoh)
 		self.figsort.text(0.1,y0-dy*2.5,'Sort by Header: ')
-		sortAxs['hnpts'] = fig.add_axes(recthnpts)
-		sortAxs['hb'] = fig.add_axes(recthb)
-		sortAxs['he'] = fig.add_axes(recthe)
-		sortAxs['hdelta'] = fig.add_axes(recthdelta)
-		sortAxs['hkstnm'] = fig.add_axes(recthkstnm)
-		sortAxs['hstla'] = fig.add_axes(recthstla)
-		sortAxs['hstlo'] = fig.add_axes(recthstlo)
-		sortAxs['hdist'] = fig.add_axes(recthdist)
-		sortAxs['haz'] = fig.add_axes(recthaz)
-		sortAxs['hbaz'] = fig.add_axes(recthbaz)
-		sortAxs['hgcarc'] = fig.add_axes(recthgcarc)
-		#status
-		sortAxs['stat'] = fig.add_axes(rectstat)
+		sortAxs['hnpts'] = figsort.add_axes(recthnpts)
+		sortAxs['hb'] = figsort.add_axes(recthb)
+		sortAxs['he'] = figsort.add_axes(recthe)
+		sortAxs['hdelta'] = figsort.add_axes(recthdelta)
+		sortAxs['hstla'] = figsort.add_axes(recthstla)
+		sortAxs['hstlo'] = figsort.add_axes(recthstlo)
+		sortAxs['hdist'] = figsort.add_axes(recthdist)
+		sortAxs['haz'] = figsort.add_axes(recthaz)
+		sortAxs['hbaz'] = figsort.add_axes(recthbaz)
+		sortAxs['hgcarc'] = figsort.add_axes(recthgcarc)
+		# quit
+		sortAxs['quit'] = figsort.add_axes(rectquit)
+
 		self.sortAxs = sortAxs
+
+		self.summarize_sort()
+
+	def summarize_sort(self):
+		sortAxs = self.sortAxs
+		figsort = self.figsort
+
+		# size of text summary box
+		rectsumm = [0.55, 0.05, 0.40, 0.90]
+
+		sortAxs['summary'] = figsort.add_axes(rectsumm)
+
+		# remove axes markings on summary field
+		sortAxs['summary'].get_xaxis().set_ticks([])
+		sortAxs['summary'].get_yaxis().set_visible([])
+
+		# define constants
+		x0 = 0.03
+		x1 = 0.20
+		y0 = 0.95
+		dy = 0.03
+
+		# explain what the summaries are
+		sortAxs['summary'].text(x0,y0-dy*0,'FILENAMES')
+		sortAxs['summary'].text(x0,y0-dy*1,'File: ')
+		sortAxs['summary'].text(x1,y0-dy*1,'Sort in alphabetical order by filename')
+
+		sortAxs['summary'].text(x0,y0-dy*3,'QUALITY:')
+		sortAxs['summary'].text(x0,y0-dy*4,'All: ')
+		sortAxs['summary'].text(x1,y0-dy*4,'Weighted Ratio of all quality measures')
+		sortAxs['summary'].text(x0,y0-dy*5,'CCC: ')
+		sortAxs['summary'].text(x1,y0-dy*5,'Cross-coefficient Coefficient')
+		sortAxs['summary'].text(x0,y0-dy*6,'SNR: ')
+		sortAxs['summary'].text(x1,y0-dy*6,'Signal-to-noise Ratio')
+		sortAxs['summary'].text(x0,y0-dy*7,'COH: ')
+		sortAxs['summary'].text(x1,y0-dy*7,'time domain coherence')
+
+		sortAxs['summary'].text(x0,y0-dy*9,'OTHER HEADERS:')
+		sortAxs['summary'].text(x0,y0-dy*10,'NPTS: ')
+		sortAxs['summary'].text(x1,y0-dy*10,'Number of points per data component')
+		sortAxs['summary'].text(x0,y0-dy*11,'B: ')
+		sortAxs['summary'].text(x1,y0-dy*11,'Beginning value of the independent variable')
+		sortAxs['summary'].text(x0,y0-dy*12,'E: ')
+		sortAxs['summary'].text(x1,y0-dy*12,'Ending value of the independent variable')
+		sortAxs['summary'].text(x0,y0-dy*13,'Delta: ')
+		sortAxs['summary'].text(x1,y0-dy*13,'Increment between evenly spaced samples')
+		sortAxs['summary'].text(x0,y0-dy*14,'STLA: ')
+		sortAxs['summary'].text(x1,y0-dy*14,'Station latitude (deg, north positive)')
+		sortAxs['summary'].text(x0,y0-dy*15,'STLO: ')
+		sortAxs['summary'].text(x1,y0-dy*15,'Station longitude (deg, east positive)')
+		sortAxs['summary'].text(x0,y0-dy*16,'DIST: ')
+		sortAxs['summary'].text(x1,y0-dy*16,'Station to event distance (km)')
+		sortAxs['summary'].text(x0,y0-dy*17,'AZ: ')
+		sortAxs['summary'].text(x1,y0-dy*17,'Event to station azimuth (deg)')
+		sortAxs['summary'].text(x0,y0-dy*18,'BAZ: ')
+		sortAxs['summary'].text(x1,y0-dy*18,'Station to event azimuth (deg)')
+		sortAxs['summary'].text(x0,y0-dy*19,'GCARC: ')
+		sortAxs['summary'].text(x1,y0-dy*19,'Station to event great circle arc length (deg)')
 
 	""" Connect button events. """
 	def sort_connect(self):
-		ion()
-
 		"""write the position for the buttons into self"""
 		self.axfile = self.sortAxs['file']
 		self.axqall = self.sortAxs['qall']
@@ -301,16 +357,17 @@ class PickPhaseMenuMore:
 		self.axhb = self.sortAxs['hb']
 		self.axhe = self.sortAxs['he']
 		self.axhdelta = self.sortAxs['hdelta']
-		self.axhkstnm = self.sortAxs['hkstnm']
 		self.axhstla = self.sortAxs['hstla']
 		self.axhstlo = self.sortAxs['hstlo']
 		self.axhdist = self.sortAxs['hdist']
 		self.axhaz = self.sortAxs['haz']
 		self.axhbaz = self.sortAxs['hbaz']
 		self.axhgcarc = self.sortAxs['hgcarc']
-		self.axstat = self.sortAxs['stat']
+		self.axquit = self.sortAxs['quit']
 
-		"""add a button to the correct place as defined by the axes"""
+		"""add a button to the correct place as defined by the axes
+		   Also label the buttons here, as seen in the GUI
+		"""
 		self.bnfile = Button(self.axfile, 'File')
 		self.bnqall = Button(self.axqall, 'All')
 		self.bnqccc = Button(self.axqccc, 'CCC')
@@ -320,14 +377,13 @@ class PickPhaseMenuMore:
 		self.bnhb = Button(self.axhb, 'B')
 		self.bnhe = Button(self.axhe, 'E')
 		self.bnhdelta = Button(self.axhdelta, 'Delta')
-		self.bnhkstnm = Button(self.axhkstnm, 'KSTNM')
 		self.bnhstla = Button(self.axhstla, 'STLA')
 		self.bnhstlo = Button(self.axhstlo, 'STLO')
 		self.bnhdist = Button(self.axhdist, 'Dist')
 		self.bnhaz = Button(self.axhaz, 'AZ')
 		self.bnhbaz = Button(self.axhbaz, 'BAZ')
 		self.bnhgcarc = Button(self.axhgcarc, 'GCARC')
-		self.bnstat = Button(self.axstat, 'Quit')
+		self.bnquit = Button(self.axquit, 'Quit')
 
 		""" each button changes the way the seismograms are sorted """
 		self.cidfile = self.bnfile.on_clicked(self.sort_file)
@@ -339,7 +395,6 @@ class PickPhaseMenuMore:
 		self.cidhb = self.bnhb.on_clicked(self.sort_hb)
 		self.cidhe = self.bnhe.on_clicked(self.sort_he)
 		self.cidhdelta = self.bnhdelta.on_clicked(self.sort_hdelta)
-		self.cidhkstnm = self.bnhkstnm.on_clicked(self.sort_hkstnm)
 		self.cidhstla = self.bnhstla.on_clicked(self.sort_hstla)
 		self.cidhstlo = self.bnhstlo.on_clicked(self.sort_hstlo)
 		self.cidhdist = self.bnhdist.on_clicked(self.sort_hdist)
@@ -348,7 +403,7 @@ class PickPhaseMenuMore:
 		self.cidhgcarc = self.bnhgcarc.on_clicked(self.sort_hgcarc)
 
 		# dismiss window when done
-		self.bnstat.on_clicked(self.dismiss_sort)
+		self.bnquit.on_clicked(self.dismiss_sort)
 
 	def sort_disconnect(self):
 		self.bnfile.disconnect(self.cidfile)
@@ -360,14 +415,12 @@ class PickPhaseMenuMore:
 		self.bnhb.disconnect(self.cidhb)
 		self.bnhe.disconnect(self.cidhe)
 		self.bnhdelta.disconnect(self.cidhdelta)
-		self.bnhkstnm.disconnect(self.cidhkstnm)
 		self.bnhstla.disconnect(self.cidhstla)
 		self.bnhstlo.disconnect(self.cidhstlo)
 		self.bnhdist.disconnect(self.cidhdist)
 		self.bnhaz.disconnect(self.cidhaz)
 		self.bnhbaz.disconnect(self.cidhbaz)
 		self.bnhgcarc.disconnect(self.cidhgcarc)
-
 
 	def sort_file(self, event):
 		self.opts.sortby = 'i';
