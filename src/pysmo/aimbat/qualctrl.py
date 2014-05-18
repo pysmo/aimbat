@@ -596,20 +596,23 @@ class PickPhaseMenuMore:
 			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
 
 		x0 = 0.05
-		xx = 0.10
-		yy = 0.04
-		xm = 0.02
-		dy = 0.15
-		dx = 0.12
-		y0 = 0.90
+		y0 = 0.95
 
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
+		rect_amVtime = [x0, 0.50, 0.90, 0.40]
+		rect_amVfreq = [x0, 0.05, 0.90, 0.40]
+
 		self.plotFilterBaseStack()
 
 		filterAxs = {}
-		self.figfilter.text(0.1,y0-dy*0.5,'Butterworth Filter')
+		self.figfilter.text(0.05,y0,'Butterworth Filter')
 		# sortAxs['file'] = figfilter.add_axes(recttitle)
+		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
+		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
+
 		self.filterAxs = filterAxs
+
+
 
 	"""Obtain data from the stacked array to allow filtering"""
 	def plotFilterBaseStack(self):
@@ -623,8 +626,7 @@ class PickPhaseMenuMore:
 
 		signal = fft(d)
 		freq = fftfreq(signal.size, d=0.025)
-		plot(freq, signal)
-		show()
+
 
 
 		
