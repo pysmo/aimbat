@@ -576,6 +576,16 @@ class PickPhaseMenuMore:
 
 	# -------------------------------- SORTING ---------------------------------- #
 
+	# --------------------------------- Filtering ------------------------------- #
+	# Implement Butterworth filter
+	#
+
+
+	def filtering(self,event):
+		print 'FILTER'
+
+	# --------------------------------- Filtering ------------------------------- #
+
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
 		"""
@@ -614,6 +624,7 @@ class PickPhaseMenuMore:
 		self.axmccc = self.axs['MCCC']
 		self.axsac2 = self.axs['SAC2']
 		self.axsort = self.axs['Sort']
+		self.axfilter = self.axs['Filter']
 
 		# name the buttons
 		self.bnccim = Button(self.axccim, 'ICCS-A')
@@ -622,6 +633,7 @@ class PickPhaseMenuMore:
 		self.bnmccc = Button(self.axmccc, 'MCCC')
 		self.bnsac2 = Button(self.axsac2, 'SAC P2')
 		self.bnsort = Button(self.axsort, 'Sort')
+		self.bnfilter = Button(self.axfilter, 'Filter')
 
 		self.cidccim = self.bnccim.on_clicked(self.ccim)
 		self.cidccff = self.bnccff.on_clicked(self.ccff)
@@ -629,6 +641,7 @@ class PickPhaseMenuMore:
 		self.cidmccc = self.bnmccc.on_clicked(self.mccc)
 		self.cidsac2 = self.bnsac2.on_clicked(self.plot2)
 		self.cidsort = self.bnsort.on_clicked(self.sorting)
+		self.cidfilter = self.bnfilter.on_clicked(self.filtering)
 
 		self.cidpress = self.axstk.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
@@ -640,6 +653,7 @@ class PickPhaseMenuMore:
 		self.bnmccc.disconnect(self.cidmccc)
 		self.bnsac2.disconnect(self.cidsac2)
 		self.bnsort.disconnect(self.cidsort)
+		self.bnfilter.disconnect(self.cidfilter)
 
 		self.axccim.cla()
 		self.axccff.cla()
@@ -647,6 +661,7 @@ class PickPhaseMenuMore:
 		self.axmccc.cla()
 		self.axsac2.cla()
 		self.axsort.cla()
+		self.axfilter.cla()
 
 	def syncPick(self):
 		""" Sync final time pick hdrfin from array stack to all traces. 
@@ -976,6 +991,7 @@ def getAxes(opts):
 
 	ysac2 = yquit - dy*1.5
 	ysort = ysac2 - dy*1.5
+	yfilter = ysort - dy*1.5
 
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
@@ -990,6 +1006,7 @@ def getAxes(opts):
 	rectmccc = [xm, ymccc, xx, yy]
 	rectsac2 = [xm, ysac2, xx, yy]
 	rectsort = [xm, ysort, xx, yy]
+	rectfilter = [xm, yfilter, xx, yy]
 
 	axs = {}
 	axs['Seis'] = fig.add_axes(rectseis)
@@ -1009,6 +1026,7 @@ def getAxes(opts):
 	axs['MCCC'] = fig.add_axes(rectmccc)
 	axs['SAC2'] = fig.add_axes(rectsac2)
 	axs['Sort'] = fig.add_axes(rectsort)
+	axs['Filter'] = fig.add_axes(rectfilter)
 
 	return axs
 
