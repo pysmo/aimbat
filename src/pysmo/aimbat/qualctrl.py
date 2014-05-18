@@ -203,6 +203,9 @@ class PickPhaseMenuMore:
 		self.span = TimeSelector(axstk, on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
+		#self.replot()
+		#self.ppm.axpp.figure.canvas.draw()
+
 	# -------------------------------- SORTING ---------------------------------- #
 
 	# Sort seismograms by 
@@ -919,16 +922,20 @@ def getAxes(opts):
 	yfron = y1 - dy*0
 	yprev = y1 - dy*1
 	ynext = y1 - dy*2
-	ysave = y1 - dy*3
-	yquit = y1 - dy*4
+	yzoba = y1 - dy*3
+	ysave = y1 - dy*4
+	yquit = y1 - dy*5
+
 	ysac2 = yquit - dy*1.5
 	ysort = ysac2 - dy*1.5
 
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
 	rectnext = [xm, ynext, xx, yy]
+	rectzoba = [xm, yzoba, xx, yy]
 	rectsave = [xm, ysave, xx, yy]
 	rectquit = [xm, yquit, xx, yy]
+
 	rectccim = [xm, yccim, xx, yy]
 	rectsync = [xm, ysync, xx, yy]
 	rectccff = [xm, yccff, xx, yy]
@@ -944,8 +951,10 @@ def getAxes(opts):
 	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
+	axs['Zoba'] = fig.add_axes(rectzoba)
 	axs['Save'] = fig.add_axes(rectsave)
 	axs['Quit'] = fig.add_axes(rectquit)
+
 	axs['CCIM'] = fig.add_axes(rectccim)
 	axs['Sync'] = fig.add_axes(rectsync)
 	axs['CCFF'] = fig.add_axes(rectccff)
