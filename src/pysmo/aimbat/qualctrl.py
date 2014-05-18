@@ -602,8 +602,6 @@ class PickPhaseMenuMore:
 		rect_amVtime = [x0, 0.50, 0.90, 0.40]
 		rect_amVfreq = [x0, 0.05, 0.90, 0.40]
 
-		self.plotFilterBaseStack()
-
 		filterAxs = {}
 		self.figfilter.text(0.05,y0,'Butterworth Filter')
 		# sortAxs['file'] = figfilter.add_axes(recttitle)
@@ -611,7 +609,7 @@ class PickPhaseMenuMore:
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 
 		self.filterAxs = filterAxs
-
+		self.plotFilterBaseStack()
 
 
 	"""Obtain data from the stacked array to allow filtering"""
@@ -627,7 +625,7 @@ class PickPhaseMenuMore:
 		signal = fft(d)
 		freq = fftfreq(signal.size, d=0.025)
 
-
+		self.filterAxs['amVtime'].plot(freq, signal)
 
 		
 
