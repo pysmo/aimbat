@@ -167,6 +167,7 @@ class PickPhaseMenuMore:
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
 		ppstk = PickPhase(self.gsac.stkdh, self.opts,self.axstk, stkybase, colorwave, 1) 
+
 		ppstk.plotPicks()
 		ppstk.disconnectPick()
 		self.ppstk = ppstk
@@ -602,11 +603,24 @@ class PickPhaseMenuMore:
 		y0 = 0.90
 
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
+		self.plotFilterBaseStack()
 
 		filterAxs = {}
 		self.figfilter.text(0.1,y0-dy*0.5,'Butterworth Filter')
 		# sortAxs['file'] = figfilter.add_axes(recttitle)
 		self.filterAxs = filterAxs
+
+	def plotFilterBaseStack(self):
+		""" Plot array stack and span """
+		colorwave = self.opts.pppara.colorwave
+		stkybase = 0
+		ppstk = PickPhase(self.gsac.stkdh, self.opts,self.axstk, stkybase, colorwave, 1) 
+
+		print '------------- FILTER ------------------'
+		print ppstk.time
+		print ppstk.sacdh.data
+
+		
 
 
 	# --------------------------------- Filtering ------------------------------- #
