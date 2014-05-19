@@ -39,6 +39,7 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 from scipy import fft
+import scipy.signal as signal
 
 import Tkinter
 import tkMessageBox
@@ -589,7 +590,23 @@ class PickPhaseMenuMore:
 		self.plotFilterWindow()
 		self.plotFilterSpan_Time()
 		self.plotFilterSpan_Freq()
+		self.spreadButter()
 		show()
+
+	"""Apply the butterworth filter to the data """
+	def spreadButter(self):
+		# filter the data
+		N = 2 #order
+		b, a = signal.butter(N, [0.03,0.5], btype='bandpass', output='ba')
+		print '################################'
+		print b
+		fd = signal.filtfilt(b, a, self.filteredData['signal'])
+	
+		# filteredData['current-freq'] = freq
+		self.filteredData['current-signal'] = fd
+
+		self.filterAxs['amVfreq'].plot(self.filteredData['current-freq'], self.filteredData['current-signal'])
+		self.figfilter.canvas.draw()
 
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
@@ -630,7 +647,7 @@ class PickPhaseMenuMore:
 		self.figfilter.canvas.draw()
 
 	def returnFreqFrame(self, event):
-		self.filterAxs['amVfreq'].set_xlim(-3,3) #revert to original axes
+		self.filterAxs['amVfreq'].set_xlim(-1.5,1.5) #revert to original axes
 		self.figfilter.canvas.draw()
 
 	"""Obtain data from the stacked array to allow filtering"""
@@ -645,11 +662,21 @@ class PickPhaseMenuMore:
 		signal = fft(d)
 		freq = fftfreq(signal.size, d=0.025)
 
+		filteredData={}
+		filteredData['time'] = t
+		filteredData['amplitude'] = d
+		filteredData['frequency'] = freq
+		filteredData['signal'] = signal
+		# use this for plotting
+		filteredData['current-freq'] = freq
+		filteredData['current-signal'] = signal
+		self.filteredData = filteredData
+
 		self.filterAxs['amVtime'].set_xlim(-20,20)
-		self.filterAxs['amVfreq'].set_xlim(-3,3)
+		self.filterAxs['amVfreq'].set_xlim(-1.5,1.5)
 
 		self.filterAxs['amVtime'].plot(t, d)
-		self.filterAxs['amVfreq'].plot(freq, signal)
+		self.filterAxs['amVfreq'].plot(filteredData['current-freq'], filteredData['current-signal'])
 
 	"""coloring the """
 	def plotFilterWindow(self):
