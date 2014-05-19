@@ -590,22 +590,26 @@ class PickPhaseMenuMore:
 		self.plotFilterWindow()
 		self.plotFilterSpan_Time()
 		self.plotFilterSpan_Freq()
-		self.spreadButter()
+		self.butterworthFilter()
 		show()
+
+	def butterworthFilter(self):
+		self.spreadButter()
 
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
 		# filter the data
 		N = 2 #order
 		b, a = signal.butter(N, [0.03,0.5], btype='bandpass', output='ba')
-		print '################################'
-		print b
 		fd = signal.filtfilt(b, a, self.filteredData['signal'])
+
+		w, h = signal.freqz(b, a)
 	
 		# filteredData['current-freq'] = freq
 		self.filteredData['current-signal'] = fd
-
+		self.filterAxs['amVfreq'].set_xlim(0,1.5)
 		self.filterAxs['amVfreq'].plot(self.filteredData['current-freq'], self.filteredData['current-signal'])
+		self.filterAxs['amVfreq'].plot(w, 20*abs(h))
 		self.figfilter.canvas.draw()
 
 	def getFilterAxes(self):
@@ -622,10 +626,11 @@ class PickPhaseMenuMore:
 		yy = 0.07
 
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
-		rect_amVtime = [x0+1.5*xx, 0.50, 0.80, 0.40]
-		rect_amVfreq = [x0+1.5*xx, 0.05, 0.80, 0.40]
+		rect_amVtime = [x0+1.5*xx, 0.55, 0.80, 0.35]
+		rect_amVfreq = [x0+1.5*xx, 0.15, 0.80, 0.35]
 		rectreti = [x0, 0.80, xx, yy]
 		rectrefr = [x0, 0.30, xx, yy]
+		rectbutr = [x0, 0.10, 0.20, 0.05]
 
 		filterAxs = {}
 		self.figfilter.text(0.05,y0,'Butterworth Filter')
@@ -647,7 +652,7 @@ class PickPhaseMenuMore:
 		self.figfilter.canvas.draw()
 
 	def returnFreqFrame(self, event):
-		self.filterAxs['amVfreq'].set_xlim(-1.5,1.5) #revert to original axes
+		self.filterAxs['amVfreq'].set_xlim(0,1.5) #revert to original axes
 		self.figfilter.canvas.draw()
 
 	"""Obtain data from the stacked array to allow filtering"""
