@@ -585,6 +585,8 @@ class PickPhaseMenuMore:
 	def filtering(self,event):
 		gsac = self.gsac
 		filterAxes = self.getFilterAxes()
+		self.plotFilterBaseStack()
+		self.plotFilterWindow()
 		self.plotFilterSpan_Time()
 		self.plotFilterSpan_Freq()
 		show()
@@ -597,23 +599,39 @@ class PickPhaseMenuMore:
 		if backend == 'tkagg':
 			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
 
-		x0 = 0.05
+		x0 = 0.03
 		y0 = 0.95
+		xx = 0.08
+		yy = 0.07
 
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
-		rect_amVtime = [x0, 0.50, 0.90, 0.40]
-		rect_amVfreq = [x0, 0.05, 0.90, 0.40]
+		rect_amVtime = [x0+1.5*xx, 0.50, 0.80, 0.40]
+		rect_amVfreq = [x0+1.5*xx, 0.05, 0.80, 0.40]
+		rectreti = [x0, 0.80, xx, yy]
+		rectrefr = [x0, 0.30, xx, yy]
 
 		filterAxs = {}
 		self.figfilter.text(0.05,y0,'Butterworth Filter')
-		# sortAxs['file'] = figfilter.add_axes(recttitle)
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
+		filterAxs['reti'] = figfilter.add_axes(rectreti)
+		filterAxs['refr'] = figfilter.add_axes(rectrefr)
+
+		self.bnreti = Button(filterAxs['reti'], 'Revert\nTime \nWindow')
+		self.bnrefr = Button(filterAxs['refr'], 'Revert\nFrequency\nWindow')
+
+		self.cidreti = self.bnreti.on_clicked(self.returnTimeFrame)
+		self.cidrefr = self.bnrefr.on_clicked(self.returnFreqFrame)
 
 		self.filterAxs = filterAxs
-		self.plotFilterBaseStack()
-		self.plotFilterWindow()
 
+	def returnTimeFrame(self, event):
+		self.filterAxs['amVtime'].set_xlim(-20,20) #revert to original axes
+		self.figfilter.canvas.draw()
+
+	def returnFreqFrame(self, event):
+		self.filterAxs['amVfreq'].set_xlim(-3,3) #revert to original axes
+		self.figfilter.canvas.draw()
 
 	"""Obtain data from the stacked array to allow filtering"""
 	def plotFilterBaseStack(self):
@@ -627,9 +645,13 @@ class PickPhaseMenuMore:
 		signal = fft(d)
 		freq = fftfreq(signal.size, d=0.025)
 
+		self.filterAxs['amVtime'].set_xlim(-20,20)
+		self.filterAxs['amVfreq'].set_xlim(-3,3)
+
 		self.filterAxs['amVtime'].plot(t, d)
 		self.filterAxs['amVfreq'].plot(freq, signal)
 
+	"""coloring the """
 	def plotFilterWindow(self):
 		sacdh = self.ppstk.sacdh
 		twh0, twh1 = self.ppstk.opts.pppara.twhdrs
@@ -678,8 +700,6 @@ class PickPhaseMenuMore:
 		"""
 		def on_select(xmin, xmax):
 			""" Mouse event: select span. """
-			print 'freq'
-			print self.spanfreq
 			if self.span.visible:
 				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
 				xxlim = (xmin, xmax)
