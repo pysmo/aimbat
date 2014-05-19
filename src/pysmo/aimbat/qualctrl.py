@@ -625,8 +625,8 @@ class PickPhaseMenuMore:
 		signal = fft(d)
 		freq = fftfreq(signal.size, d=0.025)
 
-		self.filterAxs['amVtime'].plot(freq, signal)
-
+		self.filterAxs['amVtime'].plot(t, d)
+		self.filterAxs['amVfreq'].plot(freq, signal)
 		
 
 
