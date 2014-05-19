@@ -38,6 +38,7 @@ from pickphase import PickPhase, PickPhaseMenu
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
+from scipy import fft
 
 import Tkinter
 import tkMessageBox
@@ -167,6 +168,7 @@ class PickPhaseMenuMore:
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
 		ppstk = PickPhase(self.gsac.stkdh, self.opts,self.axstk, stkybase, colorwave, 1) 
+
 		ppstk.plotPicks()
 		ppstk.disconnectPick()
 		self.ppstk = ppstk
@@ -576,6 +578,101 @@ class PickPhaseMenuMore:
 
 	# -------------------------------- SORTING ---------------------------------- #
 
+	# --------------------------------- Filtering ------------------------------- #
+	# Implement Butterworth filter
+	#
+
+	def filtering(self,event):
+		gsac = self.gsac
+		filterAxes = self.getFilterAxes()
+		self.plotFilterSpan()
+		show()
+
+	def getFilterAxes(self):
+		figfilter = figure(figsize=(15, 12))
+		self.figfilter = figfilter
+
+		backend = get_backend().lower()
+		if backend == 'tkagg':
+			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
+
+		x0 = 0.05
+		y0 = 0.95
+
+		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
+		rect_amVtime = [x0, 0.50, 0.90, 0.40]
+		rect_amVfreq = [x0, 0.05, 0.90, 0.40]
+
+		filterAxs = {}
+		self.figfilter.text(0.05,y0,'Butterworth Filter')
+		# sortAxs['file'] = figfilter.add_axes(recttitle)
+		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
+		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
+
+		self.filterAxs = filterAxs
+		self.plotFilterBaseStack()
+		self.plotFilterWindow()
+
+
+	"""Obtain data from the stacked array to allow filtering"""
+	def plotFilterBaseStack(self):
+		""" Plot array stack and span """
+		colorwave = self.opts.pppara.colorwave
+		stkybase = 0
+
+		t = self.ppstk.time - self.ppstk.sacdh.reftime
+		d = self.ppstk.sacdh.data
+
+		signal = fft(d)
+		freq = fftfreq(signal.size, d=0.025)
+
+		self.filterAxs['amVtime'].plot(t, d)
+		self.filterAxs['amVfreq'].plot(freq, signal)
+
+	def plotFilterWindow(self):
+		sacdh = self.ppstk.sacdh
+		twh0, twh1 = self.ppstk.opts.pppara.twhdrs
+		self.ppstk.twhdrs = twh0, twh1
+
+		tw0 = sacdh.gethdr(twh0)
+		tw1 = sacdh.gethdr(twh1)	
+		if tw0 == -12345.0:
+			tw0 = self.x[0]
+		if tw1 == -12345.0:
+			tw1 = self.x[-1]
+		self.ppstk.twindow = [tw0, tw1]
+		tw0 -= sacdh.reftime 
+		tw1 -= sacdh.reftime
+		#ymin, ymax = axpp.get_ylim()
+		ymin, ymax = self.ppstk.ybase-0.5, self.ppstk.ybase+0.5
+		pppara = self.ppstk.opts.pppara
+		a, col = pppara.alphatwfill, pppara.colortwfill
+		self.ppstk.twfill, = self.filterAxs['amVtime'].fill([tw0,tw1,tw1,tw0], 
+			[ymin,ymin,ymax,ymax], col, alpha=a, edgecolor=col)
+
+	# change window size in seismograms plot for filtering
+	def plotFilterSpan(self):
+		""" Create a SpanSelector for zoom in and zoom out.
+		"""
+		def on_select(xmin, xmax):
+			""" Mouse event: select span. """
+			if self.span.visible:
+				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
+				xxlim = (xmin, xmax)
+				self.filterAxs['amVtime'].set_xlim(xxlim)
+				self.xzoom.append(xxlim)
+				if self.opts.upylim_on:
+					print ('upylim')
+					for pp in self.pps: pp.updateY(xxlim)
+				self.figfilter.canvas.draw()
+		pppara = self.opts.pppara
+		a, col = pppara.alphatwsele, pppara.colortwsele
+		mspan = pppara.minspan * self.opts.delta
+		self.span = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
+			rectprops=dict(alpha=a, facecolor=col))
+
+	# --------------------------------- Filtering ------------------------------- #
+
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
 		"""
@@ -614,6 +711,7 @@ class PickPhaseMenuMore:
 		self.axmccc = self.axs['MCCC']
 		self.axsac2 = self.axs['SAC2']
 		self.axsort = self.axs['Sort']
+		self.axfilter = self.axs['Filter']
 
 		# name the buttons
 		self.bnccim = Button(self.axccim, 'ICCS-A')
@@ -622,6 +720,7 @@ class PickPhaseMenuMore:
 		self.bnmccc = Button(self.axmccc, 'MCCC')
 		self.bnsac2 = Button(self.axsac2, 'SAC P2')
 		self.bnsort = Button(self.axsort, 'Sort')
+		self.bnfilter = Button(self.axfilter, 'Filter')
 
 		self.cidccim = self.bnccim.on_clicked(self.ccim)
 		self.cidccff = self.bnccff.on_clicked(self.ccff)
@@ -629,6 +728,7 @@ class PickPhaseMenuMore:
 		self.cidmccc = self.bnmccc.on_clicked(self.mccc)
 		self.cidsac2 = self.bnsac2.on_clicked(self.plot2)
 		self.cidsort = self.bnsort.on_clicked(self.sorting)
+		self.cidfilter = self.bnfilter.on_clicked(self.filtering)
 
 		self.cidpress = self.axstk.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
@@ -640,6 +740,7 @@ class PickPhaseMenuMore:
 		self.bnmccc.disconnect(self.cidmccc)
 		self.bnsac2.disconnect(self.cidsac2)
 		self.bnsort.disconnect(self.cidsort)
+		self.bnfilter.disconnect(self.cidfilter)
 
 		self.axccim.cla()
 		self.axccff.cla()
@@ -647,6 +748,7 @@ class PickPhaseMenuMore:
 		self.axmccc.cla()
 		self.axsac2.cla()
 		self.axsort.cla()
+		self.axfilter.cla()
 
 	def syncPick(self):
 		""" Sync final time pick hdrfin from array stack to all traces. 
@@ -976,6 +1078,7 @@ def getAxes(opts):
 
 	ysac2 = yquit - dy*1.5
 	ysort = ysac2 - dy*1.5
+	yfilter = ysort - dy*1.5
 
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
@@ -990,6 +1093,7 @@ def getAxes(opts):
 	rectmccc = [xm, ymccc, xx, yy]
 	rectsac2 = [xm, ysac2, xx, yy]
 	rectsort = [xm, ysort, xx, yy]
+	rectfilter = [xm, yfilter, xx, yy]
 
 	axs = {}
 	axs['Seis'] = fig.add_axes(rectseis)
@@ -1009,6 +1113,7 @@ def getAxes(opts):
 	axs['MCCC'] = fig.add_axes(rectmccc)
 	axs['SAC2'] = fig.add_axes(rectsac2)
 	axs['Sort'] = fig.add_axes(rectsort)
+	axs['Filter'] = fig.add_axes(rectfilter)
 
 	return axs
 
