@@ -657,7 +657,7 @@ class PickPhaseMenuMore:
 		"""
 		def on_select(xmin, xmax):
 			""" Mouse event: select span. """
-			if self.span.visible:
+			if self.spantime.visible:
 				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
 				xxlim = (xmin, xmax)
 				self.filterAxs['amVtime'].set_xlim(xxlim)
@@ -669,7 +669,7 @@ class PickPhaseMenuMore:
 		pppara = self.opts.pppara
 		a, col = pppara.alphatwsele, pppara.colortwsele
 		mspan = pppara.minspan * self.opts.delta
-		self.span = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
+		self.spantime = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
 	# change window size in seismograms plot for filtering
@@ -678,10 +678,12 @@ class PickPhaseMenuMore:
 		"""
 		def on_select(xmin, xmax):
 			""" Mouse event: select span. """
+			print 'freq'
+			print self.spanfreq
 			if self.span.visible:
 				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
 				xxlim = (xmin, xmax)
-				self.filterAxs['amVtime'].set_xlim(xxlim)
+				self.filterAxs['amVfreq'].set_xlim(xxlim)
 				self.xzoom.append(xxlim)
 				if self.opts.upylim_on:
 					print ('upylim')
@@ -690,7 +692,7 @@ class PickPhaseMenuMore:
 		pppara = self.opts.pppara
 		a, col = pppara.alphatwsele, pppara.colortwsele
 		mspan = pppara.minspan * self.opts.delta
-		self.span = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
+		self.spanfreq = TimeSelector(self.filterAxs['amVfreq'], on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
 	# --------------------------------- Filtering ------------------------------- #
