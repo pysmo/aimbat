@@ -610,6 +610,8 @@ class PickPhaseMenuMore:
 
 		self.filterAxs = filterAxs
 		self.plotFilterBaseStack()
+		print dir(self)
+		# self.plotFilterWindow()
 
 
 	"""Obtain data from the stacked array to allow filtering"""
@@ -617,18 +619,37 @@ class PickPhaseMenuMore:
 		""" Plot array stack and span """
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
-		ppstk = PickPhase(self.gsac.stkdh, self.opts,self.axstk, stkybase, colorwave, 1) 
 
-		t = ppstk.time
-		d = ppstk.sacdh.data
+		print '---------'
+
+		t = self.ppstk.time
+		d = self.ppstk.sacdh.data
 
 		signal = fft(d)
 		freq = fftfreq(signal.size, d=0.025)
 
 		self.filterAxs['amVtime'].plot(t, d)
 		self.filterAxs['amVfreq'].plot(freq, signal)
-		
 
+	def plotFilterWindow(self):
+		sacdh = self.sacdh
+		twh0, twh1 = self.opts.pppara.twhdrs
+		self.twhdrs = twh0, twh1
+		tw0 = sacdh.gethdr(twh0)
+		tw1 = sacdh.gethdr(twh1)	
+		if tw0 == -12345.0:
+			tw0 = self.x[0]
+		if tw1 == -12345.0:
+			tw1 = self.x[-1]
+		self.twindow = [tw0, tw1]
+		tw0 -= sacdh.reftime 
+		tw1 -= sacdh.reftime
+		#ymin, ymax = axpp.get_ylim()
+		ymin, ymax = self.ybase-0.5, self.ybase+0.5
+		pppara = self.opts.pppara
+		a, col = pppara.alphatwfill, pppara.colortwfill
+		self.twfill, = axpp.fill([tw0,tw1,tw1,tw0], 
+			[ymin,ymin,ymax,ymax], col, alpha=a, edgecolor=col)
 
 	# --------------------------------- Filtering ------------------------------- #
 
