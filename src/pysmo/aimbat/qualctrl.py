@@ -585,6 +585,7 @@ class PickPhaseMenuMore:
 	def filtering(self,event):
 		gsac = self.gsac
 		filterAxes = self.getFilterAxes()
+		self.plotFilterSpan()
 		show()
 
 	def getFilterAxes(self):
@@ -648,6 +649,27 @@ class PickPhaseMenuMore:
 		a, col = pppara.alphatwfill, pppara.colortwfill
 		self.ppstk.twfill, = self.filterAxs['amVtime'].fill([tw0,tw1,tw1,tw0], 
 			[ymin,ymin,ymax,ymax], col, alpha=a, edgecolor=col)
+
+	# change window size in seismograms plot for filtering
+	def plotFilterSpan(self):
+		""" Create a SpanSelector for zoom in and zoom out.
+		"""
+		def on_select(xmin, xmax):
+			""" Mouse event: select span. """
+			if self.span.visible:
+				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
+				xxlim = (xmin, xmax)
+				self.filterAxs['amVtime'].set_xlim(xxlim)
+				self.xzoom.append(xxlim)
+				if self.opts.upylim_on:
+					print ('upylim')
+					for pp in self.pps: pp.updateY(xxlim)
+				self.figfilter.canvas.draw()
+		pppara = self.opts.pppara
+		a, col = pppara.alphatwsele, pppara.colortwsele
+		mspan = pppara.minspan * self.opts.delta
+		self.span = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
+			rectprops=dict(alpha=a, facecolor=col))
 
 	# --------------------------------- Filtering ------------------------------- #
 
