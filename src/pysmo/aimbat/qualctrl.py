@@ -591,9 +591,12 @@ class PickPhaseMenuMore:
 		self.plotFilterWindow()
 		self.plotFilterSpan_Time()
 		self.plotFilterSpan_Freq()
-		#cidSelectFreq = self.filterAxs['amVfreq'].canvas.mpl_connect('button_press_event', self.butterworthFilter)
 		self.butterworthFilter()
+		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 		show()
+
+	def getFreq(self,event):
+		print 'HIT ME!'
 
 	def butterworthFilter(self):
 
