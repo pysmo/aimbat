@@ -39,6 +39,8 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 from scipy import fft
+import numpy as np
+import scipy.signal as signal
 
 import Tkinter
 import tkMessageBox
@@ -585,8 +587,61 @@ class PickPhaseMenuMore:
 	def filtering(self,event):
 		gsac = self.gsac
 		filterAxes = self.getFilterAxes()
-		self.plotFilterSpan()
+
+		self.plotFilterBaseStack()
+		self.plotFilterWindow()
+		self.plotFilterSpan_Time()
+		self.plotFilterSpan_Freq()
+
+		# set default filters
+		self.filteredData['lowFreq'] = 0.03
+		self.filteredData['highFreq'] = 0.30
+		self.filteredData['order'] = 2
+
+		self.spreadButter()
+		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 		show()
+
+	def getFreq(self,event):
+		self.filteredData['count'] = (self.filteredData['count']+1)%2
+		self.filterAxs['amVfreq'].clear()
+		if self.filteredData['count']: # low and high frequencies recorded
+			self.filteredData['highFreq'] = event.xdata
+			self.spreadButter()
+		else:
+			self.filteredData['lowFreq'] = event.xdata
+
+	"""Apply the butterworth filter to the data """
+	def spreadButter(self):
+		# filter data
+		b, a = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'], self.filteredData['highFreq']], btype='bandpass', output='ba')
+		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal'])
+		amplitudeSignal = (filteredSignal.real)**2
+		amnorm = np.linalg.norm(amplitudeSignal)
+
+		# transform data from time -> frequency domain
+		w, h = signal.freqz(b, a)
+		h = 0.3*abs(h)
+		self.filteredData['filtered-signal-freq'] = amplitudeSignal
+		self.filterAxs['amVfreq'].set_xlim(0,1.5)
+		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['filtered-signal-freq']/amnorm, label="Filtered")
+		self.filterAxs['amVfreq'].plot(w, h, label="Bandpass")
+		self.filterAxs['amVfreq'].legend(loc='upper left')
+
+		# transform filtered frequency data -> time data
+		self.filteredData['filtered-signal-time'] = ifft(amplitudeSignal)
+		amTimeNorm = np.linalg.norm(self.filteredData['filtered-signal-time'])
+		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time']/amTimeNorm, label='Filtered')
+		self.filterAxs['amVtime'].legend(loc='upper left')
+
+		# init counter for clicking on where the low and high frequencies are
+		self.filteredData['count'] = 0
+
+		self.figfilter.canvas.draw()
+
+	def getButterOrder(self, event):
+		self.filteredData['order'] = self.slordr.val
+		self.spreadButter
 
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
@@ -596,23 +651,43 @@ class PickPhaseMenuMore:
 		if backend == 'tkagg':
 			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
 
-		x0 = 0.05
+		x0 = 0.03
 		y0 = 0.95
+		xx = 0.08
+		yy = 0.07
 
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
-		rect_amVtime = [x0, 0.50, 0.90, 0.40]
-		rect_amVfreq = [x0, 0.05, 0.90, 0.40]
+		rect_amVtime = [x0+1.5*xx, 0.50, 0.80, 0.35]
+		rect_amVfreq = [x0+1.5*xx, 0.10, 0.80, 0.35]
+		rectreti = [x0, 0.75, xx, yy]
+		rectrefr = [x0, 0.35, xx, yy]
+		rectordr = [0.20, 0.90, 0.40, 0.02]
 
 		filterAxs = {}
 		self.figfilter.text(0.05,y0,'Butterworth Filter')
-		# sortAxs['file'] = figfilter.add_axes(recttitle)
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
+		filterAxs['reti'] = figfilter.add_axes(rectreti)
+		filterAxs['refr'] = figfilter.add_axes(rectrefr)
+		filterAxs['ordr'] = figfilter.add_axes(rectordr)
+
+		self.bnreti = Button(filterAxs['reti'], 'Revert\nTime \nWindow')
+		self.bnrefr = Button(filterAxs['refr'], 'Revert\nFrequency\nWindow')
+		self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
+
+		self.cidreti = self.bnreti.on_clicked(self.returnTimeFrame)
+		self.cidrefr = self.bnrefr.on_clicked(self.returnFreqFrame)
+		self.slordr.on_changed(self.getButterOrder)
 
 		self.filterAxs = filterAxs
-		self.plotFilterBaseStack()
-		self.plotFilterWindow()
 
+	def returnTimeFrame(self, event):
+		self.filterAxs['amVtime'].set_xlim(-20,20) #revert to original axes
+		self.figfilter.canvas.draw()
+
+	def returnFreqFrame(self, event):
+		self.filterAxs['amVfreq'].set_xlim(0,1.5) #revert to original axes
+		self.figfilter.canvas.draw()
 
 	"""Obtain data from the stacked array to allow filtering"""
 	def plotFilterBaseStack(self):
@@ -622,13 +697,35 @@ class PickPhaseMenuMore:
 
 		t = self.ppstk.time - self.ppstk.sacdh.reftime
 		d = self.ppstk.sacdh.data
+		dNorm = np.linalg.norm(d)
 
 		signal = fft(d)
+		signalnorm = np.linalg.norm(signal)
+		signal = signal/signalnorm
 		freq = fftfreq(signal.size, d=0.025)
 
-		self.filterAxs['amVtime'].plot(t, d)
-		self.filterAxs['amVfreq'].plot(freq, signal)
+		filteredData={}
+		filteredData['time'] = t
+		filteredData['amplitude'] = d
+		filteredData['frequency'] = freq
+		filteredData['original-signal'] = signal
+		self.filteredData = filteredData
 
+		self.filterAxs['amVtime'].set_xlim(-20,20)
+		self.filterAxs['amVfreq'].set_xlim(0,1.5)
+
+		self.filterAxs['amVtime'].plot(t, d/dNorm, label='Original')
+		self.filterAxs['amVtime'].set_ylabel('Time (s)')
+		self.filterAxs['amVtime'].set_xlabel('Amplitude')
+		self.filterAxs['amVtime'].legend(loc='upper left')
+
+		self.filterAxs['amVfreq'].plot(filteredData['frequency'], filteredData['original-signal'], label="Original")
+		self.filterAxs['amVfreq'].set_ylabel('Frequency (Hz)')
+		self.filterAxs['amVfreq'].set_xlabel('Amplitude (Normalized)')
+		self.filterAxs['amVfreq'].legend(loc='upper left')
+
+
+	"""coloring the """
 	def plotFilterWindow(self):
 		sacdh = self.ppstk.sacdh
 		twh0, twh1 = self.ppstk.opts.pppara.twhdrs
@@ -651,12 +748,12 @@ class PickPhaseMenuMore:
 			[ymin,ymin,ymax,ymax], col, alpha=a, edgecolor=col)
 
 	# change window size in seismograms plot for filtering
-	def plotFilterSpan(self):
+	def plotFilterSpan_Time(self):
 		""" Create a SpanSelector for zoom in and zoom out.
 		"""
 		def on_select(xmin, xmax):
 			""" Mouse event: select span. """
-			if self.span.visible:
+			if self.spantime.visible:
 				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
 				xxlim = (xmin, xmax)
 				self.filterAxs['amVtime'].set_xlim(xxlim)
@@ -668,7 +765,28 @@ class PickPhaseMenuMore:
 		pppara = self.opts.pppara
 		a, col = pppara.alphatwsele, pppara.colortwsele
 		mspan = pppara.minspan * self.opts.delta
-		self.span = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
+		self.spantime = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
+			rectprops=dict(alpha=a, facecolor=col))
+
+	# change window size in seismograms plot for filtering
+	def plotFilterSpan_Freq(self):
+		""" Create a SpanSelector for zoom in and zoom out.
+		"""
+		def on_select(xmin, xmax):
+			""" Mouse event: select span. """
+			if self.span.visible:
+				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
+				xxlim = (xmin, xmax)
+				self.filterAxs['amVfreq'].set_xlim(xxlim)
+				self.xzoom.append(xxlim)
+				if self.opts.upylim_on:
+					print ('upylim')
+					for pp in self.pps: pp.updateY(xxlim)
+				self.figfilter.canvas.draw()
+		pppara = self.opts.pppara
+		a, col = pppara.alphatwsele, pppara.colortwsele
+		mspan = pppara.minspan * self.opts.delta
+		self.spanfreq = TimeSelector(self.filterAxs['amVfreq'], on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
 	# --------------------------------- Filtering ------------------------------- #
