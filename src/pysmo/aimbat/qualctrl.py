@@ -594,29 +594,27 @@ class PickPhaseMenuMore:
 		self.plotFilterSpan_Freq()
 
 		# set default filters
-		self.lowFreq = 0.03
-		self.highFreq = 0.30
-		self.order = 2
+		self.filteredData['lowFreq'] = 0.03
+		self.filteredData['highFreq'] = 0.30
+		self.filteredData['order'] = 2
 
 		self.spreadButter()
 		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 		show()
 
 	def getFreq(self,event):
-		count = self.filteredData['count']
-		count = (count+1) % 2
+		self.filteredData['count'] = (self.filteredData['count']+1)%2
 		self.filterAxs['amVfreq'].clear()
-		if count: # low and high frequencies recorded
-			self.highFreq = event.xdata
-			print 'YOLO'
+		if self.filteredData['count']: # low and high frequencies recorded
+			self.filteredData['highFreq'] = event.xdata
 			self.spreadButter()
 		else:
-			self.lowFreq = event.xdata
+			self.filteredData['lowFreq'] = event.xdata
 
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
 		# filter data
-		b, a = signal.butter(self.order, [self.lowFreq, self.highFreq], btype='bandpass', output='ba')
+		b, a = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'], self.filteredData['highFreq']], btype='bandpass', output='ba')
 		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal'])
 		amplitudeSignal = (filteredSignal.real)**2
 		amnorm = np.linalg.norm(amplitudeSignal)
@@ -641,6 +639,10 @@ class PickPhaseMenuMore:
 
 		self.figfilter.canvas.draw()
 
+	def getButterOrder(self, event):
+		self.filteredData['order'] = self.slordr.val
+		self.spreadButter
+
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
 		self.figfilter = figfilter
@@ -659,7 +661,7 @@ class PickPhaseMenuMore:
 		rect_amVfreq = [x0+1.5*xx, 0.10, 0.80, 0.35]
 		rectreti = [x0, 0.75, xx, yy]
 		rectrefr = [x0, 0.35, xx, yy]
-		rectordr = [x0, 0.10, 0.20, 0.05]
+		rectordr = [0.20, 0.90, 0.40, 0.02]
 
 		filterAxs = {}
 		self.figfilter.text(0.05,y0,'Butterworth Filter')
@@ -671,10 +673,11 @@ class PickPhaseMenuMore:
 
 		self.bnreti = Button(filterAxs['reti'], 'Revert\nTime \nWindow')
 		self.bnrefr = Button(filterAxs['refr'], 'Revert\nFrequency\nWindow')
-		self.bnordr = Button(filterAxs['ordr'], 'Choose Order')
+		self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
 
 		self.cidreti = self.bnreti.on_clicked(self.returnTimeFrame)
 		self.cidrefr = self.bnrefr.on_clicked(self.returnFreqFrame)
+		self.slordr.on_changed(self.getButterOrder)
 
 		self.filterAxs = filterAxs
 
