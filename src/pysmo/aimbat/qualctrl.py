@@ -613,9 +613,13 @@ class PickPhaseMenuMore:
 
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
+		# clear axes
+		self.filterAxs['amVtime'].clear()
+		self.filterAxs['amVfreq'].clear()
+
 		# filter data
 		b, a = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'], self.filteredData['highFreq']], btype='bandpass', output='ba')
-		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal'])
+		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal-freq'])
 		amplitudeSignal = (filteredSignal.real)**2
 		amnorm = np.linalg.norm(amplitudeSignal)
 
@@ -624,6 +628,7 @@ class PickPhaseMenuMore:
 		h = 0.3*abs(h)
 		self.filteredData['filtered-signal-freq'] = amplitudeSignal
 		self.filterAxs['amVfreq'].set_xlim(0,1.5)
+		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['original-signal-freq'], label="Original")
 		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['filtered-signal-freq']/amnorm, label="Filtered")
 		self.filterAxs['amVfreq'].plot(w, h, label="Bandpass")
 		self.filterAxs['amVfreq'].legend(loc='upper left')
@@ -631,6 +636,7 @@ class PickPhaseMenuMore:
 		# transform filtered frequency data -> time data
 		self.filteredData['filtered-signal-time'] = ifft(amplitudeSignal)
 		amTimeNorm = np.linalg.norm(self.filteredData['filtered-signal-time'])
+		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['original-signal-time'], label='Original')
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time']/amTimeNorm, label='Filtered')
 		self.filterAxs['amVtime'].legend(loc='upper left')
 
@@ -641,7 +647,7 @@ class PickPhaseMenuMore:
 
 	def getButterOrder(self, event):
 		self.filteredData['order'] = self.slordr.val
-		self.spreadButter
+		self.spreadButter()
 
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
@@ -706,20 +712,20 @@ class PickPhaseMenuMore:
 
 		filteredData={}
 		filteredData['time'] = t
-		filteredData['amplitude'] = d
+		filteredData['original-signal-time'] = d
 		filteredData['frequency'] = freq
-		filteredData['original-signal'] = signal
+		filteredData['original-signal-freq'] = signal
 		self.filteredData = filteredData
 
 		self.filterAxs['amVtime'].set_xlim(-20,20)
 		self.filterAxs['amVfreq'].set_xlim(0,1.5)
 
-		self.filterAxs['amVtime'].plot(t, d/dNorm, label='Original')
+		self.filterAxs['amVtime'].plot(filteredData['time'], filteredData['original-signal-time'], label='Original')
 		self.filterAxs['amVtime'].set_ylabel('Time (s)')
 		self.filterAxs['amVtime'].set_xlabel('Amplitude')
 		self.filterAxs['amVtime'].legend(loc='upper left')
 
-		self.filterAxs['amVfreq'].plot(filteredData['frequency'], filteredData['original-signal'], label="Original")
+		self.filterAxs['amVfreq'].plot(filteredData['frequency'], filteredData['original-signal-freq'], label="Original")
 		self.filterAxs['amVfreq'].set_ylabel('Frequency (Hz)')
 		self.filterAxs['amVfreq'].set_xlabel('Amplitude (Normalized)')
 		self.filterAxs['amVfreq'].legend(loc='upper left')
