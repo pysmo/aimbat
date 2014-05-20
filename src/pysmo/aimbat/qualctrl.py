@@ -39,6 +39,7 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 from scipy import fft
+import numpy as np
 import scipy.signal as signal
 
 import Tkinter
@@ -594,22 +595,33 @@ class PickPhaseMenuMore:
 		show()
 
 	def butterworthFilter(self):
+		self.lowFreq = 0.03
+		self.highFreq = 0.30
 		self.spreadButter()
+
+	# Normalize a vector
+	# copied from here: http://stackoverflow.com/questions/21030391/how-to-normalize-array-numpy
+	def normalize(v):
+	    norm=np.linalg.norm(v)
+	    if norm==0: 
+	       return v
+	    return v/norm
 
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
 		# filter the data
 		N = 2 #order
-		b, a = signal.butter(N, [0.03,0.5], btype='bandpass', output='ba')
-		fd = signal.filtfilt(b, a, self.filteredData['signal'])
+		b, a = signal.butter(N, [self.lowFreq, self.highFreq], btype='bandpass', output='ba')
+		filteredSignal = signal.lfilter(b, a, self.filteredData['signal'])
+		amplitudeSignal = (filteredSignal.real)**2
 
 		w, h = signal.freqz(b, a)
-	
-		# filteredData['current-freq'] = freq
-		self.filteredData['current-signal'] = fd
-		self.filterAxs['amVfreq'].set_xlim(0,1.5)
+		h = abs(h)
+
+		self.filteredData['current-signal'] = amplitudeSignal
+		self.filterAxs['amVfreq'].set_xlim(-1.5,1.5)
 		self.filterAxs['amVfreq'].plot(self.filteredData['current-freq'], self.filteredData['current-signal'])
-		self.filterAxs['amVfreq'].plot(w, 20*abs(h))
+		self.filterAxs['amVfreq'].plot(w, h)
 		self.figfilter.canvas.draw()
 
 	def getFilterAxes(self):
