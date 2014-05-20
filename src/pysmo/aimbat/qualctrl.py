@@ -596,6 +596,8 @@ class PickPhaseMenuMore:
 		# set default filters
 		self.lowFreq = 0.03
 		self.highFreq = 0.30
+		self.order = 2
+
 		self.spreadButter()
 		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 		show()
@@ -604,8 +606,9 @@ class PickPhaseMenuMore:
 		count = self.filteredData['count']
 		count = (count+1) % 2
 		self.filterAxs['amVfreq'].clear()
-		if count: #one so far
+		if count: # low and high frequencies recorded
 			self.highFreq = event.xdata
+			print 'YOLO'
 			self.spreadButter()
 		else:
 			self.lowFreq = event.xdata
@@ -613,8 +616,7 @@ class PickPhaseMenuMore:
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
 		# filter data
-		N = 2 #order
-		b, a = signal.butter(N, [self.lowFreq, self.highFreq], btype='bandpass', output='ba')
+		b, a = signal.butter(self.order, [self.lowFreq, self.highFreq], btype='bandpass', output='ba')
 		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal'])
 		amplitudeSignal = (filteredSignal.real)**2
 		amnorm = np.linalg.norm(amplitudeSignal)
@@ -653,11 +655,11 @@ class PickPhaseMenuMore:
 		yy = 0.07
 
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
-		rect_amVtime = [x0+1.5*xx, 0.55, 0.80, 0.35]
-		rect_amVfreq = [x0+1.5*xx, 0.15, 0.80, 0.35]
-		rectreti = [x0, 0.80, xx, yy]
-		rectrefr = [x0, 0.40, xx, yy]
-		rectbutr = [x0, 0.10, 0.20, 0.05]
+		rect_amVtime = [x0+1.5*xx, 0.50, 0.80, 0.35]
+		rect_amVfreq = [x0+1.5*xx, 0.10, 0.80, 0.35]
+		rectreti = [x0, 0.75, xx, yy]
+		rectrefr = [x0, 0.35, xx, yy]
+		rectordr = [x0, 0.10, 0.20, 0.05]
 
 		filterAxs = {}
 		self.figfilter.text(0.05,y0,'Butterworth Filter')
@@ -665,9 +667,11 @@ class PickPhaseMenuMore:
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['reti'] = figfilter.add_axes(rectreti)
 		filterAxs['refr'] = figfilter.add_axes(rectrefr)
+		filterAxs['ordr'] = figfilter.add_axes(rectordr)
 
 		self.bnreti = Button(filterAxs['reti'], 'Revert\nTime \nWindow')
 		self.bnrefr = Button(filterAxs['refr'], 'Revert\nFrequency\nWindow')
+		self.bnordr = Button(filterAxs['ordr'], 'Choose Order')
 
 		self.cidreti = self.bnreti.on_clicked(self.returnTimeFrame)
 		self.cidrefr = self.bnrefr.on_clicked(self.returnFreqFrame)
