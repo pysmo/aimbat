@@ -698,37 +698,35 @@ class PickPhaseMenuMore:
 	"""Obtain data from the stacked array to allow filtering"""
 	def plotFilterBaseStack(self):
 		""" Plot array stack and span """
-		colorwave = self.opts.pppara.colorwave
-		stkybase = 0
+		originalTime = self.ppstk.time - self.ppstk.sacdh.reftime
+		originalSignalTime = self.ppstk.sacdh.data
 
-		t = self.ppstk.time - self.ppstk.sacdh.reftime
-		d = self.ppstk.sacdh.data
-		dNorm = np.linalg.norm(d)
+		#norm
+		dNorm = np.linalg.norm(originalSignalTime)
 
-		signal = fft(d)
-		signalnorm = np.linalg.norm(signal)
-		signal = signal/signalnorm
-		freq = fftfreq(signal.size, d=0.025)
+		# transform time -> frequency
+		originalFrequency = fftfreq(originalSignalTime.size, d=0.025)
+		originalSignalFrequency = fft(originalSignalTime)
 
 		filteredData={}
-		filteredData['time'] = t
-		filteredData['original-signal-time'] = d
-		filteredData['frequency'] = freq
-		filteredData['original-signal-freq'] = signal
+		filteredData['time'] = originalTime
+		filteredData['original-signal-time'] = originalSignalTime
+		filteredData['frequency'] = originalFrequency
+		filteredData['original-signal-freq'] = originalSignalFrequency
 		self.filteredData = filteredData
 
-		self.filterAxs['amVtime'].set_xlim(-20,20)
-		self.filterAxs['amVfreq'].set_xlim(0,1.5)
+		# self.filterAxs['amVtime'].set_xlim(-20,20)
+		# self.filterAxs['amVfreq'].set_xlim(0,1.5)
 
-		self.filterAxs['amVtime'].plot(filteredData['time'], filteredData['original-signal-time'], label='Original')
-		self.filterAxs['amVtime'].set_ylabel('Time (s)')
-		self.filterAxs['amVtime'].set_xlabel('Amplitude')
-		self.filterAxs['amVtime'].legend(loc='upper left')
+		# self.filterAxs['amVtime'].plot(filteredData['time'], filteredData['original-signal-time'], label='Original')
+		# self.filterAxs['amVtime'].set_ylabel('Time (s)')
+		# self.filterAxs['amVtime'].set_xlabel('Amplitude')
+		# self.filterAxs['amVtime'].legend(loc='upper left')
 
-		self.filterAxs['amVfreq'].plot(filteredData['frequency'], filteredData['original-signal-freq'], label="Original")
-		self.filterAxs['amVfreq'].set_ylabel('Frequency (Hz)')
-		self.filterAxs['amVfreq'].set_xlabel('Amplitude (Normalized)')
-		self.filterAxs['amVfreq'].legend(loc='upper left')
+		# self.filterAxs['amVfreq'].plot(filteredData['frequency'], filteredData['original-signal-freq'], label="Original")
+		# self.filterAxs['amVfreq'].set_ylabel('Frequency (Hz)')
+		# self.filterAxs['amVfreq'].set_xlabel('Amplitude (Normalized)')
+		# self.filterAxs['amVfreq'].legend(loc='upper left')
 
 
 	"""coloring the """
