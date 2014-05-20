@@ -621,7 +621,7 @@ class PickPhaseMenuMore:
 		b, a = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'], self.filteredData['highFreq']], btype='bandpass', output='ba')
 		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal-freq'])
 		amplitudeSignal = (filteredSignal.real)**2
-		amnorm = np.linalg.norm(amplitudeSignal)
+		# amnorm = np.linalg.norm(amplitudeSignal)
 
 		# transform data from time -> frequency domain
 		w, h = signal.freqz(b, a)
@@ -629,7 +629,7 @@ class PickPhaseMenuMore:
 		self.filteredData['filtered-signal-freq'] = amplitudeSignal
 		self.filterAxs['amVfreq'].set_xlim(0,1.5)
 		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['original-signal-freq'], label="Original")
-		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['filtered-signal-freq']/amnorm, label="Filtered")
+		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['filtered-signal-freq'], label="Filtered")
 		self.filterAxs['amVfreq'].plot(w, h, label="Bandpass")
 		self.filterAxs['amVfreq'].legend(loc='upper left')
 
@@ -637,7 +637,7 @@ class PickPhaseMenuMore:
 		self.filteredData['filtered-signal-time'] = ifft(amplitudeSignal)
 		amTimeNorm = np.linalg.norm(self.filteredData['filtered-signal-time'])
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['original-signal-time'], label='Original')
-		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time']/amTimeNorm, label='Filtered')
+		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time'], label='Filtered')
 		self.filterAxs['amVtime'].legend(loc='upper left')
 
 		# init counter for clicking on where the low and high frequencies are
@@ -714,20 +714,6 @@ class PickPhaseMenuMore:
 		filteredData['frequency'] = originalFrequency
 		filteredData['original-signal-freq'] = originalSignalFrequency
 		self.filteredData = filteredData
-
-		# self.filterAxs['amVtime'].set_xlim(-20,20)
-		# self.filterAxs['amVfreq'].set_xlim(0,1.5)
-
-		# self.filterAxs['amVtime'].plot(filteredData['time'], filteredData['original-signal-time'], label='Original')
-		# self.filterAxs['amVtime'].set_ylabel('Time (s)')
-		# self.filterAxs['amVtime'].set_xlabel('Amplitude')
-		# self.filterAxs['amVtime'].legend(loc='upper left')
-
-		# self.filterAxs['amVfreq'].plot(filteredData['frequency'], filteredData['original-signal-freq'], label="Original")
-		# self.filterAxs['amVfreq'].set_ylabel('Frequency (Hz)')
-		# self.filterAxs['amVfreq'].set_xlabel('Amplitude (Normalized)')
-		# self.filterAxs['amVfreq'].legend(loc='upper left')
-
 
 	"""coloring the """
 	def plotFilterWindow(self):
