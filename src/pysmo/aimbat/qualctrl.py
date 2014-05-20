@@ -621,19 +621,20 @@ class PickPhaseMenuMore:
 		b, a = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'], self.filteredData['highFreq']], btype='bandpass', output='ba')
 		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal-freq'])
 		amplitudeSignal = (filteredSignal.real)**2
+		self.filteredData['filtered-signal-freq'] = amplitudeSignal
 		# amnorm = np.linalg.norm(amplitudeSignal)
 
-		# transform data from time -> frequency domain
+		# transform filtered data from time -> frequency domain
+		multFactor = max(self.filteredData['filtered-signal-freq'])
 		w, h = signal.freqz(b, a)
-		h = 0.3*abs(h)
-		self.filteredData['filtered-signal-freq'] = amplitudeSignal
+		h = 0.7*multFactor*abs(h) #scale the bandpass plotted
 		self.filterAxs['amVfreq'].set_xlim(0,1.5)
 		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['original-signal-freq'], label="Original")
 		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['filtered-signal-freq'], label="Filtered")
 		self.filterAxs['amVfreq'].plot(w, h, label="Bandpass")
 		self.filterAxs['amVfreq'].legend(loc='upper left')
 
-		# transform filtered frequency data -> time data
+		# transform filtered frequency -> time 
 		self.filteredData['filtered-signal-time'] = ifft(amplitudeSignal)
 		amTimeNorm = np.linalg.norm(self.filteredData['filtered-signal-time'])
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['original-signal-time'], label='Original')
