@@ -591,10 +591,12 @@ class PickPhaseMenuMore:
 		self.plotFilterWindow()
 		self.plotFilterSpan_Time()
 		self.plotFilterSpan_Freq()
+		#cidSelectFreq = self.filterAxs['amVfreq'].canvas.mpl_connect('button_press_event', self.butterworthFilter)
 		self.butterworthFilter()
 		show()
 
 	def butterworthFilter(self):
+
 		self.lowFreq = 0.03
 		self.highFreq = 0.30
 		self.spreadButter()
@@ -610,10 +612,12 @@ class PickPhaseMenuMore:
 		amplitudeSignal = amplitudeSignal/amnorm
 
 		w, h = signal.freqz(b, a)
-		h = 0.4*abs(h)
+		h = 0.3*abs(h)
 
 		self.filteredData['current-signal'] = amplitudeSignal
 		self.filterAxs['amVfreq'].set_xlim(-1.5,1.5)
+
+		self.filterAxs['amVfreq'].clear()
 
 		#plot signal
 		self.filterAxs['amVfreq'].plot(self.filteredData['current-freq'], self.filteredData['current-signal'])
@@ -694,7 +698,13 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].set_xlim(-1.5,1.5)
 
 		self.filterAxs['amVtime'].plot(t, d)
+		self.filterAxs['amVtime'].set_ylabel('Time (s)')
+		self.filterAxs['amVtime'].set_xlabel('Amplitude')
+
 		self.filterAxs['amVfreq'].plot(filteredData['current-freq'], filteredData['current-signal'])
+		self.filterAxs['amVfreq'].set_ylabel('Frequency (Hz)')
+		self.filterAxs['amVfreq'].set_xlabel('Amplitude (Normalized)')
+
 
 	"""coloring the """
 	def plotFilterWindow(self):
