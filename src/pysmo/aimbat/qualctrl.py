@@ -599,14 +599,6 @@ class PickPhaseMenuMore:
 		self.highFreq = 0.30
 		self.spreadButter()
 
-	# Normalize a vector
-	# copied from here: http://stackoverflow.com/questions/21030391/how-to-normalize-array-numpy
-	def normalize(v):
-	    norm=np.linalg.norm(v)
-	    if norm==0: 
-	       return v
-	    return v/norm
-
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
 		# filter the data
@@ -614,14 +606,21 @@ class PickPhaseMenuMore:
 		b, a = signal.butter(N, [self.lowFreq, self.highFreq], btype='bandpass', output='ba')
 		filteredSignal = signal.lfilter(b, a, self.filteredData['signal'])
 		amplitudeSignal = (filteredSignal.real)**2
+		amnorm = np.linalg.norm(amplitudeSignal)
+		amplitudeSignal = amplitudeSignal/amnorm
 
 		w, h = signal.freqz(b, a)
-		h = abs(h)
+		h = 0.4*abs(h)
 
 		self.filteredData['current-signal'] = amplitudeSignal
 		self.filterAxs['amVfreq'].set_xlim(-1.5,1.5)
+
+		#plot signal
 		self.filterAxs['amVfreq'].plot(self.filteredData['current-freq'], self.filteredData['current-signal'])
+
+		# plot the bandpass function
 		self.filterAxs['amVfreq'].plot(w, h)
+
 		self.figfilter.canvas.draw()
 
 	def getFilterAxes(self):
@@ -677,6 +676,8 @@ class PickPhaseMenuMore:
 		d = self.ppstk.sacdh.data
 
 		signal = fft(d)
+		signalnorm = np.linalg.norm(signal)
+		signal = signal/signalnorm
 		freq = fftfreq(signal.size, d=0.025)
 
 		filteredData={}
