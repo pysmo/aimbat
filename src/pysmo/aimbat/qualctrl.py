@@ -602,17 +602,20 @@ class PickPhaseMenuMore:
 		self.filteredData['order'] = 2
 
 		self.spreadButter()
+
+		self.filteredData['advance'] = False # have not chosen higher frequency yet
 		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 		show()
 
 	def getFreq(self,event):
-		self.filteredData['count'] = (self.filteredData['count']+1)%2
 		self.filterAxs['amVfreq'].clear()
-		if self.filteredData['count']: # low and high frequencies recorded
+		if self.filteredData['advance']: # low and high frequencies recorded
 			self.filteredData['highFreq'] = event.xdata
+			self.filteredData['advance'] = False
 			self.spreadButter()
 		else:
 			self.filteredData['lowFreq'] = event.xdata
+			self.filteredData['advance'] = True
 
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
@@ -646,9 +649,6 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['original-signal-time'], label='Original')
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time'], label='Filtered')
 		self.filterAxs['amVtime'].legend(loc='upper left')
-
-		# init counter for clicking on where the low and high frequencies are
-		self.filteredData['count'] = 0
 
 		# get norms
 		originalSignalTime_norm = np.linalg.norm(self.filteredData['original-signal-time'])
@@ -692,11 +692,11 @@ class PickPhaseMenuMore:
 
 		self.bnreti = Button(filterAxs['reti'], 'Revert\nTime \nWindow')
 		self.bnrefr = Button(filterAxs['refr'], 'Revert\nFrequency\nWindow')
-		self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
+		#self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
 
 		self.cidreti = self.bnreti.on_clicked(self.returnTimeFrame)
 		self.cidrefr = self.bnrefr.on_clicked(self.returnFreqFrame)
-		self.slordr.on_changed(self.getButterOrder)
+		#self.slordr.on_changed(self.getButterOrder)
 
 		self.filterAxs = filterAxs
 
