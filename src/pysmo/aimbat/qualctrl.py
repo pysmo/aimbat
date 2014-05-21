@@ -608,12 +608,15 @@ class PickPhaseMenuMore:
 		show()
 
 	def getFreq(self,event):
-		self.filterAxs['amVfreq'].clear()
 		if self.filteredData['advance']: # low and high frequencies recorded
 			self.filteredData['highFreq'] = event.xdata
 			self.filteredData['advance'] = False
+			print 'LOW DATA'
+			print self.filteredData['lowFreq']
+			print self.filteredData['highFreq']
 			self.spreadButter()
 		else:
+			print 'NOT YET'
 			self.filteredData['lowFreq'] = event.xdata
 			self.filteredData['advance'] = True
 
@@ -622,6 +625,9 @@ class PickPhaseMenuMore:
 		# clear axes
 		self.filterAxs['amVtime'].clear()
 		self.filterAxs['amVfreq'].clear()
+
+		self.filterAxs['Info'].text(0.1,0.8,'Low Freq: '+str(self.filteredData['lowFreq']))
+		self.filterAxs['Info'].text(0.1,0.5,'High Freq: '+str(self.filteredData['highFreq']))
 
 		# filter data
 		b, a = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'], self.filteredData['highFreq']], btype='bandpass', output='ba')
@@ -633,7 +639,7 @@ class PickPhaseMenuMore:
 		multFactor = max(self.filteredData['filtered-signal-freq'])
 		w, h = signal.freqz(b, a)
 		h = 0.7*multFactor*abs(h) #scale the bandpass plotted
-		self.filterAxs['amVfreq'].set_xlim(0,1.5)
+		#self.filterAxs['amVfreq'].set_xlim(0,1.5)
 		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['original-signal-freq'], label="Original")
 		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['filtered-signal-freq'], label="Filtered")
 		self.filterAxs['amVfreq'].plot(w, h, label="Bandpass")
@@ -644,7 +650,7 @@ class PickPhaseMenuMore:
 		reversedTTS = transformedTimeSignal[::-1]
 		for i in xrange(len(transformedTimeSignal)):
 			transformedTimeSignal[i] = reversedTTS[i].conjugate()
-		self.filterAxs['amVtime'].set_xlim(-20,20) 
+		#self.filterAxs['amVtime'].set_xlim(-20,20) 
 		self.filteredData['filtered-signal-time'] = transformedTimeSignal
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['original-signal-time'], label='Original')
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time'], label='Filtered')
@@ -678,6 +684,7 @@ class PickPhaseMenuMore:
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
 		rect_amVtime = [x0+1.5*xx, 0.50, 0.80, 0.35]
 		rect_amVfreq = [x0+1.5*xx, 0.10, 0.80, 0.35]
+		rectinfo = [0.8,.95,0.15,0.10]
 		rectreti = [x0, 0.75, xx, yy]
 		rectrefr = [x0, 0.35, xx, yy]
 		rectordr = [0.20, 0.90, 0.40, 0.02]
@@ -698,14 +705,19 @@ class PickPhaseMenuMore:
 		self.cidrefr = self.bnrefr.on_clicked(self.returnFreqFrame)
 		#self.slordr.on_changed(self.getButterOrder)
 
+		# frequencies used to compute butterworth filter displayed here
+		filterAxs['Info'] = figfilter.add_axes(rectinfo)
+		filterAxs['Info'].axes.get_xaxis().set_ticks([])
+		filterAxs['Info'].axes.get_yaxis().set_visible(False)
+
 		self.filterAxs = filterAxs
 
 	def returnTimeFrame(self, event):
-		self.filterAxs['amVtime'].set_xlim(-20,20) #revert to original axes
+		#self.filterAxs['amVtime'].set_xlim(-20,20) #revert to original axes
 		self.figfilter.canvas.draw()
 
 	def returnFreqFrame(self, event):
-		self.filterAxs['amVfreq'].set_xlim(0,1.5) #revert to original axes
+		#self.filterAxs['amVfreq'].set_xlim(0,1.5) #revert to original axes
 		self.figfilter.canvas.draw()
 
 	"""Obtain data from the stacked array to allow filtering"""
