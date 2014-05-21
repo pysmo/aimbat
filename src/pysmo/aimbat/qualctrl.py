@@ -45,6 +45,9 @@ import scipy.signal as signal
 import Tkinter
 import tkMessageBox
 
+"""print everything out in an array, DO NOT DELETE!!!"""
+# np.set_printoptions(threshold=nan) 
+
 def getOptions():
 	""" Parse arguments and options. """
 	parser = getParser()
@@ -622,7 +625,6 @@ class PickPhaseMenuMore:
 		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal-freq'])
 		amplitudeSignal = (filteredSignal.real)**2
 		self.filteredData['filtered-signal-freq'] = amplitudeSignal
-		# amnorm = np.linalg.norm(amplitudeSignal)
 
 		# transform filtered data from time -> frequency domain
 		multFactor = max(self.filteredData['filtered-signal-freq'])
@@ -635,14 +637,24 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].legend(loc='upper left')
 
 		# transform filtered frequency -> time 
-		self.filteredData['filtered-signal-time'] = ifft(amplitudeSignal)
-		amTimeNorm = np.linalg.norm(self.filteredData['filtered-signal-time'])
+		transformedTimeSignal = ifft(self.filteredData['filtered-signal-freq'])
+		reversedTTS = transformedTimeSignal[::-1]
+		for i in xrange(len(transformedTimeSignal)):
+			transformedTimeSignal[i] = reversedTTS[i].conjugate()
+		self.filterAxs['amVtime'].set_xlim(-20,20) 
+		self.filteredData['filtered-signal-time'] = transformedTimeSignal
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['original-signal-time'], label='Original')
 		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time'], label='Filtered')
 		self.filterAxs['amVtime'].legend(loc='upper left')
 
 		# init counter for clicking on where the low and high frequencies are
 		self.filteredData['count'] = 0
+
+		# get norms
+		originalSignalTime_norm = np.linalg.norm(self.filteredData['original-signal-time'])
+		originalSignalFreq_norm = np.linalg.norm(self.filteredData['original-signal-freq'])
+		filteredSignalTime_norm = np.linalg.norm(self.filteredData['filtered-signal-time'])
+		filteredSignalFreq_norm = np.linalg.norm(self.filteredData['filtered-signal-freq'])
 
 		self.figfilter.canvas.draw()
 
@@ -701,9 +713,6 @@ class PickPhaseMenuMore:
 		""" Plot array stack and span """
 		originalTime = self.ppstk.time - self.ppstk.sacdh.reftime
 		originalSignalTime = self.ppstk.sacdh.data
-
-		#norm
-		dNorm = np.linalg.norm(originalSignalTime)
 
 		# transform time -> frequency
 		originalFrequency = fftfreq(originalSignalTime.size, d=0.025)
