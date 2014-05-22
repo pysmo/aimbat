@@ -30,8 +30,7 @@ https://github.com/pysmo/aimbat
 
 Documentation
 -------------
-* We are trying to use Sphinx to document this.
-* Will be hosted on Github: http://blog.transifex.com/post/31979487717/hosting-sphinx-on-github
+* http://aimbat.readthedocs.org/en/latest/index.html
 
 Dependencies
 ------------
