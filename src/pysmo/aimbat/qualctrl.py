@@ -591,18 +591,18 @@ class PickPhaseMenuMore:
 		gsac = self.gsac
 		filterAxes = self.getFilterAxes()
 
-		self.plotFilterBaseStack()
+		self.setFilterDefaults()
+		self.spreadButter()
+		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
+		show()
 
-		# set default filters
+	def setFilterDefaults(self):
+		filteredData={}
+		self.filteredData = filteredData
 		self.filteredData['lowFreq'] = 0.005
 		self.filteredData['highFreq'] = 0.008
 		self.filteredData['order'] = 2
-
-		self.spreadButter()
-
 		self.filteredData['advance'] = False # have not chosen higher frequency yet
-		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
-		show()
 
 	def getFreq(self,event):
 		if self.filteredData['advance']: # low and high frequencies recorded
@@ -630,6 +630,13 @@ class PickPhaseMenuMore:
 		#set axes limit
 		self.filterAxs['amVtime'].set_xlim(-20,20)
 		self.filterAxs['amVfreq'].set_xlim(0,0.030)
+
+		self.filteredData['original-time'] = self.ppstk.time - self.ppstk.sacdh.reftime
+		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
+
+		# convert from radians -> hertz
+		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) / (2*np.pi)
+		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-time']) / (2*np.pi)
 
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
@@ -696,20 +703,6 @@ class PickPhaseMenuMore:
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
 
 		self.filterAxs = filterAxs
-
-	"""Obtain data from the stacked array to allow filtering"""
-	def plotFilterBaseStack(self):
-		""" Plot array stack and span """
-		originalTime = self.ppstk.time - self.ppstk.sacdh.reftime
-		originalSignalTime = self.ppstk.sacdh.data
-
-		filteredData={}
-		filteredData['original-time'] = originalTime
-		filteredData['original-signal-time'] = originalSignalTime
-		# convert from radians -> hertz
-		filteredData['original-freq'] = np.fft.fftfreq(len(originalSignalTime), 0.25) / (2*np.pi)
-		filteredData['original-signal-freq'] = np.fft.fft(originalSignalTime) / (2*np.pi)
-		self.filteredData = filteredData
 
 	# --------------------------------- Filtering ------------------------------- #
 
