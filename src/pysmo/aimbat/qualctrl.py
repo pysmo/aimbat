@@ -694,8 +694,6 @@ class PickPhaseMenuMore:
 
 		#self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
 
-		self.cidreti = self.bnreti.on_clicked(self.returnTimeFrame)
-		self.cidrefr = self.bnrefr.on_clicked(self.returnFreqFrame)
 		#self.slordr.on_changed(self.getButterOrder)
 
 		# frequencies used to compute butterworth filter displayed here
