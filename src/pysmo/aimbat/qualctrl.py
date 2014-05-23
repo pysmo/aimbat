@@ -40,6 +40,7 @@ from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 import numpy as np
 from scipy import signal
+import math
 
 import Tkinter
 import tkMessageBox
@@ -612,16 +613,19 @@ class PickPhaseMenuMore:
 			self.filteredData['lowFreq'] = event.xdata
 			self.filteredData['advance'] = True
 
+	def modifyFilterTextLabels(self):
+		self.filterAxs['Info'].clear()
+		self.filterAxs['Info'].text(0.1,0.7,'Low Freq: '+str(math.ceil(self.filteredData['lowFreq']*100000)/100000) )
+		self.filterAxs['Info'].text(0.1,0.4,'High Freq: '+str(math.ceil(self.filteredData['highFreq']*100000)/100000) )
+		self.filterAxs['Info'].text(0.1,0.1,'Order: '+str(math.ceil(self.filteredData['order']*100000)/100000) )
+
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
 		# clear axes
 		self.filterAxs['amVtime'].clear()
 		self.filterAxs['amVfreq'].clear()
 
-		# add text labels to notify user what values we are using
-		self.filterAxs['Info'].text(0.1,0.8,'Low Freq: '+str(self.filteredData['lowFreq']))
-		self.filterAxs['Info'].text(0.1,0.5,'High Freq: '+str(self.filteredData['highFreq']))
-		self.filterAxs['Info'].text(0.1,0.2,'Order: '+str(self.filteredData['order']))
+		self.modifyFilterTextLabels()
 
 		#set axes limit
 		self.filterAxs['amVtime'].set_xlim(-20,20)
@@ -688,7 +692,7 @@ class PickPhaseMenuMore:
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
-		filterAxs['Info'].axes.get_xaxis().set_ticks([])
+		filterAxs['Info'].axes.get_xaxis().set_visible(False)
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
 
 		self.filterAxs = filterAxs
