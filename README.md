@@ -35,11 +35,11 @@ Documentation
 Dependencies
 ------------
 * [Python](http://www.python.org/)
-* numpy
-* scipy
-* matplotlib
-* pysmo.sac
-* Tkinter
+* [Numpy](http://www.numpy.org/)
+* [Scipy](http://www.scipy.org/)
+* [Matplotlib](http://matplotlib.org/)
+* [pysmo.sac](https://github.com/pysmo/sac)
+* [Tkinter](https://wiki.python.org/moin/TkInter)
 
 Installation
 ------------
