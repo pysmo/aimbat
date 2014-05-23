@@ -593,7 +593,11 @@ class PickPhaseMenuMore:
 
 		self.setFilterDefaults()
 		self.spreadButter()
+
+		# user to change default parameters
 		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
+		self.slordr = Slider(self.filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
+		self.slordr.on_changed(self.getButterOrder)
 		show()
 
 	def setFilterDefaults(self):
@@ -688,10 +692,6 @@ class PickPhaseMenuMore:
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
-
-		self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
-
-		self.slordr.on_changed(self.getButterOrder)
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
