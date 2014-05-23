@@ -55,4 +55,14 @@ Filtering Data
 --------------
 * `evsacbp/sh <name of file>.sac f0 f1`, where `f0` is the lower frequency. and `f1` is the higher frequency. in hertz
 
+Building
+--------
+
+Each time you make changes to any of the files in this repository, run
+
+	python setup.py build --fcompiler=gfortran
+	python setup.py install
+	
+To build again to allow the changes to take place.
+
 
