@@ -593,8 +593,8 @@ class PickPhaseMenuMore:
 		self.plotFilterBaseStack()
 
 		# set default filters
-		self.filteredData['lowFreq'] = 0.03
-		self.filteredData['highFreq'] = 0.20
+		self.filteredData['lowFreq'] = 0.005
+		self.filteredData['highFreq'] = 0.008
 		self.filteredData['order'] = 2
 
 		self.spreadButter()
@@ -618,13 +618,14 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].clear()
 		self.filterAxs['amVfreq'].clear()
 
-		# add text labels
+		# add text labels to notify user what values we are using
 		self.filterAxs['Info'].text(0.1,0.8,'Low Freq: '+str(self.filteredData['lowFreq']))
 		self.filterAxs['Info'].text(0.1,0.5,'High Freq: '+str(self.filteredData['highFreq']))
+		self.filterAxs['Info'].text(0.1,0.2,'Order: '+str(self.filteredData['order']))
 
 		#set axes limit
 		self.filterAxs['amVtime'].set_xlim(-20,20)
-		self.filterAxs['amVfreq'].set_xlim(0,0.20)
+		self.filterAxs['amVfreq'].set_xlim(0,0.030)
 
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
@@ -643,6 +644,8 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['filtered-signal-time'], label='Filtered')
 		self.filterAxs['amVtime'].legend(loc="upper right")
 		self.filterAxs['amVtime'].set_title('Signal vs Time')
+		self.filterAxs['amVtime'].set_xlabel('Time (s)', fontsize = 9)
+		self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 9)
 
 		# PLOT FREQUENCY
 		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], self.filteredData['original-signal-freq'], label='Original')
@@ -651,6 +654,8 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].plot(w/(2*np.pi), MULTIPLE*np.abs(h), label='Butterworth Filter')
 		self.filterAxs['amVfreq'].legend(loc="upper right")
 		self.filterAxs['amVfreq'].set_title('Amplitude vs frequency')
+		self.filterAxs['amVfreq'].set_xlabel('Frequency (Hz)', fontsize = 9)
+		self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize = 9)
 
 		self.figfilter.canvas.draw()
 
@@ -666,9 +671,9 @@ class PickPhaseMenuMore:
 		if backend == 'tkagg':
 			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
 
-		rect_amVtime = [0.05, 0.50, 0.80, 0.35]
-		rect_amVfreq = [0.05, 0.10, 0.80, 0.35]
-		rectinfo = [0.8,.95,0.15,0.10]
+		rect_amVtime = [0.10, 0.50, 0.80, 0.35]
+		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
+		rectinfo = [0.8, 0.87, 0.15, 0.10]
 		rectordr = [0.20, 0.90, 0.40, 0.02]
 
 		filterAxs = {}
