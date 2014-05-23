@@ -592,9 +592,6 @@ class PickPhaseMenuMore:
 		filterAxes = self.getFilterAxes()
 
 		self.plotFilterBaseStack()
-		self.plotFilterWindow()
-		self.plotFilterSpan_Time()
-		self.plotFilterSpan_Freq()
 
 		# set default filters
 		self.filteredData['lowFreq'] = 0.03
@@ -693,12 +690,8 @@ class PickPhaseMenuMore:
 		self.figfilter.text(0.05,y0,'Butterworth Filter')
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
-		filterAxs['reti'] = figfilter.add_axes(rectreti)
-		filterAxs['refr'] = figfilter.add_axes(rectrefr)
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
 
-		self.bnreti = Button(filterAxs['reti'], 'Revert\nTime \nWindow')
-		self.bnrefr = Button(filterAxs['refr'], 'Revert\nFrequency\nWindow')
 		#self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
 
 		self.cidreti = self.bnreti.on_clicked(self.returnTimeFrame)
@@ -711,14 +704,6 @@ class PickPhaseMenuMore:
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
 
 		self.filterAxs = filterAxs
-
-	def returnTimeFrame(self, event):
-		#self.filterAxs['amVtime'].set_xlim(-20,20) #revert to original axes
-		self.figfilter.canvas.draw()
-
-	def returnFreqFrame(self, event):
-		#self.filterAxs['amVfreq'].set_xlim(0,1.5) #revert to original axes
-		self.figfilter.canvas.draw()
 
 	"""Obtain data from the stacked array to allow filtering"""
 	def plotFilterBaseStack(self):
@@ -736,70 +721,6 @@ class PickPhaseMenuMore:
 		filteredData['frequency'] = originalFrequency
 		filteredData['original-signal-freq'] = originalSignalFrequency
 		self.filteredData = filteredData
-
-	"""coloring the """
-	def plotFilterWindow(self):
-		sacdh = self.ppstk.sacdh
-		twh0, twh1 = self.ppstk.opts.pppara.twhdrs
-		self.ppstk.twhdrs = twh0, twh1
-
-		tw0 = sacdh.gethdr(twh0)
-		tw1 = sacdh.gethdr(twh1)	
-		if tw0 == -12345.0:
-			tw0 = self.x[0]
-		if tw1 == -12345.0:
-			tw1 = self.x[-1]
-		self.ppstk.twindow = [tw0, tw1]
-		tw0 -= sacdh.reftime 
-		tw1 -= sacdh.reftime
-		#ymin, ymax = axpp.get_ylim()
-		ymin, ymax = self.ppstk.ybase-0.5, self.ppstk.ybase+0.5
-		pppara = self.ppstk.opts.pppara
-		a, col = pppara.alphatwfill, pppara.colortwfill
-		self.ppstk.twfill, = self.filterAxs['amVtime'].fill([tw0,tw1,tw1,tw0], 
-			[ymin,ymin,ymax,ymax], col, alpha=a, edgecolor=col)
-
-	# change window size in seismograms plot for filtering
-	def plotFilterSpan_Time(self):
-		""" Create a SpanSelector for zoom in and zoom out.
-		"""
-		def on_select(xmin, xmax):
-			""" Mouse event: select span. """
-			if self.spantime.visible:
-				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
-				xxlim = (xmin, xmax)
-				self.filterAxs['amVtime'].set_xlim(xxlim)
-				self.xzoom.append(xxlim)
-				if self.opts.upylim_on:
-					print ('upylim')
-					for pp in self.pps: pp.updateY(xxlim)
-				self.figfilter.canvas.draw()
-		pppara = self.opts.pppara
-		a, col = pppara.alphatwsele, pppara.colortwsele
-		mspan = pppara.minspan * self.opts.delta
-		self.spantime = TimeSelector(self.filterAxs['amVtime'], on_select, 'horizontal', minspan=mspan, useblit=False,
-			rectprops=dict(alpha=a, facecolor=col))
-
-	# change window size in seismograms plot for filtering
-	def plotFilterSpan_Freq(self):
-		""" Create a SpanSelector for zoom in and zoom out.
-		"""
-		def on_select(xmin, xmax):
-			""" Mouse event: select span. """
-			if self.span.visible:
-				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
-				xxlim = (xmin, xmax)
-				self.filterAxs['amVfreq'].set_xlim(xxlim)
-				self.xzoom.append(xxlim)
-				if self.opts.upylim_on:
-					print ('upylim')
-					for pp in self.pps: pp.updateY(xxlim)
-				self.figfilter.canvas.draw()
-		pppara = self.opts.pppara
-		a, col = pppara.alphatwsele, pppara.colortwsele
-		mspan = pppara.minspan * self.opts.delta
-		self.spanfreq = TimeSelector(self.filterAxs['amVfreq'], on_select, 'horizontal', minspan=mspan, useblit=False,
-			rectprops=dict(alpha=a, facecolor=col))
 
 	# --------------------------------- Filtering ------------------------------- #
 
