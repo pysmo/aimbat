@@ -38,9 +38,8 @@ from pickphase import PickPhase, PickPhaseMenu
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
-from scipy import fft
 import numpy as np
-import scipy.signal as signal
+from scipy import signal
 
 import Tkinter
 import tkMessageBox
@@ -595,7 +594,7 @@ class PickPhaseMenuMore:
 
 		# set default filters
 		self.filteredData['lowFreq'] = 0.03
-		self.filteredData['highFreq'] = 0.30
+		self.filteredData['highFreq'] = 0.20
 		self.filteredData['order'] = 2
 
 		self.spreadButter()
@@ -608,12 +607,8 @@ class PickPhaseMenuMore:
 		if self.filteredData['advance']: # low and high frequencies recorded
 			self.filteredData['highFreq'] = event.xdata
 			self.filteredData['advance'] = False
-			print 'LOW DATA'
-			print self.filteredData['lowFreq']
-			print self.filteredData['highFreq']
 			self.spreadButter()
 		else:
-			print 'NOT YET'
 			self.filteredData['lowFreq'] = event.xdata
 			self.filteredData['advance'] = True
 
@@ -623,41 +618,36 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].clear()
 		self.filterAxs['amVfreq'].clear()
 
+		# add text labels
 		self.filterAxs['Info'].text(0.1,0.8,'Low Freq: '+str(self.filteredData['lowFreq']))
 		self.filterAxs['Info'].text(0.1,0.5,'High Freq: '+str(self.filteredData['highFreq']))
 
-		# filter data
-		b, a = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'], self.filteredData['highFreq']], btype='bandpass', output='ba')
-		filteredSignal = signal.lfilter(b, a, self.filteredData['original-signal-freq'])
-		amplitudeSignal = (filteredSignal.real)**2
-		self.filteredData['filtered-signal-freq'] = amplitudeSignal
+		#filter the time signal
+		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
+		w, h = signal.freqz(B, A)
+		filteredSignalTime = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
-		# transform filtered data from time -> frequency domain
-		multFactor = max(self.filteredData['filtered-signal-freq'])
-		w, h = signal.freqz(b, a)
-		h = 0.7*multFactor*abs(h) #scale the bandpass plotted
-		#self.filterAxs['amVfreq'].set_xlim(0,1.5)
-		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['original-signal-freq'], label="Original")
-		self.filterAxs['amVfreq'].plot(self.filteredData['frequency'], self.filteredData['filtered-signal-freq'], label="Filtered")
-		self.filterAxs['amVfreq'].plot(w, h, label="Bandpass")
-		self.filterAxs['amVfreq'].legend(loc='upper left')
+		# convert filtered time signal -> frequency signal
+		filteredSignalFreq = np.fft.fft(filteredSignalTime) / (2*np.pi)
 
-		# transform filtered frequency -> time 
-		transformedTimeSignal = ifft(self.filteredData['filtered-signal-freq'])
-		reversedTTS = transformedTimeSignal[::-1]
-		for i in xrange(len(transformedTimeSignal)):
-			transformedTimeSignal[i] = reversedTTS[i].conjugate()
-		#self.filterAxs['amVtime'].set_xlim(-20,20) 
-		self.filteredData['filtered-signal-time'] = transformedTimeSignal
-		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['original-signal-time'], label='Original')
-		self.filterAxs['amVtime'].plot(self.filteredData['time'], self.filteredData['filtered-signal-time'], label='Filtered')
-		self.filterAxs['amVtime'].legend(loc='upper left')
+		# write to memory
+		self.filteredData['filtered-signal-time'] = filteredSignalTime
+		self.filteredData['filtered-signal-freq'] = filteredSignalFreq
 
-		# get norms
-		originalSignalTime_norm = np.linalg.norm(self.filteredData['original-signal-time'])
-		originalSignalFreq_norm = np.linalg.norm(self.filteredData['original-signal-freq'])
-		filteredSignalTime_norm = np.linalg.norm(self.filteredData['filtered-signal-time'])
-		filteredSignalFreq_norm = np.linalg.norm(self.filteredData['filtered-signal-freq'])
+		# PLOT TIME
+		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['original-signal-time'],label='Original')
+		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['filtered-signal-time'],label='Filtered')
+		self.filterAxs['amVtime'].legend(loc="upper right")
+		self.filterAxs['amVtime'].set_title('Signal vs Time')
+
+		# PLOT FREQUENCY
+		# in Hertz
+		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], self.filteredData['original-signal-freq'],label='Original')
+		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], self.filteredData['filtered-signal-freq'],label='Filtered')
+		MULTIPLE = 0.7*max(np.abs(self.filteredData['original-signal-freq']))
+		self.filterAxs['amVfreq'].plot(w/(2*np.pi), MULTIPLE*np.abs(h), label='Butter Filter')
+		self.filterAxs['amVfreq'].legend(loc="upper right")
+		self.filterAxs['amVfreq'].set_title('Amplitude vs frequency')
 
 		self.figfilter.canvas.draw()
 
@@ -673,28 +663,21 @@ class PickPhaseMenuMore:
 		if backend == 'tkagg':
 			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
 
-		x0 = 0.03
-		y0 = 0.95
-		xx = 0.08
-		yy = 0.07
-
 		# recttitle = [x0+dx*3, y0-3.5*dy, xx, yy]
-		rect_amVtime = [x0+1.5*xx, 0.50, 0.80, 0.35]
-		rect_amVfreq = [x0+1.5*xx, 0.10, 0.80, 0.35]
+		rect_amVtime = [0.03, 0.50, 0.80, 0.35]
+		rect_amVfreq = [0.03, 0.10, 0.80, 0.35]
 		rectinfo = [0.8,.95,0.15,0.10]
-		rectreti = [x0, 0.75, xx, yy]
-		rectrefr = [x0, 0.35, xx, yy]
 		rectordr = [0.20, 0.90, 0.40, 0.02]
 
 		filterAxs = {}
-		self.figfilter.text(0.05,y0,'Butterworth Filter')
+		self.figfilter.text(0.05,0.95,'Butterworth Filter')
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
 
-		#self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
+		self.slordr = Slider(filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
 
-		#self.slordr.on_changed(self.getButterOrder)
+		self.slordr.on_changed(self.getButterOrder)
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
@@ -709,15 +692,11 @@ class PickPhaseMenuMore:
 		originalTime = self.ppstk.time - self.ppstk.sacdh.reftime
 		originalSignalTime = self.ppstk.sacdh.data
 
-		# transform time -> frequency
-		originalFrequency = fftfreq(originalSignalTime.size, d=0.025)
-		originalSignalFrequency = fft(originalSignalTime)
-
 		filteredData={}
-		filteredData['time'] = originalTime
+		filteredData['original-time'] = originalTime
 		filteredData['original-signal-time'] = originalSignalTime
-		filteredData['frequency'] = originalFrequency
-		filteredData['original-signal-freq'] = originalSignalFrequency
+		filteredData['original-freq'] = np.fft.fftfreq(len(originalSignalTime), 0.25) / (2*np.pi)
+		filteredData['original-signal-freq'] = np.fft.fft(originalSignalTime) / (2*np.pi)
 		self.filteredData = filteredData
 
 	# --------------------------------- Filtering ------------------------------- #
