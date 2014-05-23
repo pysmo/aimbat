@@ -60,8 +60,8 @@ Building
 
 Each time you make changes to any of the files in this repository, run
 
-	python setup.py build --fcompiler=gfortran
-	python setup.py install
+	sudo python setup.py build --fcompiler=gfortran
+	sudo python setup.py install
 	
 To build again to allow the changes to take place.
 
