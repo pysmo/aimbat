@@ -635,20 +635,16 @@ class PickPhaseMenuMore:
 		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
 
 		# convert from radians -> hertz
-		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) / (2*np.pi)
-		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-time']) / (2*np.pi)
+		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) 
+		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-time']) 
 
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
 		w, h = signal.freqz(B, A)
-		filteredSignalTime = signal.lfilter(B, A, self.filteredData['original-signal-time'])
+		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
 		# convert filtered time signal -> frequency signal
-		filteredSignalFreq = np.fft.fft(filteredSignalTime)/(2*np.pi)
-
-		# write to memory
-		self.filteredData['filtered-signal-time'] = filteredSignalTime
-		self.filteredData['filtered-signal-freq'] = filteredSignalFreq
+		self.filteredData['filtered-signal-freq'] = np.fft.fft(self.filteredData['filtered-signal-time'])/(2*np.pi)
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['original-signal-time'], label='Original')
