@@ -34,7 +34,7 @@ Documentation
 
 Dependencies
 ------------
-* `Python <https://www.python.org/>`_
+* `Python <http://www.python.org/>`_
 * numpy
 * scipy
 * matplotlib
