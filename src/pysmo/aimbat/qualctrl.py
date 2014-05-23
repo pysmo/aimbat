@@ -607,10 +607,6 @@ class PickPhaseMenuMore:
 		self.filteredData['original-time'] = self.ppstk.time - self.ppstk.sacdh.reftime
 		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
 
-		#set axes limit
-		self.filterAxs['amVtime'].set_xlim(-20,20)
-		self.filterAxs['amVfreq'].set_xlim(0,0.030)
-
 	def getFreq(self,event):
 		if self.filteredData['advance']: # low and high frequencies recorded
 			self.filteredData['highFreq'] = event.xdata
@@ -632,11 +628,15 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].clear()
 		self.filterAxs['amVfreq'].clear()
 
+		#set axes limit
+		self.filterAxs['amVtime'].set_xlim(-20,20)
+		self.filterAxs['amVfreq'].set_xlim(0,0.030)
+
 		self.modifyFilterTextLabels()
 
 		# convert from radians -> hertz
-		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) 
-		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) 
+		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) / (2*np.pi)
+		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) / (2*np.pi)
 
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
