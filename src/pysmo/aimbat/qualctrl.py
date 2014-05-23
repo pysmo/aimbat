@@ -27,7 +27,7 @@ Used by ttpick.py
 from pylab import *
 import os, sys, copy
 from matplotlib.mlab import l2norm
-from matplotlib.widgets import SpanSelector, Button, CheckButtons
+from matplotlib.widgets import SpanSelector, Button, CheckButtons, RadioButtons
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
 from ttconfig import PPConfig, QCConfig, CCConfig, MCConfig, getParser
@@ -596,9 +596,15 @@ class PickPhaseMenuMore:
 
 		# user to change default parameters
 		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
-		self.slordr = Slider(self.filterAxs['ordr'], 'Order', 1, 8, valinit=2, closedmin=True, closedmax=True, valfmt='%0.0f')
-		self.slordr.on_changed(self.getButterOrder)
+
+		radioOrder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
+		radioOrder.on_clicked(self.getButterOrder)
+
 		show()
+
+	def getButterOrder(self, event):
+		self.filteredData['order'] = int(event)
+		self.spreadButter()
 
 	def setFilterDefaults(self):
 		filteredData={}
@@ -622,9 +628,9 @@ class PickPhaseMenuMore:
 
 	def modifyFilterTextLabels(self):
 		self.filterAxs['Info'].clear()
-		self.filterAxs['Info'].text(0.1,0.7,'Low Freq: '+str(math.ceil(self.filteredData['lowFreq']*100000)/100000) )
-		self.filterAxs['Info'].text(0.1,0.4,'High Freq: '+str(math.ceil(self.filteredData['highFreq']*100000)/100000) )
-		self.filterAxs['Info'].text(0.1,0.1,'Order: '+str(math.ceil(self.filteredData['order']*100000)/100000) )
+		self.filterAxs['Info'].text(0.1,0.7,'Low Freq: '+str(self.filteredData['lowFreq']))
+		self.filterAxs['Info'].text(0.1,0.4,'High Freq: '+str(self.filteredData['highFreq']))
+		self.filterAxs['Info'].text(0.1,0.1,'Order: '+str(self.filteredData['order']))
 
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
@@ -644,6 +650,10 @@ class PickPhaseMenuMore:
 
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
+		print 'NAZARIAN HOMEWORK HELP'
+		print type(self.filteredData['order'])
+		print self.filteredData['order']
+		print B
 		w, h = signal.freqz(B, A)
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
@@ -659,8 +669,8 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 9)
 
 		# PLOT FREQUENCY
-		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], self.filteredData['original-signal-freq'], label='Original')
-		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], self.filteredData['filtered-signal-freq'], label='Filtered')
+		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['original-signal-freq']), label='Original')
+		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['filtered-signal-freq']), label='Filtered')
 		MULTIPLE = 0.7*max(np.abs(self.filteredData['original-signal-freq']))
 		self.filterAxs['amVfreq'].plot(w/(2*np.pi), MULTIPLE*np.abs(h), label='Butterworth Filter')
 		self.filterAxs['amVfreq'].legend(loc="upper right")
@@ -669,10 +679,6 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize = 9)
 
 		self.figfilter.canvas.draw()
-
-	def getButterOrder(self, event):
-		self.filteredData['order'] = self.slordr.val
-		self.spreadButter()
 
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
@@ -685,7 +691,7 @@ class PickPhaseMenuMore:
 		rect_amVtime = [0.10, 0.50, 0.80, 0.35]
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
-		rectordr = [0.20, 0.90, 0.40, 0.02]
+		rectordr = [0.20, 0.90, 0.15, 0.10]
 
 		filterAxs = {}
 		self.figfilter.text(0.05,0.95,'Butterworth Filter')
