@@ -643,7 +643,7 @@ class PickPhaseMenuMore:
 
 		#set axes limit
 		self.filterAxs['amVtime'].set_xlim(-20,20)
-		# self.filterAxs['amVfreq'].set_xlim(0,0.030)
+		self.filterAxs['amVfreq'].set_xlim(0,0.040)
 
 		self.modifyFilterTextLabels()
 
@@ -694,13 +694,14 @@ class PickPhaseMenuMore:
 		rect_amVtime = [0.10, 0.50, 0.80, 0.35]
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
-		rectordr = [0.20, 0.90, 0.15, 0.10]
+		rectordr = [0.3, 0.86, 0.10, 0.10]
 
 		filterAxs = {}
-		self.figfilter.text(0.05,0.95,'Butterworth Filter')
+		self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
+		self.figfilter.text(0.3, 0.97, 'Select Order:')
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
