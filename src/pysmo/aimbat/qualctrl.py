@@ -611,20 +611,23 @@ class PickPhaseMenuMore:
 		self.filteredData = filteredData
 		self.filteredData['lowFreq'] = 0.005
 		self.filteredData['highFreq'] = 0.008
-		self.filteredData['order'] = 2
+		self.filteredData['order'] = 1
 		self.filteredData['advance'] = False # have not chosen higher frequency yet
 
 		self.filteredData['original-time'] = self.ppstk.time - self.ppstk.sacdh.reftime
 		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
 
 	def getFreq(self,event):
-		if self.filteredData['advance']: # low and high frequencies recorded
-			self.filteredData['highFreq'] = event.xdata
-			self.filteredData['advance'] = False
-			self.spreadButter()
-		else:
-			self.filteredData['lowFreq'] = event.xdata
-			self.filteredData['advance'] = True
+
+		if event.inaxes == self.filterAxs['amVfreq']:
+			print 'yolowag'
+			if self.filteredData['advance']: # low and high frequencies recorded
+				self.filteredData['highFreq'] = event.xdata
+				self.filteredData['advance'] = False
+				self.spreadButter()
+			else:
+				self.filteredData['lowFreq'] = event.xdata
+				self.filteredData['advance'] = True
 
 	def modifyFilterTextLabels(self):
 		self.filterAxs['Info'].clear()
@@ -640,7 +643,7 @@ class PickPhaseMenuMore:
 
 		#set axes limit
 		self.filterAxs['amVtime'].set_xlim(-20,20)
-		self.filterAxs['amVfreq'].set_xlim(0,0.030)
+		# self.filterAxs['amVfreq'].set_xlim(0,0.030)
 
 		self.modifyFilterTextLabels()
 
@@ -650,15 +653,15 @@ class PickPhaseMenuMore:
 
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
-		print 'NAZARIAN HOMEWORK HELP'
-		print type(self.filteredData['order'])
-		print self.filteredData['order']
-		print B
+		A[isnan(A)] = 0
+		B[isnan(B)] = 0
 		w, h = signal.freqz(B, A)
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
 		# convert filtered time signal -> frequency signal
 		self.filteredData['filtered-signal-freq'] = np.fft.fft(self.filteredData['filtered-signal-time'])/(2*np.pi)
+
+		print self.filteredData['filtered-signal-time']
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['original-signal-time'], label='Original')
