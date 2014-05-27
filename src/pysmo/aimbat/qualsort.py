@@ -62,6 +62,9 @@ def seleSeis(saclist):
 	""" 
 	Select seismograms. 
 	Return sacdh lists of selected and deleted seismograms.
+	
+	selelist: selected seismograms
+	delelist: deleted seismograms, user doe snot want them
 	"""
 	indsele = []
 	inddele = []
