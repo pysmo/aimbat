@@ -131,9 +131,6 @@ class PickPhase:
 		x = self.time - self.sacdh.reftime
 		d = self.sacdh.data
 
-		print 'IM HERE'
-		print d
-
 		axpp = self.axpp
 		if self.opts.ynorm > 0:
 			# normalize data within time window

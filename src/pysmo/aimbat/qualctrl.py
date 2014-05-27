@@ -124,6 +124,7 @@ class PickPhaseMenuMore:
 		gsac = self.gsac
 		opts = self.opts
 		sortSeis(gsac, opts)
+		opts.filter_lowFreq = 0.03
 		self.ppm = PickPhaseMenu(gsac, opts, self.axs)
 		# make the legend box invisible
 		if self.opts.pick_on:
@@ -719,7 +720,7 @@ class PickPhaseMenuMore:
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
-		rectapply = [0.5, 0.90, 0.10, 0.10]
+		rectapply = [0.5, 0.90, 0.05, 0.04]
 
 		filterAxs = {}
 		self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
