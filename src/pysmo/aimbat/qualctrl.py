@@ -223,7 +223,7 @@ class PickPhaseMenuMore:
 	# * quality factor | all | ccc | snr | coh |
 	#                   ----- ----- ----- -----
 	#                 ---- ----- ------
-	# * given header | az | baz | dist |
+	# * given header | az | baz | dist | ...
 	#                 ---- ----- ------
 	
 	def sorting(self, event):
@@ -618,9 +618,7 @@ class PickPhaseMenuMore:
 		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
 
 	def getFreq(self,event):
-
 		if event.inaxes == self.filterAxs['amVfreq']:
-			print 'yolowag'
 			if self.filteredData['advance']: # low and high frequencies recorded
 				self.filteredData['highFreq'] = event.xdata
 				self.filteredData['advance'] = False
@@ -642,7 +640,7 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].clear()
 
 		#set axes limit
-		self.filterAxs['amVtime'].set_xlim(-20,20)
+		self.filterAxs['amVtime'].set_xlim(-30,30)
 		self.filterAxs['amVfreq'].set_xlim(0,0.040)
 
 		self.modifyFilterTextLabels()
@@ -660,8 +658,6 @@ class PickPhaseMenuMore:
 
 		# convert filtered time signal -> frequency signal
 		self.filteredData['filtered-signal-freq'] = np.fft.fft(self.filteredData['filtered-signal-time'])/(2*np.pi)
-
-		print self.filteredData['filtered-signal-time']
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['original-signal-time'], label='Original')
@@ -988,8 +984,6 @@ class PickPhaseMenuMore:
 def sortSeis(gsac, opts):
 	'Sort seismograms by file indices, quality factors, time difference, or a given header.'
 	sortby = opts.sortby
-	print 'WHAT TO SORT BY: ' 
-	print sortby 
 	# determine increase/decrease order
 	if sortby[-1] == '-':
 		sortincrease = False
