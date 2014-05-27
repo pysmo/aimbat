@@ -172,7 +172,7 @@ class PickPhaseMenuMore:
 		""" Plot array stack and span """
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
-		ppstk = PickPhase(self.gsac.stkdh, self.opts,self.axstk, stkybase, colorwave, 1) 
+		ppstk = PickPhase(self.gsac.stkdh, self.opts, self.axstk, stkybase, colorwave, 1) 
 
 		ppstk.plotPicks()
 		ppstk.disconnectPick()
@@ -597,10 +597,18 @@ class PickPhaseMenuMore:
 		# user to change default parameters
 		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 
-		radioOrder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
-		radioOrder.on_clicked(self.getButterOrder)
+		# get order
+		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
+		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
+
+		#apply the filter and close window
 
 		show()
+
+	# disconnect buttons on the filter popup window
+	def filter_disconnect(self):
+		self.bnorder.disconnect(self.cidorder)
+		self.bnapply.disconnect(self.bnapply)
 
 	def getButterOrder(self, event):
 		self.filteredData['order'] = int(event)
@@ -680,14 +688,24 @@ class PickPhaseMenuMore:
 		# redraw the plots on the popup window
 		self.figfilter.canvas.draw()
 
-		# write data into main graph
-		self.ppstk.sacdh.data = [2]*len(self.filteredData['filtered-signal-time'])
+	def applyFilter(self, event):
+		# write data into stack
+		self.gsac.stkdh.data = self.filteredData['filtered-signal-time']
+
+		#write filtered data for individual seismograms
 
 		# replot filtered stuff
 		self.axstk.clear()
 		self.ppm.axpp.clear()
 		self.initPlot()
-		# self.plotStack()
+		self.plotStack()
+
+		# redraw figures
+		self.ppm.axpp.figure.canvas.draw()
+		self.axstk.figure.canvas.draw()
+
+		self.filter_disconnect()
+		close()
 
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
@@ -701,18 +719,24 @@ class PickPhaseMenuMore:
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
+		rectapply = [0.5, 0.90, 0.10, 0.10]
 
 		filterAxs = {}
 		self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
+		filterAxs['apply'] = figfilter.add_axes(rectapply)
 		self.figfilter.text(0.3, 0.97, 'Select Order:')
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
 		filterAxs['Info'].axes.get_xaxis().set_visible(False)
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
+
+		#add apply button. causes the filtered data to be applied 
+		self.bnapply = Button(filterAxs['apply'], 'Apply')
+		self.cidapply = self.bnapply.on_clicked(self.applyFilter)
 
 		self.filterAxs = filterAxs
 

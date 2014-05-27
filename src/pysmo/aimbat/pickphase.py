@@ -130,6 +130,10 @@ class PickPhase:
 		ybase = self.ybase
 		x = self.time - self.sacdh.reftime
 		d = self.sacdh.data
+
+		print 'IM HERE'
+		print d
+
 		axpp = self.axpp
 		if self.opts.ynorm > 0:
 			# normalize data within time window
@@ -445,6 +449,7 @@ class PickPhaseMenu():
 				linews = ones(nsd)
 				alphas = ones(nsd)
 				pp = PickPhase(plists[j][k], opts, axpp, pbases[j][k], colors[j][k])
+				print pp
 				pps.append(pp)
 		self.pps = pps
 		self.ybases = pbases[0] + pbases[1]
