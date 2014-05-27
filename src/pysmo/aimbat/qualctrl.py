@@ -677,13 +677,17 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].set_xlabel('Frequency (Hz)', fontsize = 9)
 		self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize = 9)
 
-		self.ppstk.sacdh.data = [2]*len(self.filteredData['filtered-signal-time'])
+		# redraw the plots on the popup window
 		self.figfilter.canvas.draw()
 
+		# write data into main graph
+		self.ppstk.sacdh.data = [2]*len(self.filteredData['filtered-signal-time'])
+
+		# replot filtered stuff
 		self.axstk.clear()
 		self.ppm.axpp.clear()
 		self.initPlot()
-		
+		# self.plotStack()
 
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
