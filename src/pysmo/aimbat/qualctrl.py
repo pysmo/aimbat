@@ -703,6 +703,12 @@ class PickPhaseMenuMore:
 		# replot filtered stuff
 		self.axstk.clear()
 		self.ppm.axpp.clear()
+		self.axs['Fron'].clear()
+		self.axs['Prev'].clear()
+		self.axs['Next'].clear()
+		self.axs['Zoba'].clear()
+		self.axs['Save'].clear()
+		self.axs['Quit'].clear()
 		self.initPlot()
 		self.plotStack()
 
