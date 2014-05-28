@@ -599,11 +599,13 @@ class PickPhaseMenuMore:
 		self.spreadButter()
 
 		# user to change default parameters
-		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
+		self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 
 		# get order
 		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
 		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
+
+		self.bnband = RadioButtons(self.filterAxs['band'], ('Bandpass','Low','High'))
 
 		show()
 
@@ -611,6 +613,7 @@ class PickPhaseMenuMore:
 	def filter_disconnect(self):
 		self.bnorder.disconnect(self.cidorder)
 		self.bnapply.disconnect(self.bnapply)
+		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidorder)
 
 	def getButterOrder(self, event):
 		self.filteredData['order'] = int(event)
