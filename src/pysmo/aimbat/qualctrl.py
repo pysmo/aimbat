@@ -619,8 +619,8 @@ class PickPhaseMenuMore:
 	def setFilterDefaults(self):
 		filteredData={}
 		self.filteredData = filteredData
-		self.filteredData['lowFreq'] = 0.005
-		self.filteredData['highFreq'] = 0.008
+		self.filteredData['lowFreq'] = 0.02
+		self.filteredData['highFreq'] = 0.14
 		self.filteredData['order'] = 1
 		self.filteredData['advance'] = False # have not chosen higher frequency yet
 
@@ -651,18 +651,16 @@ class PickPhaseMenuMore:
 
 		#set axes limit
 		self.filterAxs['amVtime'].set_xlim(-30,30)
-		self.filterAxs['amVfreq'].set_xlim(0,0.040)
+		self.filterAxs['amVfreq'].set_xlim(0,0.40)
 
 		self.modifyFilterTextLabels()
 
 		# convert from time -> freq
-		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) 
+		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.025) 
 		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) 
 		
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
-		A[isnan(A)] = 0
-		B[isnan(B)] = 0
 		w, h = signal.freqz(B, A)
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
