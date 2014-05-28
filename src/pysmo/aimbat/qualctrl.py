@@ -655,20 +655,19 @@ class PickPhaseMenuMore:
 
 		self.modifyFilterTextLabels()
 
-		# convert from radians -> hertz
-		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) / (2*np.pi)
-		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) / (2*np.pi)
-
+		# convert from time -> freq
+		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.25) 
+		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) 
+		
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
 		A[isnan(A)] = 0
 		B[isnan(B)] = 0
-
 		w, h = signal.freqz(B, A)
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
 		# convert filtered time signal -> frequency signal
-		self.filteredData['filtered-signal-freq'] = np.fft.fft(self.filteredData['filtered-signal-time'])/(2*np.pi)
+		self.filteredData['filtered-signal-freq'] = np.fft.fft(self.filteredData['filtered-signal-time'])
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['original-signal-time'], label='Original')
@@ -679,8 +678,8 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 9)
 
 		# PLOT FREQUENCY
-		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['original-signal-freq']), label='Original')
-		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['filtered-signal-freq']), label='Filtered')
+		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq']/(2*np.pi), np.abs(self.filteredData['original-signal-freq']), label='Original')
+		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq']/(2*np.pi), np.abs(self.filteredData['filtered-signal-freq']), label='Filtered')
 		MULTIPLE = 0.7*max(np.abs(self.filteredData['original-signal-freq']))
 		self.filterAxs['amVfreq'].plot(w/(2*np.pi), MULTIPLE*np.abs(h), label='Butterworth Filter')
 		self.filterAxs['amVfreq'].legend(loc="upper right")
