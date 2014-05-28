@@ -172,7 +172,8 @@ class PickPhaseMenuMore:
 		""" Plot array stack and span """
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
-		ppstk = PickPhase(self.gsac.stkdh, self.opts,self.axstk, stkybase, colorwave, 1) 
+
+		ppstk = PickPhase(self.gsac.stkdh, self.opts, self.axstk, stkybase, colorwave, 1) 
 
 		ppstk.plotPicks()
 		ppstk.disconnectPick()
@@ -223,7 +224,7 @@ class PickPhaseMenuMore:
 	# * quality factor | all | ccc | snr | coh |
 	#                   ----- ----- ----- -----
 	#                 ---- ----- ------
-	# * given header | az | baz | dist |
+	# * given header | az | baz | dist | ...
 	#                 ---- ----- ------
 	
 	def sorting(self, event):
@@ -588,6 +589,9 @@ class PickPhaseMenuMore:
 	#
 
 	def filtering(self,event):
+		if hasattr(self.opts,'filterParameters'):
+			self.opts.filterParameters['apply'] = False
+
 		gsac = self.gsac
 		filterAxes = self.getFilterAxes()
 
@@ -597,10 +601,16 @@ class PickPhaseMenuMore:
 		# user to change default parameters
 		cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
 
-		radioOrder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
-		radioOrder.on_clicked(self.getButterOrder)
+		# get order
+		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
+		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
 		show()
+
+	# disconnect buttons on the filter popup window
+	def filter_disconnect(self):
+		self.bnorder.disconnect(self.cidorder)
+		self.bnapply.disconnect(self.bnapply)
 
 	def getButterOrder(self, event):
 		self.filteredData['order'] = int(event)
@@ -618,9 +628,7 @@ class PickPhaseMenuMore:
 		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
 
 	def getFreq(self,event):
-
 		if event.inaxes == self.filterAxs['amVfreq']:
-			print 'yolowag'
 			if self.filteredData['advance']: # low and high frequencies recorded
 				self.filteredData['highFreq'] = event.xdata
 				self.filteredData['advance'] = False
@@ -642,7 +650,7 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].clear()
 
 		#set axes limit
-		self.filterAxs['amVtime'].set_xlim(-20,20)
+		self.filterAxs['amVtime'].set_xlim(-30,30)
 		self.filterAxs['amVfreq'].set_xlim(0,0.040)
 
 		self.modifyFilterTextLabels()
@@ -655,13 +663,12 @@ class PickPhaseMenuMore:
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
 		A[isnan(A)] = 0
 		B[isnan(B)] = 0
+
 		w, h = signal.freqz(B, A)
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
 		# convert filtered time signal -> frequency signal
 		self.filteredData['filtered-signal-freq'] = np.fft.fft(self.filteredData['filtered-signal-time'])/(2*np.pi)
-
-		print self.filteredData['filtered-signal-time']
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['original-signal-time'], label='Original')
@@ -681,7 +688,31 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].set_xlabel('Frequency (Hz)', fontsize = 9)
 		self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize = 9)
 
+		# redraw the plots on the popup window
 		self.figfilter.canvas.draw()
+
+	def applyFilter(self, event):
+		# write data into stack
+		# self.gsac.stkdh.data = self.filteredData['filtered-signal-time']
+
+		#should we write filtered data for individual seismograms
+		self.opts.filterParameters['apply'] = True
+		self.opts.filterParameters['lowFreq'] = self.filteredData['lowFreq']
+		self.opts.filterParameters['highFreq'] = self.filteredData['highFreq']
+		self.opts.filterParameters['order'] = self.filteredData['order']
+
+		# replot filtered stuff
+		self.axstk.clear()
+		self.ppm.axpp.clear()
+		self.initPlot()
+		self.plotStack()
+
+		# redraw figures
+		self.ppm.axpp.figure.canvas.draw()
+		self.axstk.figure.canvas.draw()
+
+		self.filter_disconnect()
+		close()
 
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
@@ -695,18 +726,24 @@ class PickPhaseMenuMore:
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
+		rectapply = [0.5, 0.90, 0.05, 0.04]
 
 		filterAxs = {}
 		self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
+		filterAxs['apply'] = figfilter.add_axes(rectapply)
 		self.figfilter.text(0.3, 0.97, 'Select Order:')
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
 		filterAxs['Info'].axes.get_xaxis().set_visible(False)
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
+
+		#add apply button. causes the filtered data to be applied 
+		self.bnapply = Button(filterAxs['apply'], 'Apply')
+		self.cidapply = self.bnapply.on_clicked(self.applyFilter)
 
 		self.filterAxs = filterAxs
 
@@ -988,8 +1025,6 @@ class PickPhaseMenuMore:
 def sortSeis(gsac, opts):
 	'Sort seismograms by file indices, quality factors, time difference, or a given header.'
 	sortby = opts.sortby
-	print 'WHAT TO SORT BY: ' 
-	print sortby 
 	# determine increase/decrease order
 	if sortby[-1] == '-':
 		sortincrease = False
@@ -1041,6 +1076,9 @@ def getDataOpts():
 
 	gsac = loadData(ifiles, opts, pppara)
 
+	filterParameters = {}
+	filterParameters['apply'] = False
+	opts.filterParameters = filterParameters
 
 	mcpara.delta = opts.delta
 	opts.qheaders = qcpara.qheaders

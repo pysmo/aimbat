@@ -47,6 +47,8 @@ from ttconfig import PPConfig, getParser
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader
 from sacpickle import loadData, saveData 
 from plotutils import TimeSelector, dataNorm, axLimit, pickLegend, indexBaseTick
+import numpy as np
+from scipy import signal
 
 def getOptions():
 	""" Parse arguments and options. """
@@ -130,6 +132,14 @@ class PickPhase:
 		ybase = self.ybase
 		x = self.time - self.sacdh.reftime
 		d = self.sacdh.data
+
+		# filter time signal d
+		if opts.filterParameters['apply']:
+			B, A = signal.butter(opts.filterParameters['order'], [opts.filterParameters['lowFreq'], opts.filterParameters['highFreq']], btype='bandpass')
+			A[isnan(A)] = 0
+			B[isnan(B)] = 0
+			d = signal.lfilter(B, A, d)
+
 		axpp = self.axpp
 		if self.opts.ynorm > 0:
 			# normalize data within time window
