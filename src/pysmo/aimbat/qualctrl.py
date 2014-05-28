@@ -689,9 +689,6 @@ class PickPhaseMenuMore:
 		self.figfilter.canvas.draw()
 
 	def applyFilter(self, event):
-		# write data into stack
-		# self.gsac.stkdh.data = self.filteredData['filtered-signal-time']
-
 		#should we write filtered data for individual seismograms
 		self.opts.filterParameters['apply'] = True
 		self.opts.filterParameters['lowFreq'] = self.filteredData['lowFreq']
@@ -730,6 +727,7 @@ class PickPhaseMenuMore:
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
 		rectapply = [0.5, 0.90, 0.05, 0.04]
+		rectband = [0.6, 0.86, 0.10, 0.10]
 
 		filterAxs = {}
 		self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
@@ -737,7 +735,10 @@ class PickPhaseMenuMore:
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
 		filterAxs['apply'] = figfilter.add_axes(rectapply)
-		self.figfilter.text(0.3, 0.97, 'Select Order:')
+		filterAxs['band'] = figfilter.add_axes(rectband)
+
+		self.figfilter.text(0.3, 0.97, 'Order:')
+		self.figfilter.text(0.6, 0.97, 'Filter Type:')
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
