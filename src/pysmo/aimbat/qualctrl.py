@@ -173,10 +173,6 @@ class PickPhaseMenuMore:
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
 
-		if hasattr(self, 'filteredData'):
-			self.opts.filterParameters['lowFreq'] = self.filteredData['lowFreq']
-			self.opts.filterParameters['highFreq'] = self.filteredData['highFreq']
-			self.opts.filterParameters['order'] = self.filteredData['order']
 		ppstk = PickPhase(self.gsac.stkdh, self.opts, self.axstk, stkybase, colorwave, 1) 
 
 		ppstk.plotPicks()
@@ -697,10 +693,13 @@ class PickPhaseMenuMore:
 
 	def applyFilter(self, event):
 		# write data into stack
-		self.gsac.stkdh.data = self.filteredData['filtered-signal-time']
+		# self.gsac.stkdh.data = self.filteredData['filtered-signal-time']
 
 		#should we write filtered data for individual seismograms
 		self.opts.filterParameters['apply'] = True
+		self.opts.filterParameters['lowFreq'] = self.filteredData['lowFreq']
+		self.opts.filterParameters['highFreq'] = self.filteredData['highFreq']
+		self.opts.filterParameters['order'] = self.filteredData['order']
 
 		# replot filtered stuff
 		self.axstk.clear()

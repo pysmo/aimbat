@@ -135,7 +135,6 @@ class PickPhase:
 
 		# filter time signal d
 		if opts.filterParameters['apply']:
-			
 			B, A = signal.butter(opts.filterParameters['order'], [opts.filterParameters['lowFreq'], opts.filterParameters['highFreq']], btype='bandpass')
 			A[isnan(A)] = 0
 			B[isnan(B)] = 0
