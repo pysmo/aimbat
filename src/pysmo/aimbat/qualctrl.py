@@ -618,16 +618,26 @@ class PickPhaseMenuMore:
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 		elif event=='Low':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
-			print 'low'
+			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getLowFreq)
 		elif event=='High':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			print 'high'
+
+	def getLowFreq(self, event):
+		if event.inaxes == self.filterAxs['amVfreq']:
+			self.filteredData['lowFreq'] = event.xdata
+			self.spreadButter()
+
+	def getHighFreq(self, event):
+		if event.inaxes == self.filterAxs['amVfreq']:
+			self.filteredData['highFreq'] = event.xdata
+			self.spreadButter()
 
 	# disconnect buttons on the filter popup window
 	def filter_disconnect(self):
 		self.bnorder.disconnect(self.cidorder)
 		self.bnapply.disconnect(self.bnapply)
-		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidorder)
+		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 
 	def getButterOrder(self, event):
 		self.filteredData['order'] = int(event)
