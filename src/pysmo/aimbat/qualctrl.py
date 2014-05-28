@@ -124,7 +124,6 @@ class PickPhaseMenuMore:
 		gsac = self.gsac
 		opts = self.opts
 		sortSeis(gsac, opts)
-		opts.filter_lowFreq = 0.03
 		self.ppm = PickPhaseMenu(gsac, opts, self.axs)
 		# make the legend box invisible
 		if self.opts.pick_on:
@@ -173,6 +172,11 @@ class PickPhaseMenuMore:
 		""" Plot array stack and span """
 		colorwave = self.opts.pppara.colorwave
 		stkybase = 0
+
+		if hasattr(self, 'filteredData'):
+			self.opts.filterParameters['lowFreq'] = self.filteredData['lowFreq']
+			self.opts.filterParameters['highFreq'] = self.filteredData['highFreq']
+			self.opts.filterParameters['order'] = self.filteredData['order']
 		ppstk = PickPhase(self.gsac.stkdh, self.opts, self.axstk, stkybase, colorwave, 1) 
 
 		ppstk.plotPicks()
@@ -589,6 +593,9 @@ class PickPhaseMenuMore:
 	#
 
 	def filtering(self,event):
+		if hasattr(self.opts,'filterParameters'):
+			self.opts.filterParameters['apply'] = False
+
 		gsac = self.gsac
 		filterAxes = self.getFilterAxes()
 
@@ -601,8 +608,6 @@ class PickPhaseMenuMore:
 		# get order
 		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
 		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
-
-		#apply the filter and close window
 
 		show()
 
@@ -662,6 +667,7 @@ class PickPhaseMenuMore:
 		B, A = signal.butter(self.filteredData['order'], [self.filteredData['lowFreq'],self.filteredData['highFreq']], btype='bandpass')
 		A[isnan(A)] = 0
 		B[isnan(B)] = 0
+
 		w, h = signal.freqz(B, A)
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
@@ -693,7 +699,8 @@ class PickPhaseMenuMore:
 		# write data into stack
 		self.gsac.stkdh.data = self.filteredData['filtered-signal-time']
 
-		#write filtered data for individual seismograms
+		#should we write filtered data for individual seismograms
+		self.opts.filterParameters['apply'] = True
 
 		# replot filtered stuff
 		self.axstk.clear()
@@ -1070,6 +1077,9 @@ def getDataOpts():
 
 	gsac = loadData(ifiles, opts, pppara)
 
+	filterParameters = {}
+	filterParameters['apply'] = False
+	opts.filterParameters = filterParameters
 
 	mcpara.delta = opts.delta
 	opts.qheaders = qcpara.qheaders
