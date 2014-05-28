@@ -692,7 +692,7 @@ class PickPhaseMenuMore:
 		
 		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='bandpass')
-		w, h = signal.freqz(B, A)#,worN=self.filteredData['original-freq'])
+		w, h = signal.freqz(B, A)
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
 		# convert filtered time signal -> frequency signal
@@ -707,7 +707,6 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 12)
 
 		# PLOT FREQUENCY
-
 		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['original-signal-freq']), label='Original')
 		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['filtered-signal-freq']), label='Filtered')
 		MULTIPLE = 0.7*max(np.abs(self.filteredData['original-signal-freq']))
