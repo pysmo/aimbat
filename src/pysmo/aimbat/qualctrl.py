@@ -599,15 +599,29 @@ class PickPhaseMenuMore:
 		self.spreadButter()
 
 		# user to change default parameters
-		self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getFreq)
+		self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 
 		# get order
 		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
 		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
+		# get type of filter to use
 		self.bnband = RadioButtons(self.filterAxs['band'], ('Bandpass','Low','High'))
+		self.cidband = self.bnband.on_clicked(self.getBandtype)
 
 		show()
+
+	def getBandtype(self, event):
+		if event=='Bandpass':
+			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			# user to change default parameters
+			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
+		elif event=='Low':
+			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			print 'low'
+		elif event=='High':
+			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			print 'high'
 
 	# disconnect buttons on the filter popup window
 	def filter_disconnect(self):
@@ -630,7 +644,7 @@ class PickPhaseMenuMore:
 		self.filteredData['original-time'] = self.ppstk.time - self.ppstk.sacdh.reftime
 		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
 
-	def getFreq(self,event):
+	def getBandpassFreq(self,event):
 		if event.inaxes == self.filterAxs['amVfreq']:
 			if self.filteredData['advance']: # low and high frequencies recorded
 				self.filteredData['highFreq'] = event.xdata
@@ -659,7 +673,7 @@ class PickPhaseMenuMore:
 		self.modifyFilterTextLabels()
 
 		# convert from time -> freq
-		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), 0.025) 
+		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), self.opts.delta) 
 		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) 
 		
 		#filter the time signal
@@ -675,8 +689,8 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['filtered-signal-time'], label='Filtered')
 		self.filterAxs['amVtime'].legend(loc="upper right")
 		self.filterAxs['amVtime'].set_title('Signal vs Time')
-		self.filterAxs['amVtime'].set_xlabel('Time (s)', fontsize = 9)
-		self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 9)
+		self.filterAxs['amVtime'].set_xlabel('Time (s)', fontsize = 12)
+		self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 12)
 
 		# PLOT FREQUENCY
 		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq']/(2*np.pi), np.abs(self.filteredData['original-signal-freq']), label='Original')
@@ -685,8 +699,8 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].plot(w/(2*np.pi), MULTIPLE*np.abs(h), label='Butterworth Filter')
 		self.filterAxs['amVfreq'].legend(loc="upper right")
 		self.filterAxs['amVfreq'].set_title('Amplitude vs frequency')
-		self.filterAxs['amVfreq'].set_xlabel('Frequency (Hz)', fontsize = 9)
-		self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize = 9)
+		self.filterAxs['amVfreq'].set_xlabel('Frequency (Hz)', fontsize = 12)
+		self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize = 12)
 
 		# redraw the plots on the popup window
 		self.figfilter.canvas.draw()
