@@ -677,8 +677,11 @@ class PickPhaseMenuMore:
 		if event.inaxes == self.filterAxs['amVfreq']:
 			if self.filteredData['advance']: # low and high frequencies recorded
 				self.filteredData['highFreq'] = event.xdata
-				self.filteredData['advance'] = False
-				self.spreadButter()
+				if self.filteredData['lowFreq']<self.filteredData['highFreq']:
+					self.filteredData['advance'] = False
+					self.spreadButter()
+				else:
+					print 'Value chose must be higher than lower frequency of %f' % self.filteredData['lowFreq']
 			else:
 				self.filteredData['lowFreq'] = event.xdata
 				self.filteredData['advance'] = True
