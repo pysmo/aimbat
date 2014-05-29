@@ -615,6 +615,7 @@ class PickPhaseMenuMore:
 		self.filteredData['band'] = event
 		if event=='bandpass':
 			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			self.filteredData['advance'] = False
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 		elif event=='lowpass':
 			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
@@ -627,7 +628,6 @@ class PickPhaseMenuMore:
 		if event.inaxes == self.filterAxs['amVfreq']:
 			self.filteredData['lowFreq'] = event.xdata
 			self.filteredData['highFreq'] = nan
-			print 'hello world'
 			self.spreadButter()
 
 	def getHighFreq(self, event):
