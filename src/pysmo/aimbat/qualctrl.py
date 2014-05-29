@@ -655,7 +655,7 @@ class PickPhaseMenuMore:
 		self.filteredData['lowFreq'] = 0.02
 		self.filteredData['highFreq'] = 0.14
 		self.filteredData['order'] = 1
-		self.filteredData['band'] = 'Bandpass'
+		self.filteredData['band'] = 'bandpass'
 		self.filteredData['advance'] = False # have not chosen higher frequency yet
 
 		self.filteredData['original-time'] = self.ppstk.time - self.ppstk.sacdh.reftime
@@ -737,6 +737,7 @@ class PickPhaseMenuMore:
 	def applyFilter(self, event):
 		#should we write filtered data for individual seismograms
 		self.opts.filterParameters['apply'] = True
+		self.opts.filterParameters['band'] = self.filteredData['band']
 		self.opts.filterParameters['lowFreq'] = self.filteredData['lowFreq']
 		self.opts.filterParameters['highFreq'] = self.filteredData['highFreq']
 		self.opts.filterParameters['order'] = self.filteredData['order']

@@ -138,14 +138,14 @@ class PickPhase:
 			NYQ = 1.0/(2*opts.delta)
 
 			# make filter, default is bandpass
-			Wn = [self.filteredData['lowFreq']/NYQ, self.filteredData['highFreq']/NYQ]
-			B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='bandpass')
-			if self.filteredData['band']=='lowpass':
-				Wn = self.filteredData['lowFreq']/NYQ
-				B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='lowpass')
-			elif self.filteredData['band']=='highpass':
-				Wn = self.filteredData['highFreq']/NYQ
-				B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='highpass')
+			Wn = [opts.filterParameters['lowFreq']/NYQ, opts.filterParameters['highFreq']/NYQ]
+			B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
+			if opts.filterParameters['band']=='lowpass':
+				Wn = opts.filterParameters['lowFreq']/NYQ
+				B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
+			elif opts.filterParameters['band']=='highpass':
+				Wn = opts.filterParameters['highFreq']/NYQ
+				B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='highpass')
 
 			d = signal.lfilter(B, A, d)
 
