@@ -615,27 +615,39 @@ class PickPhaseMenuMore:
 		self.filteredData['band'] = event
 		if event=='bandpass':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
-			#reset defaults
-			self.filteredData['lowFreq'] = 0.02
-			self.filteredData['highFreq'] = 0.14
+			# set defaults
+			self.filteredData['lowFreq'] = 0.05
+			self.filteredData['highFreq'] = 0.25
 			self.filteredData['advance'] = False
+			self.spreadButter()
+			#execute
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 		elif event=='lowpass':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			# set defaults
+			self.filteredData['lowFreq'] = 0.05
+			self.filteredData['highFreq'] = nan
+			self.filteredData['advance'] = False
+			self.spreadButter()
+			#execute
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getLowFreq)
 		elif event=='highpass':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			# set defaults
+			self.filteredData['lowFreq'] = nan
+			self.filteredData['highFreq'] = 0.25
+			self.filteredData['advance'] = False
+			self.spreadButter()
+			#execute
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getHighFreq)
 
 	def getLowFreq(self, event):
 		if event.inaxes == self.filterAxs['amVfreq']:
 			self.filteredData['lowFreq'] = event.xdata
-			self.filteredData['highFreq'] = nan
 			self.spreadButter()
 
 	def getHighFreq(self, event):
 		if event.inaxes == self.filterAxs['amVfreq']:
-			self.filteredData['lowFreq'] = nan
 			self.filteredData['highFreq'] = event.xdata
 			self.spreadButter()
 
@@ -652,8 +664,8 @@ class PickPhaseMenuMore:
 	def setFilterDefaults(self):
 		filteredData={}
 		self.filteredData = filteredData
-		self.filteredData['lowFreq'] = 0.02
-		self.filteredData['highFreq'] = 0.14
+		self.filteredData['lowFreq'] = 0.05
+		self.filteredData['highFreq'] = 0.25
 		self.filteredData['order'] = 1
 		self.filteredData['band'] = 'bandpass'
 		self.filteredData['advance'] = False # have not chosen higher frequency yet

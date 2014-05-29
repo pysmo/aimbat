@@ -136,7 +136,7 @@ class PickPhase:
 		# filter time signal d
 		if opts.filterParameters['apply']:
 			NYQ = 1.0/(2*opts.delta)
-
+			
 			# make filter, default is bandpass
 			Wn = [opts.filterParameters['lowFreq']/NYQ, opts.filterParameters['highFreq']/NYQ]
 			B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
