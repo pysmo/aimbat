@@ -240,7 +240,7 @@ class SacDataHdrs:
 	def writeHdrs(self):
 		""" Write SAC headers (t_n, user_n, and kuser_n) in python obj to existing SAC file.
 		"""
-		sacobj = sacfile(self.filename, 'rw')
+		sacobj = sacfile(self.filename+'.sac', 'rw')
 		self.savehdrs(sacobj)
 		sacobj.close()
 
