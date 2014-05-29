@@ -135,9 +135,18 @@ class PickPhase:
 
 		# filter time signal d
 		if opts.filterParameters['apply']:
-			B, A = signal.butter(opts.filterParameters['order'], [opts.filterParameters['lowFreq'], opts.filterParameters['highFreq']], btype='bandpass')
-			A[isnan(A)] = 0
-			B[isnan(B)] = 0
+			NYQ = 1.0/(2*opts.delta)
+			
+			# make filter, default is bandpass
+			Wn = [opts.filterParameters['lowFreq']/NYQ, opts.filterParameters['highFreq']/NYQ]
+			B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
+			if opts.filterParameters['band']=='lowpass':
+				Wn = opts.filterParameters['lowFreq']/NYQ
+				B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
+			elif opts.filterParameters['band']=='highpass':
+				Wn = opts.filterParameters['highFreq']/NYQ
+				B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='highpass')
+
 			d = signal.lfilter(B, A, d)
 
 		axpp = self.axpp
