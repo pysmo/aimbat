@@ -614,14 +614,17 @@ class PickPhaseMenuMore:
 	def getBandtype(self, event):
 		self.filteredData['band'] = event
 		if event=='bandpass':
-			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			#reset defaults
+			self.filteredData['lowFreq'] = 0.02
+			self.filteredData['highFreq'] = 0.14
 			self.filteredData['advance'] = False
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 		elif event=='lowpass':
-			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getLowFreq)
 		elif event=='highpass':
-			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getHighFreq)
 
 	def getLowFreq(self, event):
