@@ -606,30 +606,33 @@ class PickPhaseMenuMore:
 		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
 		# get type of filter to use
-		self.bnband = RadioButtons(self.filterAxs['band'], ('Bandpass','Low','High'))
+		self.bnband = RadioButtons(self.filterAxs['band'], ('bandpass','lowpass','highpass'))
 		self.cidband = self.bnband.on_clicked(self.getBandtype)
 
 		show()
 
 	def getBandtype(self, event):
-		if event=='Bandpass':
-			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
-			# user to change default parameters
+		self.filteredData['band'] = event
+		if event=='bandpass':
+			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
-		elif event=='Low':
-			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+		elif event=='lowpass':
+			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getLowFreq)
-		elif event=='High':
-			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
-			print 'high'
+		elif event=='highpass':
+			#self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getHighFreq)
 
 	def getLowFreq(self, event):
 		if event.inaxes == self.filterAxs['amVfreq']:
 			self.filteredData['lowFreq'] = event.xdata
+			self.filteredData['highFreq'] = nan
+			print 'hello world'
 			self.spreadButter()
 
 	def getHighFreq(self, event):
 		if event.inaxes == self.filterAxs['amVfreq']:
+			self.filteredData['lowFreq'] = nan
 			self.filteredData['highFreq'] = event.xdata
 			self.spreadButter()
 
@@ -649,6 +652,7 @@ class PickPhaseMenuMore:
 		self.filteredData['lowFreq'] = 0.02
 		self.filteredData['highFreq'] = 0.14
 		self.filteredData['order'] = 1
+		self.filteredData['band'] = 'Bandpass'
 		self.filteredData['advance'] = False # have not chosen higher frequency yet
 
 		self.filteredData['original-time'] = self.ppstk.time - self.ppstk.sacdh.reftime
@@ -688,11 +692,19 @@ class PickPhaseMenuMore:
 		#self.filteredData['original-freq'] = np.fft.fftfreq(fftlen, self.opts.delta)
 		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) 
 
+		# make filter, default is bandpass
 		Wn = [self.filteredData['lowFreq']/NYQ, self.filteredData['highFreq']/NYQ]
-		
-		#filter the time signal
 		B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='bandpass')
+		if self.filteredData['band']=='lowpass':
+			Wn = self.filteredData['lowFreq']/NYQ
+			B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='lowpass')
+		elif self.filteredData['band']=='highpass':
+			Wn = self.filteredData['highFreq']/NYQ
+			B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='highpass')
+		
 		w, h = signal.freqz(B, A)
+
+		# apply filter
 		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
 
 		# convert filtered time signal -> frequency signal
