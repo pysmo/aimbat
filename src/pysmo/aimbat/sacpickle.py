@@ -354,10 +354,9 @@ def transformToSac(gsac):
 		trace.stats.station = sacdh.netsta.split('.')[1]
 		trace.stats.delta = sacdh.delta
 		trace.stats.npts = sacdh.npts
+		trace.stats.sac = {'dist':sacdh.dist}
 
 		trace.write(sacdh.filename, format='SAC')
-
-		#print sacdh.netsta
 
 
 # ############################################################################### #
