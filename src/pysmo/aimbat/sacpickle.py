@@ -323,6 +323,41 @@ class SacGroup:
 		for sacdh in self.saclist:
 			sacdh.resampleData(delta)
 
+
+
+
+
+
+
+
+# ############################################################################### #
+#                                                                                 #
+#                                WRITE TO SAC FILE                                #
+#                                                                                 #
+# ############################################################################### #
+
+def transformToSac(gsac):
+	for sacdh in gsac.saclist:
+		dirarr = sacdh.filename.split('/')
+		dirname = dirarr[0]+'/'+dirarr[1]
+		if not os.path.exists(dirname):
+			os.makedirs(dirname)
+
+		trace = Trace()
+		trace.data = sacdh.data
+
+
+# ############################################################################### #
+#                                                                                 #
+#                                WRITE TO SAC FILE                                #
+#                                                                                 #
+# ############################################################################### #
+
+
+
+
+
+
 # ############################################################################### #
 #                                                                                 #
 #                                  CLASS: SacGroup                                #
@@ -363,7 +398,8 @@ def pkl2sac(pkfile, zipmode):
 	""" Save headers in python pickle to SAC files.
 	"""
 	gsac = readPickle(pkfile, zipmode)
-	obj2sac(gsac)
+	transformToSac(gsac)
+	#obj2sac(gsac)
 
 def _days(year):
 	""" Get number of days for each month of a year."""
