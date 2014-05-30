@@ -359,7 +359,7 @@ def transformToSac(gsac):
 		trace.stats.delta = sacdh.delta
 		trace.stats.npts = sacdh.npts
 
-		trace.stats.sac = {'dist':sacdh.dist, 'kevnm':gsac.kevnm, 'az':sacdh.az, 'b':sacdh.b, 'baz':sacdh.baz, 'gcarc':sacdh.gcarc, 'stla':sacdh.stla, 'stlo':sacdh.stlo, 'evdp':evdp}
+		trace.stats.sac = {'dist':sacdh.dist, 'kevnm':gsac.kevnm, 'az':sacdh.az, 'b':sacdh.b, 'baz':sacdh.baz, 'gcarc':sacdh.gcarc, 'stla':sacdh.stla, 'stlo':sacdh.stlo, 'evdp':evdp, 'evla':evla, 'evlo':evlo, 'mag':mag}
 
 		trace.write(sacdh.filename, format='SAC')
 
