@@ -359,6 +359,7 @@ def pkl2sac(pkfile, zipmode):
 	""" Save headers in python pickle to SAC files.
 	"""
 	gsac = readPickle(pkfile, zipmode)
+	print (gsac)
 	obj2sac(gsac)
 
 def _days(year):
