@@ -344,7 +344,20 @@ def transformToSac(gsac):
 			os.makedirs(dirname)
 
 		trace = Trace()
+
+		#data
 		trace.data = sacdh.data
+
+		#states
+		trace.stats._format = 'SAC'
+		trace.stats.network = sacdh.netsta.split('.')[0]
+		trace.stats.station = sacdh.netsta.split('.')[1]
+		trace.stats.delta = sacdh.delta
+		trace.stats.npts = sacdh.npts
+
+		trace.write(sacdh.filename, format='SAC')
+
+		#print sacdh.netsta
 
 
 # ############################################################################### #
