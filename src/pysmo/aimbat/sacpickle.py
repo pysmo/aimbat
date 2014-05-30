@@ -337,6 +337,10 @@ class SacGroup:
 # ############################################################################### #
 
 def transformToSac(gsac):
+	evdp = gsac.event[8]
+	evla = gsac.event[6]
+	evlo = gsac.event[7]
+	mag = gsac.event[9]
 	for sacdh in gsac.saclist:
 		dirarr = sacdh.filename.split('/')
 		dirname = dirarr[0]+'/'+dirarr[1]
@@ -354,7 +358,8 @@ def transformToSac(gsac):
 		trace.stats.station = sacdh.netsta.split('.')[1]
 		trace.stats.delta = sacdh.delta
 		trace.stats.npts = sacdh.npts
-		trace.stats.sac = {'dist':sacdh.dist, 'kevnm':gsac.kevnm, 'az':sacdh.az, 'b':sacdh.b, 'baz':sacdh.baz, 'gcarc':sacdh.gcarc, 'stla':sacdh.stla, 'stlo':sacdh.stla}
+
+		trace.stats.sac = {'dist':sacdh.dist, 'kevnm':gsac.kevnm, 'az':sacdh.az, 'b':sacdh.b, 'baz':sacdh.baz, 'gcarc':sacdh.gcarc, 'stla':sacdh.stla, 'stlo':sacdh.stlo, 'evdp':evdp}
 
 		trace.write(sacdh.filename, format='SAC')
 
