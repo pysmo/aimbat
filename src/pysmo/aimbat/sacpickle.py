@@ -354,7 +354,7 @@ def transformToSac(gsac):
 		trace.stats.station = sacdh.netsta.split('.')[1]
 		trace.stats.delta = sacdh.delta
 		trace.stats.npts = sacdh.npts
-		trace.stats.sac = {'dist':sacdh.dist}
+		trace.stats.sac = {'dist':sacdh.dist, 'kevnm':gsac.kevnm, 'az':sacdh.az, 'b':sacdh.b, 'baz':sacdh.baz, 'gcarc':sacdh.gcarc, 'stla':sacdh.stla, 'stlo':sacdh.stla}
 
 		trace.write(sacdh.filename, format='SAC')
 
