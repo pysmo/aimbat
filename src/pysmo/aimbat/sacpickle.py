@@ -86,6 +86,10 @@ try:
 except:
 	import pickle
 
+from obspy import read
+from obspy import Trace
+from obspy import Stream
+
 # ############################################################################### #
 #                                                                                 #
 #                         MANIPULATING PICKLE FILES                               #
