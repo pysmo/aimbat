@@ -116,6 +116,7 @@ def indexBaseTick(na, nb, pagesize, pna):
 	### yindex for page 0:
 	yindex = {}
 	ybases = {}
+	ybases = {}
 	yticks = {}
 	ia1 = min(pna, na)
 	ib0 = max(0, nb-pnb)

@@ -440,9 +440,12 @@ class PickPhaseMenu():
 		ipage = self.ipage
 		ayindex, aybases, ayticks = self.ayindex, self.aybases, self.ayticks
 		sedelist = self.sedelist
+
+		#reshape
 		plists = [ [ sedelist[j][k] for k in ayindex[ipage][j] ] for j in range(2)]
 		pbases = [ [ k              for k in aybases[ipage][j] ] for j in range(2)]
 		pticks = [ [ k              for k in ayticks[ipage][j] ] for j in range(2)]
+
 		npsel = len(pbases[0])
 		npdel = len(pbases[1])
 		nsede = [npsel, npdel]
