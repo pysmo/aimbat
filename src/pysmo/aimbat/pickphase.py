@@ -596,16 +596,21 @@ class PickPhaseMenu():
 
 	def fron(self, event):
 		self.replot(0)
+		self.axpp.get_figure().canvas.draw()
+		self.axpp.get_figure().canvas.draw()
 
 	# zoom back to original screen size
 	def zoba(self, event):
 		self.replot(self.ipage)
+		self.axpp.get_figure().canvas.draw()
 
 	def prev(self, event):
 		self.replot(self.ipage-1)
+		self.axpp.get_figure().canvas.draw()
 
 	def next(self, event):
 		self.replot(self.ipage+1)
+		self.axpp.get_figure().canvas.draw()
 
 	def save(self, event):
 		saveData(self.gsac, self.opts)

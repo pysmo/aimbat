@@ -18,6 +18,8 @@ Python script to run the graphic user interface of AIMBAT for travel time pickin
 	http://www.gnu.org/licenses/gpl.html
 """ 
 
+import matplotlib
+matplotlib.use('tkagg')
 from matplotlib.pyplot import *
 from pysmo.aimbat.qualctrl import getDataOpts, getAxes, PickPhaseMenuMore
 
