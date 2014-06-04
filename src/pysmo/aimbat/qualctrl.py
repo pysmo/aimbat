@@ -781,6 +781,33 @@ class PickPhaseMenuMore:
 		self.filter_disconnect()
 		close()
 
+	def unapplyFilter(self, event):
+		#should we write filtered data for individual seismograms
+		self.opts.filterParameters['apply'] = False
+		self.opts.filterParameters['band'] = 'bandpass'
+		self.opts.filterParameters['lowFreq'] = 0.05
+		self.opts.filterParameters['highFreq'] = 0.25
+		self.opts.filterParameters['order'] = 2
+
+		# replot filtered stuff
+		self.axstk.clear()
+		self.ppm.axpp.clear()
+		self.axs['Fron'].clear()
+		self.axs['Prev'].clear()
+		self.axs['Next'].clear()
+		self.axs['Zoba'].clear()
+		self.axs['Save'].clear()
+		self.axs['Quit'].clear()
+		self.initPlot()
+		self.plotStack()
+
+		# redraw figures
+		self.ppm.axpp.figure.canvas.draw()
+		self.axstk.figure.canvas.draw()
+
+		self.filter_disconnect()
+		close()
+
 	def getFilterAxes(self):
 		figfilter = figure(figsize=(15, 12))
 		self.figfilter = figfilter
@@ -793,6 +820,7 @@ class PickPhaseMenuMore:
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
+		rectunapply = [0.42, 0.90, 0.05, 0.04]
 		rectapply = [0.5, 0.90, 0.05, 0.04]
 		rectband = [0.6, 0.86, 0.10, 0.10]
 
@@ -801,6 +829,7 @@ class PickPhaseMenuMore:
 		filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
 		filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
 		filterAxs['ordr'] = figfilter.add_axes(rectordr)
+		filterAxs['unapply'] = figfilter.add_axes(rectunapply)
 		filterAxs['apply'] = figfilter.add_axes(rectapply)
 		filterAxs['band'] = figfilter.add_axes(rectband)
 
@@ -815,6 +844,10 @@ class PickPhaseMenuMore:
 		#add apply button. causes the filtered data to be applied 
 		self.bnapply = Button(filterAxs['apply'], 'Apply')
 		self.cidapply = self.bnapply.on_clicked(self.applyFilter)
+
+		#add unapply button. causes the filtered data to be applied 
+		self.bnunapply = Button(filterAxs['unapply'], 'Unapply')
+		self.cidunapply = self.bnunapply.on_clicked(self.unapplyFilter)
 
 		self.filterAxs = filterAxs
 
