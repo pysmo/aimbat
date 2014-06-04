@@ -607,7 +607,7 @@ class PickPhaseMenuMore:
 		self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 
 		# get order
-		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5))
+		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5), active=1)
 		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
 		# get type of filter to use
@@ -671,7 +671,7 @@ class PickPhaseMenuMore:
 		self.filteredData = filteredData
 		self.filteredData['lowFreq'] = 0.05
 		self.filteredData['highFreq'] = 0.25
-		self.filteredData['order'] = 1
+		self.filteredData['order'] = 2
 		self.filteredData['band'] = 'bandpass'
 		self.filteredData['advance'] = False # have not chosen higher frequency yet
 
