@@ -442,7 +442,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'i';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -451,7 +451,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'all';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -460,7 +460,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = '1';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -469,7 +469,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = '2';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -478,7 +478,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = '3';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -487,7 +487,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'npts';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -496,7 +496,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'b';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -505,7 +505,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'e';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -514,7 +514,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'delta';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -523,7 +523,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'kstnm';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -532,7 +532,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'stla';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -541,7 +541,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'stlo';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -550,7 +550,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'dist';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -559,7 +559,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'az';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -568,7 +568,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'baz';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -577,7 +577,7 @@ class PickPhaseMenuMore:
 		self.bnquit.label.set_text('Processing...')
 		self.figsort.canvas.draw()
 		self.opts.sortby = 'gcarc';
-		self.replot()
+		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
 		self.bnquit.label.set_text('Done! Click to Exit.')
 		return
@@ -870,13 +870,20 @@ class PickPhaseMenuMore:
 					setp(pp.lines[0], ydata=pp.ybase+pp.sacdh.data*pp.ynorm[-1])
 			axstk.figure.canvas.draw()
 
+	def replot_seismograms(self):
+		""" Replot seismograms and array stack after running iccs.
+		"""
+		sortSeis(self.gsac, self.opts)
+		self.ppm.initIndex()
+		self.ppm.replot(0)
+		self.setLabels()
+
 	def replot(self):
 		""" Replot seismograms and array stack after running iccs.
 		"""
 		self.ppstk.disconnect()
 		self.ppstk.axpp.cla()
 		self.plotStack()
-		opts = self.opts
 		sortSeis(self.gsac, self.opts)
 		self.ppm.initIndex()
 		self.ppm.replot(0)
