@@ -597,7 +597,6 @@ class PickPhaseMenu():
 	def fron(self, event):
 		self.replot(0)
 		self.axpp.get_figure().canvas.draw()
-		self.axpp.get_figure().canvas.draw()
 
 	# zoom back to original screen size
 	def zoba(self, event):
@@ -663,7 +662,8 @@ class PickPhaseMenu():
 		self.span.visible = False
 
 	def finish(self):
-		for pp in self.pps:	pp.disconnect()
+		for pp in self.pps:	
+			pp.disconnect()
 		self.axpp.cla()
 
 # ############################################################################### #
