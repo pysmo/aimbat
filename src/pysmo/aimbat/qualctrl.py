@@ -42,7 +42,7 @@ import numpy as np
 from scipy import signal
 import math
 
-import Tkinter
+#import Tkinter
 import tkMessageBox
 
 """print everything out in an array, DO NOT DELETE!!!"""
@@ -820,7 +820,7 @@ class PickPhaseMenuMore:
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
-		rectunapply = [0.42, 0.90, 0.05, 0.04]
+		rectunapply = [0.42, 0.90, 0.07, 0.04]
 		rectapply = [0.5, 0.90, 0.05, 0.04]
 		rectband = [0.6, 0.86, 0.10, 0.10]
 
