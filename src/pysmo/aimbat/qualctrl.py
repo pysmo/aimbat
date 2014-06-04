@@ -136,11 +136,15 @@ class PickPhaseMenuMore:
 		  * Depth
 		"""
 		gsac = self.gsac
+
 		# get required parameters
 		locationLat = round(gsac.event[6],2)
 		locationLon = round(gsac.event[7],2)
 		depth = round(gsac.event[8],2)
 		magnitude = round(gsac.event[9],2)
+		all_gcarc = []
+		[all_gcarc.append(hdr.gcarc) for hdr in gsac.selist ]
+		avg_gcarc = round(np.mean(all_gcarc),2)
 
 		infoaxis = self.axs['Info']
 
@@ -149,10 +153,11 @@ class PickPhaseMenuMore:
 		infoaxis.axes.get_yaxis().set_visible(False)
 
 		# write the info into the axis plot
-		infoaxis.text(0.1,0.8,'Magnitude: '+str(magnitude))
-		infoaxis.text(0.1,0.6,'Lat: '+str(locationLat))
-		infoaxis.text(0.1,0.4,'Lon: '+str(locationLon))
-		infoaxis.text(0.1,0.2,'Depth: '+str(depth))
+		infoaxis.text(0.1,0.85,'Magnitude: '+str(magnitude))
+		infoaxis.text(0.1,0.65,'Lat: '+str(locationLat))
+		infoaxis.text(0.1,0.45,'Lon: '+str(locationLon))
+		infoaxis.text(0.1,0.25,'Depth: '+str(depth))
+		infoaxis.text(0.1,0.05,'Gcarc: '+str(avg_gcarc))
 
 	def setLabels(self):
 		""" Set plot attributes """
@@ -238,9 +243,9 @@ class PickPhaseMenuMore:
 		figsort = figure(figsize=(15, 12))
 		self.figsort = figsort
 
-		backend = get_backend().lower()
-		if backend == 'tkagg':
-			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
+		# backend = get_backend().lower()
+		# if backend == 'tkagg':
+		# 	get_current_fig_manager().window.wm_geometry("1000x900+720+80")
 
 		x0 = 0.05
 		xx = 0.10
