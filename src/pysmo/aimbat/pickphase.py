@@ -615,8 +615,8 @@ class PickPhaseMenu():
 		saveData(self.gsac, self.opts)
 
 	def quit(self, event):
-		self.finish()
-		self.disconnect()
+		#self.finish()
+		#self.disconnect()
 		close()
 
 	def connect(self):
