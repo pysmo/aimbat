@@ -52,7 +52,7 @@ class TimeSelector(SpanSelector):
 	"""
 	def ignore(self, event):
 		#if (not Gcf.get_active().toolbar.mode == '') or event.inaxes != self.ax or event.name == 'pick_event':
-		if (not Gcf.get_active().toolbar.mode == '') or event.inaxes != self.ax :
+		if Gcf.get_active() != '' or event.inaxes != self.ax:
 			return True
 
 def dataNorm(d, w=0.05):
