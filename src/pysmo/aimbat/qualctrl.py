@@ -771,8 +771,10 @@ class PickPhaseMenuMore:
 		self.axs['Zoba'].clear()
 		self.axs['Save'].clear()
 		self.axs['Quit'].clear()
-		#self.initPlot()
 		self.ppm = PickPhaseMenu(self.gsac, self.opts, self.axs)
+		# make the legend box invisible
+		if self.opts.pick_on:
+			self.ppm.axpp.get_legend().set_visible(False)
 		self.plotStack()
 
 		# redraw figures

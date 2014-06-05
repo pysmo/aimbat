@@ -175,7 +175,6 @@ def getAxes(opts):
 	axs['Next'] = fig.add_axes(rectnext)
 	axs['Save'] = fig.add_axes(rectsave)
 	axs['Quit'] = fig.add_axes(rectquit)
-
 	return axs
 
 
