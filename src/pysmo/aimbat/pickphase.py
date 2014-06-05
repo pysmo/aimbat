@@ -617,7 +617,8 @@ class PickPhaseMenu():
 	def quit(self, event):
 		self.finish()
 		self.disconnect(event.canvas)
-		close()
+		clf()
+		close('all')
 
 	def connect(self):
 		self.axfron = self.axs['Fron']

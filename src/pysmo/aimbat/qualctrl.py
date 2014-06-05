@@ -41,8 +41,6 @@ from algmccc import mccc, findPhase, eventListName, rcwrite
 import numpy as np
 from scipy import signal
 import math
-
-#import Tkinter
 import tkMessageBox
 
 """print everything out in an array, DO NOT DELETE!!!"""
