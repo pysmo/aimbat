@@ -1233,10 +1233,7 @@ def getDataOpts():
 
 def getAxes(opts):
 	""" Get axes for plotting """
-	fig = figure(figsize=(14, 12.5))
-	backend = get_backend().lower()
-	if backend == 'tkagg':
-		get_current_fig_manager().window.wm_geometry("1300x1050+700+0")
+	fig = figure(figsize=(16, 15))
 	rcParams['legend.fontsize'] = 10
 
 	rectseis = [0.12, 0.04, 0.66, 0.82]
