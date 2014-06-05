@@ -771,7 +771,8 @@ class PickPhaseMenuMore:
 		self.axs['Zoba'].clear()
 		self.axs['Save'].clear()
 		self.axs['Quit'].clear()
-		self.initPlot()
+		#self.initPlot()
+		self.ppm = PickPhaseMenu(self.gsac, self.opts, self.axs)
 		self.plotStack()
 
 		# redraw figures
