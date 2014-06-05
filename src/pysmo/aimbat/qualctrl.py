@@ -813,10 +813,6 @@ class PickPhaseMenuMore:
 		figfilter = figure(figsize=(15, 12))
 		self.figfilter = figfilter
 
-		backend = get_backend().lower()
-		if backend == 'tkagg':
-			get_current_fig_manager().window.wm_geometry("1000x900+720+80")
-
 		rect_amVtime = [0.10, 0.50, 0.80, 0.35]
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
 		rectinfo = [0.8, 0.87, 0.15, 0.10]
