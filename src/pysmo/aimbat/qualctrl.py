@@ -779,7 +779,7 @@ class PickPhaseMenuMore:
 		self.axstk.figure.canvas.draw()
 
 		self.filter_disconnect()
-		close()
+		close(self.figfilter)
 
 	def unapplyFilter(self, event):
 		#should we write filtered data for individual seismograms
