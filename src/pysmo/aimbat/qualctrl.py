@@ -588,9 +588,6 @@ class PickPhaseMenuMore:
 	#
 
 	def filtering(self,event):
-		if hasattr(self.opts,'filterParameters'):
-			self.opts.filterParameters['apply'] = False
-
 		filterAxes = self.getFilterAxes()
 		self.spreadButter()
 
