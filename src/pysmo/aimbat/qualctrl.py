@@ -1166,6 +1166,7 @@ def getDataOpts():
 
 	gsac = loadData(ifiles, opts, pppara)
 
+	# set defaults
 	filterParameters = {}
 	filterParameters['apply'] = False
 	filterParameters['advance'] = False
@@ -1174,6 +1175,17 @@ def getDataOpts():
 	filterParameters['highFreq'] = 0.25
 	filterParameters['order'] = 2
 	opts.filterParameters = filterParameters
+
+	# override defaults if already set in SAC files
+	firstSacdh = gsac.saclist[0]
+	if hasattr(firstSacdh, 'user0'):
+		filterParameters['lowFreq'] = firstSacdh.user0
+	if hasattr(firstSacdh, 'user1'):
+		filterParameters['highFreq'] = firstSacdh.user1
+	if hasattr(firstSacdh, 'kuser0'):
+		filterParameters['band'] = firstSacdh.kuser0
+	if hasattr(firstSacdh, 'kuser1'):
+		filterParameters['order'] = int(firstSacdh.kuser1)
 
 	mcpara.delta = opts.delta
 	opts.qheaders = qcpara.qheaders
