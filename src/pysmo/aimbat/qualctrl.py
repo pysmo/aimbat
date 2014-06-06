@@ -983,16 +983,17 @@ class PickPhaseMenuMore:
 
 	def ccim(self, event):
 		# running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake
-		tkMessageBox.showwarning("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
 
-		""" Run iccs with time window from final stack. Time picks: hdrini, hdrmed.
-		"""
-		hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
-		self.cchdrs = hdrini, hdrmed
-		self.getWindow(self.cchdrs[0])
-		self.ccStack()
-		self.getPicks()
-		self.replot()
+		if shouldRun:
+			""" Run iccs with time window from final stack. Time picks: hdrini, hdrmed.
+			"""
+			hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
+			self.cchdrs = hdrini, hdrmed
+			self.getWindow(self.cchdrs[0])
+			self.ccStack()
+			self.getPicks()
+			self.replot()
 
 	def ccff(self, event):
 		""" Run iccs with time window from final stack. Time picks: hdrfin, hdrfin.
@@ -1002,16 +1003,17 @@ class PickPhaseMenuMore:
 			print '*** hfinal %s is not defined. Sync first! ***' % hdrfin
 			return
 		# running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake
-		tkMessageBox.showwarning("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
 		
-		self.cchdrs = hdrfin, hdrfin
-		self.getWindow(self.cchdrs[0])
-		self.getPicks()
-		self.ccStack()
-		stkdh = self.gsac.stkdh
-		stkdh.sethdr(hdrini, self.tini)
-		stkdh.sethdr(hdrmed, self.tmed)
-		self.replot()
+		if shouldRun:
+			self.cchdrs = hdrfin, hdrfin
+			self.getWindow(self.cchdrs[0])
+			self.getPicks()
+			self.ccStack()
+			stkdh = self.gsac.stkdh
+			stkdh.sethdr(hdrini, self.tini)
+			stkdh.sethdr(hdrmed, self.tmed)
+			self.replot()
 
 	def ccStack(self):
 		""" 
