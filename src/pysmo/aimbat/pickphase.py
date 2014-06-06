@@ -679,9 +679,15 @@ class PickPhaseMenu():
 	def save_headers_filterParams(self, event):
 		# write params to file
 		for sacdh in self.gsac.saclist: 
-			print dir(sacdh)
+			sacdh.user0 = self.opts.filterParameters['lowFreq']
+			sacdh.user1 = self.opts.filterParameters['highFreq']
+			sacdh.kuser0 = self.opts.filterParameters['band']
+			sacdh.kuser1 = self.opts.filterParameters['order']
 		if 'stkdh' in self.gsac.__dict__:
-			pass
+			self.gsac.stkdh.user0 = self.opts.filterParameters['lowFreq']
+			self.gsac.stkdh.user1 = self.opts.filterParameters['highFreq']
+			self.gsac.stkdh.kuser0 = self.opts.filterParameters['band']
+			self.gsac.stkdh.kuser1 = self.opts.filterParameters['order']
 
 		# save
 		saveData(self.gsac, self.opts)
