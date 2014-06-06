@@ -1002,7 +1002,8 @@ class PickPhaseMenuMore:
 		if self.gsac.stkdh.gethdr(hdrfin) == -12345.:
 			print '*** hfinal %s is not defined. Sync first! ***' % hdrfin
 			return
-		# running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake
+
+		"""running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake"""
 		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
 		
 		if shouldRun:
