@@ -428,19 +428,25 @@ class PickPhaseMenuMore:
 	def sort_file(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'i';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qall(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'all';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qccc(self, event):
