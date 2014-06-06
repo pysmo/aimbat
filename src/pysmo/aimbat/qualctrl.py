@@ -241,10 +241,6 @@ class PickPhaseMenuMore:
 		figsort = figure(figsize=(15, 12))
 		self.figsort = figsort
 
-		# backend = get_backend().lower()
-		# if backend == 'tkagg':
-		# 	get_current_fig_manager().window.wm_geometry("1000x900+720+80")
-
 		x0 = 0.05
 		xx = 0.10
 		yy = 0.04
@@ -595,10 +591,7 @@ class PickPhaseMenuMore:
 		if hasattr(self.opts,'filterParameters'):
 			self.opts.filterParameters['apply'] = False
 
-		gsac = self.gsac
 		filterAxes = self.getFilterAxes()
-
-		self.setFilterDefaults()
 		self.spreadButter()
 
 		# user to change default parameters
@@ -615,43 +608,43 @@ class PickPhaseMenuMore:
 		show()
 
 	def getBandtype(self, event):
-		self.filteredData['band'] = event
+		self.opts.filterParameters['band'] = event
 		if event=='bandpass':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			# set defaults
-			self.filteredData['lowFreq'] = 0.05
-			self.filteredData['highFreq'] = 0.25
-			self.filteredData['advance'] = False
+			self.opts.filterParameters['lowFreq'] = 0.05
+			self.opts.filterParameters['highFreq'] = 0.25
+			self.opts.filterParameters['advance'] = False
 			self.spreadButter()
 			#execute
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 		elif event=='lowpass':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			# set defaults
-			self.filteredData['lowFreq'] = 0.05
-			self.filteredData['highFreq'] = nan
-			self.filteredData['advance'] = False
+			self.opts.filterParameters['lowFreq'] = 0.05
+			self.opts.filterParameters['highFreq'] = nan
+			self.opts.filterParameters['advance'] = False
 			self.spreadButter()
 			#execute
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getLowFreq)
 		elif event=='highpass':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			# set defaults
-			self.filteredData['lowFreq'] = nan
-			self.filteredData['highFreq'] = 0.25
-			self.filteredData['advance'] = False
+			self.opts.filterParameters['lowFreq'] = nan
+			self.opts.filterParameters['highFreq'] = 0.25
+			self.opts.filterParameters['advance'] = False
 			self.spreadButter()
 			#execute
 			self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getHighFreq)
 
 	def getLowFreq(self, event):
 		if event.inaxes == self.filterAxs['amVfreq']:
-			self.filteredData['lowFreq'] = event.xdata
+			self.opts.filterParameters['lowFreq'] = event.xdata
 			self.spreadButter()
 
 	def getHighFreq(self, event):
 		if event.inaxes == self.filterAxs['amVfreq']:
-			self.filteredData['highFreq'] = event.xdata
+			self.opts.filterParameters['highFreq'] = event.xdata
 			self.spreadButter()
 
 	# disconnect buttons on the filter popup window
@@ -661,39 +654,27 @@ class PickPhaseMenuMore:
 		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 
 	def getButterOrder(self, event):
-		self.filteredData['order'] = int(event)
+		self.opts.filterParameters['order'] = int(event)
 		self.spreadButter()
-
-	def setFilterDefaults(self):
-		filteredData={}
-		self.filteredData = filteredData
-		self.filteredData['lowFreq'] = 0.05
-		self.filteredData['highFreq'] = 0.25
-		self.filteredData['order'] = 2
-		self.filteredData['band'] = 'bandpass'
-		self.filteredData['advance'] = False # have not chosen higher frequency yet
-
-		self.filteredData['original-time'] = self.ppstk.time - self.ppstk.sacdh.reftime
-		self.filteredData['original-signal-time'] = self.ppstk.sacdh.data
 
 	def getBandpassFreq(self,event):
 		if event.inaxes == self.filterAxs['amVfreq']:
-			if self.filteredData['advance']: # low and high frequencies recorded
-				self.filteredData['highFreq'] = event.xdata
-				if self.filteredData['lowFreq']<self.filteredData['highFreq']:
-					self.filteredData['advance'] = False
+			if self.opts.filterParameters['advance']: # low and high frequencies recorded
+				self.opts.filterParameters['highFreq'] = event.xdata
+				if self.opts.filterParameters['lowFreq']<self.opts.filterParameters['highFreq']:
+					self.opts.filterParameters['advance'] = False
 					self.spreadButter()
 				else:
 					print 'Value chose must be higher than lower frequency of %f' % self.filteredData['lowFreq']
 			else:
-				self.filteredData['lowFreq'] = event.xdata
-				self.filteredData['advance'] = True
+				self.opts.filterParameters['lowFreq'] = event.xdata
+				self.opts.filterParameters['advance'] = True
 
 	def modifyFilterTextLabels(self):
 		self.filterAxs['Info'].clear()
-		self.filterAxs['Info'].text(0.1,0.7,'Low Freq: '+str(self.filteredData['lowFreq']))
-		self.filterAxs['Info'].text(0.1,0.4,'High Freq: '+str(self.filteredData['highFreq']))
-		self.filterAxs['Info'].text(0.1,0.1,'Order: '+str(self.filteredData['order']))
+		self.filterAxs['Info'].text(0.1,0.7,'Low Freq: '+str(self.opts.filterParameters['lowFreq']))
+		self.filterAxs['Info'].text(0.1,0.4,'High Freq: '+str(self.opts.filterParameters['highFreq']))
+		self.filterAxs['Info'].text(0.1,0.1,'Order: '+str(self.opts.filterParameters['order']))
 
 	"""Apply the butterworth filter to the data """
 	def spreadButter(self):
@@ -707,42 +688,45 @@ class PickPhaseMenuMore:
 
 		self.modifyFilterTextLabels()
 
+		originalTime = self.ppstk.time - self.ppstk.sacdh.reftime
+		originalSignalTime = self.ppstk.sacdh.data
+
 		NYQ = 1.0/(2*self.opts.delta)
 		# convert from time -> freq
-		self.filteredData['original-freq'] = np.fft.fftfreq(len(self.filteredData['original-time']), self.opts.delta) 
+		originalFreq = np.fft.fftfreq(len(originalTime), self.opts.delta) 
 		#self.filteredData['original-freq'] = np.fft.fftfreq(fftlen, self.opts.delta)
-		self.filteredData['original-signal-freq'] = np.fft.fft(self.filteredData['original-signal-time']) 
+		originalSignalFreq = np.fft.fft(originalSignalTime) 
 
 		# make filter, default is bandpass
-		Wn = [self.filteredData['lowFreq']/NYQ, self.filteredData['highFreq']/NYQ]
-		B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='bandpass')
-		if self.filteredData['band']=='lowpass':
-			Wn = self.filteredData['lowFreq']/NYQ
-			B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='lowpass')
-		elif self.filteredData['band']=='highpass':
-			Wn = self.filteredData['highFreq']/NYQ
-			B, A = signal.butter(self.filteredData['order'], Wn, analog=False, btype='highpass')
+		Wn = [self.opts.filterParameters['lowFreq']/NYQ, self.opts.filterParameters['highFreq']/NYQ]
+		B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
+		if self.opts.filterParameters['band']=='lowpass':
+			Wn = self.opts.filterParameters['lowFreq']/NYQ
+			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
+		elif self.opts.filterParameters['band']=='highpass':
+			Wn = self.opts.filterParameters['highFreq']/NYQ
+			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='highpass')
 		
 		w, h = signal.freqz(B, A)
 
 		# apply filter
-		self.filteredData['filtered-signal-time'] = signal.lfilter(B, A, self.filteredData['original-signal-time'])
+		filteredSignalTime = signal.lfilter(B, A, originalSignalTime)
 
 		# convert filtered time signal -> frequency signal
-		self.filteredData['filtered-signal-freq'] = np.fft.fft(self.filteredData['filtered-signal-time'])
+		filteredSignalFreq = np.fft.fft(filteredSignalTime)
 
 		# PLOT TIME
-		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['original-signal-time'], label='Original')
-		self.filterAxs['amVtime'].plot(self.filteredData['original-time'], self.filteredData['filtered-signal-time'], label='Filtered')
+		self.filterAxs['amVtime'].plot(originalTime, originalSignalTime, label='Original')
+		self.filterAxs['amVtime'].plot(originalTime, filteredSignalTime, label='Filtered')
 		self.filterAxs['amVtime'].legend(loc="upper right")
 		self.filterAxs['amVtime'].set_title('Signal vs Time')
 		self.filterAxs['amVtime'].set_xlabel('Time (s)', fontsize = 12)
 		self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 12)
 
 		# PLOT FREQUENCY
-		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['original-signal-freq']), label='Original')
-		self.filterAxs['amVfreq'].plot(self.filteredData['original-freq'], np.abs(self.filteredData['filtered-signal-freq']), label='Filtered')
-		MULTIPLE = 0.7*max(np.abs(self.filteredData['original-signal-freq']))
+		self.filterAxs['amVfreq'].plot(originalFreq, np.abs(originalSignalFreq), label='Original')
+		self.filterAxs['amVfreq'].plot(originalFreq, np.abs(filteredSignalFreq), label='Filtered')
+		MULTIPLE = 0.7*max(np.abs(originalSignalFreq))
 		self.filterAxs['amVfreq'].plot(w*(NYQ/np.pi), MULTIPLE*np.abs(h), label='Butterworth Filter')
 		self.filterAxs['amVfreq'].legend(loc="upper right")
 		self.filterAxs['amVfreq'].set_title('Amplitude vs frequency')
@@ -755,10 +739,6 @@ class PickPhaseMenuMore:
 	def applyFilter(self, event):
 		#should we write filtered data for individual seismograms
 		self.opts.filterParameters['apply'] = True
-		self.opts.filterParameters['band'] = self.filteredData['band']
-		self.opts.filterParameters['lowFreq'] = self.filteredData['lowFreq']
-		self.opts.filterParameters['highFreq'] = self.filteredData['highFreq']
-		self.opts.filterParameters['order'] = self.filteredData['order']
 
 		# replot filtered stuff
 		self.axstk.clear()
@@ -783,8 +763,10 @@ class PickPhaseMenuMore:
 		close(self.figfilter)
 
 	def unapplyFilter(self, event):
-		#should we write filtered data for individual seismograms
+		# do not write filtered data for individual seismograms
 		self.opts.filterParameters['apply'] = False
+
+		#reset back to original defaults
 		self.opts.filterParameters['band'] = 'bandpass'
 		self.opts.filterParameters['lowFreq'] = 0.05
 		self.opts.filterParameters['highFreq'] = 0.25
@@ -1186,6 +1168,11 @@ def getDataOpts():
 
 	filterParameters = {}
 	filterParameters['apply'] = False
+	filterParameters['advance'] = False
+	filterParameters['band'] = 'bandpass'
+	filterParameters['lowFreq'] = 0.05
+	filterParameters['highFreq'] = 0.25
+	filterParameters['order'] = 2
 	opts.filterParameters = filterParameters
 
 	mcpara.delta = opts.delta

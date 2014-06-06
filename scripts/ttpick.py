@@ -76,6 +76,7 @@ from pysmo.aimbat.qualctrl import getDataOpts, getAxes, PickPhaseMenuMore
 
 def main():
 	gsac, opts = getDataOpts()
+	print dir(opts)
 	axs = getAxes(opts)
 	ppmm = PickPhaseMenuMore(gsac, opts, axs)
 	fmt = 'png'
