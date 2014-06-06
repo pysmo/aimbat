@@ -606,6 +606,7 @@ def loadData(ifiles, opts, para):
 	print ('Read {0:d} seismograms with sampling interval: {1:f}s'.format(len(gsac.saclist), opts.delta))
 	return gsac 
 
+
 # saves headers for TTPICK.PY
 def saveData(gsac, opts):
 	""" Save pickle or sac files.

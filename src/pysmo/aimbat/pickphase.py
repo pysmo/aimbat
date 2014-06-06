@@ -611,13 +611,90 @@ class PickPhaseMenu():
 		self.replot(self.ipage+1)
 		self.axpp.get_figure().canvas.draw()
 
+	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
+
 	def save(self, event):
+		self.getSaveAxes()
+		self.save_connect()
+
+	def getSaveAxes(self):
+		saveFigure = figure(figsize=(6,1))
+		saveFigure.clf()
+
+		# size of save buttons
+		rect_saveHeaders = [0.05,0.2,0.30,0.6]
+		rect_saveHeadersOverride = [0.40,0.2,0.35,0.6]
+		rect_saveQuit = [0.80,0.2,0.15,0.6]
+
+		#initalize axes
+		saveAxs = {}
+		saveAxs['saveHeaders'] = saveFigure.add_axes(rect_saveHeaders)
+		saveAxs['saveHeadersOverride'] = saveFigure.add_axes(rect_saveHeadersOverride)
+		saveAxs['saveQuit'] = saveFigure.add_axes(rect_saveQuit)
+		self.saveAxs = saveAxs
+
+		self.save_connect()
+
+		self.saveFigure = saveFigure
+		show()
+
+	def save_connect(self):
+		#set buttons
+		self.bn_saveHeaders = Button(self.saveAxs['saveHeaders'], 'Save\nHeaders\nOnly')
+		self.bn_saveHeadersOverride = Button(self.saveAxs['saveHeadersOverride'], 'Save Headers &\nOverride Data')
+		self.bn_saveQuit = Button(self.saveAxs['saveQuit'], 'Quit')
+
+		#connect buttons to functions they trigger
+		self.cid_saveHeaders = self.bn_saveHeaders.on_clicked(self.save_headers)
+		self.cid_saveHeadersOverride = self.bn_saveHeadersOverride.on_clicked(self.save_headers_override)
+		self.cid_saveQuit = self.bn_saveQuit.on_clicked(self.save_quit)
+
+	def save_quit(self, event):
+		self.save_disconnect()
+		close()
+
+	def save_disconnect(self):
+		self.bn_saveHeaders.disconnect(self.cid_saveHeaders)
+		self.bn_saveHeadersOverride.disconnect(self.cid_saveHeadersOverride)
+
+		self.saveAxs['saveHeaders'].cla()
+		self.saveAxs['saveHeadersOverride'].cla()
+		self.saveAxs['saveQuit'].cla()
+
+	def save_headers(self, event):
 		saveData(self.gsac, self.opts)
+
+	def save_filter_data(self, data):
+		NYQ = 1.0/(2*self.opts.delta)
+			
+		# make filter, default is bandpass
+		Wn = [self.opts.filterParameters['lowFreq']/NYQ, self.opts.filterParameters['highFreq']/NYQ]
+		B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
+		if self.opts.filterParameters['band']=='lowpass':
+			Wn = self.opts.filterParameters['lowFreq']/NYQ
+			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
+		elif self.opts.filterParameters['band']=='highpass':
+			Wn = self.opts.filterParameters['highFreq']/NYQ
+			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='highpass')
+
+		return signal.lfilter(B, A, data)
+
+	def save_headers_override(self, event):
+		# override first
+		for sacdh in self.gsac.saclist: 
+			sacdh.data = self.save_filter_data(sacdh.data)
+		if 'stkdh' in self.gsac.__dict__:
+			self.gsac.stkdh.data = self.save_filter_data(self.gsac.stkdh.data)
+
+		#save
+		saveData(self.gsac, self.opts)
+
+
+	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
 
 	def quit(self, event):
 		self.finish()
 		self.disconnect(event.canvas)
-		clf()
 		close('all')
 
 	def connect(self):
