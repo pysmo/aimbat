@@ -248,6 +248,10 @@ class SacDataHdrs:
 		self.savehdrs(sacobj)
 		sacobj.close()
 
+	def overrideFilterData(self, opts):
+		"""Filter the data and override it"""
+		print dir(opts)
+
 	def savehdrs(self, sacobj):
 		""" Write SAC headers (t_n, user_n, and kuser_n) in python obj to SAC obj.
 		"""
@@ -606,6 +610,7 @@ def loadData(ifiles, opts, para):
 	print ('Read {0:d} seismograms with sampling interval: {1:f}s'.format(len(gsac.saclist), opts.delta))
 	return gsac 
 
+
 # saves headers for TTPICK.PY
 def saveData(gsac, opts):
 	""" Save pickle or sac files.
@@ -613,6 +618,8 @@ def saveData(gsac, opts):
 	if opts.filemode == 'sac':
 		for sacdh in gsac.saclist: 
 			sacdh.writeHdrs()
+			if opts.overrideInputFiles:
+				sacdh.overrideFilterData(self.opts)
 		if 'stkdh' in gsac.__dict__:
 			gsac.stkdh.savesac()
 	elif opts.filemode == 'pkl':

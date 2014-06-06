@@ -618,7 +618,7 @@ class PickPhaseMenu():
 		self.save_connect()
 
 	def getSaveAxes(self):
-		saveFigure = figure(figsize=(5,1))
+		saveFigure = figure(figsize=(6,1))
 		saveFigure.clf()
 
 		# size of save buttons
@@ -662,10 +662,12 @@ class PickPhaseMenu():
 		self.saveAxs['saveQuit'].cla()
 
 	def save_headers(self, event):
+		self.opts.overrideInputFiles = False
 		saveData(self.gsac, self.opts)
 
 	def save_headers_override(self, event):
-		print 'lol'
+		self.opts.overrideInputFiles = True
+		saveData(self.gsac, self.opts)
 
 
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
