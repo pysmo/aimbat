@@ -49,6 +49,7 @@ from sacpickle import loadData, saveData
 from plotutils import TimeSelector, dataNorm, axLimit, pickLegend, indexBaseTick
 import numpy as np
 from scipy import signal
+import tkMessageBox
 
 def getOptions():
 	""" Parse arguments and options. """
@@ -665,9 +666,8 @@ class PickPhaseMenu():
 		saveData(self.gsac, self.opts)
 
 	def save_filter_data(self, data):
-		NYQ = 1.0/(2*self.opts.delta)
-			
 		# make filter, default is bandpass
+		NYQ = 1.0/(2*self.opts.delta)
 		Wn = [self.opts.filterParameters['lowFreq']/NYQ, self.opts.filterParameters['highFreq']/NYQ]
 		B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
 		if self.opts.filterParameters['band']=='lowpass':
@@ -680,14 +680,17 @@ class PickPhaseMenu():
 		return signal.lfilter(B, A, data)
 
 	def save_headers_override(self, event):
-		# override first
-		for sacdh in self.gsac.saclist: 
-			sacdh.data = self.save_filter_data(sacdh.data)
-		if 'stkdh' in self.gsac.__dict__:
-			self.gsac.stkdh.data = self.save_filter_data(self.gsac.stkdh.data)
+		shouldRun = tkMessageBox.askokcancel("Will Override Files!","This will override the data in your files with the filtered data. \nAre you sure?")
 
-		#save
-		saveData(self.gsac, self.opts)
+		if shouldRun:
+			# override first
+			for sacdh in self.gsac.saclist: 
+				sacdh.data = self.save_filter_data(sacdh.data)
+			if 'stkdh' in self.gsac.__dict__:
+				self.gsac.stkdh.data = self.save_filter_data(self.gsac.stkdh.data)
+
+			#save
+			saveData(self.gsac, self.opts)
 
 
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
