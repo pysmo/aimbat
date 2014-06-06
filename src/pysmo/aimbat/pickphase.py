@@ -680,16 +680,17 @@ class PickPhaseMenu():
 		return signal.lfilter(B, A, data)
 
 	def save_headers_override(self, event):
-		tkMessageBox.showwarning("This will override the data in your files with the filtered data. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Override Files!","This will override the data in your files with the filtered data. \nAre you sure?")
 
-		# override first
-		for sacdh in self.gsac.saclist: 
-			sacdh.data = self.save_filter_data(sacdh.data)
-		if 'stkdh' in self.gsac.__dict__:
-			self.gsac.stkdh.data = self.save_filter_data(self.gsac.stkdh.data)
+		if shouldRun:
+			# override first
+			for sacdh in self.gsac.saclist: 
+				sacdh.data = self.save_filter_data(sacdh.data)
+			if 'stkdh' in self.gsac.__dict__:
+				self.gsac.stkdh.data = self.save_filter_data(self.gsac.stkdh.data)
 
-		#save
-		saveData(self.gsac, self.opts)
+			#save
+			saveData(self.gsac, self.opts)
 
 
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
