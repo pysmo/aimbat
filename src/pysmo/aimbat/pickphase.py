@@ -611,8 +611,35 @@ class PickPhaseMenu():
 		self.replot(self.ipage+1)
 		self.axpp.get_figure().canvas.draw()
 
+	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
+
 	def save(self, event):
-		saveData(self.gsac, self.opts)
+		#saveData(self.gsac, self.opts)#
+		self.saveAxes = getSaveAxes()
+		self.save_connect()
+
+	def getSaveAxes(self):
+		saveFigure = figure(figsize=(5,2))
+		saveFigure.clf()
+
+		# size of save buttons
+		rect_saveHeaders = [0.1,0.1,0.4,0.8]
+		rect_saveHeadersOverride = [0.6,0.1,0.4,0.8]
+
+		#initalize axes
+		saveAxs = {}
+		saveAxs['saveHeaders'] = figsort.add_axes(rect_saveHeaders)
+		saveAxs['saveHeadersOverride'] = figsort.add_axes(rect_saveHeadersOverride)
+
+		self.saveFigure = saveFigure
+		return axs
+
+	def save_connect(self):
+		self.bn_saveHeaders = Button(self.saveAxs['saveHeaders'], 'Save Headers Only')
+		self.bn_saveHeadersOverride = Button(self.saveAxs['saveHeadersOverride'], 'Save Headers and Override Data')
+
+
+	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
 
 	def quit(self, event):
 		self.finish()
