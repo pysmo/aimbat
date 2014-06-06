@@ -589,7 +589,10 @@ class PickPhaseMenuMore:
 	def filtering(self,event):
 		filterAxes = self.getFilterAxes()
 		self.spreadButter()
+		self.filter_connect()
+		show()
 
+	def filter_connect(self):
 		# user to change default parameters
 		self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 
@@ -601,7 +604,13 @@ class PickPhaseMenuMore:
 		self.bnband = RadioButtons(self.filterAxs['band'], ('bandpass','lowpass','highpass'))
 		self.cidband = self.bnband.on_clicked(self.getBandtype)
 
-		show()
+		#add apply button. causes the filtered data to be applied 
+		self.bnapply = Button(self.filterAxs['apply'], 'Apply')
+		self.cidapply = self.bnapply.on_clicked(self.applyFilter)
+
+		#add unapply button. causes the filtered data to be applied 
+		self.bnunapply = Button(self.filterAxs['unapply'], 'Unapply')
+		self.cidunapply = self.bnunapply.on_clicked(self.unapplyFilter)
 
 	def getBandtype(self, event):
 		self.opts.filterParameters['band'] = event
@@ -646,7 +655,8 @@ class PickPhaseMenuMore:
 	# disconnect buttons on the filter popup window
 	def filter_disconnect(self):
 		self.bnorder.disconnect(self.cidorder)
-		self.bnapply.disconnect(self.bnapply)
+		self.bnunapply.disconnect(self.cidunapply)
+		self.bnband.disconnect(self.cidband)
 		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 
 	def getButterOrder(self, event):
@@ -661,7 +671,7 @@ class PickPhaseMenuMore:
 					self.opts.filterParameters['advance'] = False
 					self.spreadButter()
 				else:
-					print 'Value chose must be higher than lower frequency of %f' % self.filteredData['lowFreq']
+					print 'Value chose must be higher than lower frequency of %f' % self.opts.filterParameters['lowFreq']
 			else:
 				self.opts.filterParameters['lowFreq'] = event.xdata
 				self.opts.filterParameters['advance'] = True
@@ -756,7 +766,7 @@ class PickPhaseMenuMore:
 		self.axstk.figure.canvas.draw()
 
 		self.filter_disconnect()
-		close(self.figfilter)
+		close()
 
 	def unapplyFilter(self, event):
 		# do not write filtered data for individual seismograms
@@ -816,13 +826,7 @@ class PickPhaseMenuMore:
 		filterAxs['Info'].axes.get_xaxis().set_visible(False)
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
 
-		#add apply button. causes the filtered data to be applied 
-		self.bnapply = Button(filterAxs['apply'], 'Apply')
-		self.cidapply = self.bnapply.on_clicked(self.applyFilter)
-
-		#add unapply button. causes the filtered data to be applied 
-		self.bnunapply = Button(filterAxs['unapply'], 'Unapply')
-		self.cidunapply = self.bnunapply.on_clicked(self.unapplyFilter)
+		
 
 		self.filterAxs = filterAxs
 
