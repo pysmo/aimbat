@@ -619,52 +619,81 @@ class PickPhaseMenu():
 		self.save_connect()
 
 	def getSaveAxes(self):
-		saveFigure = figure(figsize=(6,1))
+		saveFigure = figure(figsize=(8,1))
 		saveFigure.clf()
 
 		# size of save buttons
-		rect_saveHeaders = [0.05,0.2,0.30,0.6]
-		rect_saveHeadersOverride = [0.40,0.2,0.35,0.6]
-		rect_saveQuit = [0.80,0.2,0.15,0.6]
+		rect_saveHeaders = [0.04,0.2,0.2,0.6]
+		rect_saveHeadersFilterParams = [0.28,0.2,0.2,0.6]
+		rect_saveHeadersOverride = [0.52,0.2,0.2,0.6]
+		rect_saveQuit = [0.76,0.2,0.2,0.6]
 
 		#initalize axes
 		saveAxs = {}
 		saveAxs['saveHeaders'] = saveFigure.add_axes(rect_saveHeaders)
+		saveAxs['saveHeadersFilterParams'] = saveFigure.add_axes(rect_saveHeadersFilterParams)
 		saveAxs['saveHeadersOverride'] = saveFigure.add_axes(rect_saveHeadersOverride)
 		saveAxs['saveQuit'] = saveFigure.add_axes(rect_saveQuit)
 		self.saveAxs = saveAxs
 
+		self.saveFigure = saveFigure
 		self.save_connect()
 
-		self.saveFigure = saveFigure
 		show()
 
 	def save_connect(self):
 		#set buttons
 		self.bn_saveHeaders = Button(self.saveAxs['saveHeaders'], 'Save\nHeaders\nOnly')
+		self.bn_saveHeadersFilterParams = Button(self.saveAxs['saveHeadersFilterParams'], 'Save Headers &\n Filter Parameters')
 		self.bn_saveHeadersOverride = Button(self.saveAxs['saveHeadersOverride'], 'Save Headers &\nOverride Data')
 		self.bn_saveQuit = Button(self.saveAxs['saveQuit'], 'Quit')
 
 		#connect buttons to functions they trigger
 		self.cid_saveHeaders = self.bn_saveHeaders.on_clicked(self.save_headers)
+		self.cid_savedHeadersFilterParams = self.bn_saveHeadersFilterParams.on_clicked(self.save_headers_filterParams)
 		self.cid_saveHeadersOverride = self.bn_saveHeadersOverride.on_clicked(self.save_headers_override)
 		self.cid_saveQuit = self.bn_saveQuit.on_clicked(self.save_quit)
 
 	def save_quit(self, event):
 		self.save_disconnect()
-		close()
+		close(self.saveFigure)
 
 	def save_disconnect(self):
 		self.bn_saveHeaders.disconnect(self.cid_saveHeaders)
+		self.bn_saveHeaders.disconnect(self.cid_savedHeadersFilterParams)
 		self.bn_saveHeadersOverride.disconnect(self.cid_saveHeadersOverride)
 
-		self.saveAxs['saveHeaders'].cla()
-		self.saveAxs['saveHeadersOverride'].cla()
-		self.saveAxs['saveQuit'].cla()
+		# self.saveAxs['saveHeaders'].cla()
+		# self.saveAxs['saveHeadersOverride'].cla()
+		# self.saveAxs['saveQuit'].cla()
 
+	"""save headers only"""
 	def save_headers(self, event):
 		saveData(self.gsac, self.opts)
 
+	"""save headers and override data with filtered data
+	   @lowFreq -> user0
+	   @highFreq -> user1
+	   @band -> kuser0
+	   @order -> kuser1, need to convert to integer form alphanumeric
+	"""
+	def save_headers_filterParams(self, event):
+		# write params to file
+		for sacdh in self.gsac.saclist: 
+			sacdh.user0 = self.opts.filterParameters['lowFreq']
+			sacdh.user1 = self.opts.filterParameters['highFreq']
+			sacdh.kuser0 = self.opts.filterParameters['band']
+			sacdh.kuser1 = self.opts.filterParameters['order']
+		if 'stkdh' in self.gsac.__dict__:
+			self.gsac.stkdh.user0 = self.opts.filterParameters['lowFreq']
+			self.gsac.stkdh.user1 = self.opts.filterParameters['highFreq']
+			self.gsac.stkdh.kuser0 = self.opts.filterParameters['band']
+			self.gsac.stkdh.kuser1 = self.opts.filterParameters['order']
+
+		# save
+		saveData(self.gsac, self.opts)
+
+	"""filter data here"""
 	def save_filter_data(self, data):
 		# make filter, default is bandpass
 		NYQ = 1.0/(2*self.opts.delta)
@@ -730,7 +759,6 @@ class PickPhaseMenu():
 		# self.bnnext.disconnect(self.cidnext)
 		# self.bnzoba.disconnect(self.cidzoba)
 		# self.bnsave.disconnect(self.cidsave)
-		# self.bnquit.disconnect(self.cidquit)
 
 		self.axfron.cla()
 		self.axprev.cla()
