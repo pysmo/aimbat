@@ -682,10 +682,9 @@ class PickPhaseMenu():
 	def save_headers_override(self, event):
 		# override first
 		for sacdh in self.gsac.saclist: 
-			d = self.save_filter_data(sacdh.data)
-			print d
+			sacdh.data = self.save_filter_data(sacdh.data)
 		if 'stkdh' in self.gsac.__dict__:
-			print self.gsac.stkdh.data
+			self.gsac.stkdh.data = self.save_filter_data(self.gsac.stkdh.data)
 
 		#save
 		saveData(self.gsac, self.opts)
