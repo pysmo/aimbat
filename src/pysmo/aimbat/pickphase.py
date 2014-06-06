@@ -622,9 +622,9 @@ class PickPhaseMenu():
 		saveFigure.clf()
 
 		# size of save buttons
-		rect_saveHeaders = [0.1,0.2,0.25,0.6]
-		rect_saveHeadersOverride = [0.45,0.2,0.25,0.6]
-		rect_saveQuit = [0.8,0.2,0.1,0.6]
+		rect_saveHeaders = [0.05,0.2,0.30,0.6]
+		rect_saveHeadersOverride = [0.40,0.2,0.35,0.6]
+		rect_saveQuit = [0.80,0.2,0.15,0.6]
 
 		#initalize axes
 		saveAxs = {}
@@ -662,11 +662,16 @@ class PickPhaseMenu():
 		self.saveAxs['saveQuit'].cla()
 
 	def save_headers(self, event):
-		self.opts.overrideInputFiles = False
 		saveData(self.gsac, self.opts)
 
 	def save_headers_override(self, event):
-		self.opts.overrideInputFiles = True
+		# override first
+		for sacdh in self.gsac.saclist: 
+			print sacdh.data
+		if 'stkdh' in self.gsac.__dict__:
+			print self.gsac.stkdh.data
+
+		#save
 		saveData(self.gsac, self.opts)
 
 

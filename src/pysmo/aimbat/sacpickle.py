@@ -248,10 +248,6 @@ class SacDataHdrs:
 		self.savehdrs(sacobj)
 		sacobj.close()
 
-	def overrideFilterData(self, opts):
-		"""Filter the data and override it"""
-		print dir(opts)
-
 	def savehdrs(self, sacobj):
 		""" Write SAC headers (t_n, user_n, and kuser_n) in python obj to SAC obj.
 		"""
@@ -618,8 +614,6 @@ def saveData(gsac, opts):
 	if opts.filemode == 'sac':
 		for sacdh in gsac.saclist: 
 			sacdh.writeHdrs()
-			if opts.overrideInputFiles:
-				sacdh.overrideFilterData(self.opts)
 		if 'stkdh' in gsac.__dict__:
 			gsac.stkdh.savesac()
 	elif opts.filemode == 'pkl':

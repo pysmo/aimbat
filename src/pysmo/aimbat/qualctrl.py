@@ -1172,8 +1172,6 @@ def getDataOpts():
 	filterParameters['order'] = 2
 	opts.filterParameters = filterParameters
 
-	opts.overrideInputFiles = False
-
 	mcpara.delta = opts.delta
 	opts.qheaders = qcpara.qheaders
 	opts.qweights = qcpara.qweights
