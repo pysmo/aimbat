@@ -636,9 +636,9 @@ class PickPhaseMenu():
 		saveAxs['saveQuit'] = saveFigure.add_axes(rect_saveQuit)
 		self.saveAxs = saveAxs
 
+		self.saveFigure = saveFigure
 		self.save_connect()
 
-		self.saveFigure = saveFigure
 		show()
 
 	def save_connect(self):
@@ -656,15 +656,16 @@ class PickPhaseMenu():
 
 	def save_quit(self, event):
 		self.save_disconnect()
-		close()
+		close(self.saveFigure)
 
 	def save_disconnect(self):
 		self.bn_saveHeaders.disconnect(self.cid_saveHeaders)
+		self.bn_saveHeaders.disconnect(self.cid_savedHeadersFilterParams)
 		self.bn_saveHeadersOverride.disconnect(self.cid_saveHeadersOverride)
 
-		self.saveAxs['saveHeaders'].cla()
-		self.saveAxs['saveHeadersOverride'].cla()
-		self.saveAxs['saveQuit'].cla()
+		# self.saveAxs['saveHeaders'].cla()
+		# self.saveAxs['saveHeadersOverride'].cla()
+		# self.saveAxs['saveQuit'].cla()
 
 	"""save headers only"""
 	def save_headers(self, event):

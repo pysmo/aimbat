@@ -232,7 +232,6 @@ class PickPhaseMenuMore:
 	
 	def sorting(self, event):
 		""" Sort the seismograms in particular order """
-		gsac = self.gsac
 		sortAxes = self.getSortAxes()
 		self.sort_connect()
 		show()
