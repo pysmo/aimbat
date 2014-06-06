@@ -664,10 +664,26 @@ class PickPhaseMenu():
 	def save_headers(self, event):
 		saveData(self.gsac, self.opts)
 
+	def save_filter_data(self, data):
+		NYQ = 1.0/(2*self.opts.delta)
+			
+		# make filter, default is bandpass
+		Wn = [self.opts.filterParameters['lowFreq']/NYQ, self.opts.filterParameters['highFreq']/NYQ]
+		B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
+		if self.opts.filterParameters['band']=='lowpass':
+			Wn = self.opts.filterParameters['lowFreq']/NYQ
+			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
+		elif self.opts.filterParameters['band']=='highpass':
+			Wn = self.opts.filterParameters['highFreq']/NYQ
+			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='highpass')
+
+		return signal.lfilter(B, A, data)
+
 	def save_headers_override(self, event):
 		# override first
 		for sacdh in self.gsac.saclist: 
-			print sacdh.data
+			d = self.save_filter_data(sacdh.data)
+			print d
 		if 'stkdh' in self.gsac.__dict__:
 			print self.gsac.stkdh.data
 
