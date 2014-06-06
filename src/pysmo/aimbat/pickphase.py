@@ -725,12 +725,11 @@ class PickPhaseMenu():
 		self.cidpress = self.axpp.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
 	def disconnect(self, canvas):
-		# self.bnfron.disconnect(self.cidfron)
-		# self.bnprev.disconnect(self.cidprev)
-		# self.bnnext.disconnect(self.cidnext)
-		# self.bnzoba.disconnect(self.cidzoba)
-		# self.bnsave.disconnect(self.cidsave)
-		# self.bnquit.disconnect(self.cidquit)
+		self.bnfron.disconnect(self.cidfron)
+		self.bnprev.disconnect(self.cidprev)
+		self.bnnext.disconnect(self.cidnext)
+		self.bnzoba.disconnect(self.cidzoba)
+		self.bnsave.disconnect(self.cidsave)
 
 		self.axfron.cla()
 		self.axprev.cla()
