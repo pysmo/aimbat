@@ -794,7 +794,7 @@ class PickPhaseMenuMore:
 
 		# disconnect
 		self.bnorder.disconnect(self.cidorder)
-		self.bnapply.disconnect(self.cidunapply)
+		self.bnapply.disconnect(self.cidapply)
 		self.bnband.disconnect(self.cidband)
 		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 
