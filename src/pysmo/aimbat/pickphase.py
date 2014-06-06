@@ -614,49 +614,58 @@ class PickPhaseMenu():
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
 
 	def save(self, event):
-		self.saveAxs = self.getSaveAxes()
+		self.getSaveAxes()
 		self.save_connect()
 
 	def getSaveAxes(self):
-		saveFigure = figure(figsize=(5,2))
+		saveFigure = figure(figsize=(5,1))
 		saveFigure.clf()
 
 		# size of save buttons
-		rect_saveHeaders = [0.1,0.1,0.4,0.8]
-		rect_saveHeadersOverride = [0.6,0.1,0.4,0.8]
+		rect_saveHeaders = [0.1,0.2,0.25,0.6]
+		rect_saveHeadersOverride = [0.45,0.2,0.25,0.6]
+		rect_saveQuit = [0.8,0.2,0.1,0.6]
 
 		#initalize axes
 		saveAxs = {}
 		saveAxs['saveHeaders'] = saveFigure.add_axes(rect_saveHeaders)
 		saveAxs['saveHeadersOverride'] = saveFigure.add_axes(rect_saveHeadersOverride)
+		saveAxs['saveQuit'] = saveFigure.add_axes(rect_saveQuit)
+		self.saveAxs = saveAxs
+
+		self.save_connect()
 
 		self.saveFigure = saveFigure
 		show()
-		
-		return saveAxs
 
 	def save_connect(self):
 		#set buttons
-		self.bn_saveHeaders = Button(self.saveAxs['saveHeaders'], 'Save Headers Only')
-		self.bn_saveHeadersOverride = Button(self.saveAxs['saveHeadersOverride'], 'Save Headers and Override Data')
+		self.bn_saveHeaders = Button(self.saveAxs['saveHeaders'], 'Save\nHeaders\nOnly')
+		self.bn_saveHeadersOverride = Button(self.saveAxs['saveHeadersOverride'], 'Save Headers &\nOverride Data')
+		self.bn_saveQuit = Button(self.saveAxs['saveQuit'], 'Quit')
 
 		#connect buttons to functions they trigger
 		self.cid_saveHeaders = self.bn_saveHeaders.on_clicked(self.save_headers)
 		self.cid_saveHeadersOverride = self.bn_saveHeadersOverride.on_clicked(self.save_headers_override)
+		self.cid_saveQuit = self.bn_saveQuit.on_clicked(self.save_quit)
+
+	def save_quit(self, event):
+		self.save_disconnect()
+		close()
 
 	def save_disconnect(self):
 		self.bn_saveHeaders.disconnect(self.cid_saveHeaders)
 		self.bn_saveHeadersOverride.disconnect(self.cid_saveHeadersOverride)
 
-		self.saveAxs.cla()
+		self.saveAxs['saveHeaders'].cla()
+		self.saveAxs['saveHeadersOverride'].cla()
+		self.saveAxs['saveQuit'].cla()
 
-	def save_headers(self):
+	def save_headers(self, event):
 		saveData(self.gsac, self.opts)
-		close()
 
-	def save_headers_override(self):
+	def save_headers_override(self, event):
 		print 'lol'
-		close()
 
 
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
