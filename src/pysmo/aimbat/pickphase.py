@@ -614,8 +614,7 @@ class PickPhaseMenu():
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
 
 	def save(self, event):
-		#saveData(self.gsac, self.opts)#
-		self.saveAxes = getSaveAxes()
+		self.saveAxs = self.getSaveAxes()
 		self.save_connect()
 
 	def getSaveAxes(self):
@@ -628,15 +627,36 @@ class PickPhaseMenu():
 
 		#initalize axes
 		saveAxs = {}
-		saveAxs['saveHeaders'] = figsort.add_axes(rect_saveHeaders)
-		saveAxs['saveHeadersOverride'] = figsort.add_axes(rect_saveHeadersOverride)
+		saveAxs['saveHeaders'] = saveFigure.add_axes(rect_saveHeaders)
+		saveAxs['saveHeadersOverride'] = saveFigure.add_axes(rect_saveHeadersOverride)
 
 		self.saveFigure = saveFigure
-		return axs
+		show()
+		
+		return saveAxs
 
 	def save_connect(self):
+		#set buttons
 		self.bn_saveHeaders = Button(self.saveAxs['saveHeaders'], 'Save Headers Only')
 		self.bn_saveHeadersOverride = Button(self.saveAxs['saveHeadersOverride'], 'Save Headers and Override Data')
+
+		#connect buttons to functions they trigger
+		self.cid_saveHeaders = self.bn_saveHeaders.on_clicked(self.save_headers)
+		self.cid_saveHeadersOverride = self.bn_saveHeadersOverride.on_clicked(self.save_headers_override)
+
+	def save_disconnect(self):
+		self.bn_saveHeaders.disconnect(self.cid_saveHeaders)
+		self.bn_saveHeadersOverride.disconnect(self.cid_saveHeadersOverride)
+
+		self.saveAxs.cla()
+
+	def save_headers(self):
+		saveData(self.gsac, self.opts)
+		close()
+
+	def save_headers_override(self):
+		print 'lol'
+		close()
 
 
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
