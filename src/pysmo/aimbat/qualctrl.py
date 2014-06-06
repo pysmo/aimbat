@@ -452,127 +452,169 @@ class PickPhaseMenuMore:
 	def sort_qccc(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = '1';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qsnr(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = '2';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qcoh(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = '3';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hnpts(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'npts';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hb(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'b';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_he(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'e';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hdelta(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'delta';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hkstnm(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'kstnm';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hstla(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'stla';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hstlo(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'stlo';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hdist(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'dist';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_haz(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'az';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hbaz(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'baz';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hgcarc(self, event):
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
+
 		self.opts.sortby = 'gcarc';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def dismiss_sort(self, event):
