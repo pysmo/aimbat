@@ -605,7 +605,11 @@ class PickPhaseMenu():
 		self.axpp.get_figure().canvas.draw()
 
 	def prev(self, event):
+		self.bnprev.label.set_text('Wait...')
+		self.axpp.get_figure().canvas.draw()
+
 		self.replot(self.ipage-1)
+		self.bnprev.label.set_text('Prev')
 		self.axpp.get_figure().canvas.draw()
 
 	def next(self, event):
