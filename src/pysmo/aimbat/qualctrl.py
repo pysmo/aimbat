@@ -652,13 +652,6 @@ class PickPhaseMenuMore:
 			self.opts.filterParameters['highFreq'] = event.xdata
 			self.spreadButter()
 
-	# disconnect buttons on the filter popup window
-	def filter_disconnect(self):
-		self.bnorder.disconnect(self.cidorder)
-		self.bnunapply.disconnect(self.cidunapply)
-		self.bnband.disconnect(self.cidband)
-		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
-
 	def getButterOrder(self, event):
 		self.opts.filterParameters['order'] = int(event)
 		self.spreadButter()
@@ -765,7 +758,12 @@ class PickPhaseMenuMore:
 		self.ppm.axpp.figure.canvas.draw()
 		self.axstk.figure.canvas.draw()
 
-		self.filter_disconnect()
+		# disconnect
+		self.bnorder.disconnect(self.cidorder)
+		self.bnunapply.disconnect(self.cidunapply)
+		self.bnband.disconnect(self.cidband)
+		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+
 		close()
 
 	def unapplyFilter(self, event):
@@ -794,7 +792,12 @@ class PickPhaseMenuMore:
 		self.ppm.axpp.figure.canvas.draw()
 		self.axstk.figure.canvas.draw()
 
-		self.filter_disconnect()
+		# disconnect
+		self.bnorder.disconnect(self.cidorder)
+		self.bnapply.disconnect(self.cidunapply)
+		self.bnband.disconnect(self.cidband)
+		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
+
 		close()
 
 	def getFilterAxes(self):
