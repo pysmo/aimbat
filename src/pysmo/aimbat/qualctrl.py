@@ -232,13 +232,13 @@ class PickPhaseMenuMore:
 	
 	def sorting(self, event):
 		""" Sort the seismograms in particular order """
-		sortAxes = self.getSortAxes()
+		self.getSortAxes()
+		self.summarize_sort()
 		self.sort_connect()
 		show()
 
 	def getSortAxes(self):
-		figsort = figure(figsize=(15, 12))
-		self.figsort = figsort
+		figsort = figure('SortSeismograms',figsize=(15, 12))
 
 		x0 = 0.05
 		xx = 0.10
@@ -272,14 +272,14 @@ class PickPhaseMenuMore:
 
 		"""writing buttons to axis"""
 		sortAxs = {}
-		self.figsort.text(0.1,y0-dy*0.5,'Sort by file Index Name: ')
+		figsort.text(0.1,y0-dy*0.5,'Sort by file Index Name: ')
 		sortAxs['file'] = figsort.add_axes(rectfile)
-		self.figsort.text(0.1,y0-dy*1.5,'Sort by Quality: ')
+		figsort.text(0.1,y0-dy*1.5,'Sort by Quality: ')
 		sortAxs['qall'] = figsort.add_axes(rectqall)
 		sortAxs['qccc'] = figsort.add_axes(rectqccc)
 		sortAxs['qsnr'] = figsort.add_axes(rectqsnr)
 		sortAxs['qcoh'] = figsort.add_axes(rectqcoh)
-		self.figsort.text(0.1,y0-dy*2.5,'Sort by Header: ')
+		figsort.text(0.1,y0-dy*2.5,'Sort by Header: ')
 		sortAxs['hnpts'] = figsort.add_axes(recthnpts)
 		sortAxs['hb'] = figsort.add_axes(recthb)
 		sortAxs['he'] = figsort.add_axes(recthe)
@@ -290,25 +290,19 @@ class PickPhaseMenuMore:
 		sortAxs['haz'] = figsort.add_axes(recthaz)
 		sortAxs['hbaz'] = figsort.add_axes(recthbaz)
 		sortAxs['hgcarc'] = figsort.add_axes(recthgcarc)
-		# quit
 		sortAxs['quit'] = figsort.add_axes(rectquit)
 
-		self.sortAxs = sortAxs
-
-		self.summarize_sort()
-
-	def summarize_sort(self):
-		sortAxs = self.sortAxs
-		figsort = self.figsort
-
-		# size of text summary box
+		""" size of text summary box """
 		rectsumm = [0.55, 0.05, 0.40, 0.90]
-
 		sortAxs['summary'] = figsort.add_axes(rectsumm)
-
 		# remove axes markings on summary field
 		sortAxs['summary'].get_xaxis().set_ticks([])
 		sortAxs['summary'].get_yaxis().set_visible([])
+
+		self.sortAxs = sortAxs
+
+	def summarize_sort(self):
+		sortAxs = self.sortAxs
 
 		# define constants
 		x0 = 0.03
@@ -433,152 +427,200 @@ class PickPhaseMenuMore:
 
 	def sort_file(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'i';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qall(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'all';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qccc(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = '1';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qsnr(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = '2';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_qcoh(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = '3';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hnpts(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'npts';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hb(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'b';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_he(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'e';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hdelta(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'delta';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hkstnm(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'kstnm';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hstla(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'stla';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hstlo(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'stlo';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hdist(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'dist';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_haz(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'az';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hbaz(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'baz';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def sort_hgcarc(self, event):
 		self.bnquit.label.set_text('Processing...')
-		self.figsort.canvas.draw()
+		event.canvas.draw()
+
 		self.opts.sortby = 'gcarc';
 		self.replot_seismograms()
 		self.ppm.axpp.figure.canvas.draw()
+
 		self.bnquit.label.set_text('Done! Click to Exit.')
+		event.canvas.draw()
 		return
 
 	def dismiss_sort(self, event):
 		"""Dismiss the sorting selection popup Window"""
 		self.sort_disconnect()
-		close(self.figsort)
+		close()
 
 	# -------------------------------- SORTING ---------------------------------- #
 
@@ -794,7 +836,7 @@ class PickPhaseMenuMore:
 
 		# disconnect
 		self.bnorder.disconnect(self.cidorder)
-		self.bnapply.disconnect(self.cidunapply)
+		self.bnapply.disconnect(self.cidapply)
 		self.bnband.disconnect(self.cidband)
 		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 
@@ -1238,7 +1280,7 @@ def getDataOpts():
 
 def getAxes(opts):
 	""" Get axes for plotting """
-	fig = figure(figsize=(16, 15))
+	fig = figure('QualityControl', figsize=(16, 15))
 	rcParams['legend.fontsize'] = 10
 
 	rectseis = [0.12, 0.04, 0.66, 0.82]
