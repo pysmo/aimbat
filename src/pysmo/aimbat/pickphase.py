@@ -596,12 +596,21 @@ class PickPhaseMenu():
 		self.dmax = data[:,1].max() 
 
 	def fron(self, event):
+		self.bnfron.label.set_text('Wait...')
+		self.axpp.get_figure().canvas.draw()
+
 		self.replot(0)
+		self.bnfron.label.set_text('Front')
 		self.axpp.get_figure().canvas.draw()
 
 	# zoom back to original screen size
 	def zoba(self, event):
+		self.bnzoba.label.set_text('Wait...')
+		self.axpp.get_figure().canvas.draw()
+
 		self.replot(self.ipage)
+		
+		self.bnzoba.label.set_text('Zoom\nBack')
 		self.axpp.get_figure().canvas.draw()
 
 	def prev(self, event):
@@ -613,7 +622,11 @@ class PickPhaseMenu():
 		self.axpp.get_figure().canvas.draw()
 
 	def next(self, event):
+		self.bnnext.label.set_text('Wait...')
+		self.axpp.get_figure().canvas.draw()
+
 		self.replot(self.ipage+1)
+		self.bnnext.label.set_text('Next')
 		self.axpp.get_figure().canvas.draw()
 
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
