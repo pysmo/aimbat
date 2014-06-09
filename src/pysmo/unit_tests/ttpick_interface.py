@@ -1,4 +1,5 @@
 import unittest
+
 import sys
 sys.path.append('aimbat')
 
@@ -17,7 +18,11 @@ class IsOddTests(unittest.TestCase):
         self.failIf(IsOdd(2))
 
     def testThree(self):
-    	self.failIf(5==6)
+    	zipFile('gz')
+    	self.failIf(False)
+		
+		#print stringT
+
 
 def main():
     unittest.main()
