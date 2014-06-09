@@ -51,9 +51,13 @@ class TimeSelector(SpanSelector):
 	Also disable it when event is out of axes, which is needed to avoid error interfering with pick_event.
 	"""
 	def ignore(self, event):
-		#if (not Gcf.get_active().toolbar.mode == '') or event.inaxes != self.ax or event.name == 'pick_event':
-		if Gcf.get_active() != '' or event.inaxes != self.ax:
+		if event.inaxes != self.ax:
 			return True
+		elif 'zoom' in Gcf.get_active().toolbar.mode:
+			return True
+		elif event.name == 'pick_event':
+			return True
+		return False
 
 def dataNorm(d, w=0.05):
 	""" 
