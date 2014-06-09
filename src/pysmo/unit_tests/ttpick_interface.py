@@ -2,19 +2,22 @@ import unittest
 import sys
 sys.path.append('aimbat')
 
-class InterfaceTests(unittest.TestCase):
 
-	def backButton(self):
-		typeOf = zipFile('lol')
-		print 'yoloswag'
-		self.failIf(typeOf=='')
+# Here's our "unit".
+def IsOdd(n):
+    return n % 2 == 1
 
-	def lol(self):
-		self.failUnless(1==2)
+# Here's our "unit tests".
+class IsOddTests(unittest.TestCase):
 
+    def testOne(self):
+        self.failUnless(IsOdd(1))
+
+    def testTwo(self):
+        self.failIf(IsOdd(2))
 
 def main():
-	unittest.main()
+    unittest.main()
 
 if __name__ == '__main__':
-	main()
+    main()
