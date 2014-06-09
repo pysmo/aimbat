@@ -1,8 +1,8 @@
 import unittest
 
 import sys
-sys.path.append('aimbat')
-
+#sys.path.append('aimbat')
+from pysmo.aimbat.sacpickle import zipFile
 
 # Here's our "unit".
 def IsOdd(n):
@@ -18,7 +18,7 @@ class IsOddTests(unittest.TestCase):
         self.failIf(IsOdd(2))
 
     def testThree(self):
-    	zipFile('gz')
+    	tt = zipFile('lol')
     	self.failIf(False)
 		
 		#print stringT
