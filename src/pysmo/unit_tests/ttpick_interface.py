@@ -18,10 +18,11 @@ class IsOddTests(unittest.TestCase):
         self.failIf(IsOdd(2))
 
     def testThree(self):
-    	tt = zipFile('lol')
+    	tt = zipFile('gz')
+    	print tt
     	self.failIf(False)
-		
-		#print stringT
+
+
 
 
 def main():
