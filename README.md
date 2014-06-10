@@ -30,16 +30,15 @@ Dependencies
 
 Installation
 ------------
-* Install the dependent packages
-* Download the latest release of aimbat, e.g. ``pysmo-aimbat-0.1.1.tar.gz``, and decompress:
-
+Install the dependent packages. Download the latest release of aimbat, e.g. ``pysmo-aimbat-0.1.1.tar.gz``, and decompress: 
 	tar zxvf pysmo-aimbat-0.1.1.tar.gz
-* In the package main directory pysmo-aimbat-0.1.1, install it to the python <site-packages> directory:
+
+In the package main directory pysmo-aimbat-0.1.1, install it to the python ``<site-packages>`` directory:
 
 	python setup.py build --fcompiler=gfortran
 	python setup.py install
 	
-* Add the directory ``pysmo-aimbat-0.1.1/scripts`` to environment variable $PATH
+Add the directory ``pysmo-aimbat-0.1.1/scripts`` to environment variable ``$PATH``
 
 Filtering Data
 --------------
