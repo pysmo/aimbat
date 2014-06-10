@@ -2,7 +2,7 @@ import unittest
 
 import sys
 #sys.path.append('aimbat')
-from pysmo.aimbat.sacpickle import zipFile
+from pysmo.aimbat.sacpickle import zipFile, pkl2sac
 
 # Here's our "unit".
 def IsOdd(n):
@@ -22,7 +22,11 @@ class IsOddTests(unittest.TestCase):
     	print tt
     	self.failIf(False)
 
-
+    def pkl2sac_test(self):
+    	pkfile = 'test-load.bhz.pkl'
+    	zipmode = 'None'
+    	pkl2sac(pkfile, zipmode)
+    	self.failIf(False)
 
 
 def main():
