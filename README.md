@@ -65,4 +65,11 @@ Each time you make changes to any of the files in this repository, run
 	
 To build again to allow the changes to take place.
 
+Running Unit Tests
+------------------
+[Unit Tests](https://docs.python.org/2/library/unittest.html#) are used to ensure robustness of the program. They should be run each time you make a significant change to AIMBAT, to ensure you did not accidentally break some functionality. Inside the repository ``aimbat``, run
+
+	python /src/pysmo/unit_tests/run_unit_tests.py
+
+
 
