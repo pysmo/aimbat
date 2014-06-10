@@ -22,12 +22,14 @@ class IsOddTests(unittest.TestCase):
     	print tt
     	self.failIf(False)
 
-    def pkl2sac_test(self):
-    	pkfile = 'test-load.bhz.pkl'
-    	zipmode = 'None'
-    	pkl2sac(pkfile, zipmode)
-    	self.failIf(False)
+    # def pkl2sac_test(self):
+    # 	pkfile = 'test-load.bhz.pkl'
+    # 	zipmode = 'None'
+    # 	pkl2sac(pkfile, zipmode)
+    # 	self.failIf(False)
 
+    def testFour(self):
+        self.failIf(IsOdd(2))
 
 def main():
     unittest.main()
