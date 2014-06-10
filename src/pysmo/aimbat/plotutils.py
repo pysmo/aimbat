@@ -50,7 +50,6 @@ class TimeSelector(SpanSelector):
 	To disable SpanSelector when pan, zoom or other interactive/navigation modes are active.
 	Also disable it when event is out of axes, which is needed to avoid error interfering with pick_event.
 	"""
-	print dir(SpanSelector)
 	def ignore(self, event):
 		if event.inaxes != self.ax:
 			return True
