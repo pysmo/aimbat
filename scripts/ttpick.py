@@ -73,7 +73,6 @@ from pysmo.aimbat.qualctrl import getDataOpts, getAxes, PickPhaseMenuMore
 
 # 	return axs
 
-
 def main():
 	gsac, opts = getDataOpts()
 	axs = getAxes(opts)
