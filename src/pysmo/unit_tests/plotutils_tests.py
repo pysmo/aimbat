@@ -23,7 +23,8 @@ class IsOddTests(unittest.TestCase):
 
     def testFour(self):
     	output = getOptions()
-    	print output
+    	#print output
+    	print 'YOLO'
     	self.failIf(False)
 
 def main():
