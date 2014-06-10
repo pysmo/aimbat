@@ -2,5 +2,12 @@ language: python
 python:
   - "3.3"
   - "2.7"
+install:
+  - port install python27
+  - port install py27-numpy
+  - port install py27-scipy
+  - port install py27-matplotlib
+  - port install py27-ipython
+  - port install python_select
 script: python /src/pysmo/unit_tests/sacpickle_tests.py
 
