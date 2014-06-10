@@ -1,6 +1,7 @@
 import unittest
 import sys, os
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
+from pysmo.aimbat.qualctrl import getOptions
 
 
 # Here's our "unit".
@@ -18,6 +19,11 @@ class IsOddTests(unittest.TestCase):
 
     def testThree(self):
     	tt = zipFile('gz')
+    	self.failIf(False)
+
+    def testFour(self):
+    	output = getOptions()
+    	print output
     	self.failIf(False)
 
 def main():
