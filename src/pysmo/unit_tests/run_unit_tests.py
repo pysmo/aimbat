@@ -7,4 +7,4 @@ suite_qualctrl = unittest.TestLoader().loadTestsFromTestCase(qualctrlTests)
 suite_sacpickle = unittest.TestLoader().loadTestsFromTestCase(sacpickleTests)
 
 unittest.TextTestRunner(verbosity=2).run(suite_qualctrl)
-unittest.TextTestRunner(verbosity=2).run(suite_sacpickle)
+#unittest.TextTestRunner(verbosity=2).run(suite_sacpickle)

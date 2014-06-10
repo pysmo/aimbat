@@ -10,7 +10,6 @@ class qualctrlTests(unittest.TestCase):
     def test_getOptions(self):
     	sys.argv[1:] = ['test-load.bhz.pkl']
     	opts = getOptions()
-        print opts[0]
     	self.assertIsNone(opts[0].twin_on)
         self.assertEqual(opts[0].maxnum,(37,3))
         self.assertIsNone(opts[0].nlab_on)
