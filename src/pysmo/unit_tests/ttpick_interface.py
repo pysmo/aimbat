@@ -30,7 +30,7 @@ class IsOddTests(unittest.TestCase):
 
     def testFour(self):
     	pkfile = 'test-load.bhz.pkl'
-      	zipmode = 'None'
+      	zipmode = None
       	pkl2sac(pkfile, zipmode)
         self.failIf(IsOdd(2))
 
