@@ -3,8 +3,7 @@ package AIMBAT
  
 Copyright
 ---------
-GNU General Public License, Version 3 (GPLv3) 
-http://www.gnu.org/licenses/gpl.html
+[GNU General Public License](http://www.gnu.org/licenses/gpl.html), Version 3 (GPLv3) 
 
 Copyright (c) 2009-2012 Xiaoting Lou
 
@@ -52,7 +51,7 @@ Installation
 Filtering Data
 --------------
 	evsacbp.sh <name of file>.sac f0 f1
-where `f0` is the lower frequency. and `f1` is the higher frequency. in hertz
+where `f0` is the lower frequency. and `f1` is the higher frequency, in hertz.
 
 Building
 --------
@@ -66,9 +65,9 @@ To build again to allow the changes to take place.
 
 Running Unit Tests
 ------------------
-[Unit Tests](https://docs.python.org/2/library/unittest.html#) are used to ensure robustness of the program. They should be run each time you make a significant change to AIMBAT, to ensure you did not accidentally break some functionality. Inside the repository ``aimbat``, run
+[Unit Tests](https://docs.python.org/2/library/unittest.html#) are used to ensure robustness of the program. They should be run each time you make a significant change to AIMBAT, to ensure you did not accidentally break some functionality. Inside the repository ``aimbat/src/pysmo/unit_tests``, run
 
-	python /src/pysmo/unit_tests/run_unit_tests.py
+	python run_unit_tests.py
 
 
 
