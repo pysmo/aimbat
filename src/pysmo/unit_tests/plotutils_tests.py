@@ -1,7 +1,7 @@
 import unittest
 import sys, os
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
-from pysmo.aimbat.qualctrl import getOptions
+from pysmo.aimbat.qualctrl import getOptions, getDataOpts
 
 
 # Here's our "unit".
@@ -26,6 +26,11 @@ class IsOddTests(unittest.TestCase):
     	output = getOptions()
     	print output
     	self.failIf(False)
+
+    def test_getDataOpts(self):
+    	sys.argv[1:] = ['test-load.bhz.pkl']
+    	gsac, opts = getDataOpts()
+    	print gsac
 
 def main():
     unittest.main()
