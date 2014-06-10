@@ -17,5 +17,7 @@ class qualctrlTests(unittest.TestCase):
     def test_getDataOpts(self):
     	sys.argv[1:] = ['test-load.bhz.pkl']
     	gsac, opts = getDataOpts()
-        print dir(gsac)
+        self.assertEqual(len(gsac.delist),17)
+        self.assertEqual(len(gsac.selist),487)
+        self.assertEqual(len(gsac.delist)+len(gsac.selist),len(gsac.saclist))
 
