@@ -24,9 +24,7 @@ input from a user's expertise is retained. As a byproduct, SAC (Goldstein
 et al., 2003) plotting and phase picking functionalities are replicated 
 and enhanced.
 
-For more informaton visit 
-http://www.earth.northwestern.edu/~xlou/aimbat.html
-https://github.com/pysmo/aimbat
+For more informaton visit the [project website](http://www.earth.northwestern.edu/~xlou/aimbat.html) or the [Pysmo repository](https://github.com/pysmo).
 
 Documentation
 -------------
