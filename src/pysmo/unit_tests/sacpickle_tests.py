@@ -34,8 +34,10 @@ class IsOddTests(unittest.TestCase):
 
         #sac is default folder name for sacfiles to be put to
         sacFolderExists = os.path.isdir(dirarr[0]) 
-        sacInnerFolderExists = os.path.isdir(dirarr[1]) 
-        self.failIf(IsOdd(2))
+        sacInnerFolderExists = os.path.isdir(dirname) 
+
+        self.failUnless(sacFolderExists)
+        self.failUnless(sacInnerFolderExists)
 
 def main():
     unittest.main()
