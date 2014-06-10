@@ -1,8 +1,8 @@
 import unittest
 
-import sys
+import sys, os
 #sys.path.append('aimbat')
-from pysmo.aimbat.sacpickle import zipFile, pkl2sac
+from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
 
 # Here's our "unit".
 def IsOdd(n):
@@ -19,13 +19,22 @@ class IsOddTests(unittest.TestCase):
 
     def testThree(self):
     	tt = zipFile('gz')
-    	print tt
     	self.failIf(False)
 
-    def testFour(self):
+    def test_pkl2sac(self):
     	pkfile = 'test-load.bhz.pkl'
       	zipmode = None
+
+        gsac = readPickle(pkfile, zipmode)
+        sacdh = gsac.saclist[0]
+        dirarr = sacdh.filename.split('/')
+        dirname = dirarr[0]+'/'+dirarr[1]
+
       	pkl2sac(pkfile, zipmode)
+
+        #sac is default folder name for sacfiles to be put to
+        sacFolderExists = os.path.isdir(dirarr[0]) 
+        sacInnerFolderExists = os.path.isdir(dirarr[1]) 
         self.failIf(IsOdd(2))
 
 def main():
