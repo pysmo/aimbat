@@ -20,13 +20,3 @@ class qualctrlTests(unittest.TestCase):
     	gsac, opts = getDataOpts()
         print dir(gsac)
 
-# def main():
-#     unittest.main()
-
-suite1 = unittest.TestLoader().loadTestsFromTestCase(qualctrlTests)
-suite2 = unittest.TestLoader().loadTestsFromTestCase(sacpickleTests)
-unittest.TextTestRunner(verbosity=2).run(suite1)
-unittest.TextTestRunner(verbosity=2).run(suite2)
-
-# if __name__ == '__main__':
-#     main()

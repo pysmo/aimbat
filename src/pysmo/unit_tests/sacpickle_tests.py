@@ -28,8 +28,3 @@ class sacpickleTests(unittest.TestCase):
         self.failUnless(sacFolderExists)
         self.failUnless(sacInnerFolderExists)
 
-def main():
-    unittest.main()
-
-if __name__ == '__main__':
-    main()
