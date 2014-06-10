@@ -22,9 +22,9 @@ class IsOddTests(unittest.TestCase):
     	self.failIf(False)
 
     def testFour(self):
+    	sys.argv[1:] = ['test-load.bhz.pkl']
     	output = getOptions()
-    	#print output
-    	print 'YOLO'
+    	print output
     	self.failIf(False)
 
 def main():

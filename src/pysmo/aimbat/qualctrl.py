@@ -77,8 +77,6 @@ def getOptions():
 		help='Time window for cross-correlation. Default is [{:.1f}, {:.1f}] s'.format(twcorr[0],twcorr[1]))
 	parser.add_option('-g', '--savefig', action="store_true", dest='savefig',
 		help='Save figure instead of showing.')
-	print 'LOLLLLLLLLL'
-	print sys.argv[1:]
 	opts, files = parser.parse_args(sys.argv[1:])
 	if len(files) == 0:
 		print parser.usage
