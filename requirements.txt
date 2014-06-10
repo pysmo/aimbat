@@ -1,5 +1,5 @@
 
-scipy==2.7
-numpy==2.7
-matplotlib==2.7
+scipy
+numpy
+matplotlib
 Tkinter
