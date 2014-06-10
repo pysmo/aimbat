@@ -21,16 +21,14 @@ class IsOddTests(unittest.TestCase):
     	tt = zipFile('gz')
     	self.failIf(False)
 
-    def testFour(self):
+    def test_getOptions(self):
     	sys.argv[1:] = ['test-load.bhz.pkl']
     	output = getOptions()
-    	print output
     	self.failIf(False)
 
     def test_getDataOpts(self):
     	sys.argv[1:] = ['test-load.bhz.pkl']
     	gsac, opts = getDataOpts()
-    	print gsac
 
 def main():
     unittest.main()
