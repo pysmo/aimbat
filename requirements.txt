@@ -1,5 +1,7 @@
 
-scipy==2.7
-numpy==2.7
-matplotlib==2.7
-Tkinter
+scipy
+numpy
+matplotlib
+dateutil
+tornado
+pyparsing
