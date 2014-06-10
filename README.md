@@ -53,7 +53,8 @@ Installation
 
 Filtering Data
 --------------
-* `evsacbp/sh <name of file>.sac f0 f1`, where `f0` is the lower frequency. and `f1` is the higher frequency. in hertz
+	evsacbp.sh <name of file>.sac f0 f1
+where `f0` is the lower frequency. and `f1` is the higher frequency. in hertz
 
 Building
 --------
