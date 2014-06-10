@@ -416,7 +416,6 @@ def pkl2sac(pkfile, zipmode):
 	"""
 	gsac = readPickle(pkfile, zipmode)
 	transformToSac(gsac)
-	#obj2sac(gsac)
 
 def _days(year):
 	""" Get number of days for each month of a year."""
