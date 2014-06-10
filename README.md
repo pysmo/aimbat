@@ -30,7 +30,7 @@ https://github.com/pysmo/aimbat
 
 Documentation
 -------------
-* http://aimbat.readthedocs.org/en/latest/index.html
+Read about the features and their usage in the latest version of AIMBAT on github [here](http://aimbat.readthedocs.org/en/latest/index.html).
 
 Dependencies
 ------------
