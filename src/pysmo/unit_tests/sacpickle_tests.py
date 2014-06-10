@@ -11,7 +11,7 @@ class sacpickleTests(unittest.TestCase):
     	self.failIf(False)
 
     def test_pkl2sac(self):
-    	pkfile = 'test-load.bhz.pkl'
+    	pkfile = '20120109.04071467.bhz.pkl'
       	zipmode = None
 
         gsac = readPickle(pkfile, zipmode)
