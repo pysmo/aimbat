@@ -1,7 +1,7 @@
 import unittest
 import sys, os
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
-from pysmo.aimbat.qualctrl import getOptions, getDataOpts
+from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis
 from sacpickle_tests import sacpickleTests
 
 class qualctrlTests(unittest.TestCase):
@@ -44,4 +44,42 @@ class qualctrlTests(unittest.TestCase):
 
         """event magnitude correct"""
         self.assertEqual(gsac.event[9], 6.400000095367432) 
+
+    def test_sortSeismograms(self):
+        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        gsac, opts = getDataOpts()
+
+        """sort by file name"""
+        unsortedFiles = []
+        for sacdh in gsac.saclist:
+            unsortedFiles.append(sacdh.filename)
+
+        sortedFiles = []
+        opts.sortby = 'i';
+        sortSeis(gsac, opts)
+        for sacdh in gsac.saclist:
+            sortedFiles.append(sacdh.filename)
+        sortedFiles = sortedFiles.sort()
+
+        self.assertEqual(sortedFiles, unsortedFiles.sort())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
