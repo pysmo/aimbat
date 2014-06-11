@@ -67,7 +67,7 @@ class qualctrlTests(unittest.TestCase):
         gsac, opts = getDataOpts()
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
-        
+        ppmm.sorting()
         #xy=(45,300) xydata=(0.246264811953,0.653145695364) button=1 dblclick=False inaxes=Axes(0.02,0.305;0.06x0.04)
 
 
