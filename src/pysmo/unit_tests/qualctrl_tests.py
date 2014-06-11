@@ -1,8 +1,7 @@
 import unittest
 import sys, os
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
-from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis
-from sacpickle_tests import sacpickleTests
+from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 
 class qualctrlTests(unittest.TestCase):
 
@@ -62,6 +61,14 @@ class qualctrlTests(unittest.TestCase):
         sortedFiles = sortedFiles.sort()
 
         self.assertEqual(sortedFiles, unsortedFiles.sort())
+
+    def test_buttonClick(self):
+        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        gsac, opts = getDataOpts()
+        axs = getAxes(opts)
+        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+        
+        #xy=(45,300) xydata=(0.246264811953,0.653145695364) button=1 dblclick=False inaxes=Axes(0.02,0.305;0.06x0.04)
 
 
 
