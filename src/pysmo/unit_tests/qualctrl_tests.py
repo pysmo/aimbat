@@ -219,6 +219,19 @@ class qualctrlView():
             # check the figure has been closed
             self.assertFalse(py.fignum_exists(ppmm.figfilter.number))
 
+        """unapplying the filter works"""
+        def test_filter_unapplyFilter(self):
+            ppmm = self.runBefore()
+
+            event_apply = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 636, 823)
+            ppmm.applyFilter(event_apply)
+
+            event_unapply = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 538, 838)
+            ppmm.unapplyFilter(event_unapply)
+
+            self.assertFalse(ppmm.opts.filterParameters['apply'])
+            self.assertFalse(py.fignum_exists(ppmm.figfilter.number))
+
     # ------------------------------- FILTERING --------------------------------- #
 
 # ############################################################################### #
