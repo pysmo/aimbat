@@ -161,7 +161,7 @@ class qualctrlView():
             ppmm.getBandtype('lowpass')
             self.assertEqual(ppmm.opts.filterParameters['band'], 'lowpass')
 
-        """type"""
+        """can change filter parameter for low frequency"""
         def test_filter_getLowFreq(self):
             ppmm = self.runBefore()
             self.assertEqual(ppmm.opts.filterParameters['lowFreq'], 0.05)
@@ -173,6 +173,19 @@ class qualctrlView():
             ppmm.getLowFreq(fake_event)
 
             self.assertEqual(ppmm.opts.filterParameters['lowFreq'], 0.38)
+
+        """can change filter parameter for high frequency"""
+        def test_filter_getHighFreq(self):
+            ppmm = self.runBefore()
+            self.assertEqual(ppmm.opts.filterParameters['highFreq'], 0.25)
+            ppmm.getBandtype('highpass')
+
+            fake_event = matplotlib.backend_bases.LocationEvent('button_press_event', ppmm.figfilter.canvas, 370, 266)
+            fake_event.inaxes = ppmm.filterAxs['amVfreq']
+            fake_event.xdata = 0.55
+            ppmm.getHighFreq(fake_event)
+
+            self.assertEqual(ppmm.opts.filterParameters['highFreq'], 0.55)
 
     # ------------------------------- FILTERING --------------------------------- #
 
