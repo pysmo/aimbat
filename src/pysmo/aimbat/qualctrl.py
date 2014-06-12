@@ -300,6 +300,7 @@ class PickPhaseMenuMore:
 		sortAxs['summary'].get_yaxis().set_visible([])
 
 		self.sortAxs = sortAxs
+		self.figsort = figsort
 
 	def summarize_sort(self):
 		sortAxs = self.sortAxs
@@ -870,8 +871,6 @@ class PickPhaseMenuMore:
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
 		filterAxs['Info'].axes.get_xaxis().set_visible(False)
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
-
-		
 
 		self.filterAxs = filterAxs
 
