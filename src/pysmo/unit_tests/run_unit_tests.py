@@ -37,7 +37,7 @@ suite_qualctrl_filterClass_v = unittest.TestLoader().loadTestsFromTestCase(qualc
 # ------------------------------------------------------------------------------- #
 
 """Run the views"""
-unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_sortingClass_v)
+#unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_sortingClass_v)
 unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_filterClass_v)
 
 

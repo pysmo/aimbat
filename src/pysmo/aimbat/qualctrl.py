@@ -872,8 +872,6 @@ class PickPhaseMenuMore:
 		filterAxs['Info'].axes.get_xaxis().set_visible(False)
 		filterAxs['Info'].axes.get_yaxis().set_visible(False)
 
-		
-
 		self.filterAxs = filterAxs
 
 	# --------------------------------- Filtering ------------------------------- #
