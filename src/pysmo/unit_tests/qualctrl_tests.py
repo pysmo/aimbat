@@ -86,8 +86,7 @@ class qualctrlView(unittest.TestCase):
         gsac, opts = getDataOpts()
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
-        print dir(ppmm.axstk.figure)
-        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 67, 300)
+        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
         ppmm.sorting(fake_event)
 
 
