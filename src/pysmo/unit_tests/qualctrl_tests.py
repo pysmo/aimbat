@@ -3,6 +3,8 @@ import sys, os, matplotlib
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
 from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 
+test_filename = '20120109.04071467.bhz.pkl'
+
 # ############################################################################### #
 #                                     MODELS                                      #
 # ############################################################################### #
@@ -10,21 +12,21 @@ from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, Pi
 class qualctrlModel(unittest.TestCase):
 
     def test_getOptions(self):
-    	sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+    	sys.argv[1:] = [test_filename]
     	opts = getOptions()
     	self.assertIsNone(opts[0].twin_on)
         self.assertEqual(opts[0].maxnum,(37,3))
         self.assertIsNone(opts[0].nlab_on)
 
     def test_getDataOpts(self):
-    	sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+    	sys.argv[1:] = [test_filename]
     	gsac, opts = getDataOpts()
         self.assertEqual(len(gsac.delist),7)
         self.assertEqual(len(gsac.selist),117)
         self.assertEqual(len(gsac.delist)+len(gsac.selist),len(gsac.saclist))
 
     def test_readSACfilesRight(self):
-        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()
 
         """event year correct"""
@@ -49,7 +51,7 @@ class qualctrlModel(unittest.TestCase):
         self.assertEqual(gsac.event[9], 6.400000095367432) 
 
     def test_sortSeismogramsFilename(self):
-        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()
 
         """before sorting"""
@@ -83,7 +85,7 @@ class qualctrlModel(unittest.TestCase):
 class qualctrlView(unittest.TestCase):
 
     def test_sortFigExists(self):
-        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
@@ -97,7 +99,7 @@ class qualctrlView(unittest.TestCase):
         self.assertIsNotNone(ppmm.sortAxs)
 
     def test_filterFigExists(self):
-        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
@@ -111,7 +113,7 @@ class qualctrlView(unittest.TestCase):
         self.assertIsNotNone(ppmm.filterAxs)
 
     def test_sortButtonWorks(self):
-        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()
 
         axs = getAxes(opts)
