@@ -1,7 +1,11 @@
 import unittest
-import sys, os
+import sys, os, matplotlib
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
 from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
+
+# ############################################################################### #
+#                                     MODELS                                      #
+# ############################################################################### #
 
 class qualctrlModel(unittest.TestCase):
 
@@ -61,6 +65,19 @@ class qualctrlModel(unittest.TestCase):
         sortedFiles = sortedFiles.sort()
 
         self.assertEqual(sortedFiles, unsortedFiles.sort())
+
+# ############################################################################### #
+#                                     MODELS                                      #
+# ############################################################################### #
+
+
+
+
+
+
+# ############################################################################### #
+#                                      VIEWS                                      #
+# ############################################################################### #
         
 class qualctrlView(unittest.TestCase):
 
@@ -69,10 +86,14 @@ class qualctrlView(unittest.TestCase):
         gsac, opts = getDataOpts()
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
-        ppmm.sorting()
+        print dir(ppmm.axstk.figure)
+        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 67, 300)
+        ppmm.sorting(fake_event)
 
 
-
+# ############################################################################### #
+#                                      VIEWS                                      #
+# ############################################################################### #
 
 
 
