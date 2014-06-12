@@ -81,13 +81,14 @@ class qualctrlModel(unittest.TestCase):
         
 class qualctrlView(unittest.TestCase):
 
-    def test_buttonClick(self):
+    def test_sortFigExists(self):
         sys.argv[1:] = ['20120109.04071467.bhz.pkl']
         gsac, opts = getDataOpts()
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
         fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
         ppmm.sorting(fake_event)
+        self.assertIsNotNone(ppmm.figsort)
         self.assertIsNotNone(ppmm.sortAxs)
 
 
