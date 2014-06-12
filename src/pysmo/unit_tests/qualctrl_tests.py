@@ -88,6 +88,7 @@ class qualctrlView(unittest.TestCase):
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
         fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
         ppmm.sorting(fake_event)
+        self.assertIsNotNone(ppmm.sortAxs)
 
 
 # ############################################################################### #

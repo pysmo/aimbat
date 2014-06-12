@@ -232,7 +232,6 @@ class PickPhaseMenuMore:
 	
 	def sorting(self, event):
 		""" Sort the seismograms in particular order """
-		print event.button
 		self.getSortAxes()
 		self.summarize_sort()
 		self.sort_connect()
