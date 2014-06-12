@@ -161,7 +161,7 @@ class qualctrlView():
             ppmm.getBandtype('lowpass')
             self.assertEqual(ppmm.opts.filterParameters['band'], 'lowpass')
 
-        """can change filter parameter for low frequency"""
+        """can change filter parameter for lowpass filter"""
         def test_filter_getLowFreq(self):
             ppmm = self.runBefore()
             self.assertEqual(ppmm.opts.filterParameters['lowFreq'], 0.05)
@@ -174,7 +174,7 @@ class qualctrlView():
 
             self.assertEqual(ppmm.opts.filterParameters['lowFreq'], 0.38)
 
-        """can change filter parameter for high frequency"""
+        """can change filter parameter for highpass filter"""
         def test_filter_getHighFreq(self):
             ppmm = self.runBefore()
             self.assertEqual(ppmm.opts.filterParameters['highFreq'], 0.25)
@@ -186,6 +186,26 @@ class qualctrlView():
             ppmm.getHighFreq(fake_event)
 
             self.assertEqual(ppmm.opts.filterParameters['highFreq'], 0.55)
+
+        """can change filter parameter for bandpass filter"""
+        def test_filter_getBnadpassFreq(self):
+            ppmm = self.runBefore()
+            self.assertEqual(ppmm.opts.filterParameters['band'],'bandpass')
+            self.assertFalse(ppmm.opts.filterParameters['advance'])
+
+            # first click
+            eventA = matplotlib.backend_bases.LocationEvent('button_press_event', ppmm.figfilter.canvas, 370, 266)
+            eventA.inaxes = ppmm.filterAxs['amVfreq']
+            eventA.xdata = 0.20
+            ppmm.getBandpassFreq(eventA)
+            self.assertEqual(ppmm.opts.filterParameters['lowFreq'], 0.20)
+
+            # second click
+            eventB = matplotlib.backend_bases.LocationEvent('button_press_event', ppmm.figfilter.canvas, 371, 267)
+            eventB.inaxes = ppmm.filterAxs['amVfreq']
+            eventB.xdata = 0.45
+            ppmm.getBandpassFreq(eventB)
+            self.assertEqual(ppmm.opts.filterParameters['highFreq'], 0.45)
 
     # ------------------------------- FILTERING --------------------------------- #
 
