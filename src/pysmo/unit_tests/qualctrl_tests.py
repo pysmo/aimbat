@@ -87,10 +87,28 @@ class qualctrlView(unittest.TestCase):
         gsac, opts = getDataOpts()
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
+
+        self.assertFalse(hasattr(ppmm,'figsort'))
+
         fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
         ppmm.sorting(fake_event)
+
         self.assertIsNotNone(ppmm.figsort)
         self.assertIsNotNone(ppmm.sortAxs)
+
+    def test_filterFigExists(self):
+        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        gsac, opts = getDataOpts()
+        axs = getAxes(opts)
+        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+
+        self.assertFalse(hasattr(ppmm,'figfilter'))
+
+        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
+        ppmm.filtering(fake_event)
+
+        self.assertIsNotNone(ppmm.figfilter)
+        self.assertIsNotNone(ppmm.filterAxs)
 
     def test_sortButtonWorks(self):
         sys.argv[1:] = ['20120109.04071467.bhz.pkl']
