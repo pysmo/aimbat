@@ -1,10 +1,13 @@
 import unittest
-import sys, os
+import sys, os, matplotlib
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
-from pysmo.aimbat.qualctrl import getOptions, getDataOpts
-from sacpickle_tests import sacpickleTests
+from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 
-class qualctrlTests(unittest.TestCase):
+# ############################################################################### #
+#                                     MODELS                                      #
+# ############################################################################### #
+
+class qualctrlModel(unittest.TestCase):
 
     def test_getOptions(self):
     	sys.argv[1:] = ['20120109.04071467.bhz.pkl']
@@ -44,4 +47,66 @@ class qualctrlTests(unittest.TestCase):
 
         """event magnitude correct"""
         self.assertEqual(gsac.event[9], 6.400000095367432) 
+
+    def test_sortSeismograms(self):
+        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        gsac, opts = getDataOpts()
+
+        """sort by file name"""
+        unsortedFiles = []
+        for sacdh in gsac.saclist:
+            unsortedFiles.append(sacdh.filename)
+
+        sortedFiles = []
+        opts.sortby = 'i';
+        sortSeis(gsac, opts)
+        for sacdh in gsac.saclist:
+            sortedFiles.append(sacdh.filename)
+        sortedFiles = sortedFiles.sort()
+
+        self.assertEqual(sortedFiles, unsortedFiles.sort())
+
+# ############################################################################### #
+#                                     MODELS                                      #
+# ############################################################################### #
+
+
+
+
+
+
+# ############################################################################### #
+#                                      VIEWS                                      #
+# ############################################################################### #
+        
+class qualctrlView(unittest.TestCase):
+
+    def test_buttonClick(self):
+        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        gsac, opts = getDataOpts()
+        axs = getAxes(opts)
+        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
+        ppmm.sorting(fake_event)
+        self.assertIsNotNone(ppmm.sortAxs)
+
+
+# ############################################################################### #
+#                                      VIEWS                                      #
+# ############################################################################### #
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

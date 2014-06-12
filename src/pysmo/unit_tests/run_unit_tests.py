@@ -1,10 +1,44 @@
 import unittest
-from qualctrl_tests import qualctrlTests
-from sacpickle_tests import sacpickleTests
+from qualctrl_tests import qualctrlModel, qualctrlView
+from sacpickle_tests import sacpickleModel
+
+# ############################################################################### #
+#                                     MODELS                                      #
+# ############################################################################### #
+
+"""Run the models"""
+suite_qualctrl_m = unittest.TestLoader().loadTestsFromTestCase(qualctrlModel)
+suite_sacpickle_m = unittest.TestLoader().loadTestsFromTestCase(sacpickleModel)
+
+# ------------------------------------------------------------------------------- #
+
+"""Set the models"""
+# unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_m)
+# unittest.TextTestRunner(verbosity=2).run(suite_sacpickle_m)
+
+# ############################################################################### #
+#                                     MODELS                                      #
+# ############################################################################### #
 
 
-suite_qualctrl = unittest.TestLoader().loadTestsFromTestCase(qualctrlTests)
-suite_sacpickle = unittest.TestLoader().loadTestsFromTestCase(sacpickleTests)
 
-unittest.TextTestRunner(verbosity=2).run(suite_qualctrl)
-#unittest.TextTestRunner(verbosity=2).run(suite_sacpickle)
+
+
+
+
+# ############################################################################### #
+#                                      VIEWS                                      #
+# ############################################################################### #
+
+"""Set the views"""
+suite_qualctrl_v = unittest.TestLoader().loadTestsFromTestCase(qualctrlView)
+
+# ------------------------------------------------------------------------------- #
+
+"""Run the views"""
+unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_v)
+
+
+# ############################################################################### #
+#                                      VIEWS                                      #
+# ############################################################################### #
