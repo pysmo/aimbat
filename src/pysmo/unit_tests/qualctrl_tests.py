@@ -48,15 +48,16 @@ class qualctrlModel(unittest.TestCase):
         """event magnitude correct"""
         self.assertEqual(gsac.event[9], 6.400000095367432) 
 
-    def test_sortSeismograms(self):
+    def test_sortSeismogramsFilename(self):
         sys.argv[1:] = ['20120109.04071467.bhz.pkl']
         gsac, opts = getDataOpts()
 
-        """sort by file name"""
+        """before sorting"""
         unsortedFiles = []
         for sacdh in gsac.saclist:
             unsortedFiles.append(sacdh.filename)
 
+        """after sorting"""
         sortedFiles = []
         opts.sortby = 'i';
         sortSeis(gsac, opts)
@@ -94,12 +95,28 @@ class qualctrlView(unittest.TestCase):
     def test_sortButtonWorks(self):
         sys.argv[1:] = ['20120109.04071467.bhz.pkl']
         gsac, opts = getDataOpts()
+
         axs = getAxes(opts)
         ppmm = PickPhaseMenuMore(gsac, opts, axs)
+
+        # get files before sorting
+        unsortedFiles = []
+        for sacdh in gsac.selist:
+            unsortedFiles.append(sacdh.filename)
+
+        # click the sort button
         event_clickSortBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
         ppmm.sorting(event_clickSortBtn)
         event_clickSortFilenameBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figsort.canvas, 151, 700)
         ppmm.sort_file(event_clickSortFilenameBtn)
+
+        # get files after sorting
+        sortedFiles = []
+        for sacdh in gsac.selist:
+            sortedFiles.append(sacdh.filename)
+        
+        self.assertNotEqual(unsortedFiles, sortedFiles)
+
 
 # ############################################################################### #
 #                                      VIEWS                                      #
