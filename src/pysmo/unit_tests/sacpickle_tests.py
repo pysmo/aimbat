@@ -4,7 +4,7 @@ from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
 
 
 # Here's our "unit tests".
-class sacpickleTests(unittest.TestCase):
+class sacpickleModel(unittest.TestCase):
 
     def testThree(self):
     	tt = zipFile('gz')
@@ -27,4 +27,5 @@ class sacpickleTests(unittest.TestCase):
 
         self.failUnless(sacFolderExists)
         self.failUnless(sacInnerFolderExists)
+
 
