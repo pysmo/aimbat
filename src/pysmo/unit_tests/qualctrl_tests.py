@@ -91,6 +91,15 @@ class qualctrlView(unittest.TestCase):
         self.assertIsNotNone(ppmm.figsort)
         self.assertIsNotNone(ppmm.sortAxs)
 
+    def test_sortButtonWorks(self):
+        sys.argv[1:] = ['20120109.04071467.bhz.pkl']
+        gsac, opts = getDataOpts()
+        axs = getAxes(opts)
+        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+        event_clickSortBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
+        ppmm.sorting(event_clickSortBtn)
+        event_clickSortFilenameBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figsort.canvas, 151, 700)
+        ppmm.sort_file(event_clickSortFilenameBtn)
 
 # ############################################################################### #
 #                                      VIEWS                                      #
