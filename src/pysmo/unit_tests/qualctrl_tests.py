@@ -84,6 +84,8 @@ class qualctrlModel(unittest.TestCase):
         
 class qualctrlView(unittest.TestCase):
 
+    # ------------------------------ SORTING ------------------------------------ #
+
     def test_sortFigExists(self):
         sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()
@@ -97,20 +99,6 @@ class qualctrlView(unittest.TestCase):
 
         self.assertIsNotNone(ppmm.figsort)
         self.assertIsNotNone(ppmm.sortAxs)
-
-    def test_filterFigExists(self):
-        sys.argv[1:] = [test_filename]
-        gsac, opts = getDataOpts()
-        axs = getAxes(opts)
-        ppmm = PickPhaseMenuMore(gsac, opts, axs)
-
-        self.assertFalse(hasattr(ppmm,'figfilter'))
-
-        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
-        ppmm.filtering(fake_event)
-
-        self.assertIsNotNone(ppmm.figfilter)
-        self.assertIsNotNone(ppmm.filterAxs)
 
     def test_sortButtonWorks(self):
         sys.argv[1:] = [test_filename]
@@ -137,6 +125,39 @@ class qualctrlView(unittest.TestCase):
         
         self.assertNotEqual(unsortedFiles, sortedFiles)
 
+    # ------------------------------ SORTING ------------------------------------ #
+
+
+    # ------------------------------- FILTERING --------------------------------- #
+
+    def test_filterFigExists(self):
+        sys.argv[1:] = [test_filename]
+        gsac, opts = getDataOpts()
+        axs = getAxes(opts)
+        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+
+        self.assertFalse(hasattr(ppmm,'figfilter'))
+
+        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
+        ppmm.filtering(fake_event)
+
+        self.assertIsNotNone(ppmm.figfilter)
+        self.assertIsNotNone(ppmm.filterAxs)
+
+    def test_filterSelectOrderWorks(self):
+        sys.argv[1:] = [test_filename]
+        gsac, opts = getDataOpts()
+        axs = getAxes(opts)
+        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
+        ppmm.filtering(fake_event)
+
+        ppmm.getButterOrder('3')
+
+
+        
+
+    # ------------------------------- FILTERING --------------------------------- #
 
 # ############################################################################### #
 #                                      VIEWS                                      #
