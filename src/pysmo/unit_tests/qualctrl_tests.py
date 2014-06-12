@@ -82,79 +82,88 @@ class qualctrlModel(unittest.TestCase):
 #                                      VIEWS                                      #
 # ############################################################################### #
         
-class qualctrlView(unittest.TestCase):
+class qualctrlView():
 
     # ------------------------------ SORTING ------------------------------------ #
 
-    def test_sortFigExists(self):
-        sys.argv[1:] = [test_filename]
-        gsac, opts = getDataOpts()
-        axs = getAxes(opts)
-        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+    class sortingClass(unittest.TestCase):
 
-        self.assertFalse(hasattr(ppmm,'figsort'))
+        def test_sortFigExists(self):
+            sys.argv[1:] = [test_filename]
+            gsac, opts = getDataOpts()
+            axs = getAxes(opts)
+            ppmm = PickPhaseMenuMore(gsac, opts, axs)
 
-        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
-        ppmm.sorting(fake_event)
+            self.assertFalse(hasattr(ppmm,'figsort'))
 
-        self.assertIsNotNone(ppmm.figsort)
-        self.assertIsNotNone(ppmm.sortAxs)
+            fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
+            ppmm.sorting(fake_event)
 
-    def test_sortButtonWorks(self):
-        sys.argv[1:] = [test_filename]
-        gsac, opts = getDataOpts()
+            self.assertIsNotNone(ppmm.figsort)
+            self.assertIsNotNone(ppmm.sortAxs)
 
-        axs = getAxes(opts)
-        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+        def test_sortButtonWorks(self):
+            sys.argv[1:] = [test_filename]
+            gsac, opts = getDataOpts()
+            axs = getAxes(opts)
+            ppmm = PickPhaseMenuMore(gsac, opts, axs)
 
-        # get files before sorting
-        unsortedFiles = []
-        for sacdh in gsac.selist:
-            unsortedFiles.append(sacdh.filename)
+            # get files before sorting
+            unsortedFiles = []
+            for sacdh in gsac.selist:
+                unsortedFiles.append(sacdh.filename)
 
-        # click the sort button
-        event_clickSortBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
-        ppmm.sorting(event_clickSortBtn)
-        event_clickSortFilenameBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figsort.canvas, 151, 700)
-        ppmm.sort_file(event_clickSortFilenameBtn)
+            # click the sort button
+            event_clickSortBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
+            ppmm.sorting(event_clickSortBtn)
+            event_clickSortFilenameBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figsort.canvas, 151, 700)
+            ppmm.sort_file(event_clickSortFilenameBtn)
 
-        # get files after sorting
-        sortedFiles = []
-        for sacdh in gsac.selist:
-            sortedFiles.append(sacdh.filename)
-        
-        self.assertNotEqual(unsortedFiles, sortedFiles)
+            # get files after sorting
+            sortedFiles = []
+            for sacdh in gsac.selist:
+                sortedFiles.append(sacdh.filename)
+            
+            self.assertNotEqual(unsortedFiles, sortedFiles)
 
     # ------------------------------ SORTING ------------------------------------ #
 
 
     # ------------------------------- FILTERING --------------------------------- #
 
-    def test_filterFigExists(self):
-        sys.argv[1:] = [test_filename]
-        gsac, opts = getDataOpts()
-        axs = getAxes(opts)
-        ppmm = PickPhaseMenuMore(gsac, opts, axs)
+    class filterClass(unittest.TestCase):
 
-        self.assertFalse(hasattr(ppmm,'figfilter'))
+        def test_filterFigExists(self):
+            sys.argv[1:] = [test_filename]
+            gsac, opts = getDataOpts()
+            axs = getAxes(opts)
+            ppmm = PickPhaseMenuMore(gsac, opts, axs)
 
-        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
-        ppmm.filtering(fake_event)
+            self.assertFalse(hasattr(ppmm,'figfilter'))
 
-        self.assertIsNotNone(ppmm.figfilter)
-        self.assertIsNotNone(ppmm.filterAxs)
+            fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
+            ppmm.filtering(fake_event)
 
-    def test_filterSelectOrderWorks(self):
-        sys.argv[1:] = [test_filename]
-        gsac, opts = getDataOpts()
-        axs = getAxes(opts)
-        ppmm = PickPhaseMenuMore(gsac, opts, axs)
-        fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
-        ppmm.filtering(fake_event)
+            self.assertIsNotNone(ppmm.figfilter)
+            self.assertIsNotNone(ppmm.filterAxs)
 
-        ppmm.getButterOrder('3')
+        def test_filter_getButterOrder(self):
+            # run before everything
+            sys.argv[1:] = [test_filename]
+            gsac, opts = getDataOpts()
+            axs = getAxes(opts)
+            ppmm = PickPhaseMenuMore(gsac, opts, axs)
 
+            fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
+            ppmm.filtering(fake_event)
+            ppmm.getButterOrder('3')
+            self.assertEqual(ppmm.opts.filterParameters['order'], 3)
 
+        def test_filter_getBandType(self):
+            sys.argv[1:] = [test_filename]
+            gsac, opts = getDataOpts()
+            axs = getAxes(opts)
+            ppmm = PickPhaseMenuMore(gsac, opts, axs)
         
 
     # ------------------------------- FILTERING --------------------------------- #

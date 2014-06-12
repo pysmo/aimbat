@@ -31,12 +31,14 @@ suite_sacpickle_m = unittest.TestLoader().loadTestsFromTestCase(sacpickleModel)
 # ############################################################################### #
 
 """Set the views"""
-suite_qualctrl_v = unittest.TestLoader().loadTestsFromTestCase(qualctrlView)
+suite_qualctrl_sortingClass_v = unittest.TestLoader().loadTestsFromTestCase(qualctrlView.sortingClass)
+suite_qualctrl_filterClass_v = unittest.TestLoader().loadTestsFromTestCase(qualctrlView.filterClass)
 
 # ------------------------------------------------------------------------------- #
 
 """Run the views"""
-unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_v)
+unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_sortingClass_v)
+unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_filterClass_v)
 
 
 # ############################################################################### #
