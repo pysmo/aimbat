@@ -427,7 +427,6 @@ class PickPhaseMenuMore:
 		self.bnhgcarc.disconnect(self.cidhgcarc)
 
 	def sort_file(self, event):
-		print event
 		self.bnquit.label.set_text('Processing...')
 		event.canvas.draw()
 
