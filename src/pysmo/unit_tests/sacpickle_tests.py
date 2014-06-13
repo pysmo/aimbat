@@ -1,14 +1,23 @@
 import unittest
 import sys, os, os.path
-from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac, sac2pkl
+from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl
 
 
 # Here's our "unit tests".
 class sacpickleModel(unittest.TestCase):
 
-    def testThree(self):
-    	tt = zipFile('gz')
-    	self.failIf(False)
+    def test_fileZipMode(self):
+        filemode1, zipmode1 = fileZipMode('20120115.13401954.bhz.pkl')
+        self.assertEqual(filemode1, 'pkl')
+        self.assertEqual(zipmode1, None)
+
+        filemode2, zipmode2 = fileZipMode('20120115.13401954.bhz.pkl.gz')
+        self.assertEqual(filemode2, 'pkl')
+        self.assertEqual(zipmode2, 'gz')
+
+        filemode3, zipmode3 = fileZipMode('TA.SAC')
+        self.assertEqual(filemode3, 'sac')
+        self.assertEqual(zipmode3, None)
 
     def test_pkl2sac(self):
     	pkfile = '20120109.04071467.bhz.pkl'
