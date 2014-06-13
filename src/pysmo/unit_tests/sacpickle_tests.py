@@ -1,7 +1,9 @@
 import unittest
 import sys, os, os.path
-from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl
+from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl, SacDataHdrs
+import numpy as np
 
+import obspy as obs
 
 # Here's our "unit tests".
 class sacpickleModel(unittest.TestCase):
@@ -74,11 +76,13 @@ class sacpickleModel(unittest.TestCase):
         #check the file exists now
         self.assertTrue(os.path.isfile('sac2pkl_files/Event_2011.09.15.19.31.04.080/20110915.19310408.bhz.pkl'))
 
-
-
-
-
-
+    def test_SacDataHdrs_init(self):
+        instance = SacDataHdrs('sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.113A.__.BHZ', 0.025)
+        trace = obs.read('sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.113A.__.BHZ')
+        
+        self.assertEqual(np.floor(instance.delta*1000),25)
+        self.assertTrue(set(instance.data).issubset(trace[0].data))
+        self.assertEqual(trace[0].stats.npts, instance.npts)
 
 
 
