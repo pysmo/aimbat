@@ -480,7 +480,6 @@ class PickPhaseMenu():
 			print ('End of page.')
 			return
 		self.finish()
-		#self.span.visible = False
 		self.plotSeis()
 
 	def on_select(self, xmin, xmax):
@@ -499,11 +498,10 @@ class PickPhaseMenu():
 	def plotSpan(self):
 		""" Create a SpanSelector for zoom in and zoom out.
 		"""
-		axpp = self.axpp
 		pppara = self.opts.pppara
 		a, col = pppara.alphatwsele, pppara.colortwsele
 		mspan = pppara.minspan * self.opts.delta
-		self.span = TimeSelector(axpp, self.on_select, 'horizontal', minspan=mspan, useblit=False,
+		self.span = TimeSelector(self.axpp, self.on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
 	def on_zoom(self, event):
