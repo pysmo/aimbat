@@ -34,10 +34,12 @@ class plotutilsView(unittest.TestCase):
     def test_timeSelector_ignore(self):
         sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()
+        opts.labelqual = True
         axs = getAxes(opts)
         ppm = PickPhaseMenu(gsac, opts, axs)
-
-        ppm.plotSpan()
+        select_span_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppm.axpp.figure.canvas, 646, 809)
+        #ppm.plotSpan()
+        print ppm.axpp.get_xlim()
 
 # ############################################################################### #
 #                                      VIEWS                                      #
