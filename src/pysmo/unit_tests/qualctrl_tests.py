@@ -1,5 +1,6 @@
 import unittest
 import sys, os, matplotlib
+import matplotlib.pyplot as py
 from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
 from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 
@@ -139,6 +140,7 @@ class qualctrlView():
             gsac, opts = getDataOpts()
             axs = getAxes(opts)
             ppmm = PickPhaseMenuMore(gsac, opts, axs)
+
             fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 56, 224)
             ppmm.filtering(fake_event)
             return ppmm
@@ -188,7 +190,7 @@ class qualctrlView():
             self.assertEqual(ppmm.opts.filterParameters['highFreq'], 0.55)
 
         """can change filter parameter for bandpass filter"""
-        def test_filter_getBnadpassFreq(self):
+        def test_filter_getBandpassFreq(self):
             ppmm = self.runBefore()
             self.assertEqual(ppmm.opts.filterParameters['band'],'bandpass')
             self.assertFalse(ppmm.opts.filterParameters['advance'])
@@ -206,6 +208,29 @@ class qualctrlView():
             eventB.xdata = 0.45
             ppmm.getBandpassFreq(eventB)
             self.assertEqual(ppmm.opts.filterParameters['highFreq'], 0.45)
+
+        """applying the filter works"""
+        def test_filter_applyFilter(self):
+            ppmm = self.runBefore()
+
+            fake_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 636, 823)
+            ppmm.applyFilter(fake_event)
+
+            # check the figure has been closed
+            self.assertFalse(py.fignum_exists(ppmm.figfilter.number))
+
+        """unapplying the filter works"""
+        def test_filter_unapplyFilter(self):
+            ppmm = self.runBefore()
+
+            event_apply = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 636, 823)
+            ppmm.applyFilter(event_apply)
+
+            event_unapply = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 538, 838)
+            ppmm.unapplyFilter(event_unapply)
+
+            self.assertFalse(ppmm.opts.filterParameters['apply'])
+            self.assertFalse(py.fignum_exists(ppmm.figfilter.number))
 
     # ------------------------------- FILTERING --------------------------------- #
 
