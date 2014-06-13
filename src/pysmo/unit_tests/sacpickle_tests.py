@@ -22,11 +22,8 @@ class sacpickleModel(unittest.TestCase):
       	pkl2sac(pkfile, zipmode)
 
         #sac is default folder name for sacfiles to be put to
-        sacFolderExists = os.path.isdir(dirarr[0]) 
-        sacInnerFolderExists = os.path.isdir(dirname) 
-
-        self.failUnless(sacFolderExists)
-        self.failUnless(sacInnerFolderExists)
+        self.assertTrue(os.path.isdir(dirarr[0]))
+        self.assertTrue(os.path.isdir(dirname))
 
     def test_sac2pkl(self):
         if os.path.isfile('sac2pkl_files/Event_2011.09.15.19.31.04.080/20110915.19310408.bhz.pkl'):
