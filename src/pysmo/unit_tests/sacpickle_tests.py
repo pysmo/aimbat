@@ -1,6 +1,6 @@
 import unittest
-import sys, os
-from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
+import sys, os, os.path
+from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac, sac2pkl
 
 
 # Here's our "unit tests".
@@ -27,5 +27,55 @@ class sacpickleModel(unittest.TestCase):
 
         self.failUnless(sacFolderExists)
         self.failUnless(sacInnerFolderExists)
+
+    def test_sac2pkl(self):
+        if os.path.isfile('sac2pkl_files/Event_2011.09.15.19.31.04.080/20110915.19310408.bhz.pkl'):
+            os.remove('sac2pkl_files/Event_2011.09.15.19.31.04.080/20110915.19310408.bhz.pkl')
+        self.assertFalse(os.path.isfile('sac2pkl_files/Event_2011.09.15.19.31.04.080/20110915.19310408.bhz.pkl'))
+
+        ifiles = ['sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.113A.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.319A.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.U15A.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.W13A.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.X16A.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AR.X18A.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.BZN.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.CPE.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.CRY.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.FRD.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.HWB.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.KNW.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.LVA2.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.MONP2.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.PFO.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.RDM.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.SCI2.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.SMER.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.SND.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.SOL.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.TRO.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/AZ.WMC.__.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/BK.CMB.00.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/BK.HUMO.00.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/BK.MCCM.00.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/BK.SAO.00.BHZ', 
+            'sac2pkl_files/Event_2011.09.15.19.31.04.080/BK.WDC.00.BHZ']
+        pkfile = 'sac2pkl_files/Event_2011.09.15.19.31.04.080/20110915.19310408.bhz.pkl'
+        delta = 0.025
+        zipmode = None
+        sac2pkl(ifiles, pkfile, delta, zipmode)
+
+        #check the file exists now
+        self.assertTrue(os.path.isfile('sac2pkl_files/Event_2011.09.15.19.31.04.080/20110915.19310408.bhz.pkl'))
+
+
+
+
+
+
+
+
+
+
 
 
