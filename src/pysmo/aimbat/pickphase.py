@@ -483,26 +483,27 @@ class PickPhaseMenu():
 		#self.span.visible = False
 		self.plotSeis()
 
+	def on_select(self, xmin, xmax):
+		""" Mouse event: select span. """
+		if self.span.visible:
+			print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
+			xxlim = (xmin, xmax)
+			self.axpp.set_xlim(xxlim)
+			self.xzoom.append(xxlim)
+			if self.opts.upylim_on:
+				print ('upylim')
+				for pp in self.pps: pp.updateY(xxlim)
+			self.axpp.figure.canvas.draw()
+
 	# change window size in seismograms plot here
 	def plotSpan(self):
 		""" Create a SpanSelector for zoom in and zoom out.
 		"""
 		axpp = self.axpp
-		def on_select(xmin, xmax):
-			""" Mouse event: select span. """
-			if self.span.visible:
-				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
-				xxlim = (xmin, xmax)
-				axpp.set_xlim(xxlim)
-				self.xzoom.append(xxlim)
-				if self.opts.upylim_on:
-					print ('upylim')
-					for pp in self.pps: pp.updateY(xxlim)
-				axpp.figure.canvas.draw()
 		pppara = self.opts.pppara
 		a, col = pppara.alphatwsele, pppara.colortwsele
 		mspan = pppara.minspan * self.opts.delta
-		self.span = TimeSelector(axpp, on_select, 'horizontal', minspan=mspan, useblit=False,
+		self.span = TimeSelector(axpp, self.on_select, 'horizontal', minspan=mspan, useblit=False,
 			rectprops=dict(alpha=a, facecolor=col))
 
 	def on_zoom(self, event):
