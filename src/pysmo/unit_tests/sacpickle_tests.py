@@ -2,7 +2,6 @@ import unittest
 import sys, os, os.path
 from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl, SacDataHdrs, SacGroup
 import numpy as np
-
 import obspy as obs
 
 # Here's our "unit tests".
