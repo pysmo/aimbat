@@ -21,12 +21,16 @@ class sacpickleModel(unittest.TestCase):
         self.assertFalse(os.path.isfile('test-save-data.bhz.pkl'))
 
         opts = Opts('test-save-data.bhz.pkl','pkl',None)
-        gsac = readPickle('20120124.00520523.bhz.pkl', None)
+        gsac1 = readPickle('20120124.00520523.bhz.pkl', None)
 
-        saveData(gsac, opts)
+        saveData(gsac1, opts)
         self.assertTrue(os.path.isfile('test-save-data.bhz.pkl'))
 
-        
+        # load again to make sure its saved properly
+        gsac2 = readPickle('test-save-data.bhz.pkl', None)
+        self.assertEqual(len(gsac2.selist), len(gsac1.selist))
+        self.assertEqual(len(gsac2.delist), len(gsac1.delist))
+        self.assertEqual(len(gsac2.saclist), len(gsac1.saclist))
 
     def test_fileZipMode(self):
         filemode1, zipmode1 = fileZipMode('20120115.13401954.bhz.pkl')
