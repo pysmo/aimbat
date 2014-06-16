@@ -47,7 +47,42 @@ class filteringModel(unittest.TestCase):
                     self.assertTrue(f3-5*delta_freq<originalFreq[i])
                     self.assertTrue(originalFreq[i]<(f3+5*delta_freq))
 
-    # only the signal between 1.0 and 1.5 Hz should still be prominent
+    def test__get_filter_params(self):
+        MULTIPLE = 3000
+
+        lowFreq = 1.0
+        highFreq = 1.5
+        order = 2
+
+        # --------
+        #         \
+        #          \
+        #  LOWPASS  \
+        #            \
+        # ------------
+        # signal drops sharply after 1.0
+        filterType = 'lowpass'
+        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order, MULTIPLE)
+
+        for i in xrange(len(w)):
+            if h[i] > 2000: #broad spike
+                self.assertTrue(w[i]<lowFreq)
+
+        #        --------
+        #       /
+        #      /
+        #     /
+        #    /  HIGHPASS
+        #   /
+        #   -------------
+        filterType = 'highpass'
+        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order, MULTIPLE)
+
+        for i in xrange(len(w)):
+            if h[i] > 2000: #broad spike
+                self.assertTrue(w[i]>highFreq)
+
+    """only signal3 should still be prominent"""
     def test__filtering_time_freq(self):
         filterType = 'bandpass'
         lowFreq = 1.0
