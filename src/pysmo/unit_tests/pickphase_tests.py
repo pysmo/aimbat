@@ -27,7 +27,7 @@ class pickphaseView(unittest.TestCase):
     	rand_highFreq = random.uniform(0.8,1.2)
 
     	opts1.filterParameters['lowFreq'] = rand_lowFreq
-    	opts1.filterParameters['lowFreq'] = rand_highFreq
+    	opts1.filterParameters['highFreq'] = rand_highFreq
     	opts1.filterParameters['order'] = rand_order
 
     	# click the save button
@@ -49,3 +49,11 @@ class pickphaseView(unittest.TestCase):
 # ############################################################################### #
 #                                     VIEWS                                       #
 # ############################################################################### #
+
+
+
+
+
+
+
+
