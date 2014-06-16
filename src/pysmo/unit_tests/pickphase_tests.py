@@ -2,6 +2,7 @@ import unittest
 import sys, os, matplotlib
 from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 from pysmo.aimbat.pickphase import PickPhaseMenu
+from pysmo.aimbat.sacpickle import saveData
 
 
 # ############################################################################### #
@@ -16,6 +17,7 @@ class pickphaseView(unittest.TestCase):
     	axs = getAxes(opts)
     	setattr(opts,'labelqual',True)
     	ppm = PickPhaseMenu(gsac, opts, axs)
+    	self.pklfile = 'test-save.bhz.pkl'
 
     	# click the save button
     	click_save_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppm.axpp.figure.canvas, 63, 481)
