@@ -117,6 +117,8 @@ class qualctrlView():
             # click the sort button
             event_clickSortBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 62, 295)
             ppmm.sorting(event_clickSortBtn)
+
+            # click sort filename button
             event_clickSortFilenameBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figsort.canvas, 151, 700)
             ppmm.sort_file(event_clickSortFilenameBtn)
 
@@ -126,6 +128,22 @@ class qualctrlView():
                 sortedFiles.append(sacdh.filename)
             
             self.assertNotEqual(unsortedFiles, sortedFiles)
+
+        def test_filter_spreadButter(self):
+            sys.argv[1:] = [test_filename]
+            gsac, opts = getDataOpts()
+            axs = getAxes(opts)
+            ppmm = PickPhaseMenuMore(gsac, opts, axs)
+
+            # click the filter button
+            event_clickFilterBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 71,223)
+            ppmm.sorting(event_clickFilterBtn)
+
+            # click apply filter button
+            event_clickApplyFilterBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 646,829)
+            ppmm.sort_file(event_clickApplyFilterBtn)
+
+            #did filter work
 
     # ------------------------------ SORTING ------------------------------------ #
 

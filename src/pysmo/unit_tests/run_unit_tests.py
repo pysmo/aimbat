@@ -15,8 +15,8 @@ suite_sacpickle_m = unittest.TestLoader().loadTestsFromTestCase(sacpickleModel)
 # ------------------------------------------------------------------------------- #
 
 """Set the models"""
-# unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_m)
-# unittest.TextTestRunner(verbosity=2).run(suite_sacpickle_m)
+#unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_m)
+#unittest.TextTestRunner(verbosity=2).run(suite_sacpickle_m)
 
 # ############################################################################### #
 #                                     MODELS                                      #
@@ -41,8 +41,8 @@ suite_plotutils_v = unittest.TestLoader().loadTestsFromTestCase(plotutilsView)
 
 """Run the views"""
 #unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_sortingClass_v)
-#unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_filterClass_v)
-unittest.TextTestRunner(verbosity=2).run(suite_plotutils_v)
+unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_filterClass_v)
+#unittest.TextTestRunner(verbosity=2).run(suite_plotutils_v)
 
 
 # ############################################################################### #
