@@ -31,10 +31,15 @@ class filteringModel(unittest.TestCase):
                 # check first signal
                 print '\nChecking first freq: %f' % f1
                 if 0 < originalFreq[i] and originalFreq[i] < f2/2: 
-                    print 'Current Freq Detected at spike: %r' % originalFreq[i]
-                    self.assertTrue(f1-50*delta_freq<originalFreq[i])
-                    self.assertTrue(originalFreq[i]<(f1+50*delta_freq))
-
+                    print 'Current Freq Detected at 1st spike: %f' % originalFreq[i]
+                    self.assertTrue(f1-5*delta_freq<originalFreq[i])
+                    self.assertTrue(originalFreq[i]<(f1+5*delta_freq))
+                # check second signal
+                print '\nChecking first freq: %f' % f1
+                if f2/2 < originalFreq[i] and originalFreq[i] < f3/2: 
+                    print 'Current Freq Detected at 2nd spike: %f' % originalFreq[i]
+                    self.assertTrue(f2-5*delta_freq<originalFreq[i])
+                    self.assertTrue(originalFreq[i]<(f2+5*delta_freq))
 
     # only the signal between 1.0 and 1.5 Hz should still be prominent
     def test__filtering_time_freq(self):
