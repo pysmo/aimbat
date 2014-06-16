@@ -1,11 +1,36 @@
 import unittest
 import sys, os, os.path
-from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl, SacDataHdrs, SacGroup
+from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl, SacDataHdrs, SacGroup, saveData
+from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 import numpy as np
 import obspy as obs
 
+"""fake the opts object"""
+class Opts(object):
+    def __init__(self, pklfile, filemode='pkl', zipmode='None'):
+        self.filemode = filemode
+        self.zipmode = zipmode
+        self.pklfile = pklfile
+
 # Here's our "unit tests".
 class sacpickleModel(unittest.TestCase):
+
+    def test_saveData(self):
+        if os.path.isfile('test-save-data.bhz.pkl'):
+            os.remove('test-save-data.bhz.pkl')
+        self.assertFalse(os.path.isfile('test-save-data.bhz.pkl'))
+
+        opts = Opts('test-save-data.bhz.pkl','pkl',None)
+        gsac1 = readPickle('20120124.00520523.bhz.pkl', None)
+
+        saveData(gsac1, opts)
+        self.assertTrue(os.path.isfile('test-save-data.bhz.pkl'))
+
+        # load again to make sure its saved properly
+        gsac2 = readPickle('test-save-data.bhz.pkl', None)
+        self.assertEqual(len(gsac2.selist), len(gsac1.selist))
+        self.assertEqual(len(gsac2.delist), len(gsac1.delist))
+        self.assertEqual(len(gsac2.saclist), len(gsac1.saclist))
 
     def test_fileZipMode(self):
         filemode1, zipmode1 = fileZipMode('20120115.13401954.bhz.pkl')
