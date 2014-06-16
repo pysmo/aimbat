@@ -21,7 +21,7 @@ f3 = 8/(2*np.pi)
 class filteringModel(unittest.TestCase):
 
     """detect spikes at expected locations for frequency"""
-    def test__time_to_freq(self):
+    def atest__time_to_freq(self):
         originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta_time)
         amplitudeSignalFreq = np.abs(originalSignalFreq)
         for i in xrange(len(amplitudeSignalFreq)):
@@ -52,7 +52,22 @@ class filteringModel(unittest.TestCase):
 
         lowFreq = 1.0
         highFreq = 1.5
-        order = 2
+        order = 4
+
+        #     -------
+        #    /        \
+        #   /          \     
+        #  /  BANDPASS  \
+        # /              \
+        # ----------------
+        # signal high between lowFreq and highFreq
+        filterType = 'bandpass'
+        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
+
+        for i in xrange(len(w)):
+            if h[i] > 1000 and w[i] > 0: #broad spike
+                self.assertFalse(w[i]<0.5*lowFreq) 
+                self.assertFalse(w[i]>1.5*highFreq)
 
         # --------
         #         \
@@ -60,13 +75,13 @@ class filteringModel(unittest.TestCase):
         #  LOWPASS  \
         #            \
         # ------------
-        # signal drops sharply after 1.0
+        # signal drops sharply after lowFreq
         filterType = 'lowpass'
-        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order, MULTIPLE)
+        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
 
         for i in xrange(len(w)):
-            if h[i] > 2000: #broad spike
-                self.assertTrue(w[i]<lowFreq)
+            if h[i] > 1000 and w[i] > 0: #broad spike
+                self.assertFalse(w[i]>1.5*lowFreq) #not allowed to spike pas lowFreq
 
         #        --------
         #       /
@@ -75,15 +90,16 @@ class filteringModel(unittest.TestCase):
         #    /  HIGHPASS
         #   /
         #   -------------
+        #signal is low before highFreq
         filterType = 'highpass'
-        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order, MULTIPLE)
+        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
 
         for i in xrange(len(w)):
-            if h[i] > 2000: #broad spike
-                self.assertTrue(w[i]>highFreq)
+            if h[i] > 1000 and w[i] > 0: #broad spike
+                self.assertFalse(w[i]<highFreq/2)
 
     """only signal3 should still be prominent"""
-    def test__filtering_time_freq(self):
+    def atest__filtering_time_freq(self):
         filterType = 'bandpass'
         lowFreq = 1.0
         highFreq = 1.5

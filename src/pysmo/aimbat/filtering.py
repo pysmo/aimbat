@@ -18,7 +18,7 @@ def filtering_time_freq(originalTime, originalSignalTime, delta, filterType, hig
 
 	return filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h
 
-def get_filter_params(delta, lowFreq, highFreq, filterType, order, MULTIPLE):
+def get_filter_params(delta, lowFreq, highFreq, filterType, order, MULTIPLE=3000):
 	NYQ = 1.0/(2*delta)
 	Wn = [lowFreq/NYQ, highFreq/NYQ]
 	B, A = signal.butter(order, Wn, analog=False, btype='bandpass')
