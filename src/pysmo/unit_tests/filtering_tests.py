@@ -20,6 +20,7 @@ f3 = 8/(2*np.pi)
 # Here's our "unit tests".
 class filteringModel(unittest.TestCase):
 
+    """detect spikes at expected locations for frequency"""
     def test__time_to_freq(self):
         originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta_time)
         amplitudeSignalFreq = np.abs(originalSignalFreq)
@@ -53,6 +54,27 @@ class filteringModel(unittest.TestCase):
         highFreq = 1.5
         order = 2
 
+        originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta_time)
+
         filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = filtering_time_freq(originalTime, originalSignalTime, delta_time, filterType, highFreq, lowFreq, order)
+
+        filteredAmplitudeFreq = np.abs(filteredSignalFreq)
+
+        for i in xrange(len(filteredAmplitudeFreq)):
+            if filteredAmplitudeFreq[i] > 1000: #spike detected
+                if 0<originalFreq[i]:
+                    print 'LOL %r' % originalFreq[i]
+                    # only 3rd freq detected
+                    self.assertTrue(f3-delta_freq < originalFreq[i])
+                    self.assertTrue(originalFreq[i] < f3+delta_freq)
+
+                    # NOT 1st freq
+                    self.assertFalse(originalFreq[i] < f1+5*delta_freq)
+
+                    # NOT 2nd freq
+                    self.assertFalse(originalFreq[i] < f2+5*delta_freq)
+
+
+
 
 
