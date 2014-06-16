@@ -1,4 +1,4 @@
-import unittest, shutil
+import unittest, shutil, random
 import sys, os, matplotlib
 from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 from pysmo.aimbat.pickphase import PickPhaseMenu
@@ -12,25 +12,39 @@ from pysmo.aimbat.sacpickle import saveData
 class pickphaseView(unittest.TestCase):
 
     def test__save_headers_filterParams(self):
-    	
-    	
+    	# copy the file each time so we can destroy it
     	shutil.copy2('20120124.00520523.bhz.pkl', 'temp-test-bhz.pkl')
 
     	sys.argv[1:] = ['temp-test-bhz.pkl']
-    	gsac, opts = getDataOpts()
-    	axs = getAxes(opts)
-    	setattr(opts,'labelqual',True)
-    	ppm = PickPhaseMenu(gsac, opts, axs)
+    	gsac1, opts1 = getDataOpts()
+    	axs1 = getAxes(opts1)
+    	setattr(opts1,'labelqual',True)
+    	ppm1 = PickPhaseMenu(gsac1, opts1, axs1)
 
-    	print opts.filterParameters['lowFreq'] 
+    	# randomly get stuff
+    	rand_order = random.randint(1, 4) 
+    	rand_lowFreq = random.uniform(0.1,0.2)
+    	rand_highFreq = random.uniform(0.8,1.2)
+
+    	opts1.filterParameters['lowFreq'] = rand_lowFreq
+    	opts1.filterParameters['lowFreq'] = rand_highFreq
+    	opts1.filterParameters['order'] = rand_order
 
     	# click the save button
-    	click_save_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppm.axpp.figure.canvas, 63, 481)
-    	ppm.save(click_save_event)
+    	click_save_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppm1.axpp.figure.canvas, 63, 481)
+    	ppm1.save(click_save_event)
 
     	#click the save parameters chosen event
-    	click_params_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppm.axpp.figure.canvas, 256, 48)
-    	ppm.save_headers_filterParams(click_params_event)
+    	click_params_event = matplotlib.backend_bases.MouseEvent('button_press_event', ppm1.axpp.figure.canvas, 256, 48)
+    	ppm1.save_headers_filterParams(click_params_event)
+
+    	# reload to make sure parameters exist now
+    	sys.argv[1:] = ['temp-test-bhz.pkl']
+    	gsac2, opts2 = getDataOpts()
+
+    	self.assertEqual(rand_lowFreq, opts2.filterParameters['lowFreq'])
+    	self.assertEqual(rand_highFreq, opts2.filterParameters['highFreq'])
+    	self.assertEqual(rand_order, opts2.filterParameters['order'])
 
 # ############################################################################### #
 #                                     VIEWS                                       #
