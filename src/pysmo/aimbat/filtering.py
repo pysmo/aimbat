@@ -3,8 +3,7 @@ from scipy import signal
 import math
 
 """when the user is picking"""
-def filtering_time_freq(originalTime, originalSignalTime, 
-		delta, filterType, highFreq, lowFreq, order):
+def filtering_time_freq(originalTime, originalSignalTime, delta, filterType, highFreq, lowFreq, order):
 	originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta)
 
 	# make filter, default is bandpass
