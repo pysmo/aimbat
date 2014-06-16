@@ -735,31 +735,7 @@ class PickPhaseMenuMore:
 		originalSignalTime = self.ppstk.sacdh.data
 
 		originalFreq, originalSignalFreq = ftr.time_to_freq(originalTime, originalSignalTime, self.opts.delta)
-		filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = ftr.filtering_data(originalTime, originalSignalTime, self.opts.delta, self.opts.filterParameters['band'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['lowFreq'], self.opts.filterParameters['order'])
-
-		# NYQ = 1.0/(2*self.opts.delta)
-		# # convert from time -> freq
-		# originalFreq = np.fft.fftfreq(len(originalTime), self.opts.delta) 
-		# #self.filteredData['original-freq'] = np.fft.fftfreq(fftlen, self.opts.delta)
-		# originalSignalFreq = np.fft.fft(originalSignalTime) 
-
-		# # make filter, default is bandpass
-		# Wn = [self.opts.filterParameters['lowFreq']/NYQ, self.opts.filterParameters['highFreq']/NYQ]
-		# B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
-		# if self.opts.filterParameters['band']=='lowpass':
-		# 	Wn = self.opts.filterParameters['lowFreq']/NYQ
-		# 	B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
-		# elif self.opts.filterParameters['band']=='highpass':
-		# 	Wn = self.opts.filterParameters['highFreq']/NYQ
-		# 	B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='highpass')
-		
-		# w, h = signal.freqz(B, A)
-
-		# # apply filter
-		# filteredSignalTime = signal.lfilter(B, A, originalSignalTime)
-
-		# # convert filtered time signal -> frequency signal
-		# filteredSignalFreq = np.fft.fft(filteredSignalTime)
+		filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = ftr.filtering_time_freq(originalTime, originalSignalTime, self.opts.delta, self.opts.filterParameters['band'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['lowFreq'], self.opts.filterParameters['order'])
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(originalTime, originalSignalTime, label='Original')

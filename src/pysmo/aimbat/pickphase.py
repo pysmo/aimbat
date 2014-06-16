@@ -47,8 +47,7 @@ from ttconfig import PPConfig, getParser
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader
 from sacpickle import loadData, saveData 
 from plotutils import TimeSelector, dataNorm, axLimit, pickLegend, indexBaseTick
-import numpy as np
-from scipy import signal
+import filtering as ftr
 import tkMessageBox
 
 def getOptions():
