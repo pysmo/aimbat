@@ -22,15 +22,18 @@ class filteringModel(unittest.TestCase):
 
     def test__time_to_freq(self):
         originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta_time)
+        amplitudeSignalFreq = np.abs(originalSignalFreq)
         #print originalFreq
         # f1 spike exists
         spike1 = []
-        for i in xrange(len(originalSignalFreq)):
-            if originalSignalFreq[i] > 1000:
-                if originalFreq[i] > 0: #check positive side only
-                    print originalFreq[i]
-                    self.assertTrue(f1-delta_freq<originalFreq[i])
-                    self.assertTrue(originalFreq[i]<f1+delta_freq)
+        for i in xrange(len(amplitudeSignalFreq)):
+            if amplitudeSignalFreq[i] > 1000: #spike detected
+                # check first signal
+                print '\nChecking first freq: %f' % f1
+                if 0 < originalFreq[i] and originalFreq[i] < f2/2: 
+                    print 'Current Freq Detected at spike: %r' % originalFreq[i]
+                    self.assertTrue(f1-50*delta_freq<originalFreq[i])
+                    self.assertTrue(originalFreq[i]<(f1+50*delta_freq))
 
 
     # only the signal between 1.0 and 1.5 Hz should still be prominent
