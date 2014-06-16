@@ -693,7 +693,6 @@ class PickPhaseMenu():
 	   @order -> kuser1, need to convert to integer form alphanumeric
 	"""
 	def save_headers_filterParams(self, event):
-		print event
 		# write params to file
 		for sacdh in self.gsac.saclist: 
 			sacdh.user0 = self.opts.filterParameters['lowFreq']
