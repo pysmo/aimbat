@@ -38,9 +38,6 @@ from pickphase import PickPhase, PickPhaseMenu
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
-import numpy as np
-from scipy import signal
-import math
 import filtering as ftr
 import tkMessageBox
 

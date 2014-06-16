@@ -708,32 +708,13 @@ class PickPhaseMenu():
 		# save
 		saveData(self.gsac, self.opts)
 
-	"""filter data here"""
-	def save_filter_data(self, data):
-		# make filter, default is bandpass
-		NYQ = 1.0/(2*self.opts.delta)
-		Wn = [self.opts.filterParameters['lowFreq']/NYQ, self.opts.filterParameters['highFreq']/NYQ]
-		B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
-		if self.opts.filterParameters['band']=='lowpass':
-			Wn = self.opts.filterParameters['lowFreq']/NYQ
-			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
-		elif self.opts.filterParameters['band']=='highpass':
-			Wn = self.opts.filterParameters['highFreq']/NYQ
-			B, A = signal.butter(self.opts.filterParameters['order'], Wn, analog=False, btype='highpass')
-
-		return signal.lfilter(B, A, data)
-
 	def save_headers_override(self, event):
 		shouldRun = tkMessageBox.askokcancel("Will Override Files!","This will override the data in your files with the filtered data. \nAre you sure?")
-
-		if shouldRun:
-			# override first
+		if shouldRun: 
 			for sacdh in self.gsac.saclist: 
-				sacdh.data = self.save_filter_data(sacdh.data)
+				sacdh.data = ftr.filtering_time_signal(sacdh.data, self.opts.delta, self.opts.filterParameters['lowFreq'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['band'], self.opts.filterParameters['order'])
 			if 'stkdh' in self.gsac.__dict__:
-				self.gsac.stkdh.data = self.save_filter_data(self.gsac.stkdh.data)
-
-			#save
+				self.gsac.stkdh.data = ftr.filtering_time_signal(self.gsac.stkdh.data, self.opts.delta, self.opts.filterParameters['lowFreq'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['band'], self.opts.filterParameters['order'])
 			saveData(self.gsac, self.opts)
 
 
