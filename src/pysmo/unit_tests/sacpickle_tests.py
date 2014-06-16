@@ -1,11 +1,25 @@
 import unittest
 import sys, os, os.path
-from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl, SacDataHdrs, SacGroup
+from pysmo.aimbat.sacpickle import readPickle, zipFile, fileZipMode, pkl2sac, sac2pkl, SacDataHdrs, SacGroup, saveData
 import numpy as np
 import obspy as obs
 
+"""fake the opts object"""
+class Opts(object):
+    def __init__(self, filemode='pkl'):
+        self.filemode = filemode
+
 # Here's our "unit tests".
 class sacpickleModel(unittest.TestCase):
+
+    def test_saveData(self):
+        opts = Opts('pkl')
+        print opts.filemode
+
+        pkfile = '20120109.04071467.bhz.pkl'
+        zipmode = None
+
+        gsac = readPickle(pkfile, zipmode)
 
     def test_fileZipMode(self):
         filemode1, zipmode1 = fileZipMode('20120115.13401954.bhz.pkl')
