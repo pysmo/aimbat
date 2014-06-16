@@ -1,6 +1,6 @@
 import unittest
 import sys, os, matplotlib
-
+from pickphase import PickPhaseMenu
 
 
 # ############################################################################### #
@@ -9,8 +9,8 @@ import sys, os, matplotlib
 
 class pickphaseView(unittest.TestCase):
 
-    def test_getOptions(self):
-    	pass
+    def test__save_headers_filterParams(self):
+    	ppm = PickPhaseMenu(gsac, opts, self.axs)
 
 
 # ############################################################################### #
