@@ -272,12 +272,14 @@ def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
 	stalist = [ sacdh.netsta for sacdh in saclist ]
 	filelist = [ sacdh.filename.split('/')[-1] for sacdh in saclist ]
 	shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
+
 	# set wpick	
 	wpick = mcpara.wpick
 	itmean = mean(reftimes)
 	for i in range(nsta):
 		wt = itmean + solution[i,0]
 		saclist[i].sethdr(wpick, wt)
+
 	# write mc file
 	ofile = open(ofilename, 'w')
 	tzone = tzname[0]
@@ -289,6 +291,10 @@ def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
 	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s} \n'
 	for i in range(nsta):
 		dt, err, cc, ccstd = solution[i]
+		print '############'
+		print stalist[i]
+		print dt
+		print filelist[i]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]) )
 	ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
 	if lsqr == 'nowe':
@@ -302,6 +308,7 @@ def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
 	fmt = 'Variance: %7.5f   Coefficient: %7.5f  Sample rate: %8.3f \n'
 	ofile.write(fmt % (outvar, outcc, 1./delta))
 	ofile.write('Taper: %6.2f \n' % tap)
+
 	# write phase and event
 	ofile.write( 'Phase: {0:8s} \n'.format(mcpara.phase) )
 	ofile.write( mcpara.evline + '\n' )
@@ -350,7 +357,9 @@ def mccc(gsac, mcpara):
 	solution = transpose(array((invmodel, rms, ccmean, ccstd)))
 	outvar = sqrt(sum(resmatrix**2)/2/(nsta*(nsta-1)/2))
 	outcc = mean(ccmean)
+
 	corrite(solist, mcpara, reftimes, solution, outvar, outcc)
+
 	# set wpick as ipick for deleted ones and array stack
 	for sacdh in delist:
 		sacdh.sethdr(wpick, sacdh.gethdr(ipick))
