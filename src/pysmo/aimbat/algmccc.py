@@ -289,12 +289,10 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	ofile.write( line0 )
 	ofile.write( line1 )
 	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s} \n'
+	selist_LonLat = zeros(shape=(nsta,2))
 	for i in range(nsta):
 		dt, err, cc, ccstd = solution[i]
-		print '############'
-		print stalist[i]
-		print dt
-		print filelist[i]
+		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]) )
 	ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
 	if lsqr == 'nowe':
@@ -365,6 +363,7 @@ def mccc(gsac, mcpara):
 		sacdh.sethdr(wpick, sacdh.gethdr(ipick))
 	stkdh = gsac.stkdh
 	stkdh.sethdr(wpick, stkdh.gethdr(ipick))
+
 	return solution 
 
 
