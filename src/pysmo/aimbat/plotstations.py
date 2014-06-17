@@ -5,6 +5,7 @@ import matplotlib.pyplot as py
 from mpl_toolkits.basemap import Basemap
 
 def plot_stations():
+	figStation = py.figure()
 	"""
 	lower-left/upper-right corners for the cascades domain.
 	"""
