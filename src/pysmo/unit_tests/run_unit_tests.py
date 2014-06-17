@@ -18,9 +18,9 @@ suite_filtering_m = unittest.TestLoader().loadTestsFromTestCase(filteringModel)
 # ------------------------------------------------------------------------------- #
 
 """Run the models"""
-#unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_m)
-#unittest.TextTestRunner(verbosity=2).run(suite_sacpickle_m)
-#unittest.TextTestRunner(verbosity=2).run(suite_filtering_m)
+# unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_m)
+# unittest.TextTestRunner(verbosity=2).run(suite_sacpickle_m)
+# unittest.TextTestRunner(verbosity=2).run(suite_filtering_m)
 
 
 # ############################################################################### #
@@ -47,11 +47,17 @@ suite_plotutils_v = unittest.TestLoader().loadTestsFromTestCase(plotutilsView)
 
 """Run the views"""
 #unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_sortingClass_v)
-#unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_filterClass_v)
+unittest.TextTestRunner(verbosity=2).run(suite_qualctrl_filterClass_v)
 #unittest.TextTestRunner(verbosity=2).run(suite_plotutils_v)
-unittest.TextTestRunner(verbosity=2).run(suite_pickphase_saveClass_v)
+#unittest.TextTestRunner(verbosity=2).run(suite_pickphase_saveClass_v)
 
 
 # ############################################################################### #
 #                                      VIEWS                                      #
 # ############################################################################### #
+
+
+
+
+
+

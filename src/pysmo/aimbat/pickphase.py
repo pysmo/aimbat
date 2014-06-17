@@ -48,6 +48,7 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader
 from sacpickle import loadData, saveData 
 from plotutils import TimeSelector, dataNorm, axLimit, pickLegend, indexBaseTick
 import filtering as ftr
+from scipy import signal
 import tkMessageBox
 
 def getOptions():
