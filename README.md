@@ -27,6 +27,7 @@ Dependencies
 * [Matplotlib](http://matplotlib.org/)
 * [pysmo.sac](https://github.com/pysmo/sac)
 * [Tkinter](https://wiki.python.org/moin/TkInter)
+* [Basemap](http://matplotlib.org/basemap/index.html)
 
 Filtering Data
 --------------
