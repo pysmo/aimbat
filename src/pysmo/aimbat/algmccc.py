@@ -261,16 +261,16 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
 	c, x, info = dposv(atwa, atwt)
 	return x
 
-def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
+def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	""" Write output file, set output time picks.
 	"""
 	ofilename = mcpara.mcname
 	kevnm = mcpara.kevnm
 	delta = mcpara.delta
 	lsqr = mcpara.lsqr
-	nsta = len(saclist)
-	stalist = [ sacdh.netsta for sacdh in saclist ]
-	filelist = [ sacdh.filename.split('/')[-1] for sacdh in saclist ]
+	nsta = len(solist)
+	stalist = [ sacdh.netsta for sacdh in solist ]
+	filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
 	shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
 
 	# set wpick	
@@ -278,7 +278,7 @@ def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
 	itmean = mean(reftimes)
 	for i in range(nsta):
 		wt = itmean + solution[i,0]
-		saclist[i].sethdr(wpick, wt)
+		solist[i].sethdr(wpick, wt)
 
 	# write mc file
 	ofile = open(ofilename, 'w')
