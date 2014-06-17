@@ -39,6 +39,7 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 import filtering as ftr
+import plotstations as sta
 import tkMessageBox
 
 """print everything out in an array, DO NOT DELETE!!!"""
@@ -859,7 +860,7 @@ class PickPhaseMenuMore:
 	# ------------------------------ PLOT STATIONS ------------------------------- #
 
 	def plotsta(self, event):
-		print 'YOLOSWAG'
+		sta.plot_stations()
 
 	# ------------------------------ PLOT STATIONS ------------------------------- #
 
