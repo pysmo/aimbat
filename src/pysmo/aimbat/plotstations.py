@@ -5,7 +5,7 @@ import matplotlib.pyplot as py
 from mpl_toolkits.basemap import Basemap
 
 def plot_stations():
-	figStation = py.figure()
+	figStation = py.figure('SeismoStations')
 	"""
 	lower-left/upper-right corners for the cascades domain.
 	"""
@@ -21,20 +21,23 @@ def plot_stations():
 	centerLon = 0.5 * (minLon + maxLon)
 
 	"""make the basemap for cascades region"""
-	m = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
+	ax1 = figStation.add_subplot(211)
+	ax1 = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
 	            urcrnrlon=maxLon, urcrnrlat= maxLat,
 	            resolution='c',
 	            area_thresh=100.,projection='lcc',
 	            lat_0=centerLat, lon_0=centerLon)
 
-	m.drawstates()
-	m.drawcountries()
-	m.drawcoastlines()        
+	ax1.drawstates()
+	ax1.drawcountries()
+	ax1.drawcoastlines()        
 
 	"""attempt to plot pointshere"""
-	m.scatter(-122, 45, s=50, color='k', latlon=True)   
+	ax1.scatter(-122, 45, s=50, color='k', latlon=True)   
 
-	m.drawmapboundary(fill_color='#99ffff')
+	ax1.drawmapboundary(fill_color='#99ffff')
+
+	ax2 = figStation.add_subplot(212)
 
 	"""show the map"""
 	py.show()

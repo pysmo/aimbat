@@ -1077,7 +1077,6 @@ class PickPhaseMenuMore:
 		mcpara.mcname = mcname
 		mcpara.kevnm = gsac.kevnm
 		solution, selist_LonLat = mccc(gsac, mcpara)
-		print selist_LonLat
 
 		wpk = int(wpick[1])
 		if self.opts.reltime != wpk:
@@ -1085,6 +1084,8 @@ class PickPhaseMenuMore:
 			print out % (self.opts.reltime, wpk)
 		self.opts.reltime = wpk
 		self.replot()
+
+		sta.plot_stations()
 
 	def plot2(self, event):
 		""" Plot P2 stack of seismograms for defined time picks (ichdrs + wpick).
