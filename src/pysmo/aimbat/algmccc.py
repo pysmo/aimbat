@@ -261,7 +261,7 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
 	c, x, info = dposv(atwa, atwt)
 	return x
 
-def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
+def corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat):
 	""" Write output file, set output time picks.
 	"""
 	ofilename = mcpara.mcname
@@ -289,7 +289,6 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	ofile.write( line0 )
 	ofile.write( line1 )
 	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s} \n'
-	selist_LonLat = zeros(shape=(nsta,2))
 	for i in range(nsta):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
@@ -356,7 +355,8 @@ def mccc(gsac, mcpara):
 	outvar = sqrt(sum(resmatrix**2)/2/(nsta*(nsta-1)/2))
 	outcc = mean(ccmean)
 
-	corrite(solist, mcpara, reftimes, solution, outvar, outcc)
+	selist_LonLat = zeros(shape=(len(solist),2))
+	corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat)
 
 	# set wpick as ipick for deleted ones and array stack
 	for sacdh in delist:
@@ -364,7 +364,7 @@ def mccc(gsac, mcpara):
 	stkdh = gsac.stkdh
 	stkdh.sethdr(wpick, stkdh.gethdr(ipick))
 
-	return solution 
+	return solution, selist_LonLat 
 
 
 def eventListName(evlist='event.list', phase='S', isol='PDE'):

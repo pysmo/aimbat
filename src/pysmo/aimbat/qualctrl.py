@@ -1091,8 +1091,9 @@ class PickPhaseMenuMore:
 		mcpara.evline = evline
 		mcpara.mcname = mcname
 		mcpara.kevnm = gsac.kevnm
-		#rcwrite(ipick, timewindow, taperwindow, rcfile)
-		solution = mccc(gsac, mcpara)
+		solution, selist_LonLat = mccc(gsac, mcpara)
+		print selist_LonLat
+
 		wpk = int(wpick[1])
 		if self.opts.reltime != wpk:
 			out = '\n--> change opts.reltime from %i to %i'
