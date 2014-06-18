@@ -45,11 +45,11 @@ class PlotStations:
 		ax1.drawcountries()
 		ax1.drawcoastlines()        
 
-		#attempt to plot pointshere
 		self.plot_stations_colorByVariable(ax1, self.solution[:,0], 'Delay Times')
 
-		#ax1.drawmapboundary(fill_color='#99ffff')
+		self.plot_deleted_stations(ax1)
 
+		"""plot by something else"""
 		ax2 = figStation.add_subplot(212)
 
 		# show the map
@@ -76,6 +76,21 @@ class PlotStations:
 		# add colorbar
 		cb = axes_handle.colorbar()
 		cb.set_label(colorbarTitle) 
+
+	def plot_deleted_stations(self, axes_handle):
+		deleted_lon = [] 
+		deleted_lat = []
+		for sacdh in self.delist:
+			deleted_lon.append(sacdh.stlo)
+			deleted_lat.append(sacdh.stla)
+		axes_handle.scatter(deleted_lon, deleted_lat, latlon=True, marker='>', c='k')
+
+
+
+
+
+
+
 
 
 
