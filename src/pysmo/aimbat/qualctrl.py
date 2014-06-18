@@ -39,7 +39,7 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 import filtering as ftr
-import plotstations as sta
+from plotstations import PlotStations
 import tkMessageBox
 
 """print everything out in an array, DO NOT DELETE!!!"""
@@ -1076,7 +1076,7 @@ class PickPhaseMenuMore:
 		mcpara.evline = evline
 		mcpara.mcname = mcname
 		mcpara.kevnm = gsac.kevnm
-		solution, selist_LonLat = mccc(gsac, mcpara)
+		solution, solist_LonLat = mccc(gsac, mcpara)
 
 		wpk = int(wpick[1])
 		if self.opts.reltime != wpk:
@@ -1085,7 +1085,7 @@ class PickPhaseMenuMore:
 		self.opts.reltime = wpk
 		self.replot()
 
-		sta.plot_stations()
+		PlotStations(self.gsac.saclist, self.gsac.selist, solist_LonLat, solution, self.gsac.delist)
 
 	def plot2(self, event):
 		""" Plot P2 stack of seismograms for defined time picks (ichdrs + wpick).
