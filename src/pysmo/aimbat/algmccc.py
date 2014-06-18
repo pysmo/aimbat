@@ -261,23 +261,25 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
 	c, x, info = dposv(atwa, atwt)
 	return x
 
-def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
+def corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat):
 	""" Write output file, set output time picks.
 	"""
 	ofilename = mcpara.mcname
 	kevnm = mcpara.kevnm
 	delta = mcpara.delta
 	lsqr = mcpara.lsqr
-	nsta = len(saclist)
-	stalist = [ sacdh.netsta for sacdh in saclist ]
-	filelist = [ sacdh.filename.split('/')[-1] for sacdh in saclist ]
+	nsta = len(solist)
+	stalist = [ sacdh.netsta for sacdh in solist ]
+	filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
 	shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
+
 	# set wpick	
 	wpick = mcpara.wpick
 	itmean = mean(reftimes)
 	for i in range(nsta):
 		wt = itmean + solution[i,0]
-		saclist[i].sethdr(wpick, wt)
+		solist[i].sethdr(wpick, wt)
+
 	# write mc file
 	ofile = open(ofilename, 'w')
 	tzone = tzname[0]
@@ -289,6 +291,7 @@ def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
 	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s} \n'
 	for i in range(nsta):
 		dt, err, cc, ccstd = solution[i]
+		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]) )
 	ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
 	if lsqr == 'nowe':
@@ -302,6 +305,7 @@ def corrite(saclist, mcpara, reftimes, solution, outvar, outcc):
 	fmt = 'Variance: %7.5f   Coefficient: %7.5f  Sample rate: %8.3f \n'
 	ofile.write(fmt % (outvar, outcc, 1./delta))
 	ofile.write('Taper: %6.2f \n' % tap)
+
 	# write phase and event
 	ofile.write( 'Phase: {0:8s} \n'.format(mcpara.phase) )
 	ofile.write( mcpara.evline + '\n' )
@@ -350,13 +354,17 @@ def mccc(gsac, mcpara):
 	solution = transpose(array((invmodel, rms, ccmean, ccstd)))
 	outvar = sqrt(sum(resmatrix**2)/2/(nsta*(nsta-1)/2))
 	outcc = mean(ccmean)
-	corrite(solist, mcpara, reftimes, solution, outvar, outcc)
+
+	selist_LonLat = zeros(shape=(len(solist),2))
+	corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat)
+
 	# set wpick as ipick for deleted ones and array stack
 	for sacdh in delist:
 		sacdh.sethdr(wpick, sacdh.gethdr(ipick))
 	stkdh = gsac.stkdh
 	stkdh.sethdr(wpick, stkdh.gethdr(ipick))
-	return solution 
+
+	return solution, selist_LonLat 
 
 
 def eventListName(evlist='event.list', phase='S', isol='PDE'):
