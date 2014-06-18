@@ -13,7 +13,8 @@ class PlotStations:
 			  | mccc delay | std | cc coeff | cc std |
 			   ------------ ----- ---------- -------- 
 	"""
-	def __init__(self, saclist, selist, so_LonLat, solution, delist):
+	def __init__(self, mcpara, saclist, selist, so_LonLat, solution, delist):
+		self.mcpara = mcpara
 		self.saclist = saclist
 		self.selist = selist
 		self.so_LonLat = so_LonLat
@@ -23,7 +24,7 @@ class PlotStations:
 		self.plot_stations()
 
 	def plot_stations(self):
-		figStation = py.figure('SeismoStations', figsize=(12, 10))
+		figStation = py.figure('SeismoStations')
 
 		# lower-left/upper-right corners for the cascades domain.
 		minLat, minLon, maxLat, maxLon = self.bounding_rectangle()
@@ -32,27 +33,23 @@ class PlotStations:
 		centerLat = 0.5 * (minLat + maxLat)
 		centerLon = 0.5 * (minLon + maxLon)
 
-		"""plot the delay times"""
 		#make the basemap for cascades region
-		ax1 = figStation.add_subplot(211)
-		ax1 = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
+		ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
 		            urcrnrlon=maxLon, urcrnrlat= maxLat,
 		            resolution='c',
 		            area_thresh=100.,projection='lcc',
 		            lat_0=centerLat, lon_0=centerLon)
 
-		ax1.drawstates()
-		ax1.drawcountries()
-		ax1.drawcoastlines()        
+		ax.drawstates()
+		ax.drawcountries()
+		ax.drawcoastlines()   
 
-		self.plot_stations_colorByVariable(ax1, self.solution[:,0], 'Delay Times')
+		py.title(self.mcpara.mcname.split('.mcp')[0])     
 
-		self.plot_deleted_stations(ax1)
+		# plot stations
+		self.plot_stations_colorByVariable(ax, self.solution[:,0], 'MCCC Delay (s)')
+		self.plot_deleted_stations(ax)
 
-		"""plot by something else"""
-		ax2 = figStation.add_subplot(212)
-
-		# show the map
 		py.show()
 
 	def bounding_rectangle(self):
@@ -62,10 +59,10 @@ class PlotStations:
 			all_station_lats.append(sacdh.stla)
 			all_station_lons.append(sacdh.stlo)
 
-		minLat = min(all_station_lats)
-		minLon = min(all_station_lons)
-		maxLat = max(all_station_lats)
-		maxLon = max(all_station_lons)
+		minLat = min(all_station_lats)-0.5
+		minLon = min(all_station_lons)-0.5
+		maxLat = max(all_station_lats)+0.5
+		maxLon = max(all_station_lons)+0.5
 
 		return minLat, minLon, maxLat, maxLon
 

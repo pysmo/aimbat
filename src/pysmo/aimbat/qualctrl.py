@@ -1085,7 +1085,7 @@ class PickPhaseMenuMore:
 		self.opts.reltime = wpk
 		self.replot()
 
-		PlotStations(self.gsac.saclist, self.gsac.selist, solist_LonLat, solution, self.gsac.delist)
+		PlotStations(self.opts.mcpara, self.gsac.saclist, self.gsac.selist, solist_LonLat, solution, self.gsac.delist)
 
 	def plot2(self, event):
 		""" Plot P2 stack of seismograms for defined time picks (ichdrs + wpick).
