@@ -6,7 +6,13 @@ from mpl_toolkits.basemap import Basemap
 import numpy as np
 
 class PlotStations:
-	
+	"""
+	solution: length(selist) x 4 array
+			  columns correspond to: 
+			   ------------ ----- ---------- --------
+			  | mccc delay | std | cc coeff | cc std |
+			   ------------ ----- ---------- -------- 
+	"""
 	def __init__(self, saclist, selist, so_LonLat, solution, delist):
 		self.saclist = saclist
 		self.selist = selist
@@ -17,7 +23,7 @@ class PlotStations:
 		self.plot_stations()
 
 	def plot_stations(self):
-		figStation = py.figure('SeismoStations')
+		figStation = py.figure('SeismoStations', figsize=(12, 10))
 
 		# lower-left/upper-right corners for the cascades domain.
 		minLat, minLon, maxLat, maxLon = self.bounding_rectangle()
@@ -40,9 +46,9 @@ class PlotStations:
 		ax1.drawcoastlines()        
 
 		#attempt to plot pointshere
-		ax1.scatter(centerLon+1, centerLat+1, s=50, color='k', latlon=True)   
+		self.plot_stations_colorByVariable(ax1, self.solution[:,0], 'Delay Times')
 
-		ax1.drawmapboundary(fill_color='#99ffff')
+		#ax1.drawmapboundary(fill_color='#99ffff')
 
 		ax2 = figStation.add_subplot(212)
 
@@ -63,7 +69,13 @@ class PlotStations:
 
 		return minLat, minLon, maxLat, maxLon
 
+	def plot_stations_colorByVariable(self, axes_handle, colorByVar, colorbarTitle):
+		# plot selected stations and color by variable passed in
+		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar))
 
+		# add colorbar
+		cb = axes_handle.colorbar()
+		cb.set_label(colorbarTitle) 
 
 
 
