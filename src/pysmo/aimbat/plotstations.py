@@ -44,7 +44,8 @@ class PlotStations:
 		ax.drawcountries()
 		ax.drawcoastlines()   
 
-		py.title(self.mcpara.mcname.split('.mcp')[0])     
+		py.title(self.mcpara.mcname.split('.mcp')[0])  
+		py.xlabel('Black points: deleted stations\n Color Points: selected stations colored by delay times')   
 
 		# plot stations
 		self.plot_stations_colorByVariable(ax, self.solution[:,0], 'MCCC Delay (s)')
