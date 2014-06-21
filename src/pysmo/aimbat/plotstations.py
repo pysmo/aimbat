@@ -69,7 +69,7 @@ class PlotStations:
 			if dist<nearest:
 				station_name = sacdh.netsta
 				nearest=dist
-		print 'Station selected: %s' % station_name
+		print 'Nearest Station selected: %s' % station_name
 
 	def bounding_rectangle(self):
 		all_station_lats = []
