@@ -1,6 +1,6 @@
 import matplotlib
 matplotlib.rcParams['backend'] = "TkAgg"
-
+import math 
 import matplotlib.pyplot as py
 from mpl_toolkits.basemap import Basemap
 import numpy as np
@@ -24,7 +24,7 @@ class PlotStations:
 		self.plot_stations()
 
 	def plot_stations(self):
-		figStation = py.figure('SeismoStations')
+		figStation = py.figure('SeismoStations', figsize=(16, 12))
 
 		# lower-left/upper-right corners for the cascades domain.
 		minLat, minLon, maxLat, maxLon = self.bounding_rectangle()
@@ -37,20 +37,39 @@ class PlotStations:
 		ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
 		            urcrnrlon=maxLon, urcrnrlat= maxLat,
 		            resolution='c',
-		            area_thresh=100.,projection='lcc',
+		            area_thresh=1000.,projection='lcc',
 		            lat_0=centerLat, lon_0=centerLon)
 
 		ax.drawstates()
 		ax.drawcountries()
 		ax.drawcoastlines()   
 
-		py.title(self.mcpara.mcname.split('.mcp')[0])     
+		py.title(self.mcpara.mcname.split('.mcp')[0])  
+		py.xlabel('Black points: deleted stations\n Color Points: selected stations colored by delay times')   
 
 		# plot stations
 		self.plot_stations_colorByVariable(ax, self.solution[:,0], 'MCCC Delay (s)')
 		self.plot_deleted_stations(ax)
 
+		figStation.canvas.mpl_connect('pick_event', self.show_station_name)
+
+		self.figStation = figStation
+		self.ax = ax
+
 		py.show()
+
+	def show_station_name(self, event):
+		nearest = 1000000000000
+		clicked_lon = event.mouseevent.xdata
+		clicked_lat = event.mouseevent.ydata
+		station_name = ''
+		for sacdh in self.saclist:
+			(xpt, ypt) = self.ax(sacdh.stlo, sacdh.stla)
+			dist = math.sqrt((xpt-clicked_lon)**2+(ypt-clicked_lat)**2)
+			if dist<nearest:
+				station_name = sacdh.netsta
+				nearest=dist
+		print 'Nearest Station selected: %s' % station_name
 
 	def bounding_rectangle(self):
 		all_station_lats = []
@@ -67,8 +86,14 @@ class PlotStations:
 		return minLat, minLon, maxLat, maxLon
 
 	def plot_stations_colorByVariable(self, axes_handle, colorByVar, colorbarTitle):
+		# se_station_lats = []
+		# se_station_lons = []
+		# for sacdh in self.selist:
+		# 	se_station_lats.append(sacdh.stla)
+		# 	se_station_lons.append(sacdh.stlo)
+
 		# plot selected stations and color by variable passed in
-		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar))
+		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], s=50, latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar), picker=True)
 
 		# add colorbar
 		cb = axes_handle.colorbar()
@@ -80,7 +105,7 @@ class PlotStations:
 		for sacdh in self.delist:
 			deleted_lon.append(sacdh.stlo)
 			deleted_lat.append(sacdh.stla)
-		axes_handle.scatter(deleted_lon, deleted_lat, latlon=True, marker='>', c='k')
+		axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='o', c='k')
 
 
 
