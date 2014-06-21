@@ -26,6 +26,7 @@ class PlotStations:
 	def plot_stations(self):
 		figStation = py.figure('SeismoStations')
 
+
 		# lower-left/upper-right corners for the cascades domain.
 		minLat, minLon, maxLat, maxLon = self.bounding_rectangle()
 
@@ -37,7 +38,7 @@ class PlotStations:
 		ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
 		            urcrnrlon=maxLon, urcrnrlat= maxLat,
 		            resolution='c',
-		            area_thresh=100.,projection='lcc',
+		            area_thresh=1000.,projection='lcc',
 		            lat_0=centerLat, lon_0=centerLon)
 
 		ax.drawstates()
@@ -50,7 +51,12 @@ class PlotStations:
 		self.plot_stations_colorByVariable(ax, self.solution[:,0], 'MCCC Delay (s)')
 		self.plot_deleted_stations(ax)
 
+		figStation.canvas.mpl_connect('pick_event', self.show_station_name)
+
 		py.show()
+
+	def show_station_name(self, event):
+		print 'YOLO'
 
 	def bounding_rectangle(self):
 		all_station_lats = []
@@ -68,7 +74,7 @@ class PlotStations:
 
 	def plot_stations_colorByVariable(self, axes_handle, colorByVar, colorbarTitle):
 		# plot selected stations and color by variable passed in
-		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar))
+		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar), picker=True)
 
 		# add colorbar
 		cb = axes_handle.colorbar()
