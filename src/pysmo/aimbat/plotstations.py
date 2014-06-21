@@ -1,6 +1,6 @@
 import matplotlib
 matplotlib.rcParams['backend'] = "TkAgg"
-
+import math 
 import matplotlib.pyplot as py
 from mpl_toolkits.basemap import Basemap
 import numpy as np
@@ -23,9 +23,20 @@ class PlotStations:
 
 		self.plot_stations()
 
+
+	#     N
+	#     |
+	# W -- -- E
+	#     | 
+	#     S
+	def get_selected_station_name(self, lon, lat, radius):
+		for pos in self.so_LonLat:
+			(slon_N, slat_N) = self.ax(pos[0],pos[1])
+			if math.pow(slon-lon,2)+math.pow(slat-lat,2)<math.pow(radius,2):
+				print 'Station'
+
 	def plot_stations(self):
 		figStation = py.figure('SeismoStations')
-
 
 		# lower-left/upper-right corners for the cascades domain.
 		minLat, minLon, maxLat, maxLon = self.bounding_rectangle()
@@ -53,10 +64,16 @@ class PlotStations:
 
 		figStation.canvas.mpl_connect('pick_event', self.show_station_name)
 
+		self.figStation = figStation
+		self.ax = ax
+
 		py.show()
 
 	def show_station_name(self, event):
-		print 'YOLO'
+		print event.mouseevent.x
+		print event.mouseevent.xdata
+		radius = 25
+		#print self.get_selected_station_name(event.mouseevent.x, event.mouseevent.y, radius)
 
 	def bounding_rectangle(self):
 		all_station_lats = []
@@ -74,7 +91,11 @@ class PlotStations:
 
 	def plot_stations_colorByVariable(self, axes_handle, colorByVar, colorbarTitle):
 		# plot selected stations and color by variable passed in
-		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar), picker=True)
+		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], s=50, latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar), picker=True)
+
+		for sacdh in self.selist:
+			(xpt, ypt) = axes_handle(sacdh.stlo, sacdh.stla)
+			py.text(xpt, ypt, sacdh.netsta)
 
 		# add colorbar
 		cb = axes_handle.colorbar()
@@ -86,7 +107,7 @@ class PlotStations:
 		for sacdh in self.delist:
 			deleted_lon.append(sacdh.stlo)
 			deleted_lat.append(sacdh.stla)
-		axes_handle.scatter(deleted_lon, deleted_lat, latlon=True, marker='>', c='k')
+		axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='>', c='k')
 
 
 
