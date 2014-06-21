@@ -23,18 +23,6 @@ class PlotStations:
 
 		self.plot_stations()
 
-
-	#     N
-	#     |
-	# W -- -- E
-	#     | 
-	#     S
-	def get_selected_station_name(self, lon, lat, radius):
-		for pos in self.so_LonLat:
-			(slon_N, slat_N) = self.ax(pos[0],pos[1])
-			if math.pow(slon-lon,2)+math.pow(slat-lat,2)<math.pow(radius,2):
-				print 'Station'
-
 	def plot_stations(self):
 		figStation = py.figure('SeismoStations')
 
@@ -70,10 +58,18 @@ class PlotStations:
 		py.show()
 
 	def show_station_name(self, event):
-		print event.mouseevent.x
-		print event.mouseevent.xdata
-		radius = 25
-		#print self.get_selected_station_name(event.mouseevent.x, event.mouseevent.y, radius)
+		nearest = 1000000000000
+		clicked_lon = event.mouseevent.xdata
+		clicked_lat = event.mouseevent.ydata
+		station_name = ''
+		for sacdh in self.selist:
+			(xpt, ypt) = self.ax(sacdh.stlo, sacdh.stla)
+			dist = math.sqrt((xpt-clicked_lon)**2+(ypt-clicked_lat)**2)
+			print dist
+			if dist<nearest:
+				station_name = sacdh.netsta
+				nearest=dist
+		print 'Station selected: %s' % station_name
 
 	def bounding_rectangle(self):
 		all_station_lats = []
@@ -92,10 +88,6 @@ class PlotStations:
 	def plot_stations_colorByVariable(self, axes_handle, colorByVar, colorbarTitle):
 		# plot selected stations and color by variable passed in
 		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], s=50, latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar), picker=True)
-
-		for sacdh in self.selist:
-			(xpt, ypt) = axes_handle(sacdh.stlo, sacdh.stla)
-			py.text(xpt, ypt, sacdh.netsta)
 
 		# add colorbar
 		cb = axes_handle.colorbar()
