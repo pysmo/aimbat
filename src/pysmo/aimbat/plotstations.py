@@ -62,10 +62,9 @@ class PlotStations:
 		clicked_lon = event.mouseevent.xdata
 		clicked_lat = event.mouseevent.ydata
 		station_name = ''
-		for sacdh in self.selist:
+		for sacdh in self.saclist:
 			(xpt, ypt) = self.ax(sacdh.stlo, sacdh.stla)
 			dist = math.sqrt((xpt-clicked_lon)**2+(ypt-clicked_lat)**2)
-			print dist
 			if dist<nearest:
 				station_name = sacdh.netsta
 				nearest=dist
@@ -86,6 +85,12 @@ class PlotStations:
 		return minLat, minLon, maxLat, maxLon
 
 	def plot_stations_colorByVariable(self, axes_handle, colorByVar, colorbarTitle):
+		# se_station_lats = []
+		# se_station_lons = []
+		# for sacdh in self.selist:
+		# 	se_station_lats.append(sacdh.stla)
+		# 	se_station_lons.append(sacdh.stlo)
+
 		# plot selected stations and color by variable passed in
 		axes_handle.scatter(self.so_LonLat[:,0], self.so_LonLat[:,1], s=50, latlon=True, marker='o', c=colorByVar, cmap=py.cm.RdBu_r, vmin=min(colorByVar), vmax=max(colorByVar), picker=True)
 
@@ -99,7 +104,7 @@ class PlotStations:
 		for sacdh in self.delist:
 			deleted_lon.append(sacdh.stlo)
 			deleted_lat.append(sacdh.stla)
-		axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='>', c='k')
+		axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='o', c='k')
 
 
 
