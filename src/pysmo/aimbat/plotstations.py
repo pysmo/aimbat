@@ -24,7 +24,7 @@ class PlotStations:
 		self.plot_stations()
 
 	def plot_stations(self):
-		figStation = py.figure('SeismoStations')
+		figStation = py.figure('SeismoStations', figsize=(16, 12))
 
 		# lower-left/upper-right corners for the cascades domain.
 		minLat, minLon, maxLat, maxLon = self.bounding_rectangle()
