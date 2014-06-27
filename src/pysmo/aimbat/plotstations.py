@@ -1,9 +1,10 @@
 import matplotlib
 matplotlib.rcParams['backend'] = "TkAgg"
-import math 
+import math, sys, os
 import matplotlib.pyplot as py
 from mpl_toolkits.basemap import Basemap
 import numpy as np
+from lib import getime
 
 class PlotStations:
 	"""

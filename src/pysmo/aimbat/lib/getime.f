@@ -1,6 +1,6 @@
 ! Add f2py comments for wrapping a binary module for use in python.
 ! 
-f2py -c -m getime getime.f iasp91.f func.f --fcompiler=gfortran
+! $ f2py -c -m getime getime.f iasp91.f func.f --fcompiler=gfortran
 !
 ! xlou 04/30/2011
 !
