@@ -8,8 +8,8 @@ from lib import getime
 
 class PlotStations:
 
-	def __init__(self,  mcpara, saclist, selist, delist):
-		self.mcpara = mcpara
+	def __init__(self,  plotname, saclist, selist, delist):
+		self.plotname = plotname
 		self.saclist = saclist
 		self.selist = selist
 		self.delist = delist
@@ -38,7 +38,7 @@ class PlotStations:
 		ax.drawcountries()
 		ax.drawcoastlines()   
 
-		py.title(self.mcpara.mcname.split('.mcp')[0])  
+		py.title(self.plotname)  
 		py.xlabel('Black triangles: deleted stations\n Red Points: selected stations')   
 
 		# plot stations
