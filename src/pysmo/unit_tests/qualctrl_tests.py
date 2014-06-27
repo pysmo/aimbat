@@ -137,13 +137,11 @@ class qualctrlView():
 
             # click the filter button
             event_clickFilterBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 71,223)
-            ppmm.sorting(event_clickFilterBtn)
-
+            ppmm.filtering(event_clickFilterBtn)
+   
             # click apply filter button
             event_clickApplyFilterBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 646,829)
-            ppmm.sort_file(event_clickApplyFilterBtn)
-
-            #did filter work
+            ppmm.applyFilter(event_clickApplyFilterBtn)
 
     # ------------------------------ SORTING ------------------------------------ #
 
