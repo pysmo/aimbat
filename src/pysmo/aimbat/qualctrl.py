@@ -898,31 +898,30 @@ class PickPhaseMenuMore:
 	def connect(self):
 		""" Connect button events. """
 		# write the position for the buttons into self
-		self.axccim = self.axs['CCIM']
-		self.axccff = self.axs['CCFF']
+		self.axccim = self.axs['CCIM'] #ICCS-A align
+		self.axccff = self.axs['CCFF'] #ICCS-B refine
 		self.axsync = self.axs['Sync']
-		self.axmccc = self.axs['MCCC']
+		self.axmccc = self.axs['MCCC'] #MCCC Finalize
 		self.axsac2 = self.axs['SAC2']
 		self.axsort = self.axs['Sort']
 		self.axfilter = self.axs['Filter']
 		self.axstat = self.axs['stat']
 
 		# name the buttons
-		self.bnccim = Button(self.axccim, 'ICCS-A')
-		self.bnccff = Button(self.axccff, 'ICCS-B')
+		self.bnccim = Button(self.axccim, 'Align')
+		self.bnccff = Button(self.axccff, 'Refine')
 		self.bnsync = Button(self.axsync, 'Sync')
-		self.bnmccc = Button(self.axmccc, 'MCCC')
+		self.bnmccc = Button(self.axmccc, 'Finalize')
 		self.bnsac2 = Button(self.axsac2, 'SAC P2')
 		self.bnsort = Button(self.axsort, 'Sort')
 		self.bnfilter = Button(self.axfilter, 'Filter')
 		self.bnstat = Button(self.axstat, 'Plot\nStations')
 
 		self.cidccim = self.bnccim.on_clicked(self.ccim)
-		self.cidccff = self.bnccff.on_clicked(self.ccff)
+		#self.cidccff = self.bnccff.on_clicked(self.ccff)
 		self.cidsync = self.bnsync.on_clicked(self.sync)
-		self.cidmccc = self.bnmccc.on_clicked(self.mccc)
+		#self.cidmccc = self.bnmccc.on_clicked(self.mccc)
 		self.cidsac2 = self.bnsac2.on_clicked(self.plot2)
-
 		self.cidsort = self.bnsort.on_clicked(self.sorting)
 		self.cidfilter = self.bnfilter.on_clicked(self.filtering)
 		self.cidstat = self.bnstat.on_clicked(self.plot_stations)
@@ -932,9 +931,9 @@ class PickPhaseMenuMore:
 	def disconnect(self):
 		""" Disconnect button events. """
 		self.bnccim.disconnect(self.cidccim)
-		self.bnccff.disconnect(self.cidccff)
+		#self.bnccff.disconnect(self.cidccff)
 		self.bnsync.disconnect(self.cidsync)
-		self.bnmccc.disconnect(self.cidmccc)
+		#self.bnmccc.disconnect(self.cidmccc)
 		self.bnsac2.disconnect(self.cidsac2)
 		self.bnsort.disconnect(self.cidsort)
 		self.bnfilter.disconnect(self.cidfilter)
@@ -1191,6 +1190,17 @@ def sortSeis(gsac, opts):
 #                                                                                 #
 # ############################################################################### #
 
+"""set filter parameters default"""
+def setFilterParameters():
+	filterParameters = {}
+	filterParameters['apply'] = False
+	filterParameters['advance'] = False
+	filterParameters['band'] = 'bandpass'
+	filterParameters['lowFreq'] = 0.05
+	filterParameters['highFreq'] = 0.25
+	filterParameters['order'] = 2
+	return filterParameters
+
 def getDataOpts():
 	'Get SAC Data and Options'
 	opts, ifiles = getOptions()
@@ -1201,15 +1211,7 @@ def getDataOpts():
 
 	gsac = loadData(ifiles, opts, pppara)
 
-	# set defaults
-	filterParameters = {}
-	filterParameters['apply'] = False
-	filterParameters['advance'] = False
-	filterParameters['band'] = 'bandpass'
-	filterParameters['lowFreq'] = 0.05
-	filterParameters['highFreq'] = 0.25
-	filterParameters['order'] = 2
-	opts.filterParameters = filterParameters
+	opts.filterParameters = setFilterParameters()
 
 	# override defaults if already set in SAC files
 	firstSacdh = gsac.saclist[0]
