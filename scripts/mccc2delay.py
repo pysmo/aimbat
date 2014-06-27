@@ -1,11 +1,3 @@
-from numpy import *
-import os, sys
-
-from optparse import OptionParser
-from deltaz import gd2gc
-from getime import getime
-from ttcommon import Formats, Filenames, getVel0, readStation, readMLines, parseMLines
-
 #!/usr/bin/env python
 """
 File: mccc2delay.py
@@ -36,10 +28,9 @@ xlou 04/30/2011
 
 from numpy import *
 import os, sys
-
 from optparse import OptionParser
 from deltaz import gd2gc
-from getime import getime
+from lib import getime
 from ttcommon import Formats, Filenames, getVel0, readStation, readMLines, parseMLines
 
 def getParams():
@@ -55,12 +46,12 @@ def getParams():
 		help='Topography correction for P and S wave travel times.')
 	parser.add_option('-m', '--modelname',  dest='modelname', type='str',
 		help='Reference 1D model name. Default is {0:s}.'.format(modelname))
-	opts, files = parser.parse_args(['20120123.16045298.mcp'])
+	opts, files = parser.parse_args(sys.argv[1:])
 	if len(files) == 0:
 		print usage
 		sys.exit()
 	return files, opts
-
+			
 
 def mccc2delay(mcfile, opts):
 	""" Get delay times: obs - theo arrivals.
@@ -70,7 +61,7 @@ def mccc2delay(mcfile, opts):
 	radius = 6371.
 	fmtsxfile = opts.formats.sxfile
 	modnam = opts.modnam
-
+	
 	stadict = opts.stadict
 	ccdict = opts.ccdict
 	vel0 = opts.vel0
@@ -134,7 +125,7 @@ def mccc2delay(mcfile, opts):
 
 	# select teleseismic stations, save to x file
 	evdate = '.'.join(os.path.basename(mcfile).split('.')[:2])
-
+	
 	ofilenm = evdate + '.' + phase.rstrip().lower() + 'x'
 	print ('--- MCCC to delay:   {0:s} -> {1:s} '.format(mcfile, ofilenm))
 
@@ -179,11 +170,7 @@ def zerocorrection(stadict):
 	return zerodict
 
 
-def do_mccc2delay():
-	ifiles, opts = getParams()
-	opts.formats = Formats()
-	opts.filenames = Filenames()
-
+def main(ifiles, opts):
 	""" Main program """
 	formats = opts.formats
 	filenames = opts.filenames
@@ -239,4 +226,10 @@ def do_mccc2delay():
 		os.system('chmod +x tmp.sh')
 		os.system('sh tmp.sh')
 
+if __name__ == '__main__':
+	ifiles, opts = getParams()
+
+	opts.formats = Formats()
+	opts.filenames = Filenames()
+	main(ifiles, opts)
 
