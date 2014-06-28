@@ -908,10 +908,10 @@ class PickPhaseMenuMore:
 		self.axstat = self.axs['stat']
 
 		# name the buttons
-		self.bnccim = Button(self.axccim, 'ICCS-A')
-		self.bnccff = Button(self.axccff, 'ICCS-B')
+		self.bnccim = Button(self.axccim, 'Align')
+		self.bnccff = Button(self.axccff, 'Refine')
 		self.bnsync = Button(self.axsync, 'Sync')
-		self.bnmccc = Button(self.axmccc, 'MCCC')
+		self.bnmccc = Button(self.axmccc, 'Finalize')
 		self.bnsac2 = Button(self.axsac2, 'SAC P2')
 		self.bnsort = Button(self.axsort, 'Sort')
 		self.bnfilter = Button(self.axfilter, 'Filter')
