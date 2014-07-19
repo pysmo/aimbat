@@ -39,7 +39,7 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 import filtering as ftr
-from plotstations import PlotStations
+# from plotstations import PlotStations
 import tkMessageBox
 
 """print everything out in an array, DO NOT DELETE!!!"""
@@ -889,11 +889,11 @@ class PickPhaseMenuMore:
 		self.ppm.replot(0)
 		self.setLabels()
 
-	def plot_stations(self, event):
-		plotname = ''
-		if hasattr(self.opts.pklfile, 'property'):
-   			plotname = self.opts.pklfile.split('.')[0]
-		PlotStations(plotname, self.gsac.saclist, self.gsac.selist, self.gsac.delist)
+	# def plot_stations(self, event):
+	# 	plotname = ''
+	# 	if hasattr(self.opts.pklfile, 'property'):
+ #   			plotname = self.opts.pklfile.split('.')[0]
+	# 	PlotStations(plotname, self.gsac.saclist, self.gsac.selist, self.gsac.delist)
 
 	def connect(self):
 		""" Connect button events. """
@@ -925,7 +925,7 @@ class PickPhaseMenuMore:
 
 		self.cidsort = self.bnsort.on_clicked(self.sorting)
 		self.cidfilter = self.bnfilter.on_clicked(self.filtering)
-		self.cidstat = self.bnstat.on_clicked(self.plot_stations)
+		#self.cidstat = self.bnstat.on_clicked(self.plot_stations)
 
 		self.cidpress = self.axstk.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
