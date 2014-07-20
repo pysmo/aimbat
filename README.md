@@ -44,6 +44,13 @@ Each time you make changes to any of the files in this repository, run
 	
 To build again to allow the changes to take place.
 
+Additional Processing Scripts
+-----------------------------
+The folder ``additional-processing-scripts`` consists of supplementary scripts to process the travel wave arrival time data that AIMBAT outputs. One of its dependencies is a script written in fortran. To compile it, cd into the folder
+``additional-processing-scripts/lib`` and type::
+
+    f2py -c -m getime getime.f iasp91.f func.f --fcompiler=gfortran
+
 Running Unit Tests
 ------------------
 [Unit Tests](https://docs.python.org/2/library/unittest.html#) are used to ensure robustness of the program. They should be run each time you make a significant change to AIMBAT, to ensure you did not accidentally break some functionality. Inside the repository ``aimbat/src/pysmo/unit_tests``, run
