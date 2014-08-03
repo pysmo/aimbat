@@ -285,8 +285,37 @@ def onePickle(ifile):
 	gsac = readPickle(pklfile, zipmode)
 	return gsac.stadict
 
-if __name__ == '__main__':
+def mulPickle(ifiles):
+	""" Get station dict from multiple pickle files of gsac. """
+	stadict = {}
+	for ifile in ifiles:
+		sdict = onePickle(ifile)
+		if sdict is not None:
+			for sta in sdict.keys():
+				if sta not in stadict:
+					stadict[sta] = sdict[sta]
+	return stadict
 
-	opts, files = getParams()
+def writeStation(stadict, ofilename, fmt):
+	""" Write station dict to ofile """
+	ofile = open(ofilename, 'w')
+	for sta, loc in sorted(stadict.items()):
+		slat, slon, selv = loc
+		ofile.write( fmt.format(sta, slat, slon, selv) )
+	ofile.close()
+
+if __name__ == '__main__':
+	ifiles, opts = getParams()
+	if len(ifiles) == 1:
+		stadict = onePickle(ifiles[0])
+	else:
+		stadict = mulPickle(ifiles)
+
+	fmt = ' {0:<9s} {1:10.5f} {2:11.5f} {3:7.3f} \n'
+	print ('--> Save to ascii file: '+opts.ofilename)
+	writeStation(stadict, opts.ofilename, fmt)
+	if opts.savepkl:
+		print ('--> Save to pkl   file: '+opts.ofilename+'.pkl')
+		writePickle(stadict, opts.ofilename+'.pkl')
 
 	
