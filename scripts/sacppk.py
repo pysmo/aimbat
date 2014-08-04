@@ -33,16 +33,22 @@ def getAxes(opts):
 	axs['Seis'] = axpp
 	dx = 0.07
 	x0 = rectseis[0] + rectseis[2] + 0.01
-	xq = x0 - dx*1
-	xs = x0 - dx*2
-	xn = x0 - dx*3
-	xp = x0 - dx*4
+	xf = x0 - dx*1
+	xq = x0 - dx*2
+	xs = x0 - dx*3
+	xn = x0 - dx*4
+	xz = x0 - dx*5
+	xp = x0 - dx*6
+	rectfron = [xf, 0.93, 0.06, 0.04]
 	rectprev = [xp, 0.93, 0.06, 0.04]
 	rectnext = [xn, 0.93, 0.06, 0.04]
+	rectzoba = [xz, 0.93, 0.06, 0.04]
 	rectsave = [xs, 0.93, 0.06, 0.04]
 	rectquit = [xq, 0.93, 0.06, 0.04]
+	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
+	axs['Zoba'] = fig.add_axes(rectzoba)
 	axs['Save'] = fig.add_axes(rectsave)
 	axs['Quit'] = fig.add_axes(rectquit)
 	return axs

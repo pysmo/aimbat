@@ -135,7 +135,8 @@ class PickPhase:
 		d = self.sacdh.data
 
 		# filter time signal d
-		if opts.filterParameters['apply']:
+
+		if hasattr(opts, 'filterParameters') and opts.filterParameters['apply']:
 			NYQ = 1.0/(2*opts.delta)
 			
 			# make filter, default is bandpass
