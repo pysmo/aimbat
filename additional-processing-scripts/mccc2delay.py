@@ -31,7 +31,7 @@ import os, sys
 
 from optparse import OptionParser
 from deltaz import gd2gc
-from lib import getime
+from getime import getime
 from ttcommon import Formats, Filenames, getVel0, readStation, readMLines, parseMLines
 
 def getParams():
