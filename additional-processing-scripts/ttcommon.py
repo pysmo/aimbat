@@ -30,7 +30,6 @@ try:
 	import cPickle as pickle
 except:
 	import pickle
-sys.path.append('/models')
 
 
 def writePickle(d, picklefile):
@@ -49,7 +48,7 @@ def	readPickle(picklefile):
 class Filenames:
 	""" Store file names """
 	def __init__(self):
-		self.moddir = ''
+		self.moddir = '/Users/lkloh/aimbat/models/'
 		self.staloc = 'loc.sta'
 		self.evtloc = 'loc.evt'
 		self.refsta = 'ref.tsta'
@@ -272,7 +271,7 @@ if __name__ == '__main__':
 	pde = formats.eg_pde
 	readPDE(pde)
 
-	tvel = '/models/iasp91.tvel'
+	tvel = '/iasp91.tvel'
 	vals = loadtxt(tvel, skiprows=2)
 	deps = vals[:,0]
 	velp = vals[:,1]
