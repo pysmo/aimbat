@@ -342,7 +342,7 @@ def transformToSac(gsac):
 	evlo = gsac.event[7]
 	mag = gsac.event[9]
 	for sacdh in gsac.saclist:
-		dirarr = sacdh.filename.split('/')
+		dirarr = sacdh.filename.split('.')
 		dirname = dirarr[0]+'/'+dirarr[1]
 		if not os.path.exists(dirname):
 			os.makedirs(dirname)
