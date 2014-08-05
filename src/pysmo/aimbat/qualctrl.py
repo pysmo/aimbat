@@ -39,7 +39,7 @@ from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisH
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName, rcwrite
 import filtering as ftr
-# from plotstations import PlotStations
+from plotstations import PlotStations
 import tkMessageBox
 
 """print everything out in an array, DO NOT DELETE!!!"""
@@ -853,6 +853,10 @@ class PickPhaseMenuMore:
 
 	# --------------------------------- Filtering ------------------------------- #
 
+	def plot_stations(self, event):
+		print self.gsac
+		PlotStations('event', self.gsac.saclist, self.gsac.selist, self.gsac.delist)
+
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
 		"""
@@ -899,6 +903,7 @@ class PickPhaseMenuMore:
 		self.axsac2 = self.axs['SAC2']
 		self.axsort = self.axs['Sort']
 		self.axfilter = self.axs['Filter']
+		self.axplotsta = self.axs['plotsta']
 
 		# name the buttons
 		self.bnccim = Button(self.axccim, 'Align')
@@ -908,6 +913,7 @@ class PickPhaseMenuMore:
 		self.bnsac2 = Button(self.axsac2, 'SAC P2')
 		self.bnsort = Button(self.axsort, 'Sort')
 		self.bnfilter = Button(self.axfilter, 'Filter')
+		self.bnplotsta = Button(self.axplotsta, 'Map of\n stations')
 
 		self.cidccim = self.bnccim.on_clicked(self.ccim)
 		self.cidccff = self.bnccff.on_clicked(self.ccff)
@@ -917,6 +923,7 @@ class PickPhaseMenuMore:
 
 		self.cidsort = self.bnsort.on_clicked(self.sorting)
 		self.cidfilter = self.bnfilter.on_clicked(self.filtering)
+		self.cidplotsta = self.bnplotsta.on_clicked(self.plot_stations)
 
 		self.cidpress = self.axstk.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
@@ -1285,6 +1292,7 @@ def getAxes(opts):
 	ysac2 = yquit - dy*1.5
 	ysort = ysac2 - dy*1.5
 	yfilter = ysort - dy*1.5
+	yplotsta = yfilter - dy*1.5
 
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
@@ -1300,6 +1308,7 @@ def getAxes(opts):
 	rectsac2 = [xm, ysac2, xx, yy]
 	rectsort = [xm, ysort, xx, yy]
 	rectfilter = [xm, yfilter, xx, yy]
+	rectplotsta = [xm, yplotsta, xx, yy]
 
 	axs = {}
 	axs['Seis'] = fig.add_axes(rectseis)
@@ -1320,6 +1329,7 @@ def getAxes(opts):
 	axs['SAC2'] = fig.add_axes(rectsac2)
 	axs['Sort'] = fig.add_axes(rectsort)
 	axs['Filter'] = fig.add_axes(rectfilter)
+	axs['plotsta'] = fig.add_axes(rectplotsta)
 
 	return axs
 
