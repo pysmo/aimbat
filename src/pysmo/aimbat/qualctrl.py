@@ -854,8 +854,10 @@ class PickPhaseMenuMore:
 	# --------------------------------- Filtering ------------------------------- #
 
 	def plot_stations(self, event):
-		print self.gsac
-		PlotStations('event', self.gsac.saclist, self.gsac.selist, self.gsac.delist)
+		event_name = 'event'
+		if hasattr(self.opts, 'pklfile'):
+			event_name = self.opts.pklfile
+		PlotStations(event_name, self.gsac.saclist, self.gsac.selist, self.gsac.delist)
 
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
