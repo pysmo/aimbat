@@ -252,7 +252,7 @@ def snratio(data, delta, timewindow):
 	Time window is relative, such as [-10, 20], to the onset of the arrival.
 	"""
 	tw0, tw1 = timewindow
-	nn = round(-tw0/delta)
+	nn = int(round(-tw0/delta))
 	yn = data[:nn]
 	ys = data[nn:]
 	ns = len(ys)
