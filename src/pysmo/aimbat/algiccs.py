@@ -318,7 +318,6 @@ def autoiccs(gsac, opts):
 			rerun = False
 			gsac.stkdh = stkdh
 	gsac.selist = selist
-
 	nsel = len(selist)
 	print ('\nDone selecting seismograms: {0:d} out of {1:d} selected.'.format(nsel, len(saclist)))
 

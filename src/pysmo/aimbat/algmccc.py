@@ -279,20 +279,22 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat):
 	for i in range(nsta):
 		wt = itmean + solution[i,0]
 		solist[i].sethdr(wpick, wt)
+	t0_times = [sacdh.gethdr('t0') for sacdh in solist]
+	delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in xrange(nsta)]
 
 	# write mc file
 	ofile = open(ofilename, 'w')
 	tzone = tzname[0]
 	tdate = strftime("%a, %d %b %Y %H:%M:%S") 
 	line0 = 'MCCC processed: %s at: %s %s \n' % (kevnm, tdate, tzone)
-	line1 = 'station, mccc delay,    std,    cc coeff,  cc std,   pol   \n'
+	line1 = 'station, mccc delay,    std,    cc coeff,  cc std,   pol   , t0_times  , delay_times\n'
 	ofile.write( line0 )
 	ofile.write( line1 )
-	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s} \n'
+	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}  {7:9.4f}  {8:9.4f}\n'
 	for i in range(nsta):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
-		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]) )
+		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i], t0_times[i], delay_times[i]) )
 	ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
 	if lsqr == 'nowe':
 		ofile.write('No weighting of equations. \n')
