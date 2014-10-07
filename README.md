@@ -28,7 +28,7 @@ Dependencies
 * [pysmo.sac](https://github.com/pysmo/sac)
 * [Tkinter](https://wiki.python.org/moin/TkInter)
 * [Basemap](http://matplotlib.org/basemap/index.html)
-* [Obspy](https://github.com/obspy/obspy/wiki)
+* [GFortran](https://gcc.gnu.org/wiki/GFortranBinaries)
 
 Filtering Data
 --------------
