@@ -29,7 +29,7 @@ class PlotStations:
 		#make the basemap for cascades region
 		ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
 		            urcrnrlon=maxLon, urcrnrlat= maxLat,
-		            resolution='c',
+		            resolution='i',
 		            area_thresh=1000., projection='lcc',
 		            lat_0=centerLat, lon_0=centerLon)
 
