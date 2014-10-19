@@ -46,7 +46,7 @@ def getOptions():
 	if opts.p2s:
 		opts.s2p = False
 	if len(files) == 0:
-		print parser.usage
+		print(parser.usage)
 		sys.exit()
 	return opts, files
 

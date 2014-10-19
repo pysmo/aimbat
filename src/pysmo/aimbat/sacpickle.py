@@ -197,11 +197,15 @@ class SacDataHdrs:
 		self.npts = len(self.data)
 		self.b = isac.b
 		self.e = isac.e
+                self.o = isac.o
 		self.kstnm = isac.kstnm
 		self.knetwk = isac.knetwk
 		net = isac.knetwk.rstrip()
 		sta = isac.kstnm.rstrip()
 		self.netsta = net + '.' + sta
+                self.cmpaz = isac.cmpaz
+                self.cmpinc = isac.cmpinc
+                self.kcmpnm = isac.kcmpnm
 		isac.close()
 
 	def resampleData(self, delta):
@@ -218,7 +222,7 @@ class SacDataHdrs:
 		elif hdr[0] == 'k':
 			hdrs = self.kusers
 		else:
-			print 'Not a t_n, user_n or kuser_n header. Exit'
+			print('Not a t_n, user_n or kuser_n header. Exit')
 			sys.exit()
 		ind = int(hdr[-1])
 		return hdrs[ind]
@@ -233,7 +237,7 @@ class SacDataHdrs:
 		elif hdr[0] == 'k':
 			hdrs = self.kusers
 		else:
-			print 'Not a t_n, user_n or kuser_n header. Exit'
+			print('Not a t_n, user_n or kuser_n header. Exit')
 			sys.exit()
 		ind = int(hdr[-1])
 		hdrs[ind] = val
@@ -262,11 +266,15 @@ class SacDataHdrs:
 		if os.path.isfile(self.filename):
 			sacobj = sacfile(self.filename, 'rw')
 		else:
+                        fspl = self.filename.split('/')
+                        if len(fspl) > 1: os.system('mkdir -p '+ '/'.join(fspl[:-1]))
 			sacobj = sacfile(self.filename, 'new')
 			sacobj.stla =  0
 			sacobj.stlo =  0
 			sacobj.stel =  0
-		for hdr in ['b', 'npts', 'data', 'delta', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']:
+                hdrs = ['o', 'b', 'npts', 'data', 'delta', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
+                hdrs += ['cmpaz', 'cmpinc', 'kcmpnm']
+		for hdr in hdrs:
 			sacobj.__setattr__(hdr, self.__dict__[hdr])
 		self.savehdrs(sacobj)
 		sacobj.close()
@@ -307,10 +315,12 @@ class SacGroup:
 		except:
 			mag = 0.
 		self.event = [ year, mon, day, isac.nzhour, isac.nzmin, isac.nzsec+isac.nzmsec*0.001, isac.evla, isac.evlo, isac.evdp*0.001, mag ]
-		try:
-			self.kevnm = isac.kevnm
-		except:
-			self.kevnm = 'unknown event'
+                self.idep = isac.idep
+                self.iztype = isac.iztype
+                try:
+                    self.kevnm = isac.kevnm
+                except:
+                    self.kevnm = 'unknown'
 		isac.close()
 		if delta > 0:
 			self.resampleData(delta)
@@ -354,15 +364,35 @@ def sac2pkl(ifiles, pkfile='sac.pkl', delta=-1, zipmode='gz'):
 def obj2sac(gsac):
 	""" Save headers in python objects to SAC files.
 	"""
-	for sacdh in gsac.saclist:
-		sacdh.writeHdrs()
 	if 'stkdh' in gsac.__dict__:
 		gsac.stkdh.savesac()
-	
+	for sacdh in gsac.saclist:
+		sacdh.savesac()
+        # save more headers 
+        nzyear, mon, day, nzhour, nzmin, nzsec, evla, evlo, evdp, mag = gsac.event
+        kevnm = gsac.kevnm
+        idep = gsac.idep
+        iztype = gsac.iztype
+        nzjday = date2jul(nzyear, mon, day)
+        nzmsec = int(round((nzsec - int(nzsec))*1000))
+        nzsec = int(nzsec)
+        evdp *= 1000
+        stla, stlo, stel = gsac.stadict[sacdh.netsta]
+        stel *= 1000
+        hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec', 'evla', 'evlo', 'evdp', 'mag', ]
+        hdrs += ['stla', 'stlo', 'stel' ]
+        hdrs += ['kevnm', 'idep', 'iztype']
+        for sacdh in gsac.saclist:
+                sacobj = sacfile(sacdh.filename, 'rw')
+                for hdr in hdrs:
+                        sacobj.__setattr__(hdr, eval(hdr))
+	        sacobj.close()
+
 def pkl2sac(pkfile, zipmode):
 	""" Save headers in python pickle to SAC files.
 	"""
-	pass
+	gsac = readPickle(pkfile, zipmode)
+	obj2sac(gsac)
 
 def _days(year):
 	""" Get number of days for each month of a year."""
