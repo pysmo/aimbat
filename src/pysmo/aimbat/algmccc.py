@@ -261,7 +261,7 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
 	c, x, info = dposv(atwa, atwt)
 	return x
 
-def corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat):
+def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	""" Write output file, set output time picks.
 	"""
 	ofilename = mcpara.mcname
@@ -370,7 +370,7 @@ def mccc(gsac, mcpara):
 	stkdh = gsac.stkdh
 	stkdh.sethdr(wpick, stkdh.gethdr(ipick))
 
-	return solution, selist_LonLat 
+	return solution, selist_LonLat, delay_times
 
 
 def eventListName(evlist='event.list', phase='S', isol='PDE'):

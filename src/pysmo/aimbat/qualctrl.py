@@ -857,7 +857,7 @@ class PickPhaseMenuMore:
 		event_name = 'event'
 		if hasattr(self.opts, 'pklfile'):
 			event_name = self.opts.pklfile
-		PlotStations(event_name, self.gsac.saclist, self.gsac.selist, self.gsac.delist)
+		PlotStations(event_name, self.gsac)
 
 	def on_zoom(self, event):
 		""" Zoom back to previous xlim when event is in event.inaxes.
@@ -1087,7 +1087,9 @@ class PickPhaseMenuMore:
 		mcpara.evline = evline
 		mcpara.mcname = mcname
 		mcpara.kevnm = gsac.kevnm
-		solution, solist_LonLat = mccc(gsac, mcpara)
+		solution, solist_LonLat, delay_times = mccc(gsac, mcpara)
+		self.gsac.solist_LonLat = solist_LonLat
+		self.gsac.delay_times = delay_times
 
 		wpk = int(wpick[1])
 		if self.opts.reltime != wpk:
