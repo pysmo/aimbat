@@ -631,61 +631,8 @@ class PickPhaseMenu():
 
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
 
-	def save(self, event):
-		self.getSaveAxes()
-		self.save_connect()
-
-	def getSaveAxes(self):
-		saveFigure = figure(figsize=(8,1))
-		saveFigure.clf()
-
-		# size of save buttons
-		rect_saveHeaders = [0.04,0.2,0.2,0.6]
-		rect_saveHeadersFilterParams = [0.28,0.2,0.2,0.6]
-		rect_saveHeadersOverride = [0.52,0.2,0.2,0.6]
-		rect_saveQuit = [0.76,0.2,0.2,0.6]
-
-		#initalize axes
-		saveAxs = {}
-		saveAxs['saveHeaders'] = saveFigure.add_axes(rect_saveHeaders)
-		saveAxs['saveHeadersFilterParams'] = saveFigure.add_axes(rect_saveHeadersFilterParams)
-		saveAxs['saveHeadersOverride'] = saveFigure.add_axes(rect_saveHeadersOverride)
-		saveAxs['saveQuit'] = saveFigure.add_axes(rect_saveQuit)
-		self.saveAxs = saveAxs
-
-		self.saveFigure = saveFigure
-		self.save_connect()
-
-		show()
-
-	def save_connect(self):
-		#set buttons
-		self.bn_saveHeaders = Button(self.saveAxs['saveHeaders'], 'Save\nHeaders\nOnly')
-		self.bn_saveHeadersFilterParams = Button(self.saveAxs['saveHeadersFilterParams'], 'Save Headers &\n Filter Parameters')
-		self.bn_saveHeadersOverride = Button(self.saveAxs['saveHeadersOverride'], 'Save Headers &\nOverride Data')
-		self.bn_saveQuit = Button(self.saveAxs['saveQuit'], 'Quit')
-
-		#connect buttons to functions they trigger
-		self.cid_saveHeaders = self.bn_saveHeaders.on_clicked(self.save_headers)
-		self.cid_savedHeadersFilterParams = self.bn_saveHeadersFilterParams.on_clicked(self.save_headers_filterParams)
-		self.cid_saveHeadersOverride = self.bn_saveHeadersOverride.on_clicked(self.save_headers_override)
-		self.cid_saveQuit = self.bn_saveQuit.on_clicked(self.save_quit)
-
-	def save_quit(self, event):
-		self.save_disconnect()
-		close(self.saveFigure)
-
-	def save_disconnect(self):
-		self.bn_saveHeaders.disconnect(self.cid_saveHeaders)
-		self.bn_saveHeaders.disconnect(self.cid_savedHeadersFilterParams)
-		self.bn_saveHeadersOverride.disconnect(self.cid_saveHeadersOverride)
-
-		# self.saveAxs['saveHeaders'].cla()
-		# self.saveAxs['saveHeadersOverride'].cla()
-		# self.saveAxs['saveQuit'].cla()
-
 	"""save headers only"""
-	def save_headers(self, event):
+	def shdo(self, event):
 		saveData(self.gsac, self.opts)
 
 	"""save headers and override data with filtered data
@@ -694,7 +641,7 @@ class PickPhaseMenu():
 	   @band -> kuser0
 	   @order -> kuser1, need to convert to integer form alphanumeric
 	"""
-	def save_headers_filterParams(self, event):
+	def shfp(self, event):
 		# write params to file
 		for sacdh in self.gsac.saclist: 
 			sacdh.user0 = self.opts.filterParameters['lowFreq']
@@ -710,7 +657,8 @@ class PickPhaseMenu():
 		# save
 		saveData(self.gsac, self.opts)
 
-	def save_headers_override(self, event):
+	"""save headers and override"""
+	def shod(self, event):
 		shouldRun = tkMessageBox.askokcancel("Will Override Files!","This will override the data in your files with the filtered data. \nAre you sure?")
 		if shouldRun: 
 			for sacdh in self.gsac.saclist: 
@@ -732,37 +680,47 @@ class PickPhaseMenu():
 		self.axprev = self.axs['Prev']
 		self.axnext = self.axs['Next']
 		self.axzoba = self.axs['Zoba']
-		self.axsave = self.axs['Save']
+		self.axshdo = self.axs['Shdo']
+		self.axshfp = self.axs['Shfp']
+		self.axshod = self.axs['Shod']
 		self.axquit = self.axs['Quit']
 
 		self.bnfron = Button(self.axfron, 'Front')
 		self.bnprev = Button(self.axprev, 'Prev')
 		self.bnnext = Button(self.axnext, 'Next')
 		self.bnzoba = Button(self.axzoba, 'Zoom \n Back')
-		self.bnsave = Button(self.axsave, 'Save')
+		self.bnshdo = Button(self.axshdo, 'Save')
+		self.bnshfp = Button(self.axshfp, 'Save \n Params')
+		self.bnshod = Button(self.axshod, 'Save \n Override')
 		self.bnquit = Button(self.axquit, 'Quit')
 
 		self.cidfron = self.bnfron.on_clicked(self.fron)
 		self.cidprev = self.bnprev.on_clicked(self.prev)
 		self.cidnext = self.bnnext.on_clicked(self.next)
 		self.cidzoba = self.bnzoba.on_clicked(self.zoba)
-		self.cidsave = self.bnsave.on_clicked(self.save)
+		self.cidshdo = self.bnshdo.on_clicked(self.shdo)
+		self.cidshfp = self.bnshfp.on_clicked(self.shfp)
+		self.cidshod = self.bnshod.on_clicked(self.shod)
 		self.cidquit = self.bnquit.on_clicked(self.quit)
 
 		self.cidpress = self.axpp.figure.canvas.mpl_connect('key_press_event', self.on_zoom)
 
 	def disconnect(self, canvas):
-		# self.bnfron.disconnect(self.cidfron)
-		# self.bnprev.disconnect(self.cidprev)
-		# self.bnnext.disconnect(self.cidnext)
-		# self.bnzoba.disconnect(self.cidzoba)
-		# self.bnsave.disconnect(self.cidsave)
+		self.bnfron.disconnect(self.cidfron)
+		self.bnprev.disconnect(self.cidprev)
+		self.bnnext.disconnect(self.cidnext)
+		self.bnzoba.disconnect(self.cidzoba)
+		self.bnshdo.disconnect(self.cidshdo)
+		self.bnshfp.disconnect(self.cidshfp)
+		self.bnshod.disconnect(self.cidshod)
 
 		self.axfron.cla()
 		self.axprev.cla()
 		self.axnext.cla()
 		self.axzoba.cla()
-		self.axsave.cla()
+		self.axshdo.cla()
+		self.axshfp.cla()
+		self.axshod.cla()
 		self.axquit.cla()
 
 		canvas.mpl_disconnect(self.cidpress)
@@ -830,17 +788,20 @@ def getAxes(opts):
 	axs['Seis'] = axpp
 	dx = 0.07
 	x0 = rectseis[0] + rectseis[2] + 0.01
+
 	xq = x0 - dx*1
 	xs = x0 - dx*2
 	xn = x0 - dx*3
 	xp = x0 - dx*4
+
 	rectprev = [xp, 0.93, 0.06, 0.04]
 	rectnext = [xn, 0.93, 0.06, 0.04]
-	rectsave = [xs, 0.93, 0.06, 0.04]
+	rectshdo = [xs, 0.93, 0.06, 0.04]
 	rectquit = [xq, 0.93, 0.06, 0.04]
+
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
-	axs['Save'] = fig.add_axes(rectsave)
+	axs['Shdo'] = fig.add_axes(rectshdo)
 	axs['Quit'] = fig.add_axes(rectquit)
 	return axs
 

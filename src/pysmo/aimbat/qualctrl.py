@@ -1289,19 +1289,23 @@ def getAxes(opts):
 	yprev = y1 - dy*1
 	ynext = y1 - dy*2
 	yzoba = y1 - dy*3
-	ysave = y1 - dy*4
-	yquit = y1 - dy*5
+	yshdo = y1 - dy*4
+	yshfp = y1 - dy*5
+	yshod = y1 - dy*6
+	yquit = y1 - dy*7
 
 	ysac2 = yquit - dy*1.5
-	ysort = ysac2 - dy*1.5
-	yfilter = ysort - dy*1.5
-	yplotsta = yfilter - dy*1.5
+	ysort = ysac2 - dy
+	yfilter = ysort - dy
+	yplotsta = yfilter - dy
 
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
 	rectnext = [xm, ynext, xx, yy]
 	rectzoba = [xm, yzoba, xx, yy]
-	rectsave = [xm, ysave, xx, yy]
+	rectshdo = [xm, yshdo, xx, yy] #save headers only
+	rectshfp = [xm, yshfp, xx, yy] #save headers and filter params
+	rectshod = [xm, yshod, xx, yy] #save headers and 
 	rectquit = [xm, yquit, xx, yy]
 
 	rectccim = [xm, yccim, xx, yy]
@@ -1322,7 +1326,9 @@ def getAxes(opts):
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
 	axs['Zoba'] = fig.add_axes(rectzoba)
-	axs['Save'] = fig.add_axes(rectsave)
+	axs['Shdo'] = fig.add_axes(rectshdo)
+	axs['Shfp'] = fig.add_axes(rectshfp)
+	axs['Shod'] = fig.add_axes(rectshod)
 	axs['Quit'] = fig.add_axes(rectquit)
 
 	axs['CCIM'] = fig.add_axes(rectccim)
