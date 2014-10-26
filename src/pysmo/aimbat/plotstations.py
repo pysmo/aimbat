@@ -7,15 +7,15 @@ import numpy as np
 
 class PlotStations:
 
-	def __init__(self,  plotname, saclist, selist, delist):
+	def __init__(self,  plotname, gsac):
 		self.plotname = plotname
-		self.saclist = saclist
-		self.selist = selist
-		self.delist = delist
+		self.saclist = gsac.saclist
+		self.selist = gsac.selist
+		self.delist = gsac.delist
 
-		self.plot_stations()
+		self.plot_stations(gsac)
 
-	def plot_stations(self):
+	def plot_stations(self, gsac):
 		figStation = py.figure('SeismoStations', figsize=(16, 12))
 		figStation.suptitle('Seismo Stations', fontsize=20)
 
@@ -41,7 +41,10 @@ class PlotStations:
 		py.xlabel('Black triangles: deleted stations\n Red Points: selected stations')   
 
 		# plot stations
-		self.plot_selected_stations(ax)
+		if hasattr(gsac, 'delay_times'):
+			self.plot_selected_stations_color_delay_times(ax, gsac.delay_times)
+		else:
+			self.plot_selected_stations(ax)
 		self.plot_deleted_stations(ax)
 
 		figStation.canvas.mpl_connect('pick_event', self.show_station_name)
@@ -50,6 +53,7 @@ class PlotStations:
 		self.ax = ax
 
 		py.show()
+
 
 	def show_station_name(self, event):
 		nearest = 1000000000
@@ -85,6 +89,16 @@ class PlotStations:
 			selected_lon.append(sacdh.stlo)
 			selected_lat.append(sacdh.stla)
 		axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c='r', picker=True)
+
+	def plot_selected_stations_color_delay_times(self, axes_handle, delay_times):
+		selected_lon = [] 
+		selected_lat = []
+		for sacdh in self.selist:
+			selected_lon.append(sacdh.stlo)
+			selected_lat.append(sacdh.stla)
+		cm = py.cm.get_cmap('seismic')
+		sc = axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c=delay_times, picker=True, cmap=cm)
+		py.colorbar(sc)
 
 	def plot_deleted_stations(self, axes_handle):
 		deleted_lon = [] 
