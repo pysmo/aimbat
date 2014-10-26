@@ -291,10 +291,13 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat):
 	ofile.write( line0 )
 	ofile.write( line1 )
 	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}  {7:9.4f}  {8:9.4f}\n'
+
+	selist_LonLat = zeros(shape=(len(solist),2))
 	for i in range(nsta):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i], t0_times[i], delay_times[i]) )
+
 	ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
 	if lsqr == 'nowe':
 		ofile.write('No weighting of equations. \n')
@@ -312,6 +315,8 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat):
 	ofile.write( 'Phase: {0:8s} \n'.format(mcpara.phase) )
 	ofile.write( mcpara.evline + '\n' )
 	ofile.close()	
+
+	return selist_LonLat, delay_times
 
 def mccc(gsac, mcpara):
 	""" Run MCCC. 
@@ -357,8 +362,7 @@ def mccc(gsac, mcpara):
 	outvar = sqrt(sum(resmatrix**2)/2/(nsta*(nsta-1)/2))
 	outcc = mean(ccmean)
 
-	selist_LonLat = zeros(shape=(len(solist),2))
-	corrite(solist, mcpara, reftimes, solution, outvar, outcc, selist_LonLat)
+	selist_LonLat, delay_times = corrite(solist, mcpara, reftimes, solution, outvar, outcc)
 
 	# set wpick as ipick for deleted ones and array stack
 	for sacdh in delist:
