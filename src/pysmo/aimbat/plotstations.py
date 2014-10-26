@@ -96,7 +96,9 @@ class PlotStations:
 		for sacdh in self.selist:
 			selected_lon.append(sacdh.stlo)
 			selected_lat.append(sacdh.stla)
-		axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c=delay_times, picker=True)
+		cm = py.cm.get_cmap('seismic')
+		sc = axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c=delay_times, picker=True, cmap=cm)
+		py.colorbar(sc)
 
 	def plot_deleted_stations(self, axes_handle):
 		deleted_lon = [] 
