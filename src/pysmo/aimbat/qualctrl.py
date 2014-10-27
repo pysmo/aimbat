@@ -766,9 +766,13 @@ class PickPhaseMenuMore:
 		self.axs['Prev'].clear()
 		self.axs['Next'].clear()
 		self.axs['Zoba'].clear()
-		self.axs['Save'].clear()
+		self.axs['Shdo'].clear()
+		self.axs['Shfp'].clear()
+		self.axs['Shod'].clear()
 		self.axs['Quit'].clear()
+
 		self.ppm = PickPhaseMenu(self.gsac, self.opts, self.axs)
+
 		# make the legend box invisible
 		if self.opts.pick_on:
 			self.ppm.axpp.get_legend().set_visible(False)
@@ -803,7 +807,9 @@ class PickPhaseMenuMore:
 		self.axs['Prev'].clear()
 		self.axs['Next'].clear()
 		self.axs['Zoba'].clear()
-		self.axs['Save'].clear()
+		self.axs['Shdo'].clear()
+		self.axs['Shfp'].clear()
+		self.axs['Shod'].clear()
 		self.axs['Quit'].clear()
 		self.initPlot()
 		self.plotStack()
