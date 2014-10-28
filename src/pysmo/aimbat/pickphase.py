@@ -789,22 +789,34 @@ def getAxes(opts):
 	dx = 0.07
 	x0 = rectseis[0] + rectseis[2] + 0.01
 
-	xq = x0 - dx*1
-	xs = x0 - dx*2
-	xn = x0 - dx*3
-	xp = x0 - dx*4
+	xfron = x0 - dx*1
+	xprev = x0 - dx*2
+	xnext = x0 - dx*3
+	xzoba = x0 - dx*4
+	xshdo = x0 - dx*5
+	xshfp = x0 - dx*6
+	xshod = x0 - dx*7
+	xquit = x0 - dx*8
 
-	rectprev = [xp, 0.93, 0.06, 0.04]
-	rectnext = [xn, 0.93, 0.06, 0.04]
-	rectshdo = [xs, 0.93, 0.06, 0.04]
-	rectquit = [xq, 0.93, 0.06, 0.04]
+	rectfron = [xfron, 0.93, 0.06, 0.04]
+	rectprev = [xprev, 0.93, 0.06, 0.04]
+	rectnext = [xnext, 0.93, 0.06, 0.04]
+	rectzoba = [xzoba, 0.93, 0.06, 0.04]
+	rectshdo = [xshdo, 0.93, 0.06, 0.04]
+	rectshfp = [xshfp, 0.93, 0.06, 0.04]
+	rectshod = [xshod, 0.93, 0.06, 0.04]
+	rectquit = [xquit, 0.93, 0.06, 0.04]
 
+	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
+	axs['Zoba'] = fig.add_axes(rectzoba)
 	axs['Shdo'] = fig.add_axes(rectshdo)
+	axs['Shfp'] = fig.add_axes(rectshfp)
+	axs['Shod'] = fig.add_axes(rectshod)
 	axs['Quit'] = fig.add_axes(rectquit)
-	return axs
 
+	return axs
 
 def getDataOpts():
 	'Get SAC Data and Options'
