@@ -245,7 +245,8 @@ class SacDataHdrs:
 	def writeHdrs(self):
 		""" Write SAC headers (t_n, user_n, and kuser_n) in python obj to existing SAC file.
 		"""
-		sacobj = sacfile(self.filename+'.sac', 'rw')
+#		sacobj = sacfile(self.filename+'.sac', 'rw')
+		sacobj = sacfile(self.filename, 'rw')
 		self.savehdrs(sacobj)
 		sacobj.close()
 
@@ -364,8 +365,6 @@ def sac2pkl(ifiles, pkfile='sac.pkl', delta=-1, zipmode='gz'):
 def obj2sac(gsac):
 	""" Save headers in python objects to SAC files.
 	"""
-	if 'stkdh' in gsac.__dict__:
-		gsac.stkdh.savesac()
 	for sacdh in gsac.saclist:
 		sacdh.savesac()
         # save more headers 
@@ -376,17 +375,19 @@ def obj2sac(gsac):
         nzjday = date2jul(nzyear, mon, day)
         nzmsec = int(round((nzsec - int(nzsec))*1000))
         nzsec = int(nzsec)
-        evdp *= 1000
-        stla, stlo, stel = gsac.stadict[sacdh.netsta]
-        stel *= 1000
+#        evdp *= 1000
+#        stla, stlo, stel = gsac.stadict[sacdh.netsta]
+#        stel *= 1000
         hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec', 'evla', 'evlo', 'evdp', 'mag', ]
-        hdrs += ['stla', 'stlo', 'stel' ]
+#        hdrs += ['stla', 'stlo', 'stel' ]
         hdrs += ['kevnm', 'idep', 'iztype']
         for sacdh in gsac.saclist:
                 sacobj = sacfile(sacdh.filename, 'rw')
                 for hdr in hdrs:
                         sacobj.__setattr__(hdr, eval(hdr))
 	        sacobj.close()
+	if 'stkdh' in gsac.__dict__:
+		gsac.stkdh.savesac()
 
 def pkl2sac(pkfile, zipmode):
 	""" Save headers in python pickle to SAC files.
