@@ -261,9 +261,7 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
 	c, x, info = dposv(atwa, atwt)
 	return x
 
-def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
-	""" Write output file, set output time picks.
-	"""
+def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_times, itmean):
 	ofilename = mcpara.mcname
 	kevnm = mcpara.kevnm
 	delta = mcpara.delta
@@ -273,16 +271,7 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
 	shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
 
-	# set wpick	
-	wpick = mcpara.wpick
-	itmean = mean(reftimes)
-	for i in range(nsta):
-		wt = itmean + solution[i,0]
-		solist[i].sethdr(wpick, wt)
-	t0_times = [sacdh.gethdr('t0') for sacdh in solist]
-	delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in xrange(nsta)]
-
-	# write mc file
+	# write mc file (with delay times)
 	ofile = open(ofilename, 'w')
 	tzone = tzname[0]
 	tdate = strftime("%a, %d %b %Y %H:%M:%S") 
@@ -293,6 +282,7 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}  {7:9.4f}  {8:9.4f}\n'
 
 	selist_LonLat = zeros(shape=(len(solist),2))
+	nsta = len(solist)
 	for i in range(nsta):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
@@ -316,6 +306,76 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	ofile.write( mcpara.evline + '\n' )
 	ofile.close()	
 
+	return selist_LonLat, delay_times
+
+def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
+	ofilename = "original"+mcpara.mcname
+	kevnm = mcpara.kevnm
+	delta = mcpara.delta
+	lsqr = mcpara.lsqr
+	nsta = len(solist)
+	stalist = [ sacdh.netsta for sacdh in solist ]
+	filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
+	shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
+
+	# write mc file (with delay times)
+	ofile = open(ofilename, 'w')
+	tzone = tzname[0]
+	tdate = strftime("%a, %d %b %Y %H:%M:%S") 
+	line0 = 'MCCC processed: %s at: %s %s \n' % (kevnm, tdate, tzone)
+	line1 = 'station, mccc delay,    std,    cc coeff,  cc std,   pol\n'
+	ofile.write( line0 )
+	ofile.write( line1 )
+	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}\n'
+
+	selist_LonLat = zeros(shape=(len(solist),2))
+	nsta = len(solist)
+	for i in range(nsta):
+		dt, err, cc, ccstd = solution[i]
+		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
+		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]))
+
+	ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
+	if lsqr == 'nowe':
+		ofile.write('No weighting of equations. \n')
+	elif lsqr == 'lnco':
+		ofile.write('LAPACK solution with weighting by corr. coef. \n')
+	elif lsqr == 'lnre':
+		ofile.write('LAPACK solution with weighting by residuals. \n')
+	fmt = 'Window: %6.2f   Inset: %6.2f  Shift: %6.2f \n' 
+	ofile.write(fmt % (tw[1]-tw[0]-tap, -tw[0]-tap/2., shift*delta))
+	fmt = 'Variance: %7.5f   Coefficient: %7.5f  Sample rate: %8.3f \n'
+	ofile.write(fmt % (outvar, outcc, 1./delta))
+	ofile.write('Taper: %6.2f \n' % tap)
+
+	# write phase and event
+	ofile.write( 'Phase: {0:8s} \n'.format(mcpara.phase) )
+	ofile.write( mcpara.evline + '\n' )
+	ofile.close()	
+
+def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
+	""" Write output file, set output time picks.
+	"""
+	ofilename = mcpara.mcname
+	kevnm = mcpara.kevnm
+	delta = mcpara.delta
+	lsqr = mcpara.lsqr
+	nsta = len(solist)
+	stalist = [ sacdh.netsta for sacdh in solist ]
+	filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
+	shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
+
+	# set wpick	
+	wpick = mcpara.wpick
+	itmean = mean(reftimes)
+	for i in range(nsta):
+		wt = itmean + solution[i,0]
+		solist[i].sethdr(wpick, wt)
+	t0_times = [sacdh.gethdr('t0') for sacdh in solist]
+	delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in xrange(nsta)]
+
+	selist_LonLat, delay_times = WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_times, itmean)
+	WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean)
 	return selist_LonLat, delay_times
 
 def mccc(gsac, mcpara):
