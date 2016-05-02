@@ -26,7 +26,7 @@ import os, sys
 from time import strftime, tzname
 from optparse import OptionParser
 from ttconfig import MCConfig 
-from sacpickle import loadData, saveData, SacDataHdrs, taper, taperWindow, windowIndex, windowData 
+from sacpickle import loadData, saveData, SacDataHdrs, taper, taperWindow, windowIndex, windowData
 from qualsort import initQual, seleSeis
 
 def getOptions():
@@ -279,7 +279,7 @@ def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_
 	line1 = 'station, mccc delay,    std,    cc coeff,  cc std,   pol   , t0_times  , delay_times\n'
 	ofile.write( line0 )
 	ofile.write( line1 )
-	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}  {7:9.4f}  {8:9.4f}\n'
+	fmt = ' {0:<9s} {1:11.8f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}  {7:9.4f}  {8:9.4f}\n'
 
 	selist_LonLat = zeros(shape=(len(solist),2))
 	nsta = len(solist)
@@ -308,7 +308,7 @@ def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_
 
 	return selist_LonLat, delay_times
 
-def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
+def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean, invdata):
 	ofilename = "original"+mcpara.mcname
 	kevnm = mcpara.kevnm
 	delta = mcpara.delta
@@ -326,7 +326,7 @@ def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
 	line1 = 'station, mccc delay,    std,    cc coeff,  cc std,   pol\n'
 	ofile.write( line0 )
 	ofile.write( line1 )
-	fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}\n'
+	fmt = ' {0:<9s} {1:11.8f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}\n'
 
 	selist_LonLat = zeros(shape=(len(solist),2))
 	nsta = len(solist)
@@ -351,9 +351,11 @@ def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
 	# write phase and event
 	ofile.write( 'Phase: {0:8s} \n'.format(mcpara.phase) )
 	ofile.write( mcpara.evline + '\n' )
+        for i in range(len(invdata)):
+                ofile.write( str(invdata[i]) + '\n')
 	ofile.close()	
 
-def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
+def corrite(solist, mcpara, reftimes, solution, outvar, outcc, invdata):
 	""" Write output file, set output time picks.
 	"""
 	ofilename = mcpara.mcname
@@ -375,8 +377,8 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in xrange(nsta)]
 
 	selist_LonLat, delay_times = WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_times, itmean)
-	WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean)
-	return selist_LonLat, delay_times
+	WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean, invdata)
+	return selist_LonLat, delay_times, itmean
 
 def mccc(gsac, mcpara):
 	""" Run MCCC. 
@@ -422,7 +424,7 @@ def mccc(gsac, mcpara):
 	outvar = sqrt(sum(resmatrix**2)/2/(nsta*(nsta-1)/2))
 	outcc = mean(ccmean)
 
-	selist_LonLat, delay_times = corrite(solist, mcpara, reftimes, solution, outvar, outcc)
+	selist_LonLat, delay_times, itmean = corrite(solist, mcpara, reftimes, solution, outvar, outcc, invdata)
 
 	# set wpick as ipick for deleted ones and array stack
 	for sacdh in delist:
@@ -430,7 +432,7 @@ def mccc(gsac, mcpara):
 	stkdh = gsac.stkdh
 	stkdh.sethdr(wpick, stkdh.gethdr(ipick))
 
-	return solution, selist_LonLat, delay_times
+	return solution, selist_LonLat, delay_times, itmean
 
 
 def eventListName(evlist='event.list', phase='S', isol='PDE'):

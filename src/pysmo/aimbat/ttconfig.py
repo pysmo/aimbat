@@ -80,6 +80,8 @@ class PPConfig:
 		self.srate = config.getfloat('sacplot', 'srate')
 		self.tapertype = config.get('signal', 'tapertype')
 		self.taperwidth = config.getfloat('signal', 'taperwidth')
+                self.thresholds = [ float(val) for val in config.get('sacplot', 'thresholds').split() ]
+                self.colorthresholds = config.get('sacplot', 'colorthresholds').split()
 
 
 
@@ -109,6 +111,9 @@ class QCConfig:
 		self.pickstyles = config.get('sacplot', 'pickstyles').split()
 		self.minspan = config.getint('sacplot', 'minspan')
 		self.fstack = config.get('iccs', 'fstack')
+                self.thresholds = [ float(val) for val in config.get('sacplot', 'thresholds').split() ]
+                self.colorthresholds = config.get('sacplot', 'colorthresholds').split()
+
 
 
 class CCConfig:

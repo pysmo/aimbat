@@ -204,7 +204,8 @@ class PickPhase:
 			cc = sacdh.gethdr(hdrcc)
 			sn = sacdh.gethdr(hdrsn)
 			co = sacdh.gethdr(hdrco)
-			slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
+                        mc = sacdh.gethdr('user3')
+			slab += 'qual={0:5.3f}/{1:4.2f}/{2:.1f}/{3:4.2f}'.format(mc, cc, sn, co)
 		trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
 		font = FontProperties()
 		font.set_family('monospace')
@@ -235,7 +236,10 @@ class PickPhase:
 		""" Change color of a seismogram based on selection status. 
 		"""
 		if self.sacdh.selected:
-			col = self.opts.pppara.colorwave
+                        if self.color == 'gray':
+                                col = self.opts.pppara.colorwave
+                        else:
+                                col = self.color
 		else:
 			col = self.opts.pppara.colorwavedel
 		setp(self.stalabel, color=col)
@@ -424,6 +428,10 @@ class PickPhaseMenu():
 		delist = self.gsac.delist
 		nsel = len(selist)
 		ndel = len(delist)
+                if hasattr(self.gsac, 'itmean'):
+                        self.itmean = self.gsac.itmean
+                else:
+                        self.itmean = 0.
 		maxsel, maxdel = opts.maxnum
 		pagesize = maxsel + maxdel
 		aipages, ayindex, aybases, ayticks = indexBaseTick(nsel, ndel, pagesize, maxsel)
@@ -451,13 +459,25 @@ class PickPhaseMenu():
 		# get colors from sacdh.selected
 		colsel = opts.pppara.colorwave
 		coldel = opts.pppara.colorwavedel
+                threshd = opts.pppara.thresholds
+                colthd = opts.pppara.colorthresholds
 		colors = [[None,] * npsel , [None,] * npdel]
 		for j in range(2):
 			for k in range(nsede[j]):
+                                plists[j][k].users[3] = plists[j][k].thdrs[3] - self.itmean
+                                dt = plists[j][k].users[3]
 				if plists[j][k].selected:
-					colors[j][k] = colsel
+                                        if abs(dt) > 10000 or abs(dt) < threshd[0]:
+                                                colors[j][k] = colsel
+                                        elif threshd[0] <= abs(dt) < threshd[1]:
+                                                colors[j][k] = colthd[0]
+                                        elif threshd[1] <= abs(dt) < threshd[2]:
+                                                colors[j][k] = colthd[1]
+                                        if threshd[2] <= abs(dt) < 10000:
+                                                colors[j][k] = colthd[2]
 				else:
 					colors[j][k] = coldel
+
 		# plot
 		pps = []
 		for j in range(2):
