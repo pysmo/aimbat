@@ -50,12 +50,42 @@ def _xcorr(x, y, cmode='full'):
 		delay -= (len(y)-1)/2
 	return delay, ccmax, ccpol
 
+def _xcorr_polarity(x, y, cmode='full'):
+	""" 
+	Cross-correlation of two 1-D arrays using 'full' or 'same' mode.
+		c[k] = sum_i x[i]*y[i+k]
+	Full mode: indices of array c --> j=0:nx+ny-2 <-- k=ny-1:-nx+1:-1 (j=ny-1-k)
+        It does not correct the polarity, meaning it does only calculate the maximum
+        value of cross correlaton, not including minimum, which is different from
+        _xcorr
+	Return time shift of y relative to x at maximum correlation and polarity.
+	"""
+	cc = correlate(x, y, cmode)
+	imax = argmax(cc)
+	imin = argmin(cc)
+	ccmax = cc[imax]
+	ccmin = cc[imin]
+        ccpol = 1
+        delay = len(y)-1-imax
+        ccmax =  ccmax / sqrt(dot(x,x)*dot(y,y))
+	if cmode == 'same':
+		delay -= (len(y)-1)/2
+	return delay, ccmax, ccpol
+
 def xcorr_full(x, y, shift=1):
 	""" 
 	Cross-correlation of two 1-D arrays using 'full' mode.
 	Argument shift=1 is here only in order to make the same number of arguments for all xcorr functions.
 	"""
 	return _xcorr(x, y, 'full')
+
+def xcorr_full_polarity(x, y, shift=1):
+        """ 
+	Cross-correlation of two 1-D arrays using 'full' mode.
+	Argument shift=1 is here only in order to make the same number of arguments for all xcorr functions.
+        Not correct the polarity
+	"""
+	return _xcorr_polarity(x, y, 'full')
 
 def xcorr_same(x, y):
 	""" 
