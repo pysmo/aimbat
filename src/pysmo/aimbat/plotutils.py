@@ -171,12 +171,15 @@ def getAxes(opts):
 	xs = x0 - dx*2
 	xn = x0 - dx*3
 	xp = x0 - dx*4
+#	xl = x0 - dx*5
 	rectprev = [xp, 0.93, 0.06, 0.04]
 	rectnext = [xn, 0.93, 0.06, 0.04]
 	rectsave = [xs, 0.93, 0.06, 0.04]
 	rectquit = [xq, 0.93, 0.06, 0.04]
+#	rectlast = [xl, 0.93, 0.06, 0.04]
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
+#	axs['Last'] = fig.add_axes(rectlast)
 	axs['Save'] = fig.add_axes(rectsave)
 	axs['Quit'] = fig.add_axes(rectquit)
 	return axs

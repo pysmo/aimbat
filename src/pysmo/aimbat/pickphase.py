@@ -27,7 +27,7 @@ Keyboard and mouse actions:
 Program structure:
     PickPhaseMenu
         ||
-    PickPhase  Button Prev + Button Next + Button Save + Button Quit
+    PickPhase  Button Front + Button Prev + Button Next + Button Last + Button Save + Button Quit
 
 
 :copyright:
@@ -629,6 +629,14 @@ class PickPhaseMenu():
 		self.bnnext.label.set_text('Next')
 		self.axpp.get_figure().canvas.draw()
 
+	def last(self, event):
+		self.bnlast.label.set_text('Wait...')
+		self.axpp.get_figure().canvas.draw()
+
+		self.replot(self.aipages[-1])
+		self.bnlast.label.set_text('Last')
+		self.axpp.get_figure().canvas.draw()
+
 	# ---------------------------- SAVE HEADERS FILES ------------------------------- #
 
 	"""save headers only"""
@@ -679,6 +687,7 @@ class PickPhaseMenu():
 		self.axfron = self.axs['Fron']
 		self.axprev = self.axs['Prev']
 		self.axnext = self.axs['Next']
+		self.axlast = self.axs['Last']
 		self.axzoba = self.axs['Zoba']
 		self.axshdo = self.axs['Shdo']
 		self.axshfp = self.axs['Shfp']
@@ -688,6 +697,7 @@ class PickPhaseMenu():
 		self.bnfron = Button(self.axfron, 'Front')
 		self.bnprev = Button(self.axprev, 'Prev')
 		self.bnnext = Button(self.axnext, 'Next')
+		self.bnlast = Button(self.axlast, 'Last')
 		self.bnzoba = Button(self.axzoba, 'Zoom \n Back')
 		self.bnshdo = Button(self.axshdo, 'Save')
 		self.bnshfp = Button(self.axshfp, 'Save \n Params')
@@ -697,6 +707,7 @@ class PickPhaseMenu():
 		self.cidfron = self.bnfron.on_clicked(self.fron)
 		self.cidprev = self.bnprev.on_clicked(self.prev)
 		self.cidnext = self.bnnext.on_clicked(self.next)
+		self.cidlast = self.bnlast.on_clicked(self.last)
 		self.cidzoba = self.bnzoba.on_clicked(self.zoba)
 		self.cidshdo = self.bnshdo.on_clicked(self.shdo)
 		self.cidshfp = self.bnshfp.on_clicked(self.shfp)
@@ -709,6 +720,7 @@ class PickPhaseMenu():
 		self.bnfron.disconnect(self.cidfron)
 		self.bnprev.disconnect(self.cidprev)
 		self.bnnext.disconnect(self.cidnext)
+		self.bnlast.disconnect(self.cidlast)
 		self.bnzoba.disconnect(self.cidzoba)
 		self.bnshdo.disconnect(self.cidshdo)
 		self.bnshfp.disconnect(self.cidshfp)
@@ -717,6 +729,7 @@ class PickPhaseMenu():
 		self.axfron.cla()
 		self.axprev.cla()
 		self.axnext.cla()
+		self.axlast.cla()
 		self.axzoba.cla()
 		self.axshdo.cla()
 		self.axshfp.cla()
@@ -792,15 +805,17 @@ def getAxes(opts):
 	xfron = x0 - dx*1
 	xprev = x0 - dx*2
 	xnext = x0 - dx*3
-	xzoba = x0 - dx*4
-	xshdo = x0 - dx*5
-	xshfp = x0 - dx*6
-	xshod = x0 - dx*7
-	xquit = x0 - dx*8
+	xlast = x0 - dx*4
+	xzoba = x0 - dx*5
+	xshdo = x0 - dx*6
+	xshfp = x0 - dx*7
+	xshod = x0 - dx*8
+	xquit = x0 - dx*9
 
 	rectfron = [xfron, 0.93, 0.06, 0.04]
 	rectprev = [xprev, 0.93, 0.06, 0.04]
 	rectnext = [xnext, 0.93, 0.06, 0.04]
+	rectlast = [xlast, 0.93, 0.06, 0.04]
 	rectzoba = [xzoba, 0.93, 0.06, 0.04]
 	rectshdo = [xshdo, 0.93, 0.06, 0.04]
 	rectshfp = [xshfp, 0.93, 0.06, 0.04]
@@ -810,6 +825,7 @@ def getAxes(opts):
 	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
+	axs['Last'] = fig.add_axes(rectlast)
 	axs['Zoba'] = fig.add_axes(rectzoba)
 	axs['Shdo'] = fig.add_axes(rectshdo)
 	axs['Shfp'] = fig.add_axes(rectshfp)

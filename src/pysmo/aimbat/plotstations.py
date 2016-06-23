@@ -106,7 +106,7 @@ class PlotStations:
 		for sacdh in self.delist:
 			deleted_lon.append(sacdh.stlo)
 			deleted_lat.append(sacdh.stla)
-		axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='>', c='k', picker=True)
+		axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='^', c='k', picker=True)
 
 
 

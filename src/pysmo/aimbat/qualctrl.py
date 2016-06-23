@@ -639,7 +639,7 @@ class PickPhaseMenuMore:
 		self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 
 		# get order
-		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5), active=1)
+		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4), active=1)
 		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
 		# get type of filter to use
@@ -765,6 +765,7 @@ class PickPhaseMenuMore:
 		self.axs['Fron'].clear()
 		self.axs['Prev'].clear()
 		self.axs['Next'].clear()
+		self.axs['Last'].clear()
 		self.axs['Zoba'].clear()
 		self.axs['Shdo'].clear()
 		self.axs['Shfp'].clear()
@@ -806,6 +807,7 @@ class PickPhaseMenuMore:
 		self.axs['Fron'].clear()
 		self.axs['Prev'].clear()
 		self.axs['Next'].clear()
+		self.axs['Last'].clear()
 		self.axs['Zoba'].clear()
 		self.axs['Shdo'].clear()
 		self.axs['Shfp'].clear()
@@ -1023,7 +1025,7 @@ class PickPhaseMenuMore:
 
 	def ccim(self, event):
 		# running ICCS-A will erase everything you did. Make sure the user did not hit it by mistake
-		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase any picks past t1. \nAre you sure?")
 
 		if shouldRun:
 			""" Run iccs with time window from final stack. Time picks: hdrini, hdrmed.
@@ -1045,7 +1047,7 @@ class PickPhaseMenuMore:
 			return
 
 		"""running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake"""
-		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase any picks past t2 and will recalculate all t2 values. \nAre you sure?")
 		
 		if shouldRun:
 			self.cchdrs = hdrfin, hdrfin
@@ -1296,11 +1298,12 @@ def getAxes(opts):
 	yfron = y1 - dy*0
 	yprev = y1 - dy*1
 	ynext = y1 - dy*2
-	yzoba = y1 - dy*3
-	yshdo = y1 - dy*4
-	yshfp = y1 - dy*5
-	yshod = y1 - dy*6
-	yquit = y1 - dy*7
+	ylast = y1 - dy*3
+	yzoba = y1 - dy*4
+	yshdo = y1 - dy*5
+	yshfp = y1 - dy*6
+	yshod = y1 - dy*7
+	yquit = y1 - dy*8
 
 	ysac2 = yquit - dy*1.5
 	ysort = ysac2 - dy
@@ -1310,6 +1313,7 @@ def getAxes(opts):
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
 	rectnext = [xm, ynext, xx, yy]
+	rectlast = [xm, ylast, xx, yy]
 	rectzoba = [xm, yzoba, xx, yy]
 	rectshdo = [xm, yshdo, xx, yy] #save headers only
 	rectshfp = [xm, yshfp, xx, yy] #save headers and filter params
@@ -1333,6 +1337,7 @@ def getAxes(opts):
 	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
+	axs['Last'] = fig.add_axes(rectlast)
 	axs['Zoba'] = fig.add_axes(rectzoba)
 	axs['Shdo'] = fig.add_axes(rectshdo)
 	axs['Shfp'] = fig.add_axes(rectshfp)
