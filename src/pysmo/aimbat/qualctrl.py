@@ -646,6 +646,10 @@ class PickPhaseMenuMore:
 		self.bnband = RadioButtons(self.filterAxs['band'], ('bandpass','lowpass','highpass'))
 		self.cidband = self.bnband.on_clicked(self.getBandtype)
 
+		# get reverse pass option
+		self.bnreversepass = RadioButtons(self.filterAxs['reversepass'], ('yes', 'no'), active=1)
+		self.cidreversepass = self.bnreversepass.on_clicked(self.getReversePassOption)
+
 		#add apply button. causes the filtered data to be applied 
 		self.bnapply = Button(self.filterAxs['apply'], 'Apply')
 		self.cidapply = self.bnapply.on_clicked(self.applyFilter)
@@ -653,6 +657,13 @@ class PickPhaseMenuMore:
 		#add unapply button. causes the filtered data to be applied 
 		self.bnunapply = Button(self.filterAxs['unapply'], 'Unapply')
 		self.cidunapply = self.bnunapply.on_clicked(self.unapplyFilter)
+
+	def getReversePassOption(self, event):
+		if event == 'yes':
+			self.opts.filterParameters['reversepass'] = True
+		else:
+			self.opts.filterParameters['reversepass'] = False
+		self.spreadButter()
 
 	def getBandtype(self, event):
 		self.opts.filterParameters['band'] = event
@@ -733,7 +744,7 @@ class PickPhaseMenuMore:
 		originalSignalTime = self.ppstk.sacdh.data
 
 		originalFreq, originalSignalFreq = ftr.time_to_freq(originalTime, originalSignalTime, self.opts.delta)
-		filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = ftr.filtering_time_freq(originalTime, originalSignalTime, self.opts.delta, self.opts.filterParameters['band'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['lowFreq'], self.opts.filterParameters['order'])
+		filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = ftr.filtering_time_freq(originalTime, originalSignalTime, self.opts.delta, self.opts.filterParameters['band'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['lowFreq'], self.opts.filterParameters['order'], self.opts.filterParameters['reversepass'])
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(originalTime, originalSignalTime, label='Original')
@@ -834,11 +845,12 @@ class PickPhaseMenuMore:
 
 		rect_amVtime = [0.10, 0.50, 0.80, 0.35]
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
-		rectinfo = [0.8, 0.87, 0.15, 0.10]
+		rectinfo = [0.8, 0.86, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
 		rectunapply = [0.42, 0.90, 0.07, 0.04]
 		rectapply = [0.5, 0.90, 0.05, 0.04]
 		rectband = [0.6, 0.86, 0.10, 0.10]
+		rectreversepass = [0.72, 0.86, 0.07, 0.10]
 
 		filterAxs = {}
 		self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
@@ -848,9 +860,11 @@ class PickPhaseMenuMore:
 		filterAxs['unapply'] = figfilter.add_axes(rectunapply)
 		filterAxs['apply'] = figfilter.add_axes(rectapply)
 		filterAxs['band'] = figfilter.add_axes(rectband)
+		filterAxs['reversepass'] = figfilter.add_axes(rectreversepass)
 
 		self.figfilter.text(0.3, 0.97, 'Order:')
 		self.figfilter.text(0.6, 0.97, 'Filter Type:')
+		self.figfilter.text(0.72, 0.97, 'Run Reverse:')
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
@@ -1219,6 +1233,7 @@ def getDataOpts():
 	filterParameters['lowFreq'] = 0.05
 	filterParameters['highFreq'] = 0.25
 	filterParameters['order'] = 2
+	filterParameters['reversepass'] = False
 	opts.filterParameters = filterParameters
 
 	# override defaults if already set in SAC files

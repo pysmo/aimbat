@@ -3,7 +3,7 @@ from scipy import signal
 import math
 
 """when the user is picking"""
-def filtering_time_freq(originalTime, originalSignalTime, delta, filterType, highFreq, lowFreq, order):
+def filtering_time_freq(originalTime, originalSignalTime, delta, filterType, highFreq, lowFreq, order, runReversePass = False):
 	originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta)
 
 	# make filter, default is bandpass
@@ -12,6 +12,9 @@ def filtering_time_freq(originalTime, originalSignalTime, delta, filterType, hig
 
 	# apply filter
 	filteredSignalTime = signal.lfilter(B, A, originalSignalTime)
+	if runReversePass:
+		filteredSignalTime = signal.lfilter(B, A, filteredSignalTime[::-1])
+		filteredSignalTime = filteredSignalTime[::-1]
 
 	# convert filtered time signal -> frequency signal
 	filteredSignalFreq = np.fft.fft(filteredSignalTime)
@@ -35,9 +38,12 @@ def get_filter_params(delta, lowFreq, highFreq, filterType, order, MULTIPLE=3000
 
 	return NYQ, Wn, B, A, adjusted_w, adjusted_h
 
-def filtering_time_signal(originalSignalTime, delta, lowFreq, highFreq, filterType, order, MULTIPLE):
+def filtering_time_signal(originalSignalTime, delta, lowFreq, highFreq, filterType, order, MULTIPLE, runReversePass = False):
 	NYQ, Wn, B, A, w, h = get_filter_params(delta, lowFreq, highFreq, filterType, order, MULTIPLE)
 	filteredSignalTime = signal.lfilter(B, A, originalSignalTime)
+	if runReversePass:
+		filteredSignalTime = signal.lfilter(B, A, filteredSignalTime[::-1])
+		filteredSignalTime = filteredSignalTime[::-1]
 	return filteredSignalTime
 
 def time_to_freq(originalTime, originalSignalTime, delta):
