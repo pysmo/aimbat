@@ -639,12 +639,16 @@ class PickPhaseMenuMore:
 		self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 
 		# get order
-		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4,5), active=1)
+		self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4), active=1)
 		self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
 		# get type of filter to use
 		self.bnband = RadioButtons(self.filterAxs['band'], ('bandpass','lowpass','highpass'))
 		self.cidband = self.bnband.on_clicked(self.getBandtype)
+
+		# get reverse pass option
+		self.bnreversepass = RadioButtons(self.filterAxs['reversepass'], ('yes', 'no'), active=1)
+		self.cidreversepass = self.bnreversepass.on_clicked(self.getReversePassOption)
 
 		#add apply button. causes the filtered data to be applied 
 		self.bnapply = Button(self.filterAxs['apply'], 'Apply')
@@ -653,6 +657,13 @@ class PickPhaseMenuMore:
 		#add unapply button. causes the filtered data to be applied 
 		self.bnunapply = Button(self.filterAxs['unapply'], 'Unapply')
 		self.cidunapply = self.bnunapply.on_clicked(self.unapplyFilter)
+
+	def getReversePassOption(self, event):
+		if event == 'yes':
+			self.opts.filterParameters['reversepass'] = True
+		else:
+			self.opts.filterParameters['reversepass'] = False
+		self.spreadButter()
 
 	def getBandtype(self, event):
 		self.opts.filterParameters['band'] = event
@@ -733,7 +744,7 @@ class PickPhaseMenuMore:
 		originalSignalTime = self.ppstk.sacdh.data
 
 		originalFreq, originalSignalFreq = ftr.time_to_freq(originalTime, originalSignalTime, self.opts.delta)
-		filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = ftr.filtering_time_freq(originalTime, originalSignalTime, self.opts.delta, self.opts.filterParameters['band'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['lowFreq'], self.opts.filterParameters['order'])
+		filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = ftr.filtering_time_freq(originalTime, originalSignalTime, self.opts.delta, self.opts.filterParameters['band'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['lowFreq'], self.opts.filterParameters['order'], self.opts.filterParameters['reversepass'])
 
 		# PLOT TIME
 		self.filterAxs['amVtime'].plot(originalTime, originalSignalTime, label='Original')
@@ -765,6 +776,7 @@ class PickPhaseMenuMore:
 		self.axs['Fron'].clear()
 		self.axs['Prev'].clear()
 		self.axs['Next'].clear()
+		self.axs['Last'].clear()
 		self.axs['Zoba'].clear()
 		self.axs['Shdo'].clear()
 		self.axs['Shfp'].clear()
@@ -806,6 +818,7 @@ class PickPhaseMenuMore:
 		self.axs['Fron'].clear()
 		self.axs['Prev'].clear()
 		self.axs['Next'].clear()
+		self.axs['Last'].clear()
 		self.axs['Zoba'].clear()
 		self.axs['Shdo'].clear()
 		self.axs['Shfp'].clear()
@@ -832,11 +845,12 @@ class PickPhaseMenuMore:
 
 		rect_amVtime = [0.10, 0.50, 0.80, 0.35]
 		rect_amVfreq = [0.10, 0.07, 0.80, 0.35]
-		rectinfo = [0.8, 0.87, 0.15, 0.10]
+		rectinfo = [0.8, 0.86, 0.15, 0.10]
 		rectordr = [0.3, 0.86, 0.10, 0.10]
 		rectunapply = [0.42, 0.90, 0.07, 0.04]
 		rectapply = [0.5, 0.90, 0.05, 0.04]
 		rectband = [0.6, 0.86, 0.10, 0.10]
+		rectreversepass = [0.72, 0.86, 0.07, 0.10]
 
 		filterAxs = {}
 		self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
@@ -846,9 +860,11 @@ class PickPhaseMenuMore:
 		filterAxs['unapply'] = figfilter.add_axes(rectunapply)
 		filterAxs['apply'] = figfilter.add_axes(rectapply)
 		filterAxs['band'] = figfilter.add_axes(rectband)
+		filterAxs['reversepass'] = figfilter.add_axes(rectreversepass)
 
 		self.figfilter.text(0.3, 0.97, 'Order:')
 		self.figfilter.text(0.6, 0.97, 'Filter Type:')
+		self.figfilter.text(0.72, 0.97, 'Run Reverse:')
 
 		# frequencies used to compute butterworth filter displayed here
 		filterAxs['Info'] = figfilter.add_axes(rectinfo)
@@ -1023,7 +1039,7 @@ class PickPhaseMenuMore:
 
 	def ccim(self, event):
 		# running ICCS-A will erase everything you did. Make sure the user did not hit it by mistake
-		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase any picks past t1. \nAre you sure?")
 
 		if shouldRun:
 			""" Run iccs with time window from final stack. Time picks: hdrini, hdrmed.
@@ -1045,7 +1061,7 @@ class PickPhaseMenuMore:
 			return
 
 		"""running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake"""
-		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase everything you manually selected. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase any picks past t2 and will recalculate all t2 values. \nAre you sure?")
 		
 		if shouldRun:
 			self.cchdrs = hdrfin, hdrfin
@@ -1217,6 +1233,7 @@ def getDataOpts():
 	filterParameters['lowFreq'] = 0.05
 	filterParameters['highFreq'] = 0.25
 	filterParameters['order'] = 2
+	filterParameters['reversepass'] = False
 	opts.filterParameters = filterParameters
 
 	# override defaults if already set in SAC files
@@ -1296,11 +1313,12 @@ def getAxes(opts):
 	yfron = y1 - dy*0
 	yprev = y1 - dy*1
 	ynext = y1 - dy*2
-	yzoba = y1 - dy*3
-	yshdo = y1 - dy*4
-	yshfp = y1 - dy*5
-	yshod = y1 - dy*6
-	yquit = y1 - dy*7
+	ylast = y1 - dy*3
+	yzoba = y1 - dy*4
+	yshdo = y1 - dy*5
+	yshfp = y1 - dy*6
+	yshod = y1 - dy*7
+	yquit = y1 - dy*8
 
 	ysac2 = yquit - dy*1.5
 	ysort = ysac2 - dy
@@ -1310,6 +1328,7 @@ def getAxes(opts):
 	rectfron = [xm, yfron, xx, yy]
 	rectprev = [xm, yprev, xx, yy]
 	rectnext = [xm, ynext, xx, yy]
+	rectlast = [xm, ylast, xx, yy]
 	rectzoba = [xm, yzoba, xx, yy]
 	rectshdo = [xm, yshdo, xx, yy] #save headers only
 	rectshfp = [xm, yshfp, xx, yy] #save headers and filter params
@@ -1333,6 +1352,7 @@ def getAxes(opts):
 	axs['Fron'] = fig.add_axes(rectfron)
 	axs['Prev'] = fig.add_axes(rectprev)
 	axs['Next'] = fig.add_axes(rectnext)
+	axs['Last'] = fig.add_axes(rectlast)
 	axs['Zoba'] = fig.add_axes(rectzoba)
 	axs['Shdo'] = fig.add_axes(rectshdo)
 	axs['Shfp'] = fig.add_axes(rectshfp)

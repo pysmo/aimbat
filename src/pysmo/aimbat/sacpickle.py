@@ -580,6 +580,19 @@ def loadData(ifiles, opts, para):
 			if int(round(sacdh0.npts * sacdh0.delta * srate)) != sacdh0.npts:
 				gsac.resampleData(1./srate)
 		opts.delta = gsac.saclist[0].delta
+
+	# warn user if sampling rates are inconsistent
+	class BreakIt(Exception): pass
+	length_of_saclist = len(gsac.saclist)
+	try:
+		for k in range(length_of_saclist):
+			for j in range(length_of_saclist):
+				if gsac.saclist[k].delta - gsac.saclist[j].delta > 0.01:
+					print('WARNING: sampling rates inconsistent. If sampling rates not all equal, errors in cross correlation may occur.')
+					raise BreakIt
+	except BreakIt:
+		pass
+
 	print ('Read {0:d} seismograms with sampling interval: {1:f}s'.format(len(gsac.saclist), opts.delta))
 	return gsac 
 

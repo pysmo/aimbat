@@ -133,10 +133,10 @@ def corread(saclist, ipick, timewindow, taperwindow, tapertype):
 	if -12345.0 in reftimes:
 		print ('Not all seismograms has ipick={0:s} set. Exit.'.format(ipick))
 		sys.exit()
+		#return
 	nstart, ntotal = windowIndex(saclist, reftimes, timewindow, taperwindow)
 	windata = windowData(saclist, nstart, ntotal, taperwidth, tapertype)
 	return windata, reftimes
-
 
 def corrmax(datai, timei, dataj, timej, mcpara):
 	""" 
