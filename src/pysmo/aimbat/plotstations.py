@@ -2,8 +2,12 @@ import matplotlib
 matplotlib.rcParams['backend'] = "TkAgg"
 import math, sys, os
 import matplotlib.pyplot as py
-from mpl_toolkits.basemap import Basemap
 import numpy as np
+try:
+ from mpl_toolkits.basemap import Basemap
+ basemapthere=True
+except:
+ basemapthere=False
 
 class PlotStations:
 
@@ -17,7 +21,7 @@ class PlotStations:
 
 	def plot_stations(self, gsac):
 		figStation = py.figure('SeismoStations', figsize=(16, 12))
-		figStation.suptitle('Seismo Stations', fontsize=20)
+		figStation.suptitle('Seismic Stations', fontsize=20)
 
 		# lower-left/upper-right corners for the cascades domain.
 		minLat, minLon, maxLat, maxLon = self.bounding_rectangle()
@@ -25,20 +29,34 @@ class PlotStations:
 		# Central lat/lon coordinates.
 		centerLat = 0.5 * (minLat + maxLat)
 		centerLon = 0.5 * (minLon + maxLon)
+		
+                qLat = min(abs(minLat),abs(maxLat))
+                h = 1.2*6370997.*np.radians(maxLat-minLat)
+                w = 1.1*6370997.*np.radians(maxLon-minLon)*np.cos(np.radians(qLat))
 
-		#make the basemap for cascades region
-		ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
-		            urcrnrlon=maxLon, urcrnrlat= maxLat,
+		#make the basemap 
+		if basemapthere:
+		  #ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
+		  #            urcrnrlon=maxLon, urcrnrlat= maxLat,
+		  ax = Basemap(width=w,
+		            height=h, 
 		            resolution='i',
 		            area_thresh=1000., projection='lcc',
 		            lat_0=centerLat, lon_0=centerLon)
-
-		ax.drawstates()
-		ax.drawcountries()
-		ax.drawcoastlines()   
+		  ax.drawstates()
+		  ax.drawcountries()
+		  ax.drawcoastlines()   
+		  py.xlabel('Black triangles: deleted stations\n Red Points: selected stations')   
+		else:
+                  simplexmin=minLon-1.
+                  simplexmax=maxLon+1.
+                  simpleymin=minLat-1.
+                  simpleymax=maxLat+1.
+		  ax = figStation.add_subplot(111)
+		  ax.axis([simplexmin,simplexmax,simpleymin,simpleymax])
+		  py.xlabel('Black triangles: deleted stations\n Red Points: selected stations\n No coastline because Basemap module not found')   
 
 		py.title(self.plotname)  
-		py.xlabel('Black triangles: deleted stations\n Red Points: selected stations')   
 
 		# plot stations
 		if hasattr(gsac, 'delay_times'):
@@ -88,7 +106,10 @@ class PlotStations:
 		for sacdh in self.selist:
 			selected_lon.append(sacdh.stlo)
 			selected_lat.append(sacdh.stla)
-		axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c='r', picker=True)
+		if basemapthere:
+		  axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c='r', picker=True)
+		else:
+		  axes_handle.scatter(selected_lon, selected_lat, s=50, marker='o', c='r', picker=True)
 
 	def plot_selected_stations_color_delay_times(self, axes_handle, delay_times):
 		selected_lon = [] 
@@ -97,7 +118,10 @@ class PlotStations:
 			selected_lon.append(sacdh.stlo)
 			selected_lat.append(sacdh.stla)
 		cm = py.cm.get_cmap('seismic')
-		sc = axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c=delay_times, picker=True, cmap=cm)
+		if basemapthere:
+		  sc = axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c=delay_times, picker=True, cmap=cm)
+		else:
+		  sc = axes_handle.scatter(selected_lon, selected_lat, s=50, marker='o', c=delay_times, picker=True, cmap=cm)
 		py.colorbar(sc)
 
 	def plot_deleted_stations(self, axes_handle):
@@ -106,16 +130,8 @@ class PlotStations:
 		for sacdh in self.delist:
 			deleted_lon.append(sacdh.stlo)
 			deleted_lat.append(sacdh.stla)
-		axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='^', c='k', picker=True)
-
-
-
-
-
-
-
-
-
-
-
+		if basemapthere:
+ 		  axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='^', c='k', picker=True)
+		else:
+ 		  axes_handle.scatter(deleted_lon, deleted_lat, s=50, marker='^', c='k', picker=True)
 
