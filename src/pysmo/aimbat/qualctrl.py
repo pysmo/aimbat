@@ -167,7 +167,7 @@ class PickPhaseMenuMore:
 		trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
 		font = FontProperties()
 		font.set_family('monospace')
-		axpp.text(1.025, 0, ' '*8+'qual= CCC/SNR/COH', transform=trans, va='center', 
+		axpp.text(1.025, 0, ' '*8+'qual= MCCC/CCC/SNR/COH', transform=trans, va='center', 
 			color='k', fontproperties=font)
 
 	def plotStack(self):
@@ -1109,7 +1109,7 @@ class PickPhaseMenuMore:
 		mcpara.evline = evline
 		mcpara.mcname = mcname
 		mcpara.kevnm = gsac.kevnm
-		solution, solist_LonLat, delay_times = mccc(gsac, mcpara)
+		solution, solist_LonLat, delay_times, itmean = mccc(gsac, mcpara)
 		self.gsac.solist_LonLat = solist_LonLat
 		self.gsac.delay_times = delay_times
 

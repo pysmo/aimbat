@@ -85,6 +85,49 @@ end subroutine xcorr_full
 
 
 !!!---------------------------------------------------------------------!!!
+subroutine xcorr_full_polarity(x, y, n, shift, delay, ccmax, ccpol)
+! Cross-correlation of array x and y.
+! It does not correct the polarity, meaning it does only calculate the maximum value of cross correlation, not including minimum, which is different from xcorr_full
+! Return time shift, correlation coefficient, and polarity at maximum correlation.
+implicit none
+real(8) :: crosscorr
+integer :: n, shift, delay, ccpol
+real(8), dimension(0:n-1) :: x, y
+real(8) :: cc, ccmax, ccmin
+integer :: k, kmin
+!f2py intent(in)  :: x, y, n, shift
+!f2py intent(out) :: delay, ccmax, ccpol
+!f2py intent(hide):: c, k, kmin, ccmin
+
+shift = 1
+ccmax = 0
+ccmin = 0
+kmin = 0
+do k = -n+1,n-1,shift
+    cc = crosscorr(x,y,n,k)   
+    if (cc.gt.ccmax) then
+        ccmax = cc
+        delay = k
+    endif
+    if (cc.lt.ccmin) then
+        ccmin = cc
+        kmin = k
+    endif
+enddo
+! if (ccmax.gt.-ccmin) then
+!     ccpol = 1
+! else
+!     ccmax = -ccmin
+!     delay = kmin
+!     ccpol = -1
+ccpol = 1
+ccmax = ccmax/sqrt( dot_product(x,x) * dot_product(y,y) )
+
+end subroutine xcorr_full_polarity
+!!!---------------------------------------------------------------------!!!
+
+
+!!!---------------------------------------------------------------------!!!
 subroutine xcorr_fast(x, y, n, shift, delay, ccmax, ccpol)
 ! Fast cross-correlation using 1 level of coarse shift.
 implicit none
