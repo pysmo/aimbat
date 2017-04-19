@@ -372,6 +372,7 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc, invdata):
 	itmean = mean(reftimes)
 	for i in range(nsta):
 		wt = itmean + solution[i,0]
+		solist[i].sethdr('user5', solution[i,0])
 		solist[i].sethdr(wpick, wt)
 	t0_times = [sacdh.gethdr('t0') for sacdh in solist]
 	delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in xrange(nsta)]

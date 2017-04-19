@@ -204,7 +204,7 @@ class PickPhase:
 			cc = sacdh.gethdr(hdrcc)
 			sn = sacdh.gethdr(hdrsn)
 			co = sacdh.gethdr(hdrco)
-                        mc = sacdh.gethdr('user3')
+                        mc = sacdh.gethdr('user5')
 			slab += 'qual={0:5.3f}/{1:4.2f}/{2:.1f}/{3:4.2f}'.format(mc, cc, sn, co)
 		trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
 		font = FontProperties()
@@ -464,8 +464,8 @@ class PickPhaseMenu():
 		colors = [[None,] * npsel , [None,] * npdel]
 		for j in range(2):
 			for k in range(nsede[j]):
-                                plists[j][k].users[3] = plists[j][k].thdrs[3] - self.itmean
-                                dt = plists[j][k].users[3]
+                                #plists[j][k].users[3] = plists[j][k].thdrs[3] - self.itmean
+                                dt = plists[j][k].users[5]
 				if plists[j][k].selected:
                                         if abs(dt) > 10000 or abs(dt) < threshd[0]:
                                                 colors[j][k] = colsel
