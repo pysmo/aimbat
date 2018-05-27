@@ -21,7 +21,7 @@ Create parser for command line arguments and options.
 
 
 import os
-from ConfigParser	import ConfigParser
+from configparser	import ConfigParser
 from optparse 		import OptionParser
 
 
@@ -139,7 +139,7 @@ class CCConfig:
 		modu = config.get('iccs', 'xcorr_modu')
 		func = config.get('iccs', 'xcorr_func')
 		cmd = 'from %s import %s; xcorr=%s'	% (modu, func, func)
-		exec cmd
+		exec(cmd)
 		self.xcorr = xcorr
 		self.xcorr_modu = modu
 		self.xcorr_func = func
@@ -172,7 +172,7 @@ class MCConfig:
 		modu = config.get('mccc', 'xcorr_modu')
 		func = config.get('mccc', 'xcorr_func')
 		cmd = 'from %s import %s; xcorr=%s'	% (modu, func, func)
-		exec cmd
+		exec(cmd)
 		self.xcorr = xcorr
 		self.xcorr_modu = modu
 		self.xcorr_func = func

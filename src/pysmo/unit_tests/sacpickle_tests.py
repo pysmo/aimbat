@@ -30,12 +30,11 @@ class sacpickleModel(unittest.TestCase):
         self.assertEqual(len(gsac2.selist), len(gsac1.selist))
         self.assertEqual(len(gsac2.delist), len(gsac1.delist))
         self.assertEqual(len(gsac2.saclist), len(gsac1.saclist))
-
+        
     def test_fileZipMode(self):
         filemode1, zipmode1 = fileZipMode('20120115.13401954.bhz.pkl')
         self.assertEqual(filemode1, 'pkl')
         self.assertEqual(zipmode1, None)
-
         filemode2, zipmode2 = fileZipMode('20120115.13401954.bhz.pkl.gz')
         self.assertEqual(filemode2, 'pkl')
         self.assertEqual(zipmode2, 'gz')
@@ -45,15 +44,14 @@ class sacpickleModel(unittest.TestCase):
         self.assertEqual(zipmode3, None)
 
     def test_pkl2sac(self):
-    	pkfile = '20120109.04071467.bhz.pkl'
-      	zipmode = None
-
+    	    pkfile = '20120109.04071467.bhz.pkl'
+        zipmode = None
         gsac = readPickle(pkfile, zipmode)
         sacdh = gsac.saclist[0]
         dirarr = sacdh.filename.split('/')
         dirname = dirarr[0]+'/'+dirarr[1]
 
-      	pkl2sac(pkfile, zipmode)
+    	    pkl2sac(pkfile, zipmode)
 
         #sac is default folder name for sacfiles to be put to
         self.assertTrue(os.path.isdir(dirarr[0]))

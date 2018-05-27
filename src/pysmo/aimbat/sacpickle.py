@@ -4,7 +4,7 @@
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
-# Copyright (c) 2011-2012 Xiaoting Lou
+# Copyright (c) 2011-2018 Xiaoting Lou
 #------------------------------------------------
 """
 Python module for converting SAC files to python pickle data structure to increase 
@@ -74,17 +74,13 @@ http://stackoverflow.com/questions/3431419/how-to-get-unpickling-to-work-with-ip
 """
 
 
-from __future__ import with_statement
-from numpy import array, linspace, arange, mean, ones, zeros, pi, cos, concatenate
+from numpy import array, linspace, mean, ones, zeros, pi, cos, concatenate
 from scipy import signal
 from gzip import GzipFile
 from bz2  import BZ2File
 import os, sys, contextlib
-from pysmo.sac.sacio import sacfile
-try:
-	import cPickle as pickle
-except:
-	import pickle
+from sacio import sacfile
+import pickle
 
 
 # ############################################################################### #
@@ -97,7 +93,7 @@ def zipFile(zipmode='gz'):
 	""" Return file compress method: bz2 or gz.
 	"""
 	if zipmode not in (None, 'bz2', 'gz'):
-		raise ValueError, 'zipmode={:s} not in (bz2, gz)'.format(zipmode)
+		raise ValueError('zipmode={:s} not in (bz2, gz)'.format(zipmode))
 	if zipmode == 'bz2':
 		zfile = BZ2File
 	elif zipmode == 'gz':
@@ -118,29 +114,54 @@ def fileZipMode(ifilename):
 		zipmode = None
 	return filemode, zipmode
 
+#def writePickle(d, picklefile, zipmode=None):
+#	""" Write python objects to pickle file and compress with highest protocal (binary) if zipmode is not None.
+#	"""
+#	if zipmode is None:
+#		with contextlib.closing(open(picklefile, 'w')) as f:
+#			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
+#	else:
+#		zfile = zipFile(zipmode)
+#		with contextlib.closing(zfile(picklefile+'.'+zipmode, 'wb')) as f:
+#			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
+#
+#	
+#def readPickle(picklefile, zipmode=None):
+#	""" Read compressed pickle file to python objects.
+#	"""
+#	if zipmode is None:
+#		with contextlib.closing(open(picklefile, 'r')) as f:
+#			d = pickle.load(f)
+#	else:
+#		zfile = zipFile(zipmode)
+#		with contextlib.closing(zfile(picklefile+'.'+zipmode, 'rb')) as f:
+#			d = pickle.load(f)
+#	return d
+
 def writePickle(d, picklefile, zipmode=None):
 	""" Write python objects to pickle file and compress with highest protocal (binary) if zipmode is not None.
 	"""
 	if zipmode is None:
-		with contextlib.closing(open(picklefile, 'w')) as f:
-			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
+		with open(picklefile, 'w') as f:
+			pickle.dump(d, f)
 	else:
 		zfile = zipFile(zipmode)
-		with contextlib.closing(zfile(picklefile+'.'+zipmode, 'wb')) as f:
-			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
-	
+		with open(zfile(picklefile+'.'+zipmode, 'wb')) as f:
+			pickle.dump(d, f)
+
 def readPickle(picklefile, zipmode=None):
 	""" Read compressed pickle file to python objects.
 	"""
 	if zipmode is None:
-		with contextlib.closing(open(picklefile, 'r')) as f:
+		with open(picklefile, 'r') as f:
 			d = pickle.load(f)
 	else:
 		zfile = zipFile(zipmode)
-		with contextlib.closing(zfile(picklefile+'.'+zipmode, 'rb')) as f:
+		with open(zfile(picklefile+'.'+zipmode, 'rb')) as f:
 			d = pickle.load(f)
 	return d
 
+            
 # ############################################################################### #
 #                                                                                 #
 #                         MANIPULATING PICKLE FILES                               #
@@ -197,15 +218,17 @@ class SacDataHdrs:
 		self.npts = len(self.data)
 		self.b = isac.b
 		self.e = isac.e
-                self.o = isac.o
+		self.o = isac.o
 		self.kstnm = isac.kstnm
 		self.knetwk = isac.knetwk
 		net = isac.knetwk.rstrip()
 		sta = isac.kstnm.rstrip()
+		print(isac)
+		print(sta)
 		self.netsta = net + '.' + sta
-                self.cmpaz = isac.cmpaz
-                self.cmpinc = isac.cmpinc
-                self.kcmpnm = isac.kcmpnm
+		self.cmpaz = isac.cmpaz
+		self.cmpinc = isac.cmpinc
+		self.kcmpnm = isac.kcmpnm
 		isac.close()
 
 	def resampleData(self, delta):
@@ -267,14 +290,15 @@ class SacDataHdrs:
 		if os.path.isfile(self.filename):
 			sacobj = sacfile(self.filename, 'rw')
 		else:
-                        fspl = self.filename.split('/')
-                        if len(fspl) > 1: os.system('mkdir -p '+ '/'.join(fspl[:-1]))
+			fspl = self.filename.split('/')
+		if len(fspl) > 1:
+			os.system('mkdir -p '+ '/'.join(fspl[:-1]))
 			sacobj = sacfile(self.filename, 'new')
 			sacobj.stla =  0
 			sacobj.stlo =  0
 			sacobj.stel =  0
-                hdrs = ['o', 'b', 'npts', 'data', 'delta', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
-                hdrs += ['cmpaz', 'cmpinc', 'kcmpnm']
+			hdrs = ['o', 'b', 'npts', 'data', 'delta', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
+			hdrs += ['cmpaz', 'cmpinc', 'kcmpnm']
 		for hdr in hdrs:
 			sacobj.__setattr__(hdr, self.__dict__[hdr])
 		self.savehdrs(sacobj)
@@ -316,12 +340,12 @@ class SacGroup:
 		except:
 			mag = 0.
 		self.event = [ year, mon, day, isac.nzhour, isac.nzmin, isac.nzsec+isac.nzmsec*0.001, isac.evla, isac.evlo, isac.evdp*0.001, mag ]
-                self.idep = isac.idep
-                self.iztype = isac.iztype
-                try:
-                    self.kevnm = isac.kevnm
-                except:
-                    self.kevnm = 'unknown'
+		self.idep = isac.idep
+		self.iztype = isac.iztype
+		try:
+			self.kevnm = isac.kevnm
+		except:
+			self.kevnm = 'unknown'
 		isac.close()
 		if delta > 0:
 			self.resampleData(delta)
@@ -367,25 +391,25 @@ def obj2sac(gsac):
 	"""
 	for sacdh in gsac.saclist:
 		sacdh.savesac()
-        # save more headers 
-        nzyear, mon, day, nzhour, nzmin, nzsec, evla, evlo, evdp, mag = gsac.event
-        kevnm = gsac.kevnm
-        idep = gsac.idep
-        iztype = gsac.iztype
-        nzjday = date2jul(nzyear, mon, day)
-        nzmsec = int(round((nzsec - int(nzsec))*1000))
-        nzsec = int(nzsec)
-#        evdp *= 1000
-#        stla, stlo, stel = gsac.stadict[sacdh.netsta]
-#        stel *= 1000
-        hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec', 'evla', 'evlo', 'evdp', 'mag', ]
-#        hdrs += ['stla', 'stlo', 'stel' ]
-        hdrs += ['kevnm', 'idep', 'iztype']
-        for sacdh in gsac.saclist:
-                sacobj = sacfile(sacdh.filename, 'rw')
-                for hdr in hdrs:
-                        sacobj.__setattr__(hdr, eval(hdr))
-	        sacobj.close()
+		# save more headers 
+		nzyear, mon, day, nzhour, nzmin, nzsec, evla, evlo, evdp, mag = gsac.event
+		kevnm = gsac.kevnm
+		idep = gsac.idep
+		iztype = gsac.iztype
+		nzjday = date2jul(nzyear, mon, day)
+		nzmsec = int(round((nzsec - int(nzsec))*1000))
+		nzsec = int(nzsec)
+#		evdp *= 1000
+#		stla, stlo, stel = gsac.stadict[sacdh.netsta]
+#		stel *= 1000
+		hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec', 'evla', 'evlo', 'evdp', 'mag', ]
+#		hdrs += ['stla', 'stlo', 'stel' ]
+		hdrs += ['kevnm', 'idep', 'iztype']
+		for sacdh in gsac.saclist:
+				sacobj = sacfile(sacdh.filename, 'rw')
+				for hdr in hdrs:
+						sacobj.__setattr__(hdr, eval(hdr))
+				sacobj.close()
 	if 'stkdh' in gsac.__dict__:
 		gsac.stkdh.savesac()
 
@@ -441,7 +465,7 @@ def taper(data, taperwidth=0.1, tapertype='hanning'):
 	elif tapertype == 'cosine':
 		f0, f1, w = 1, 1, pi/taperlen/2
 	else:
-		print 'Unknown taper type: %s ! Exit' % tapertype
+		print(('Unknown taper type: {:s} ! Exit'.format(tapertype)))
 		sys.exit(1)
 	for i in range(npts):
 		if i <= taperlen:
@@ -460,7 +484,7 @@ def taperWindow(timewindow, taperwidth=0.1):
 def windowIndex(saclist, reftimes, timewindow=(-5.0,5.0), taperwindow=1.0):
 	""" Calculate indices for cutting data at a time window and taper window.
 		Indices nstart and notal bound the entire window, which is sum of time window and taper window.
-		Only the taper window part of data is tapered:            __-----------__
+		Only the taper window part of data is tapered:		    __-----------__
 		The original MCCC code defines taper window differently:  ____-------____
 		Parameters
 		----------
@@ -497,7 +521,7 @@ def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 			na0 = max(0, na)
 			nb0 = min(nb,nd)
 			data = concatenate((zpada, sacd[na0:nb0], zpadb))
-			print (saclist[i].netsta+': not enough sample around reftime. Pad left {0:d} right {1:d} zeros'.format(len(zpada),len(zpadb)))
+			print((saclist[i].netsta+': not enough sample around reftime. Pad left {0:d} right {1:d} zeros'.format(len(zpada),len(zpadb))))
 		data -= mean(data)
 		data = taper(data, taperwidth, tapertype)
 		datawin.append(data)
@@ -593,7 +617,7 @@ def loadData(ifiles, opts, para):
 	except BreakIt:
 		pass
 
-	print ('Read {0:d} seismograms with sampling interval: {1:f}s'.format(len(gsac.saclist), opts.delta))
+	print(('Read {0:d} seismograms with sampling interval: {1:f}s'.format(len(gsac.saclist), opts.delta)))
 	return gsac 
 
 
