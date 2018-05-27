@@ -102,8 +102,8 @@ def sortSeisQual(saclist, qheaders, qweights, qfactors, increase=True):
 		out2 += '%s*1/3+' % qf
 	out1 = out1[:-2]
 	out2 = out2[:-1] + ' = %.2f' % mean(qmeans)
-	print out1
-	print out2
+	print(out1)
+	print(out2)
 	return sorselist, sordelist
 
 

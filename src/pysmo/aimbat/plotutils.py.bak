@@ -116,27 +116,27 @@ def indexBaseTick(na, nb, pagesize, pna):
 	npagea, npageb = 0, 0
 	if ma > 0: npagea = ma/pagesize + sign(ma%pagesize)
 	if mb > 0: npageb = mb/pagesize + sign(mb%pagesize)
-	ipages = list(range(-npageb, npagea+1))
+	ipages = range(-npageb, npagea+1)
 	### yindex for page 0:
 	yindex = {}
 	ybases = {}
 	yticks = {}
 	ia1 = min(pna, na)
 	ib0 = max(0, nb-pnb)
-	inda = list(range(ia1))
-	indb = list(range(ib0, nb))
+	inda = range(ia1)
+	indb = range(ib0, nb)
 	yindex[0] = [inda, indb]
 	# positive page:
 	for ipage in range(1, npagea+1):
 		i1 = pna + ipage * pagesize
 		i0 = i1 - pagesize
-		inda = list(range(i0, min(i1, na)))
+		inda = range(i0, min(i1, na))
 		yindex[ipage] = [inda, []]
 	# negative page:
 	for ipage in range(-npageb, 0):
 		i1 = ib0 + ipage * pagesize + pagesize
 		i0 = max(0, i1-pagesize)
-		indb = list(range(i0, i1))
+		indb = range(i0, i1)
 		yindex[ipage] = [[], indb]
 	for ipage in range(-npageb, npagea+1):
 		#print 'page ', ipage, yindex[ipage]
