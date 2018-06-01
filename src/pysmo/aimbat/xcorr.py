@@ -94,11 +94,10 @@ def xcorr_fast(x, y, shift=10):
 	Fast cross-correlation of two time series of the same length.
 	One level of coarse shift by downsampling the signal.
 	"""
-	n = len(x)
 	sx = x[::shift]
 	sy = y[::shift]
 	delay, ccmax, ccpol = _xcorr(sx, sy, 'same')
-	lags = range(delay-shift, delay+shift+1, 1)
+	lags = list(range(delay-shift, delay+shift+1, 1))
 	delay, ccmax, ccpol = xcorr_select(x, y, lags)
 	return delay, ccmax, ccpol
 
@@ -106,7 +105,7 @@ def xcorr_faster(x, y, shift=10):
 	""" 
 	Faster cross-correlation only for time lags around zero.
 	"""
-	lags = range(-shift, shift+1, 1)
+	lags = list(range(-shift, shift+1, 1))
 	delay, ccmax, ccpol = xcorr_select(x, y, lags)
 	return delay, ccmax, ccpol
 

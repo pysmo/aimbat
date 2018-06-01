@@ -152,7 +152,7 @@ def ccWeightStack(saclist, opts):
 	coh = zeros(nseis)
 	wgts = ones(nseis)
 	stkdata = []
-	for it in range(maxiter):
+	for it in list(range(maxiter)):
 		# recut data and update array stack
 		nstart, ntotal = windowIndex(saclist, tfins, twcorr, taperwindow)
 		windata = windowData(saclist, nstart, ntotal, taperwidth, tapertype)
@@ -169,7 +169,7 @@ def ccWeightStack(saclist, opts):
 		# Find time lag at peak correlation between each trace and the array stack.
 		# Calculate cross correlation coefficient, signal/noise ratio and temporal coherence
 		sdatanorm = sdata/LA.norm(sdata)
-		for i in range(nseis):
+		for i in list(range(nseis)):
 			datai = windata[i]
 			delay, ccmax, ccpol = corrmax(sdata, datai, delta, xcorr, shift)
 			tfins[i] += delay
@@ -185,7 +185,7 @@ def ccWeightStack(saclist, opts):
 			sacdh.sethdr(hdrcoh, coh[i])
 	# get maximum time window for plot (excluding taperwindow)
 	bb, ee = [], []
-	for i in range(nseis):
+	for i in list(range(nseis)):
 		sacdh = saclist[i]
 		b = sacdh.b - tfins[i]
 		e = b + (sacdh.npts-1)* delta
@@ -281,7 +281,7 @@ def coherence(datai, datas):
 def plotiter(stkdata):
 	import matplotlib.pyplot as plt
 	plt.figure()
-	for i in range(len(stkdata)):
+	for i in list(range(len(stkdata))):
 		plt.plot(stkdata[i], label='iter'+str(i))
 	plt.legend()
 	plt.show()
@@ -302,7 +302,7 @@ def autoiccs(gsac, opts):
 		stkdh, stkdata, quas = ccWeightStack(selist, opts)
 		tquas = transpose(quas)
 		indsel, inddel = [], []
-		for i in range(len(selist)):
+		for i in list(range(len(selist))):
 			sacdh = selist[i]
 			ccc, snr, coh = tquas[i]
 			if ccc < minccc or snr < minsnr or coh < mincoh:
@@ -321,7 +321,8 @@ def autoiccs(gsac, opts):
 	nsel = len(selist)
 	print ('\nDone selecting seismograms: {0:d} out of {1:d} selected.'.format(nsel, len(saclist)))
 
-	save = raw_input('Save to file? [y/n] \n')
+#	save = raw_input('Save to file? [y/n] \n')
+	save = input('Save to file? [y/n] \n')
 	if save[0].lower() == 'y':
 		if opts.filemode == 'sac':
 			for sacdh in saclist: sacdh.writeHdrs()
@@ -347,7 +348,7 @@ def checkCoverage(gsac, opts, textra=0.0):
 	saclist = gsac.saclist
 	nsac = len(saclist)
 	indsel, inddel = [], []
-	for i in range(nsac):
+	for i in list(range(nsac)):
 		sacdh = saclist[i]
 		t0 = sacdh.gethdr(ipick)
 		b = sacdh.b

@@ -1140,8 +1140,8 @@ class PickPhaseMenuMore:
 		opts.twin_on = False
 		opts.pick_on = False
 		ax0 = fig2.add_subplot(npick,1,1)
-		axsacs = [ ax0 ] + [ fig2.add_subplot(npick,1,i+1, sharex=ax0) for i in range(1, npick) ]
-		for i in range(npick):
+		axsacs = [ ax0 ] + [ fig2.add_subplot(npick,1,i+1, sharex=ax0) for i in list(range(1, npick)) ]
+		for i in list(range(npick)):
 			opts.reltime = int(tpicks[i][1])
 			ax = axsacs[i]
 			sacp2(selist, opts, ax)
@@ -1187,7 +1187,7 @@ def sortSeis(gsac, opts):
 		ipick = opts.qcpara.ichdrs[0]
 		wpick = 't'+str(opts.reltime)
 		if ipick == wpick:
-			print(('Same time pick: {0:s} and {1:s}. Exit'.format(ipick, wpick)))
+			print('Same time pick: {0:s} and {1:s}. Exit'.format(ipick, wpick))
 			sys.exit()
 		gsac.selist, gsac.delist = sortSeisHeaderDiff(gsac.saclist, ipick, wpick, sortincrease)
 	elif sortby.isdigit() or sortby in opts.qheaders + ['all',]: # by quality factors

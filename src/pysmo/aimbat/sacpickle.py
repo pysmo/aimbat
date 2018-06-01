@@ -187,7 +187,7 @@ class SacDataHdrs:
 		thdrs  = [-12345.,] * nthdr
 		users  = [-12345.,] * nthdr
 		kusers = ['-12345  ',] * nkhdr
-		for i in range(nthdr):
+		for i in list(range(nthdr)):
 			try:
 				thdrs[i] = isac.__getattr__('t'+str(i))
 			except:
@@ -196,7 +196,7 @@ class SacDataHdrs:
 				users[i] = isac.__getattr__('user'+str(i))
 			except:
 				pass
-		for i in range(nkhdr):
+		for i in list(range(nkhdr)):
 			try:
 				kusers[i] = isac.__getattr__('kuser'+str(i))#.rstrip()
 			except:
@@ -225,7 +225,6 @@ class SacDataHdrs:
 		# bytes != str in py3 and need to decode/encode
 		net = isac.knetwk.rstrip().decode()
 		sta = isac.kstnm.rstrip().decode()
-		print(type(net),type(sta),net,sta)
 		self.netsta = net + '.' + sta
 		self.cmpaz = isac.cmpaz
 		self.cmpinc = isac.cmpinc
@@ -280,9 +279,9 @@ class SacDataHdrs:
 		thdrs, users, kusers = self.thdrs, self.users, self.kusers
 		nthdr = 10
 		nkhdr = 3
-		for i in range(nkhdr):
+		for i in list(range(nkhdr)):
 			sacobj.__setattr__('kuser'+str(i), kusers[i])
-		for i in range(nthdr):
+		for i in list(range(nthdr)):
 			sacobj.__setattr__('t'+str(i), thdrs[i])
 			sacobj.__setattr__('user'+str(i), users[i])		
 		
@@ -394,12 +393,12 @@ def obj2sac(gsac):
 		sacdh.savesac()
 		# save more headers 
 		nzyear, mon, day, nzhour, nzmin, nzsec, evla, evlo, evdp, mag = gsac.event
-		kevnm = gsac.kevnm
-		idep = gsac.idep
-		iztype = gsac.iztype
-		nzjday = date2jul(nzyear, mon, day)
-		nzmsec = int(round((nzsec - int(nzsec))*1000))
-		nzsec = int(nzsec)
+#		kevnm = gsac.kevnm
+#		idep = gsac.idep
+#		iztype = gsac.iztype
+#		nzjday = date2jul(nzyear, mon, day)
+#		nzmsec = int(round((nzsec - int(nzsec))*1000))
+#		nzsec = int(nzsec)
 #		evdp *= 1000
 #		stla, stlo, stel = gsac.stadict[sacdh.netsta]
 #		stel *= 1000
@@ -433,7 +432,7 @@ def date2jul(year, mon, day):
 	""" date --> julian day """
 	idays = _days(year)
 	jday = 0
-	for i in range(mon-1):
+	for i in list(range(mon-1)):
 		jday += idays[i]
 	jday += day
 	return jday
@@ -468,7 +467,7 @@ def taper(data, taperwidth=0.1, tapertype='hanning'):
 	else:
 		print(('Unknown taper type: {:s} ! Exit'.format(tapertype)))
 		sys.exit(1)
-	for i in range(npts):
+	for i in list(range(npts)):
 		if i <= taperlen:
 			taperdata[i] = f0 - f1 * cos(w*i)
 		elif i >= npts-taperlen:
@@ -501,7 +500,7 @@ def windowIndex(saclist, reftimes, timewindow=(-5.0,5.0), taperwindow=1.0):
 	tw0, tw1 = timewindow
 	twleft = tw0 - taperwindow*.5
 	ntotal = int(round((tw1-tw0+taperwindow)/delta)) + 1
-	nstart = [ int(round((twleft+reftimes[i]-saclist[i].b)/delta)) for i in range(nseis) ] 
+	nstart = [ int(round((twleft+reftimes[i]-saclist[i].b)/delta)) for i in list(range(nseis)) ] 
 	return nstart, ntotal
 
 def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
@@ -510,7 +509,7 @@ def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 	"""
 	nseis = len(saclist)
 	datawin = []
-	for i in range(nseis):
+	for i in list(range(nseis)):
 		sacd = saclist[i].data
 		na = nstart[i] 
 		nb = na + ntotal
@@ -534,7 +533,7 @@ def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 	nseis = len(saclist)
 	delta = saclist[0].delta
 	timewin = []
-	for i in range(nseis):
+	for i in list(range(nseis)):
 		sacdh = saclist[i]
 		ta = sacdh.b + nstart[i]*delta
 		tb = ta + ntotal*delta
@@ -548,7 +547,7 @@ def windowTimeData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 	nseis = len(saclist)
 	delta = saclist[0].delta
 	timecut, datacut = [], []
-	for i in range(nseis):
+	for i in list(range(nseis)):
 		sacdh = saclist[i]
 		na = nstart[i] 
 		nb = na + ntotal
@@ -610,8 +609,8 @@ def loadData(ifiles, opts, para):
 	class BreakIt(Exception): pass
 	length_of_saclist = len(gsac.saclist)
 	try:
-		for k in range(length_of_saclist):
-			for j in range(length_of_saclist):
+		for k in list(range(length_of_saclist)):
+			for j in list(range(length_of_saclist)):
 				if gsac.saclist[k].delta - gsac.saclist[j].delta > 0.01:
 					print('WARNING: sampling rates inconsistent. If sampling rates not all equal, errors in cross correlation may occur.')
 					raise BreakIt

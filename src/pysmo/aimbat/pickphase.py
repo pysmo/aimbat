@@ -180,7 +180,7 @@ class PickPhase:
 		else:
 			f = opts.fill
 			fplus, fnega, = [], []
-			for i in range(len(x)):
+			for i in list(range(len(x))):
 				if f*y[i] > 0:
 					fplus.append(True)
 					fnega.append(False)
@@ -299,7 +299,7 @@ class PickPhase:
 		lss = pppara.pickstyles
 		thdrs = np.array(sacdh.thdrs) - sacdh.reftime
 		timepicks = [None]*npick
-		for i in range(npick):
+		for i in list(range(npick)):
 			tpk = thdrs[i]
 			ia = int(i%ncol)
 			ib = int(i/ncol)
@@ -445,9 +445,9 @@ class PickPhaseMenu():
 		ipage = self.ipage
 		ayindex, aybases, ayticks = self.ayindex, self.aybases, self.ayticks
 		sedelist = self.sedelist
-		plists = [ [ sedelist[j][k] for k in ayindex[ipage][j] ] for j in range(2)]
-		pbases = [ [ k              for k in aybases[ipage][j] ] for j in range(2)]
-		pticks = [ [ k              for k in ayticks[ipage][j] ] for j in range(2)]
+		plists = [ [ sedelist[j][k] for k in ayindex[ipage][j] ] for j in list(range(2)) ]
+		pbases = [ [ k              for k in aybases[ipage][j] ] for j in list(range(2)) ]
+		pticks = [ [ k              for k in ayticks[ipage][j] ] for j in list(range(2)) ]
 		npsel = len(pbases[0])
 		npdel = len(pbases[1])
 		nsede = [npsel, npdel]
@@ -455,17 +455,17 @@ class PickPhaseMenu():
 		colsel = opts.pppara.colorwave
 		coldel = opts.pppara.colorwavedel
 		colors = [[None,] * npsel , [None,] * npdel]
-		for j in range(2):
-			for k in range(nsede[j]):
+		for j in list((range(2)):
+			for k in list((range(nsede[j])):
 				if plists[j][k].selected:
 					colors[j][k] = colsel
 				else:
 					colors[j][k] = coldel
 		# plot
 		pps = []
-		for j in range(2):
+		for j in list(range(2)):
 			nsd = nsede[j]
-			for k in range(nsd):
+			for k in list(range(nsd)):
 				#linews = np.ones(nsd)
 				#alphas = np.ones(nsd)
 				pp = PickPhase(plists[j][k], opts, axpp, pbases[j][k], colors[j][k])
@@ -538,7 +538,7 @@ class PickPhaseMenu():
 		axpp.set_ylabel('Trace Number')
 		axpp.axhline(y=0, lw=2, color='r')
 		if self.opts.boundlines_on:
-			for yy in range(self.azylim[0], self.azylim[1]):
+			for yy in list(range(self.azylim[0], self.azylim[1])):
 				axpp.axhline(y=yy+0.5, color='black')
 		reltime = self.opts.reltime
 		if reltime >= 0:

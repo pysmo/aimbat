@@ -139,7 +139,7 @@ class SingleSeis:
 		else:
 			f = opts.fill
 			fplus, fnega, = [], []
-			for i in range(len(x)):
+			for i in list(range(len(x))):
 				if f*y[i] > 0:
 					fplus.append(True)
 					fnega.append(False)
@@ -182,7 +182,7 @@ class SingleSeis:
 		lss = pppara.pickstyles
 		thdrs = np.array(sacdh.thdrs) - sacdh.reftime
 		timepicks = [None]*npick
-		for i in range(npick):
+		for i in list(range(npick)):
 			tpk = thdrs[i]
 			ia = i%ncol
 			ib = i/ncol
@@ -239,7 +239,7 @@ class SingleSeisGather():
 			self.yzoom = [-self.nseis-1, 1]
 		self.labelStation()
 		yticks = self.ybases
-		ylabs = range(1 , self.nseis+1)
+		ylabs = list(range(1 , self.nseis+1))
 		self.axss.set_yticks(yticks)
 		self.axss.set_yticklabels(ylabs)
 		self.axss.set_ylabel('Trace Number')
@@ -299,7 +299,7 @@ class SingleSeisGather():
 		saclist = self.saclist
 		nseis = self.nseis
 		sss = []
-		for i in range(nseis):
+		for i in list(range(nseis)):
 			ss = SingleSeis(saclist[i], opts, axss, self.ybases[i], self.colors[i], self.linews[i], self.alphas[i])
 			sss.append(ss)
 		self.sss = sss
@@ -326,7 +326,7 @@ class SingleSeisGather():
 		trans = transforms.blended_transform_factory(axss.transAxes, axss.transData)
 		font = FontProperties()
 		font.set_family('monospace')
-		for i in range(self.nseis):
+		for i in list(range(self.nseis)):
 			axss.text(1.02, self.ybases[i], stations[i], transform=trans, va='center', 
 				color=self.colors[i], fontproperties=font)
 		if self.opts.stack_on:
@@ -562,9 +562,9 @@ def splitAxesH(fig, rect=[0.1,0.1,0.6,0.6], n=2, hspace=0, axshare=False):
 	if axshare:
 		i = 0
 		ax0 = fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)])
-		axs = [ax0] + [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)], sharex=ax0) for i in range(1,n) ]
+		axs = [ax0] + [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)], sharex=ax0) for i in list(range(1,n)) ]
 	else:
-		axs = [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)]) for i in range(n) ]
+		axs = [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)]) for i in list(range(n)) ]
 	return axs
 
 def getAxes(opts):

@@ -165,7 +165,7 @@ def corrcff_fish(ccmatrix):
 	fish += transpose(fish)
 	nsta = len(ccmatrix)
 	ccmean, ccstd = zeros(nsta), zeros(nsta)
-	for i in range(nsta):
+	for i list(in range(nsta)):
 		z = concatenate((fish[i,0:i], fish[i,i+1:nsta]))
 		mz = mean(z)
 		ccmean[i] = (exp(2*mz)-1)/(exp(2*mz)+1)
@@ -178,7 +178,7 @@ def corrcff(ccmatrix):
 	fish = ccmatrix + transpose(ccmatrix)
 	nsta = len(ccmatrix)
 	ccmean, ccstd = zeros(nsta), zeros(nsta)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		z = concatenate((fish[i,0:i], fish[i,i+1:nsta]))
 		ccmean[i] = mean(z)
 		ccstd[i]  = std(z, ddof=1)
@@ -192,8 +192,8 @@ def correrr(dtmatrix, invmodel):
 	"""
 	nsta = len(dtmatrix)
 	resmatrix = zeros((nsta,nsta))
-	for i in range(nsta):
-		for j in range(i+1,nsta):
+	for i in list(range(nsta)):
+		for j in list(range(i+1,nsta)):
 			resmatrix[i, j] = dtmatrix[i,j] - (invmodel[i] - invmodel[j])
 	resmatrix -= transpose(resmatrix)
 	rms = sqrt(sum(resmatrix**2,0)/(nsta-2))
@@ -214,9 +214,9 @@ def corrmat(windata, reftimes, mcpara):
 	ccmatrix = zeros((nsta,nsta))
 	dtmatrix = zeros((nsta,nsta))
 	k = 0
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		datai, timei = windata[i], reftimes[i]
-		for j in range(i+1,nsta):
+		for j in list(range(i+1,nsta)):
 			dataj, timej = windata[j], reftimes[j]
 			delay, ccmax = corrmax(datai, timei, dataj, timej, mcpara)
 			invdata[k] = delay
@@ -252,7 +252,7 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
 		w = ccmatrix
 	elif wgtscheme == 'residual':
 		w = resmatrix
-	wgt = [abs(w[i,j]) for i in range(nsta) for j in range(i+1,nsta)]
+	wgt = [abs(w[i,j]) for i in list(range(nsta)) for j in list(range(i+1,nsta))]
 	wgt.append(exwt)
 	wgt = identity(nrow)*array(wgt)
 	atw = dot(transpose(invmatrix), wgt)
@@ -283,7 +283,7 @@ def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_
 
 	selist_LonLat = zeros(shape=(len(solist),2))
 	nsta = len(solist)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i], t0_times[i], delay_times[i]) )
@@ -330,7 +330,7 @@ def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
 
 	selist_LonLat = zeros(shape=(len(solist),2))
 	nsta = len(solist)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]))
@@ -368,7 +368,7 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	# set wpick	
 	wpick = mcpara.wpick
 	itmean = mean(reftimes)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		wt = itmean + solution[i,0]
 		solist[i].sethdr(wpick, wt)
 	t0_times = [sacdh.gethdr('t0') for sacdh in solist]
