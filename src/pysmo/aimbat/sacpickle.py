@@ -222,8 +222,10 @@ class SacDataHdrs:
 		self.o = isac.o
 		self.kstnm = isac.kstnm
 		self.knetwk = isac.knetwk
-		net = isac.knetwk.rstrip()
-		sta = isac.kstnm.rstrip()
+		# bytes != str in py3 and need to decode/encode
+		net = isac.knetwk.rstrip().decode()
+		sta = isac.kstnm.rstrip().decode()
+		print(type(net),type(sta),net,sta)
 		self.netsta = net + '.' + sta
 		self.cmpaz = isac.cmpaz
 		self.cmpinc = isac.cmpinc
@@ -290,14 +292,14 @@ class SacDataHdrs:
 			sacobj = sacfile(self.filename, 'rw')
 		else:
 			fspl = self.filename.split('/')
-		if len(fspl) > 1:
-			os.system('mkdir -p '+ '/'.join(fspl[:-1]))
+			if (fspl) > 1:
+				os.system('mkdir -p '+ '/'.join(fspl[:-1]))
 			sacobj = sacfile(self.filename, 'new')
 			sacobj.stla =  0
 			sacobj.stlo =  0
 			sacobj.stel =  0
-			hdrs = ['o', 'b', 'npts', 'data', 'delta', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
-			hdrs += ['cmpaz', 'cmpinc', 'kcmpnm']
+		hdrs = ['o', 'b', 'npts', 'data', 'delta', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
+		hdrs += ['cmpaz', 'cmpinc', 'kcmpnm']
 		for hdr in hdrs:
 			sacobj.__setattr__(hdr, self.__dict__[hdr])
 		self.savehdrs(sacobj)
@@ -637,3 +639,45 @@ def saveData(gsac, opts):
 	print ('SAC headers saved!')
 
 
+############################################################################## for test only
+def getOptions():
+	""" Parse arguments and options. """
+	usage = "Usage: %prog [options] <sacfile(s)>"
+	parser = OptionParser(usage=usage)
+
+	ofilename = 'sac.pkl'
+	delta = -1
+	parser.set_defaults(delta=delta)
+	parser.set_defaults(ofilename=ofilename)
+	parser.add_option('-s', '--s2p', action="store_true", dest='s2p',
+		help='Convert SAC files to pickle file. Default is True.')
+	parser.add_option('-p', '--p2s', action="store_true", dest='p2s',
+		help='Convert pickle file (save headers) to SAC files.')
+	parser.add_option('-d', '--delta',  dest='delta', type='float',
+		help='Time sampling interval. Default is %f ' % delta)
+	parser.add_option('-o', '--ofilename',  dest='ofilename', type='str',
+		help='Output filename which works only with -s option.')
+	parser.add_option('-z', '--zipmode',  dest='zipmode', type='str',
+		help='Zip mode: bz2 or gz. Default is None.')
+
+	opts, files = parser.parse_args(sys.argv[1:])
+	opts.s2p = True
+	if opts.p2s:
+		opts.s2p = False
+	if len(files) == 0:
+		print(parser.usage)
+		sys.exit()
+	return opts, files
+
+if __name__ == '__main__':
+
+	from optparse import OptionParser
+	opts, ifiles = getOptions()
+	if opts.s2p:
+		print('File conversion: sac --> pkl')
+		sac2pkl(ifiles, opts.ofilename, opts.delta, opts.zipmode)
+	elif opts.p2s:
+		print('File conversion: pkl --> sac')
+		filemode, zipmode = fileZipMode(ifiles[0])
+		for pkfile in ifiles:
+			pkl2sac(pkfile, zipmode)

@@ -227,10 +227,11 @@ class PickPhase:
 		except AttributeError:
 			print('Not a SAC file')
 		self.sacdh.selected = not self.sacdh.selected
+		# for bytes!=str in py3
 		if self.sacdh.selected:
-			self.sacdh.sethdr(self.opts.hdrsel, 'True    ')
+			self.sacdh.sethdr(self.opts.hdrsel, b'True    ')
 		else:
-			self.sacdh.sethdr(self.opts.hdrsel, 'False   ')
+			self.sacdh.sethdr(self.opts.hdrsel, b'False   ')
 		self.changeColor()
 
 	def changeColor(self):

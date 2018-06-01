@@ -114,8 +114,8 @@ def indexBaseTick(na, nb, pagesize, pna):
 	ma = na - pna
 	mb = nb - pnb
 	npagea, npageb = 0, 0
-	if ma > 0: npagea = ma/pagesize + sign(ma%pagesize)
-	if mb > 0: npageb = mb/pagesize + sign(mb%pagesize)
+	if ma > 0: npagea = ma//pagesize + sign(ma%pagesize)
+	if mb > 0: npageb = mb//pagesize + sign(mb%pagesize)
 	ipages = list(range(-npageb, npagea+1))
 	### yindex for page 0:
 	yindex = {}

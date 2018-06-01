@@ -361,8 +361,9 @@ class sacfile(object):
         headervalue = unpack(self._file_byteorder+htype, content)[0]
         # py2 ignores difference between str '...' and bytes b'...'
         # need to decode in py3 
-        if type(headervalue) is bytes:
-            headervalue = headervalue.decode()
+        # Cannot write decoded though. Decode outside of here.
+        #if type(headervalue) is bytes:
+        #    headervalue = headervalue.decode()
         if headervalue == self._headerdefaults[htype]:
             raise ValueError('Header %s is undefined' % headerfield)
         if headerfield in self._enumhead:
@@ -377,14 +378,15 @@ class sacfile(object):
         """
         if self.mode == 'ro':
             raise IOError('File %s is readonly' % self.filename)
-        pos, length, type = self._headerpars[headerfield]
+        pos, length, htype = self._headerpars[headerfield]
         if headerfield in self._enumhead:
             if headervalue in self._enumhead[headerfield]:
                 headervalue = self.enumdict[headervalue]
             else:
                 raise ValueError('%s not an allowed value for %s' % \
                 (headervalue, headerfield))
-        headervalue = pack(type, headervalue)
+        print(htype, headervalue, headerfield)
+        headervalue = pack(htype, headervalue)
         self.fh.seek(pos)
         self.fh.write(headervalue)
 
@@ -445,8 +447,8 @@ class sacfile(object):
         Setup new file and set required header fields to sane values.
         """
         for headerfield in list(self._headerpars.keys()):
-            pos, length, type = self._headerpars[headerfield]
-            default = self._headerdefaults[type]
+            pos, length, htype = self._headerpars[headerfield]
+            default = self._headerdefaults[htype]
             self.__writehead(headerfield, default)
         self.npts = 0
         self.nvhdr = 6

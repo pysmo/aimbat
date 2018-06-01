@@ -29,7 +29,7 @@ def initQual(saclist, hdrsel, qheaders):
 		if sel == '-12345  ':
 			sacdh.sethdr(hdrsel, 'True    ')
 			sacdh.selected = True
-		elif sel == 'True    ':
+		elif sel == 'True    ' or sel == b'True    ':  # for bytes in py3
 			sacdh.selected = True
 		else:
 			sacdh.selected = False
@@ -96,7 +96,7 @@ def sortSeisQual(saclist, qheaders, qweights, qfactors, increase=True):
 	out2 = 'Weighted average quality: '
 	for i in range(len(qweights)):
 		qf = qfactors[i]
-		qw = qweights[i]
+		#qw = qweights[i]
 		qm = qmeans[i]
 		out1 += '%s=%.2f, ' % (qf, qm)
 		out2 += '%s*1/3+' % qf
@@ -183,7 +183,6 @@ if __name__ == '__main__':
 	from ttconfig import QCConfig
 	from sacpickle import loadData
 	from optparse import OptionParser
-	import sys
 
 	opts, ifiles = getOptions()
 	qcpara = QCConfig()
