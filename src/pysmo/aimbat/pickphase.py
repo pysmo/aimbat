@@ -455,8 +455,8 @@ class PickPhaseMenu():
 		colsel = opts.pppara.colorwave
 		coldel = opts.pppara.colorwavedel
 		colors = [[None,] * npsel , [None,] * npdel]
-		for j in list((range(2)):
-			for k in list((range(nsede[j])):
+		for j in list(range(2)):
+			for k in list(range(nsede[j])):
 				if plists[j][k].selected:
 					colors[j][k] = colsel
 				else:

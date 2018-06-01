@@ -291,7 +291,7 @@ class SacDataHdrs:
 			sacobj = sacfile(self.filename, 'rw')
 		else:
 			fspl = self.filename.split('/')
-			if (fspl) > 1:
+			if len(fspl) > 1:
 				os.system('mkdir -p '+ '/'.join(fspl[:-1]))
 			sacobj = sacfile(self.filename, 'new')
 			sacobj.stla =  0
@@ -393,17 +393,17 @@ def obj2sac(gsac):
 		sacdh.savesac()
 		# save more headers 
 		nzyear, mon, day, nzhour, nzmin, nzsec, evla, evlo, evdp, mag = gsac.event
-#		kevnm = gsac.kevnm
-#		idep = gsac.idep
-#		iztype = gsac.iztype
-#		nzjday = date2jul(nzyear, mon, day)
-#		nzmsec = int(round((nzsec - int(nzsec))*1000))
-#		nzsec = int(nzsec)
-#		evdp *= 1000
-#		stla, stlo, stel = gsac.stadict[sacdh.netsta]
-#		stel *= 1000
+		kevnm = gsac.kevnm
+		idep = gsac.idep
+		iztype = gsac.iztype
+		nzjday = date2jul(nzyear, mon, day)
+		nzmsec = int(round((nzsec - int(nzsec))*1000))
+		nzsec = int(nzsec)
+		evdp *= 1000
+		stla, stlo, stel = gsac.stadict[sacdh.netsta]
+		stel *= 1000
 		hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec', 'evla', 'evlo', 'evdp', 'mag', ]
-#		hdrs += ['stla', 'stlo', 'stel' ]
+		hdrs += ['stla', 'stlo', 'stel' ]
 		hdrs += ['kevnm', 'idep', 'iztype']
 		for sacdh in gsac.saclist:
 				sacobj = sacfile(sacdh.filename, 'rw')

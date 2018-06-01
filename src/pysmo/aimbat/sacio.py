@@ -385,7 +385,7 @@ class sacfile(object):
             else:
                 raise ValueError('%s not an allowed value for %s' % \
                 (headervalue, headerfield))
-        print(htype, headervalue, headerfield)
+        #print(htype, headervalue, headerfield)
         headervalue = pack(htype, headervalue)
         self.fh.seek(pos)
         self.fh.write(headervalue)

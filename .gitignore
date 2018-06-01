@@ -1,6 +1,8 @@
 *.py[cod]
 *.so
 .svn
+*.swp
+tobedel/
 build/
 dist/
 .DS_Store
