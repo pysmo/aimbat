@@ -120,11 +120,11 @@ def writePickle(d, picklefile, zipmode=None):
 	"""
 	if zipmode is None:
 		with open(picklefile, 'wb') as f:
-			pickle.dump(d, f)
+			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
 	else:
 		zfile = zipFile(zipmode)
 		with open(zfile(picklefile+'.'+zipmode, 'wb')) as f:
-			pickle.dump(d, f)
+			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
 
 def readPickle(picklefile, zipmode=None):
 	""" Read compressed pickle file to python objects.
@@ -139,29 +139,6 @@ def readPickle(picklefile, zipmode=None):
 	return d
 
 
-#def writePickle(d, picklefile, zipmode=None):
-#	""" Write python objects to pickle file and compress with highest protocal (binary) if zipmode is not None.
-#	"""
-#	if zipmode is None:
-#		with contextlib.closing(open(picklefile, 'w')) as f:
-#			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
-#	else:
-#		zfile = zipFile(zipmode)
-#		with contextlib.closing(zfile(picklefile+'.'+zipmode, 'wb')) as f:
-#			pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
-#
-#	
-#def readPickle(picklefile, zipmode=None):
-#	""" Read compressed pickle file to python objects.
-#	"""
-#	if zipmode is None:
-#		with contextlib.closing(open(picklefile, 'r')) as f:
-#			d = pickle.load(f)
-#	else:
-#		zfile = zipFile(zipmode)
-#		with contextlib.closing(zfile(picklefile+'.'+zipmode, 'rb')) as f:
-#			d = pickle.load(f)
-#	return d
             
 # ############################################################################### #
 #                                                                                 #

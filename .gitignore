@@ -2,6 +2,7 @@
 *.so
 .svn
 *.swp
+*.bak
 tobedel/
 build/
 dist/
