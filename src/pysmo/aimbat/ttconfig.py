@@ -138,9 +138,10 @@ class CCConfig:
 		self.shift = config.getint('iccs', 'shift')
 		modu = config.get('iccs', 'xcorr_modu')
 		func = config.get('iccs', 'xcorr_func')
-		cmd = 'from %s import %s; xcorr=%s'	% (modu, func, func)
-		exec(cmd)
-		self.xcorr = xcorr
+		cmd1 = 'from {:s} import {:s}'.format(modu, func)
+		cmd2 = 'self.xcorr = {:s}'.format(func)
+		exec(cmd1)
+		exec(cmd2)
 		self.xcorr_modu = modu
 		self.xcorr_func = func
 
@@ -171,9 +172,10 @@ class MCConfig:
 		self.shift = config.getint('mccc', 'shift')
 		modu = config.get('mccc', 'xcorr_modu')
 		func = config.get('mccc', 'xcorr_func')
-		cmd = 'from %s import %s; xcorr=%s'	% (modu, func, func)
-		exec(cmd)
-		self.xcorr = xcorr
+		cmd1 = 'from {:s} import {:s}'.format(modu, func)
+		cmd2 = 'self.xcorr = {:s}'.format(func)
+		exec(cmd1)
+		exec(cmd2)
 		self.xcorr_modu = modu
 		self.xcorr_func = func
 

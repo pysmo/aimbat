@@ -96,9 +96,9 @@ def rcread(rcfile='.mcccrc'):
 	sh0 = float(lines[7].split()[0])
 	sh1 = float(lines[8].split()[0])
 	sh2 = float(lines[9].split()[0])
-	sh = sh0+sh1+sh2
-	tw0 = -(ins + tap/2)
-	tw1 = win - ins + tap/2
+	#sh = sh0+sh1+sh2
+	#tw0 = -(ins + tap/2)
+	#tw1 = win - ins + tap/2
 	return ipick, [-ins, win-ins], tap
 
 def rcwrite(ipick, timewindow, taperwindow, rcfile='.mcccrc'):
@@ -110,7 +110,7 @@ def rcwrite(ipick, timewindow, taperwindow, rcfile='.mcccrc'):
 	ins = -tw0
 	out = 'Write to {:s}: ipick={:s}, timewindow={:.2f} s , taperwindow={:.2f} s'
 	print(out.format(rcfile, ipick, win, tap))
-	ls = os.linesep
+	#ls = os.linesep
 	if os.path.isfile(rcfile):
 		lines = open(rcfile).readlines()
 	else:
@@ -208,7 +208,7 @@ def corrmat(windata, reftimes, mcpara):
 	invmodel  t: optimized relative delay times for each station
 	"""
 	nsta = len(windata)
-	nrow = nsta*(nsta-1)/2 + 1
+	nrow = nsta*(nsta-1)//2 + 1
 	invdata = zeros(nrow)
 	invmatrix = zeros((nrow,nsta))
 	ccmatrix = zeros((nsta,nsta))

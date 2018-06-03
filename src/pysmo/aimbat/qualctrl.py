@@ -37,7 +37,7 @@ from pickphase import PickPhase, PickPhaseMenu
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
 from algiccs import ccWeightStack, checkCoverage
 from algmccc import mccc, findPhase, eventListName
-from . import filtering as ftr
+import filtering as ftr
 from plotstations import PlotStations
 import tkinter.messagebox
 
