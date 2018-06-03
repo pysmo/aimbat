@@ -16,3 +16,23 @@ aimbat-0.1.2
 * Change sci format for scientific notation of sacp2: from 1e-5 to 10^{-5}
 * Change font properties for station label to "monospace" for equal width
 * Minor changes in program descriptions, example scripts 
+
+aimbat-0.2
+============
+Main contributor: lkloh
+
+May 13, 2014:
+* Added a warning button if you hit ICCS-A or ICCS-B button, to make sure do did not hit it by accident. 
+Hitting one of those buttons will undo all the work you did in manually picking arrival times.
+
+May 14, 2014:
+* Added a button to allow you to jump to the front page. Note that hitting MCCC again will do just that. 
+* Added a summary of the event at the top right hand corner. 
+  Parameters:
+  - Magnitude
+  - Location
+  - Depth
+
+May 17, 2014:
+* Added a GUI to allow sorting of the seismograms according to header, time difference, file name, ...
+* Added a button to return to original screen after you zoom in/out
