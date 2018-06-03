@@ -30,33 +30,33 @@ class PlotStations:
 		centerLat = 0.5 * (minLat + maxLat)
 		centerLon = 0.5 * (minLon + maxLon)
 		
-		qLat = min(abs(minLat),abs(maxLat))
-		h = 1.2*6370997.*np.radians(maxLat-minLat)
-		w = 1.1*6370997.*np.radians(maxLon-minLon)*np.cos(np.radians(qLat))
+                qLat = min(abs(minLat),abs(maxLat))
+                h = 1.2*6370997.*np.radians(maxLat-minLat)
+                w = 1.1*6370997.*np.radians(maxLon-minLon)*np.cos(np.radians(qLat))
 
 		#make the basemap 
 		if basemapthere:
-		#ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
-		#            urcrnrlon=maxLon, urcrnrlat= maxLat,
-			ax = Basemap(width=w,
-				height=h, 
-				resolution='i',
-				area_thresh=1000., projection='lcc',
-				lat_0=centerLat, lon_0=centerLon)
-			ax.drawstates()
-			ax.drawcountries()
-			ax.drawcoastlines()   
-			py.xlabel('Black triangles: deleted stations\n Red Points: selected stations')   
+		  #ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
+		  #            urcrnrlon=maxLon, urcrnrlat= maxLat,
+		  ax = Basemap(width=w,
+		            height=h, 
+		            resolution='i',
+		            area_thresh=1000., projection='lcc',
+		            lat_0=centerLat, lon_0=centerLon)
+		  ax.drawstates()
+		  ax.drawcountries()
+		  ax.drawcoastlines()   
+		  py.xlabel('Black triangles: deleted stations\n Red Points: selected stations')   
 		else:
-			simplexmin=minLon-1.
-			simplexmax=maxLon+1.
-			simpleymin=minLat-1.
-			simpleymax=maxLat+1.
-			ax = figStation.add_subplot(111)
-			ax.axis([simplexmin,simplexmax,simpleymin,simpleymax])
-			py.xlabel('Black triangles: deleted stations\n Red Points: selected stations\n No coastline because Basemap module not found')   
+                  simplexmin=minLon-1.
+                  simplexmax=maxLon+1.
+                  simpleymin=minLat-1.
+                  simpleymax=maxLat+1.
+		  ax = figStation.add_subplot(111)
+		  ax.axis([simplexmin,simplexmax,simpleymin,simpleymax])
+		  py.xlabel('Black triangles: deleted stations\n Red Points: selected stations\n No coastline because Basemap module not found')   
 
-			py.title(self.plotname)  
+		py.title(self.plotname)  
 
 		# plot stations
 		if hasattr(gsac, 'delay_times'):
@@ -84,7 +84,7 @@ class PlotStations:
 			if dist<nearest:
 				station_name = sacdh.netsta
 				nearest=dist
-		print(('Nearest Station selected: %s' % station_name))
+		print('Nearest Station selected: %s' % station_name)
 
 	def bounding_rectangle(self):
 		all_station_lats = []

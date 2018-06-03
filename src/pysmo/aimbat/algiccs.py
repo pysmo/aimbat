@@ -4,7 +4,7 @@
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
-# Copyright (c) 2009-2012 Xiaoting Lou
+# Copyright (c) 2009-2018 Xiaoting Lou
 #------------------------------------------------
 """
 Python module for the ICCS (iterative cross-correlation and stack) algorithm.
@@ -18,8 +18,8 @@ Python module for the ICCS (iterative cross-correlation and stack) algorithm.
 """
 
 from numpy import array, ones, zeros, sqrt, dot, corrcoef, sum, mean, transpose
+from numpy import linalg as LA
 import os, sys, copy
-from matplotlib.mlab import l1norm, l2norm
 from optparse import OptionParser
 from ttconfig import CCConfig
 from qualsort import initQual, seleSeis
@@ -65,7 +65,7 @@ def getOptions():
 		help='Minimum number of selected seismograms for auto selection. Default is {:d}.'.format(minnsel))
 	opts, files = parser.parse_args(sys.argv[1:])
 	if len(files) == 0:
-		print parser.usage
+		print(parser.usage)
 		sys.exit()
 	return opts, files
 
@@ -152,7 +152,7 @@ def ccWeightStack(saclist, opts):
 	coh = zeros(nseis)
 	wgts = ones(nseis)
 	stkdata = []
-	for it in range(maxiter):
+	for it in list(range(maxiter)):
 		# recut data and update array stack
 		nstart, ntotal = windowIndex(saclist, tfins, twcorr, taperwindow)
 		windata = windowData(saclist, nstart, ntotal, taperwidth, tapertype)
@@ -168,8 +168,8 @@ def ccWeightStack(saclist, opts):
 				break
 		# Find time lag at peak correlation between each trace and the array stack.
 		# Calculate cross correlation coefficient, signal/noise ratio and temporal coherence
-		sdatanorm = sdata/l2norm(sdata)
-		for i in range(nseis):
+		sdatanorm = sdata/LA.norm(sdata)
+		for i in list(range(nseis)):
 			datai = windata[i]
 			delay, ccmax, ccpol = corrmax(sdata, datai, delta, xcorr, shift)
 			tfins[i] += delay
@@ -185,7 +185,7 @@ def ccWeightStack(saclist, opts):
 			sacdh.sethdr(hdrcoh, coh[i])
 	# get maximum time window for plot (excluding taperwindow)
 	bb, ee = [], []
-	for i in range(nseis):
+	for i in list(range(nseis)):
 		sacdh = saclist[i]
 		b = sacdh.b - tfins[i]
 		e = b + (sacdh.npts-1)* delta
@@ -244,7 +244,7 @@ def reConverg(stack0, stack1):
 	Calcuate criterion of convergence by change of stack.
 	stack0 and stack1 are current stack and stack from last iteration.
 	"""
-	return l1norm(stack0-stack1)/l2norm(stack0)/len(stack0)
+	return LA.norm(stack0-stack1,1)/LA.norm(stack0,2)/len(stack0)
 
 def snratio(data, delta, timewindow):
 	""" 
@@ -256,9 +256,9 @@ def snratio(data, delta, timewindow):
 	yn = data[:nn]
 	ys = data[nn:]
 	ns = len(ys)
-	rr = l2norm(ys)/l2norm(yn)*sqrt(nn)/sqrt(ns)
-	if l2norm(yn) == 0:
-		print ('snr', l2norm(yn))
+	rr = LA.norm(ys)/LA.norm(yn)*sqrt(nn)/sqrt(ns)
+	if LA.norm(yn) == 0:
+		print ('snr', LA.norm(yn))
 	### the same as:
 	#rr = sqrt(sum(square(ys))/sum(square(yn))*nn/ns)
 	# shoud signal be the whole time seris?
@@ -275,13 +275,13 @@ def coherence(datai, datas):
 	res(di) = di - (di . ds) ds 
 	coh(di) = 1 - res(di) / ||di||
 	"""
-	return 1 - l2norm(datai - dot(datai, datas)*datas)/l2norm(datai)
+	return 1 - LA.norm(datai - dot(datai, datas)*datas)/LA.norm(datai)
 
 
 def plotiter(stkdata):
 	import matplotlib.pyplot as plt
 	plt.figure()
-	for i in range(len(stkdata)):
+	for i in list(range(len(stkdata))):
 		plt.plot(stkdata[i], label='iter'+str(i))
 	plt.legend()
 	plt.show()
@@ -302,7 +302,7 @@ def autoiccs(gsac, opts):
 		stkdh, stkdata, quas = ccWeightStack(selist, opts)
 		tquas = transpose(quas)
 		indsel, inddel = [], []
-		for i in range(len(selist)):
+		for i in list(range(len(selist))):
 			sacdh = selist[i]
 			ccc, snr, coh = tquas[i]
 			if ccc < minccc or snr < minsnr or coh < mincoh:
@@ -321,7 +321,8 @@ def autoiccs(gsac, opts):
 	nsel = len(selist)
 	print ('\nDone selecting seismograms: {0:d} out of {1:d} selected.'.format(nsel, len(saclist)))
 
-	save = raw_input('Save to file? [y/n] \n')
+#	save = raw_input('Save to file? [y/n] \n')
+	save = input('Save to file? [y/n] \n')
 	if save[0].lower() == 'y':
 		if opts.filemode == 'sac':
 			for sacdh in saclist: sacdh.writeHdrs()
@@ -347,7 +348,7 @@ def checkCoverage(gsac, opts, textra=0.0):
 	saclist = gsac.saclist
 	nsac = len(saclist)
 	indsel, inddel = [], []
-	for i in range(nsac):
+	for i in list(range(nsac)):
 		sacdh = saclist[i]
 		t0 = sacdh.gethdr(ipick)
 		b = sacdh.b
@@ -355,9 +356,9 @@ def checkCoverage(gsac, opts, textra=0.0):
 		if b-textra > t0+tw0 or e+textra < t0+tw1:
 			inddel.append(i)
 			print ('Seismogram {0:s} does not have enough sample. Deleted.'.format(sacdh.filename))
-		elif l2norm(sacdh.data) == 0.0:
+		elif LA.norm(sacdh.data) == 0.0:
 			inddel.append(i)
-			print ('Seismogram {0:s} has zero l2norm. Deleted.'.format(sacdh.filename))
+			print ('Seismogram {0:s} has zero L2 norm. Deleted.'.format(sacdh.filename))
 		else:
 			indsel.append(i)
 	if inddel != []:

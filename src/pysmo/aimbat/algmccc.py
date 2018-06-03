@@ -60,7 +60,7 @@ def getOptions():
 		help='Use all seismograms. Default to use selected ones.')
 	opts, files = parser.parse_args(sys.argv[1:])
 	if len(files) == 0:
-		print parser.usage
+		print(parser.usage)
 		sys.exit()
 	return opts, files
 
@@ -96,9 +96,9 @@ def rcread(rcfile='.mcccrc'):
 	sh0 = float(lines[7].split()[0])
 	sh1 = float(lines[8].split()[0])
 	sh2 = float(lines[9].split()[0])
-	sh = sh0+sh1+sh2
-	tw0 = -(ins + tap/2)
-	tw1 = win - ins + tap/2
+	#sh = sh0+sh1+sh2
+	#tw0 = -(ins + tap/2)
+	#tw1 = win - ins + tap/2
 	return ipick, [-ins, win-ins], tap
 
 def rcwrite(ipick, timewindow, taperwindow, rcfile='.mcccrc'):
@@ -108,17 +108,17 @@ def rcwrite(ipick, timewindow, taperwindow, rcfile='.mcccrc'):
 	tap = taperwindow
 	win = tw1 - tw0
 	ins = -tw0
-	out = 'Write to %s: ipick=%s, timewindow=%.2fs , taperwindow=%.2f s'
-	print out % (rcfile, ipick, win, tap)
-	ls = os.linesep
+	out = 'Write to {:s}: ipick={:s}, timewindow={:.2f} s , taperwindow={:.2f} s'
+	print(out.format(rcfile, ipick, win, tap))
+	#ls = os.linesep
 	if os.path.isfile(rcfile):
 		lines = open(rcfile).readlines()
 	else:
 		lines = rcdef()
 	lines[3] = ipick + lines[3][2:]
-	lines[4] = '%-8.3f' % win + lines[4][8:]
-	lines[5] = '%-8.3f' % ins + lines[5][8:]
-	lines[6] = '%-8.3f' % tap + lines[6][8:]
+	lines[4] = '{:*.3f}'.format(win) + lines[4][8:]
+	lines[5] = '{:*.3f}'.format(ins) + lines[5][8:]
+	lines[6] = '{:*.3f}'.format(tap) + lines[6][8:]
 	oo = open(rcfile, 'w')
 	oo.writelines(lines)
 	oo.close()
@@ -131,7 +131,7 @@ def corread(saclist, ipick, timewindow, taperwindow, tapertype):
 	taperwidth = taperwindow/(taperwindow+tw)
 	reftimes = array([ sacdh.gethdr(ipick) for sacdh in saclist])
 	if -12345.0 in reftimes:
-		print ('Not all seismograms has ipick={0:s} set. Exit.'.format(ipick))
+		print ('Not all seismograms has ipick={:s} set. Exit.'.format(ipick))
 		sys.exit()
 		#return
 	nstart, ntotal = windowIndex(saclist, reftimes, timewindow, taperwindow)
@@ -165,7 +165,7 @@ def corrcff_fish(ccmatrix):
 	fish += transpose(fish)
 	nsta = len(ccmatrix)
 	ccmean, ccstd = zeros(nsta), zeros(nsta)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		z = concatenate((fish[i,0:i], fish[i,i+1:nsta]))
 		mz = mean(z)
 		ccmean[i] = (exp(2*mz)-1)/(exp(2*mz)+1)
@@ -178,7 +178,7 @@ def corrcff(ccmatrix):
 	fish = ccmatrix + transpose(ccmatrix)
 	nsta = len(ccmatrix)
 	ccmean, ccstd = zeros(nsta), zeros(nsta)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		z = concatenate((fish[i,0:i], fish[i,i+1:nsta]))
 		ccmean[i] = mean(z)
 		ccstd[i]  = std(z, ddof=1)
@@ -192,8 +192,8 @@ def correrr(dtmatrix, invmodel):
 	"""
 	nsta = len(dtmatrix)
 	resmatrix = zeros((nsta,nsta))
-	for i in range(nsta):
-		for j in range(i+1,nsta):
+	for i in list(range(nsta)):
+		for j in list(range(i+1,nsta)):
 			resmatrix[i, j] = dtmatrix[i,j] - (invmodel[i] - invmodel[j])
 	resmatrix -= transpose(resmatrix)
 	rms = sqrt(sum(resmatrix**2,0)/(nsta-2))
@@ -208,15 +208,15 @@ def corrmat(windata, reftimes, mcpara):
 	invmodel  t: optimized relative delay times for each station
 	"""
 	nsta = len(windata)
-	nrow = nsta*(nsta-1)/2 + 1
+	nrow = nsta*(nsta-1)//2 + 1
 	invdata = zeros(nrow)
 	invmatrix = zeros((nrow,nsta))
 	ccmatrix = zeros((nsta,nsta))
 	dtmatrix = zeros((nsta,nsta))
 	k = 0
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		datai, timei = windata[i], reftimes[i]
-		for j in range(i+1,nsta):
+		for j in list(range(i+1,nsta)):
 			dataj, timej = windata[j], reftimes[j]
 			delay, ccmax = corrmax(datai, timei, dataj, timej, mcpara)
 			invdata[k] = delay
@@ -252,7 +252,7 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
 		w = ccmatrix
 	elif wgtscheme == 'residual':
 		w = resmatrix
-	wgt = [abs(w[i,j]) for i in range(nsta) for j in range(i+1,nsta)]
+	wgt = [abs(w[i,j]) for i in list(range(nsta)) for j in list(range(i+1,nsta))]
 	wgt.append(exwt)
 	wgt = identity(nrow)*array(wgt)
 	atw = dot(transpose(invmatrix), wgt)
@@ -283,7 +283,7 @@ def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_
 
 	selist_LonLat = zeros(shape=(len(solist),2))
 	nsta = len(solist)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i], t0_times[i], delay_times[i]) )
@@ -330,7 +330,7 @@ def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
 
 	selist_LonLat = zeros(shape=(len(solist),2))
 	nsta = len(solist)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		dt, err, cc, ccstd = solution[i]
 		selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
 		ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]))
@@ -368,11 +368,11 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
 	# set wpick	
 	wpick = mcpara.wpick
 	itmean = mean(reftimes)
-	for i in range(nsta):
+	for i in list(range(nsta)):
 		wt = itmean + solution[i,0]
 		solist[i].sethdr(wpick, wt)
 	t0_times = [sacdh.gethdr('t0') for sacdh in solist]
-	delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in xrange(nsta)]
+	delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in list(range(nsta))]
 
 	selist_LonLat, delay_times = WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_times, itmean)
 	WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean)
@@ -395,10 +395,10 @@ def mccc(gsac, mcpara):
 	taperwindow = mcpara.taperwindow
 	tapertype = mcpara.tapertype
 	out = 'Run MCCC: ipick={0:s} wpick={1:s} timewindow=[{2:.3f}, {3:.3f}] taperwindow={4:.3f} s '
-	print (out.format(ipick, wpick, timewindow[0], timewindow[1], taperwindow))
+	print(out.format(ipick, wpick, timewindow[0], timewindow[1], taperwindow))
 	out = 'Cross-correlation module.function: {:s}.{:s} with a shift of {:d} samples.'
-	print (out.format(mcpara.xcorr_modu, mcpara.xcorr_func, mcpara.shift))
-	print ('Input: {0:d} traces. Output file: {1:s} '.format(nsta, mcpara.mcname))
+	print(out.format(mcpara.xcorr_modu, mcpara.xcorr_func, mcpara.shift))
+	print('Input: {0:d} traces. Output file: {1:s} '.format(nsta, mcpara.mcname))
 	# read data
 	windata, reftimes = corread(solist, ipick, timewindow, taperwindow, tapertype)
 	invmatrix, invdata, ccmatrix, dtmatrix = corrmat(windata, reftimes, mcpara)
@@ -411,13 +411,13 @@ def mccc(gsac, mcpara):
 	if lsqr == 'lnco':
 		wgtscheme = 'correlation'
 		invmodel = corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme, exwt)
-		print '--> LSQR: LAPACK, weighted by correlation'
+		print('--> LSQR: LAPACK, weighted by correlation')
 	elif lsqr == 'lnre':
 		wgtscheme = 'residual'
 		invmodel = corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme, exwt)
-		print '--> LSQR: LAPACK, weighted by residual'
+		print('--> LSQR: LAPACK, weighted by residual')
 	elif lsqr == 'nowe':
-		print '--> LSQR: no weighting'
+		print('--> LSQR: no weighting')
 	solution = transpose(array((invmodel, rms, ccmean, ccstd)))
 	outvar = sqrt(sum(resmatrix**2)/2/(nsta*(nsta-1)/2))
 	outcc = mean(ccmean)
@@ -499,7 +499,7 @@ def getParams(gsac, mcpara, opts=None):
 		mcpara.taperwidth = taperwindow/(tw+taperwindow)
 	# command line options override config and rc file
 	if opts is not None:
-		for key in odict.keys():
+		for key in list(odict.keys()):
 			if odict[key] is not None:
 				mdict[key] = odict[key]
 	# check if params are complete

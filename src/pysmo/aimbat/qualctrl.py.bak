@@ -23,10 +23,11 @@ Used by ttpick.py
 	http://www.gnu.org/licenses/gpl.html
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
+
+from pylab import *
 import os, sys, copy
-from matplotlib.widgets import Button, RadioButtons
+from matplotlib.mlab import l2norm
+from matplotlib.widgets import SpanSelector, Button, CheckButtons, RadioButtons
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
 from ttconfig import PPConfig, QCConfig, CCConfig, MCConfig, getParser
@@ -36,10 +37,10 @@ from plotphase import sacp2
 from pickphase import PickPhase, PickPhaseMenu
 from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
 from algiccs import ccWeightStack, checkCoverage
-from algmccc import mccc, findPhase, eventListName
+from algmccc import mccc, findPhase, eventListName, rcwrite
 import filtering as ftr
 from plotstations import PlotStations
-import tkinter.messagebox
+import tkMessageBox
 
 """print everything out in an array, DO NOT DELETE!!!"""
 # np.set_printoptions(threshold=nan) 
@@ -77,7 +78,7 @@ def getOptions():
 		help='Save figure instead of showing.')
 	opts, files = parser.parse_args(sys.argv[1:])
 	if len(files) == 0:
-		print(parser.usage)
+		print parser.usage
 		sys.exit()
 	return opts, files
 
@@ -198,13 +199,13 @@ class PickPhaseMenuMore:
 		def on_select(xmin, xmax):
 			""" Mouse event: select span. """
 			if self.span.visible:
-				print('span selected: %6.1f %6.1f ' % (xmin, xmax))
+				print 'span selected: %6.1f %6.1f ' % (xmin, xmax)
 				xxlim = (xmin, xmax)
 				axstk.set_xlim(xxlim)
 				self.xzoom.append(xxlim)
 				if self.opts.upylim_on:
 					print ('upylim')
-					self.ppstk.updateY(xxlim) ##
+					ppstk.updateY(xxlim)
 				axstk.figure.canvas.draw()
 		pppara = self.opts.pppara
 		a, col = pppara.alphatwsele, pppara.colortwsele
@@ -233,15 +234,15 @@ class PickPhaseMenuMore:
 		self.getSortAxes()
 		self.summarize_sort()
 		self.sort_connect()
-		plt.show()		
+		show()
 
 	def getSortAxes(self):
-		figsort = plt.figure('SortSeismograms',figsize=(15, 12))
+		figsort = figure('SortSeismograms',figsize=(15, 12))
 
 		x0 = 0.05
 		xx = 0.10
 		yy = 0.04
-		#xm = 0.02
+		xm = 0.02
 		dy = 0.15
 		dx = 0.12
 		y0 = 0.90
@@ -631,7 +632,7 @@ class PickPhaseMenuMore:
 		filterAxes = self.getFilterAxes()
 		self.spreadButter()
 		self.filter_connect()
-		plt.show()		
+		show()
 
 	def filter_connect(self):
 		# user to change default parameters
@@ -679,7 +680,7 @@ class PickPhaseMenuMore:
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			# set defaults
 			self.opts.filterParameters['lowFreq'] = 0.05
-			self.opts.filterParameters['highFreq'] = np.nan
+			self.opts.filterParameters['highFreq'] = nan
 			self.opts.filterParameters['advance'] = False
 			self.spreadButter()
 			#execute
@@ -687,7 +688,7 @@ class PickPhaseMenuMore:
 		elif event=='highpass':
 			self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 			# set defaults
-			self.opts.filterParameters['lowFreq'] = np.nan
+			self.opts.filterParameters['lowFreq'] = nan
 			self.opts.filterParameters['highFreq'] = 0.25
 			self.opts.filterParameters['advance'] = False
 			self.spreadButter()
@@ -716,7 +717,7 @@ class PickPhaseMenuMore:
 					self.opts.filterParameters['advance'] = False
 					self.spreadButter()
 				else:
-					print('Value chose must be higher than lower frequency of %f' % self.opts.filterParameters['lowFreq'])
+					print 'Value chose must be higher than lower frequency of %f' % self.opts.filterParameters['lowFreq']
 			else:
 				self.opts.filterParameters['lowFreq'] = event.xdata
 				self.opts.filterParameters['advance'] = True
@@ -799,7 +800,7 @@ class PickPhaseMenuMore:
 		self.bnband.disconnect(self.cidband)
 		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 
-		plt.close()
+		close()
 
 	def unapplyFilter(self, event):
 		# do not write filtered data for individual seismograms
@@ -836,10 +837,10 @@ class PickPhaseMenuMore:
 		self.bnband.disconnect(self.cidband)
 		self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
 
-		plt.close()
+		close()
 
 	def getFilterAxes(self):
-		figfilter = plt.figure(figsize=(15, 12))
+		figfilter = figure(figsize=(15, 12))
 		self.figfilter = figfilter
 
 		rect_amVtime = [0.10, 0.50, 0.80, 0.35]
@@ -890,11 +891,11 @@ class PickPhaseMenuMore:
 		if evkey.lower() == 'z' and len(xzoom) > 1:
 			del xzoom[-1]
 			axstk.set_xlim(xzoom[-1])
-			print('Zoom back to: %6.1f %6.1f ' % tuple(xzoom[-1]))
+			print 'Zoom back to: %6.1f %6.1f ' % tuple(xzoom[-1])
 			if self.opts.upylim_on:
 				for pp in self.pps:
 					del pp.ynorm[-1]
-					plt.setp(pp.lines[0], ydata=pp.ybase+pp.sacdh.data*pp.ynorm[-1])
+					setp(pp.lines[0], ydata=pp.ybase+pp.sacdh.data*pp.ynorm[-1])
 			axstk.figure.canvas.draw()
 
 	def replot_seismograms(self):
@@ -999,7 +1000,7 @@ class PickPhaseMenuMore:
 		hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
 		wh0, wh1 = self.opts.qcpara.twhdrs
 		if self.ppstk.sacdh.gethdr(hdrfin) == -12345.:
-			print('*** hfinal %s is not defined. Pick at array stack first! ***' % hdrfin)
+			print '*** hfinal %s is not defined. Pick at array stack first! ***' % hdrfin
 			return
 		self.syncPick()
 		self.syncWind()
@@ -1014,7 +1015,7 @@ class PickPhaseMenuMore:
 			th1 = tfin + twfin[1]
 			pp.twindow = [th0, th1]
 			pp.resetWindow()
-		print('--> Sync final time picks and time window... You can now run CCFF to refine final picks.')
+		print '--> Sync final time picks and time window... You can now run CCFF to refine final picks.'
 	
 	def getWindow(self, hdr):
 		""" Get time window twcorr (relative to hdr) from array stack, which is from last run. 
@@ -1023,7 +1024,7 @@ class PickPhaseMenuMore:
 		tw0, tw1 = ppstk.twindow
 		t0 = ppstk.sacdh.gethdr(hdr)
 		if t0 == -12345.:
-			print(('Header {0:s} not defined'.format(hdr)))
+			print ('Header {0:s} not defined'.format(hdr))
 			return
 		twcorr = [tw0-t0, tw1-t0]
 		self.twcorr = twcorr
@@ -1038,7 +1039,7 @@ class PickPhaseMenuMore:
 
 	def ccim(self, event):
 		# running ICCS-A will erase everything you did. Make sure the user did not hit it by mistake
-		shouldRun = tkinter.messagebox.askokcancel("Will Erase Work!","This will erase any picks past t1. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase any picks past t1. \nAre you sure?")
 
 		if shouldRun:
 			""" Run iccs with time window from final stack. Time picks: hdrini, hdrmed.
@@ -1056,11 +1057,11 @@ class PickPhaseMenuMore:
 		hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
 
 		if self.gsac.stkdh.gethdr(hdrfin) == -12345.:
-			print('*** hfinal %s is not defined. Sync first! ***' % hdrfin)
+			print '*** hfinal %s is not defined. Sync first! ***' % hdrfin
 			return
 
 		"""running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake"""
-		shouldRun = tkinter.messagebox.askokcancel("Will Erase Work!","This will erase any picks past t2 and will recalculate all t2 values. \nAre you sure?")
+		shouldRun = tkMessageBox.askokcancel("Will Erase Work!","This will erase any picks past t2 and will recalculate all t2 values. \nAre you sure?")
 		
 		if shouldRun:
 			self.cchdrs = hdrfin, hdrfin
@@ -1088,19 +1089,19 @@ class PickPhaseMenuMore:
 		self.gsac.stkdh = stkdh
 		if opts.reltime != hdr1:
 			out = '\n--> change opts.reltime from %i to %i'
-			print(out % (opts.reltime, hdr1))
+			print out % (opts.reltime, hdr1)
 		opts.reltime = hdr1
 
 	def mccc(self, event):
 		""" Run mccc.py  """
 		gsac = self.gsac
 		mcpara = self.opts.mcpara
-		#rcfile = mcpara.rcfile
+		rcfile = mcpara.rcfile
 		ipick = mcpara.ipick
 		wpick = mcpara.wpick
 		self.getWindow(ipick)
 		timewindow = self.twcorr
-		#tw = timewindow[1]-timewindow[0]
+		tw = timewindow[1]-timewindow[0]
 		taperwindow = taperWindow(timewindow, mcpara.taperwidth)
 		mcpara.timewindow = timewindow
 		mcpara.taperwindow = taperwindow
@@ -1115,7 +1116,7 @@ class PickPhaseMenuMore:
 		wpk = int(wpick[1])
 		if self.opts.reltime != wpk:
 			out = '\n--> change opts.reltime from %i to %i'
-			print(out % (self.opts.reltime, wpk))
+			print out % (self.opts.reltime, wpk)
 		self.opts.reltime = wpk
 		self.replot()
 
@@ -1134,14 +1135,14 @@ class PickPhaseMenuMore:
 		npick = len(tpicks)
 		tlabs = 'ABCDE'
 
-		fig2 = plt.figure(figsize=(9,12))
+		fig2 = figure(figsize=(9,12))
 		fig2.clf()
-		plt.subplots_adjust(bottom=.05, top=0.96, left=.1, right=.97, wspace=.5, hspace=.24)
+		subplots_adjust(bottom=.05, top=0.96, left=.1, right=.97, wspace=.5, hspace=.24)
 		opts.twin_on = False
 		opts.pick_on = False
 		ax0 = fig2.add_subplot(npick,1,1)
-		axsacs = [ ax0 ] + [ fig2.add_subplot(npick,1,i+1, sharex=ax0) for i in list(range(1, npick)) ]
-		for i in list(range(npick)):
+		axsacs = [ ax0 ] + [ fig2.add_subplot(npick,1,i+1, sharex=ax0) for i in range(1, npick) ]
+		for i in range(npick):
 			opts.reltime = int(tpicks[i][1])
 			ax = axsacs[i]
 			sacp2(selist, opts, ax)
@@ -1156,7 +1157,7 @@ class PickPhaseMenuMore:
 		opts.fill = fill
 		opts.zero_on = False
 
-		plt.show()		
+		show()
 
 # ############################################################################### #
 #                                                                                 #
@@ -1187,7 +1188,7 @@ def sortSeis(gsac, opts):
 		ipick = opts.qcpara.ichdrs[0]
 		wpick = 't'+str(opts.reltime)
 		if ipick == wpick:
-			print('Same time pick: {0:s} and {1:s}. Exit'.format(ipick, wpick))
+			print ('Same time pick: {0:s} and {1:s}. Exit'.format(ipick, wpick))
 			sys.exit()
 		gsac.selist, gsac.delist = sortSeisHeaderDiff(gsac.saclist, ipick, wpick, sortincrease)
 	elif sortby.isdigit() or sortby in opts.qheaders + ['all',]: # by quality factors
@@ -1257,7 +1258,7 @@ def getDataOpts():
 	# find phase:
 	if opts.phase is None:
 		phase = findPhase(ifiles[0])
-		print(('Found phase to be: ' + phase + '\n'))
+		print ('Found phase to be: ' + phase + '\n')
 	else:
 		phase = opts.phase
 	mcpara.phase = phase
@@ -1291,8 +1292,8 @@ def getDataOpts():
 
 def getAxes(opts):
 	""" Get axes for plotting """
-	fig = plt.figure('QualityControl', figsize=(16, 15))
-	plt.rcParams['legend.fontsize'] = 10
+	fig = figure('QualityControl', figsize=(16, 15))
+	rcParams['legend.fontsize'] = 10
 
 	rectseis = [0.12, 0.04, 0.66, 0.82]
 	rectfstk = [0.12, 0.89, 0.66, 0.08]
@@ -1386,9 +1387,9 @@ def main():
 			fignm = 'ttpick.' + fmt
 		else:
 			fignm = opts.pklfile + '.' + fmt
-		plt.savefig(fignm, format=fmt, dpi=300)
+		savefig(fignm, format=fmt, dpi=300)
 	else:
-		plt.show()		
+		show()
 
 if __name__ == "__main__":
 	main()

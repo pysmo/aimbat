@@ -39,8 +39,9 @@ Program structure:
 """
 
 
-from pylab import *
-import os, sys, copy
+import sys, copy
+import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
 from ttconfig import PPConfig, getParser
@@ -70,7 +71,7 @@ def getOptions():
 		help='Use random colors.')
 	opts, files = parser.parse_args(sys.argv[1:])
 	if len(files) == 0:
-		print parser.usage
+		print(parser.usage)
 		sys.exit()
 	return opts, files
 
@@ -96,7 +97,7 @@ class SingleSeis:
 		"""
 		sacdh = self.sacdh
 		b, npts, delta = sacdh.b, sacdh.npts, sacdh.delta
-		self.time = linspace(b, b+(npts-1)*delta, npts)
+		self.time = np.linspace(b, b+(npts-1)*delta, npts)
 		reltime = self.opts.reltime
 		if reltime >= 0:
 			reftime = sacdh.thdrs[reltime]
@@ -138,7 +139,7 @@ class SingleSeis:
 		else:
 			f = opts.fill
 			fplus, fnega, = [], []
-			for i in range(len(x)):
+			for i in list(range(len(x))):
 				if f*y[i] > 0:
 					fplus.append(True)
 					fnega.append(False)
@@ -179,9 +180,9 @@ class SingleSeis:
 		cols = pppara.pickcolors
 		ncol = len(cols)
 		lss = pppara.pickstyles
-		thdrs = array(sacdh.thdrs) - sacdh.reftime
+		thdrs = np.array(sacdh.thdrs) - sacdh.reftime
 		timepicks = [None]*npick
-		for i in range(npick):
+		for i in list(range(npick)):
 			tpk = thdrs[i]
 			ia = i%ncol
 			ib = i/ncol
@@ -238,7 +239,7 @@ class SingleSeisGather():
 			self.yzoom = [-self.nseis-1, 1]
 		self.labelStation()
 		yticks = self.ybases
-		ylabs = range(1 , self.nseis+1)
+		ylabs = list(range(1 , self.nseis+1))
 		self.axss.set_yticks(yticks)
 		self.axss.set_yticklabels(ylabs)
 		self.axss.set_ylabel('Trace Number')
@@ -249,11 +250,11 @@ class SingleSeisGather():
 		Do not normalize seismogram by setting opts.ynorm<0.
 		"""
 		self.getZero()
-		anorm = 1./clip(self.nseis/50, 2, 10)
+		anorm = 1./np.clip(self.nseis/50, 2, 10)
 		self.alphas *= anorm
 		self.opts.ynorm = -1
 		#self.axss.ticklabel_format(style='sci', scilimits=(0,0), axis='y')
-		formatter = ScalarFormatter(useMathText=True)
+		formatter = plt.ScalarFormatter(useMathText=True)
 		formatter.set_powerlimits((0, 0))
 		self.axss.yaxis.set_major_formatter(formatter)
 
@@ -298,7 +299,7 @@ class SingleSeisGather():
 		saclist = self.saclist
 		nseis = self.nseis
 		sss = []
-		for i in range(nseis):
+		for i in list(range(nseis)):
 			ss = SingleSeis(saclist[i], opts, axss, self.ybases[i], self.colors[i], self.linews[i], self.alphas[i])
 			sss.append(ss)
 		self.sss = sss
@@ -325,7 +326,7 @@ class SingleSeisGather():
 		trans = transforms.blended_transform_factory(axss.transAxes, axss.transData)
 		font = FontProperties()
 		font.set_family('monospace')
-		for i in range(self.nseis):
+		for i in list(range(self.nseis)):
 			axss.text(1.02, self.ybases[i], stations[i], transform=trans, va='center', 
 				color=self.colors[i], fontproperties=font)
 		if self.opts.stack_on:
@@ -346,7 +347,7 @@ class SingleSeisGather():
 		reftimes = [ sacdh.reftime for sacdh in saclist ]
 		nstart, ntotal = windowIndex(saclist, reftimes, twplot, taperwindow)
 		datacut = windowData(saclist, nstart, ntotal, taperwindow/twp)
-		datamean = mean(datacut, 0)
+		datamean = np.mean(datacut, 0)
 		# copy a sacdh object for stack
 		stackdh = copy.copy(saclist[0])
 		stackdh.b = twplot[0] - taperwindow*0.5
@@ -357,7 +358,7 @@ class SingleSeisGather():
 		self.sstack = SingleSeis(stackdh, self.opts, self.axss, self.stackbase, self.stackcolor, self.stacklinew)
 		# plot 1-std range from mean stack
 		if self.opts.zero_on and self.opts.std_on:
-			datastd = std(datacut, 0)
+			datastd = np.std(datacut, 0)
 			stda = copy.copy(stackdh)
 			stdb = copy.copy(stackdh)
 			stda.data = datamean + datastd
@@ -375,7 +376,6 @@ class SingleSeisGather():
 		sss = self.sss
 		b = [ ss.time[0]  - ss.sacdh.reftime for ss in sss ]
 		e = [ ss.time[-1] - ss.sacdh.reftime for ss in sss ]
-		npts = [ len(ss.time) for ss in sss ]
 		self.bmin = min(b) 
 		self.bmax = max(b)
 		self.emin = min(e) 
@@ -387,28 +387,28 @@ class SingleSeisGather():
 	def getYLimit(self):
 		""" Get y limit	"""
 		saclist = self.saclist
-		delta = saclist[0].delta
-		data = array([ [min(sacdh.data), max(sacdh.data) ] for sacdh in saclist ])
+		#delta = saclist[0].delta
+		data = np.array([ [min(sacdh.data), max(sacdh.data) ] for sacdh in saclist ])
 		self.dmin = data[:,0].min()
 		self.dmax = data[:,1].max() 
 
 	def getPlot(self):
 		""" Get plotting attributes """
-		self.linews = ones(self.nseis)
-		self.alphas = ones(self.nseis)
+		self.linews = np.ones(self.nseis)
+		self.alphas = np.ones(self.nseis)
 		if self.opts.color_on:
-			self.colors = rand(self.nseis, 3)
+			self.colors = np.random.rand(self.nseis, 3)
 		else:
 			self.colors = [self.opts.pppara.colorwave,] * self.nseis
 
 	def getIndex(self):
 		""" Get file indices as ybases for waveforms. """
-		self.ybases = -arange(self.nseis) - 1
+		self.ybases = -np.arange(self.nseis) - 1
 		self.yzoom = [-self.nseis-1, 0]
 
 	def getZero(self):
 		""" Get zeros as ybases for waveforms. """
-		self.ybases = zeros(self.nseis)
+		self.ybases = np.zeros(self.nseis)
 		mm = self.dmin, self.dmax
 		self.yzoom = axLimit(mm)
 
@@ -470,7 +470,7 @@ class SingleSeisGather():
 		if evkey.lower() == 'z' and len(xzoom) > 1:
 			del xzoom[-1]
 			axss.set_xlim(xzoom[-1])
-			print 'Zoom back to: %6.1f %6.1f ' % tuple(xzoom[-1])
+			print('Zoom back to: {:6.1f} {:6.1f}'.format(tuple(xzoom[-1])) )
 			axss.figure.canvas.draw()
 
 	def connect(self):
@@ -562,15 +562,15 @@ def splitAxesH(fig, rect=[0.1,0.1,0.6,0.6], n=2, hspace=0, axshare=False):
 	if axshare:
 		i = 0
 		ax0 = fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)])
-		axs = [ax0] + [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)], sharex=ax0) for i in range(1,n) ]
+		axs = [ax0] + [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)], sharex=ax0) for i in list(range(1,n)) ]
 	else:
-		axs = [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)]) for i in range(n) ]
+		axs = [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)]) for i in list(range(n)) ]
 	return axs
 
 def getAxes(opts):
 	'Get axes for plotting'
-	fig = figure(figsize=opts.pppara.figsize)
-	rcParams['legend.fontsize'] = 11
+	fig = plt.figure(figsize=opts.pppara.figsize)
+	plt.rcParams['legend.fontsize'] = 11
 	axss = fig.add_axes(opts.pppara.rectseis)
 	return axss
 
@@ -585,9 +585,9 @@ def getDataOpts():
 def main():
 	gsac, opts = getDataOpts()
 	axss = getAxes(opts)
-	ssg = SingleSeisGather(gsac.saclist, opts, axss)
+	SingleSeisGather(gsac.saclist, opts, axss)
 
 
 if __name__ == "__main__":
 	main()
-	show()
+	plt.show()

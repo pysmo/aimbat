@@ -19,7 +19,7 @@ Python script to convert between SAC files and pickle file.
 
 import sys
 from optparse import OptionParser
-from pysmo.aimbat.sacpickle import sac2pkl, pkl2sac, readPickle, writePickle, fileZipMode
+from sacpickle import sac2pkl, pkl2sac, fileZipMode
 
 def getOptions():
 	""" Parse arguments and options. """

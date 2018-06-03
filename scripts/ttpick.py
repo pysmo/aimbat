@@ -20,7 +20,7 @@ Python script to run the graphic user interface of AIMBAT for travel time pickin
 
 import matplotlib
 matplotlib.use('tkagg')
-from matplotlib.pyplot import *
+import matplotlib.pyplot as plt
 from pysmo.aimbat.qualctrl import getDataOpts, getAxes, PickPhaseMenuMore, getOptions
 
 # def getAxes(opts):
@@ -84,9 +84,9 @@ def main():
 			fignm = 'ttpick.' + fmt
 		else:
 			fignm = opts.pklfile + '.' + fmt
-		savefig(fignm, format=fmt)
+		plt.savefig(fignm, format=fmt)
 	else:
-		show()
+		plt.show()
 
 if __name__ == "__main__":
 	main()
