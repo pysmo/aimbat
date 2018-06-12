@@ -6,13 +6,12 @@ Xiaoting Lou (xlou@u.northwestern.edu)
 03/07/2012
 """
 
-from pylab import *
+import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
-from pysmo.aimbat.sacpickle import loadData
-from pysmo.aimbat.plotphase import getDataOpts, PPConfig, sacp1, sacp2, sacprs
+from pysmo.aimbat.plotphase import getDataOpts, sacp1, sacp2, sacprs
 
 # figure axes
-fig = figure(figsize=(9,12))
+fig = plt.figure(figsize=(9,12))
 rectp2 = [.09, .050, .8, .15]
 rectp1 = [.09, .245, .8, .33]
 rectp0 = [.09, .620, .8, .36]
@@ -45,6 +44,6 @@ for ax, lab in  zip(axs, labs):
 	ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)	
 
 fig.savefig('egplot.pdf', format='pdf')
-show()
+plt.show()
 
 

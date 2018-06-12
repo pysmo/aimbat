@@ -78,8 +78,8 @@ from numpy import array, linspace, mean, ones, zeros, pi, cos, concatenate
 from scipy import signal
 from gzip import GzipFile
 from bz2  import BZ2File
-import os, sys, contextlib
-from sacio import sacfile
+import os, sys
+from .sacio import sacfile
 import pickle
 
 
@@ -158,12 +158,13 @@ class SacDataHdrs:
 	def __init__(self, ifile, delta=-1):
 		""" Read SAC file to python objects in memory.
 		"""
+		print('Reading SAC file: '+ifile)
 		isac = sacfile(ifile, 'rw')
 		nthdr = 10
 		nkhdr = 3
 		thdrs  = [-12345.,] * nthdr
 		users  = [-12345.,] * nthdr
-		kusers = ['-12345  ',] * nkhdr
+		kusers = [b'-12345  ',] * nkhdr
 		for i in list(range(nthdr)):
 			try:
 				thdrs[i] = isac.__getattr__('t'+str(i))
@@ -257,6 +258,7 @@ class SacDataHdrs:
 		nthdr = 10
 		nkhdr = 3
 		for i in list(range(nkhdr)):
+			print(kusers)
 			sacobj.__setattr__('kuser'+str(i), kusers[i])
 		for i in list(range(nthdr)):
 			sacobj.__setattr__('t'+str(i), thdrs[i])
@@ -274,8 +276,8 @@ class SacDataHdrs:
 			sacobj.stla =  0
 			sacobj.stlo =  0
 			sacobj.stel =  0
-		hdrs = ['o', 'b', 'npts', 'data', 'delta', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
-		hdrs += ['cmpaz', 'cmpinc', 'kcmpnm']
+		hdrs = ['o', 'b', 'npts', 'delta', 'data', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
+		hdrs += ['cmpaz', 'cmpinc', 'kcmpnm', 'stla', 'stlo', 'stel']
 		for hdr in hdrs:
 			sacobj.__setattr__(hdr, self.__dict__[hdr])
 		self.savehdrs(sacobj)

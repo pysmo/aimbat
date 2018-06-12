@@ -6,8 +6,7 @@ Xiaoting Lou (xlou@u.northwestern.edu)
 03/07/2012
 """
 
-from pylab import *
-import sys
+import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 from pysmo.aimbat.sacpickle import loadData, SacDataHdrs
 from pysmo.aimbat.plotphase import getOptions, sacp1, sacp2, sacprs
@@ -15,10 +14,10 @@ from pysmo.aimbat.ttconfig import PPConfig, QCConfig, CCConfig, MCConfig
 
 
 def axes2(npick=4):
-	fig2 = figure(figsize=(9,12))
+	fig2 = plt.figure(figsize=(9,12))
 	ax0 = fig2.add_subplot(npick,1,1)
 	axsacs = [ ax0 ] + [ fig2.add_subplot(npick,1,i+1, sharex=ax0) for i in range(1, npick) ]
-	subplots_adjust(bottom=.05, top=0.96, left=.1, right=.97, wspace=.5, hspace=.24)
+	plt.subplots_adjust(bottom=.05, top=0.96, left=.1, right=.97, wspace=.5, hspace=.24)
 	return axsacs
 
 
@@ -65,6 +64,6 @@ if __name__ == '__main__':
 		trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
 		ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)	
 
-	savefig('egalignp2.pdf', format='pdf')
-	show()	
+	plt.savefig('egalignp2.pdf', format='pdf')
+	plt.show()	
 

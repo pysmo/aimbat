@@ -44,9 +44,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
-from ttconfig import PPConfig, getParser
-from sacpickle import loadData, windowIndex, windowData
-from plotutils import TimeSelector, dataNorm, axLimit, pickLegend
+from .ttconfig import PPConfig, getParser
+from .sacpickle import loadData, windowIndex, windowData
+from .plotutils import TimeSelector, dataNorm, axLimit, pickLegend
 
 def getOptions():
 	""" Parse arguments and options. """

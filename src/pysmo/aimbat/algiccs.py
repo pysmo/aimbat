@@ -17,13 +17,13 @@ Python module for the ICCS (iterative cross-correlation and stack) algorithm.
 	http://www.gnu.org/licenses/gpl.html
 """
 
-from numpy import array, ones, zeros, sqrt, dot, corrcoef, sum, mean, transpose
+from numpy import array, ones, zeros, sqrt, dot, corrcoef, mean, transpose
 from numpy import linalg as LA
 import os, sys, copy
 from optparse import OptionParser
-from ttconfig import CCConfig
-from qualsort import initQual, seleSeis
-from sacpickle import loadData, saveData, writePickle, taper, taperWindow, windowIndex, windowData 
+from .ttconfig import CCConfig
+from .qualsort import initQual, seleSeis
+from .sacpickle import loadData, saveData, writePickle, taper, taperWindow, windowIndex, windowData 
 
 
 def getOptions():
@@ -206,19 +206,25 @@ def ccWeightStack(saclist, opts):
 	stkdh = copy.copy(saclist[0])
 	stkdh.thdrs = [-12345.,] * 10
 	stkdh.users = [-12345.,] * 10
-	stkdh.kusers = ['-12345  ',] * 3
+	stkdh.kusers = [b'-12345  ',] * 3
 	stkdh.b = twplot[0] - taperwindow*0.5 + tfinmean
 	stkdh.npts = len(sdata)
 	stkdh.data = sdata
 	stkdh.sethdr(cchdr0, tinimean)
 	stkdh.sethdr(cchdr1, tfinmean)
-	stkdh.knetwk = 'Array   '
-	stkdh.kstnm = 'Stack   '
+	stkdh.knetwk = b'Array   '
+	stkdh.kstnm = b'Stack   '
 	stkdh.netsta = 'Array.Stack'
 	stkdh.gcarc = -1
 	stkdh.dist = -1
 	stkdh.baz = -1
 	stkdh.az = -1
+	stkdh.stla = 0
+	stkdh.stlo = 0
+	stkdh.stel = 0
+	#stkdh.delta = delta
+	#stkdh.e = stkdh.b + (stkdh.npts-1)*delta
+	print(stkdh.b, stkdh.e, stkdh.npts, delta, stkdh.stla, stkdh.stlo, stkdh.stel)
 	# set time window
 	stkdh.sethdr(twhdrs[0], twcorr[0]+tfinmean)
 	stkdh.sethdr(twhdrs[1], twcorr[1]+tfinmean)
@@ -307,7 +313,7 @@ def autoiccs(gsac, opts):
 			ccc, snr, coh = tquas[i]
 			if ccc < minccc or snr < minsnr or coh < mincoh:
 				inddel.append(i)
-				sacdh.sethdr(hdrsel, 'False   ')
+				sacdh.sethdr(hdrsel, b'False   ')
 				sacdh.selected = False
 				print ('--> Seismogram: {0:s} quality factors {1:.2f} {2:.2f} {3:.2f} < min. Deleted. '.format(sacdh.filename, ccc, snr, coh))
 			else:
@@ -385,7 +391,7 @@ def main():
 		hdrsel = opts.ccpara.hdrsel
 		for sacdh in gsac.saclist:
 			sacdh.selected = True
-			sacdh.sethdr(hdrsel, 'True    ')
+			sacdh.sethdr(hdrsel, b'True    ')
 		autoiccs(gsac, opts)
 	else:
 		stkdh, stkdata, quas = ccWeightStack(gsac.saclist, opts)

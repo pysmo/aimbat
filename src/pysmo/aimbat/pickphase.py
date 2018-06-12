@@ -44,11 +44,11 @@ import numpy as np
 from matplotlib.widgets import Button
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
-from ttconfig import PPConfig, getParser
-from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader
-from sacpickle import loadData, saveData 
-from plotutils import TimeSelector, dataNorm, axLimit, pickLegend, indexBaseTick
-import filtering as ftr
+from .ttconfig import PPConfig, getParser
+from .qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader
+from .sacpickle import loadData, saveData 
+from .plotutils import TimeSelector, dataNorm, axLimit, pickLegend, indexBaseTick
+from . import filtering as ftr
 from scipy import signal
 #import tkMessageBox
 from tkinter import messagebox
@@ -647,23 +647,23 @@ class PickPhaseMenu():
 		saveData(self.gsac, self.opts)
 
 	"""save headers and override data with filtered data
-	   @lowFreq -> user0
-	   @highFreq -> user1
-	   @band -> kuser0
-	   @order -> kuser1, need to convert to integer form alphanumeric
+	   @lowFreq -> user6
+	   @highFreq -> user7
+	   @band -> kuser1
+	   @order -> kuser2, need to convert to integer form alphanumeric
 	"""
 	def shfp(self, event):
 		# write params to file
 		for sacdh in self.gsac.saclist: 
-			sacdh.user0 = self.opts.filterParameters['lowFreq']
-			sacdh.user1 = self.opts.filterParameters['highFreq']
-			sacdh.kuser0 = self.opts.filterParameters['band']
-			sacdh.kuser1 = self.opts.filterParameters['order']
+			sacdh.user6 = self.opts.filterParameters['lowFreq']
+			sacdh.user7 = self.opts.filterParameters['highFreq']
+			sacdh.kuser1 = self.opts.filterParameters['band']
+			sacdh.kuser2 = self.opts.filterParameters['order']
 		if 'stkdh' in self.gsac.__dict__:
-			self.gsac.stkdh.user0 = self.opts.filterParameters['lowFreq']
-			self.gsac.stkdh.user1 = self.opts.filterParameters['highFreq']
-			self.gsac.stkdh.kuser0 = self.opts.filterParameters['band']
-			self.gsac.stkdh.kuser1 = self.opts.filterParameters['order']
+			self.gsac.stkdh.user6 = self.opts.filterParameters['lowFreq']
+			self.gsac.stkdh.user7 = self.opts.filterParameters['highFreq']
+			self.gsac.stkdh.kuser1 = self.opts.filterParameters['band']
+			self.gsac.stkdh.kuser2 = self.opts.filterParameters['order']
 
 		# save
 		saveData(self.gsac, self.opts)

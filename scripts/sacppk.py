@@ -17,7 +17,7 @@ Python script fo SAC phase picking (ppk).
 	http://www.gnu.org/licenses/gpl.html
 """ 
 
-from matplotlib.pyplot import *
+import matplotlib.pyplot as plt
 from pysmo.aimbat.pickphase import getDataOpts, PickPhaseMenu, getAxes
 
 #def getAxes(opts):
@@ -59,5 +59,5 @@ if __name__ == "__main__":
 	axs = getAxes(opts)
 	ppm = PickPhaseMenu(gsac, opts, axs)
 
-	show()
+	plt.show()
 

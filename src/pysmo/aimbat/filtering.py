@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import signal
-import math
+
 
 """when the user is picking"""
 def filtering_time_freq(originalTime, originalSignalTime, delta, filterType, highFreq, lowFreq, order, runReversePass = False):

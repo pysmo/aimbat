@@ -29,16 +29,16 @@ import os, sys, copy
 from matplotlib.widgets import Button, RadioButtons
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
-from ttconfig import PPConfig, QCConfig, CCConfig, MCConfig, getParser
-from sacpickle import loadData, SacDataHdrs, taperWindow
-from plotutils import TimeSelector, pickLegend
-from plotphase import sacp2
-from pickphase import PickPhase, PickPhaseMenu
-from qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
-from algiccs import ccWeightStack, checkCoverage
-from algmccc import mccc, findPhase, eventListName
-import filtering as ftr
-from plotstations import PlotStations
+from .ttconfig import PPConfig, QCConfig, CCConfig, MCConfig, getParser
+from .sacpickle import loadData, SacDataHdrs, taperWindow
+from .plotutils import TimeSelector, pickLegend
+from .plotphase import sacp2
+from .pickphase import PickPhase, PickPhaseMenu
+from .qualsort import initQual, seleSeis, sortSeisQual, sortSeisHeader, sortSeisHeaderDiff
+from .algiccs import ccWeightStack, checkCoverage
+from .algmccc import mccc, findPhase, eventListName
+from . import filtering as ftr
+from .plotstations import PlotStations
 import tkinter.messagebox
 
 """print everything out in an array, DO NOT DELETE!!!"""
@@ -1084,7 +1084,7 @@ class PickPhaseMenuMore:
 		hdr0, hdr1 = int(ccpara.cchdrs[0][1]), int(ccpara.cchdrs[1][1])
 		stkdh, stkdata, quas = ccWeightStack(self.gsac.selist, self.opts)
 		stkdh.selected = True
-		stkdh.sethdr(opts.qcpara.hdrsel, 'True    ')
+		stkdh.sethdr(opts.qcpara.hdrsel, b'True    ')
 		self.gsac.stkdh = stkdh
 		if opts.reltime != hdr1:
 			out = '\n--> change opts.reltime from %i to %i'
@@ -1237,14 +1237,14 @@ def getDataOpts():
 
 	# override defaults if already set in SAC files
 	firstSacdh = gsac.saclist[0]
-	if hasattr(firstSacdh, 'user0'):
-		filterParameters['lowFreq'] = firstSacdh.user0
-	if hasattr(firstSacdh, 'user1'):
-		filterParameters['highFreq'] = firstSacdh.user1
-	if hasattr(firstSacdh, 'kuser0'):
-		filterParameters['band'] = firstSacdh.kuser0
+	if hasattr(firstSacdh, 'user6'):
+		filterParameters['lowFreq'] = firstSacdh.user6
+	if hasattr(firstSacdh, 'user7'):
+		filterParameters['highFreq'] = firstSacdh.user7
 	if hasattr(firstSacdh, 'kuser1'):
-		filterParameters['order'] = int(firstSacdh.kuser1)
+		filterParameters['band'] = firstSacdh.kuser1
+	if hasattr(firstSacdh, 'kuser2'):
+		filterParameters['order'] = int(firstSacdh.kuser2)
 
 	mcpara.delta = opts.delta
 	opts.qheaders = qcpara.qheaders

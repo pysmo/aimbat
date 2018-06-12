@@ -6,14 +6,14 @@ Xiaoting Lou (xlou@u.northwestern.edu)
 03/07/2012
 """
 
-from pysmo.sac.sacio import sacfile
+from pysmo.aimbat.sacio import sacfile
 from numpy import linspace, array
 from scipy import signal
 import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 
 # read sac file:
-ifilename = 'TA.109C.__.BHZ.sac'
+ifilename = 'TA.109C.__.BHZ'
 sacobj = sacfile(ifilename, 'rw')
 b = sacobj.b
 npts = sacobj.npts

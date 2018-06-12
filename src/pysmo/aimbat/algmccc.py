@@ -21,13 +21,13 @@ Code transcribed from the original MCCC 3.0 fortran version using the same funct
 """
 
 
-from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum, std, shape, sqrt, argsort 
+from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum, std, shape, sqrt, argsort, identity 
 import os, sys
 from time import strftime, tzname
 from optparse import OptionParser
-from ttconfig import MCConfig 
-from sacpickle import loadData, saveData, SacDataHdrs, taper, taperWindow, windowIndex, windowData 
-from qualsort import initQual, seleSeis
+from .ttconfig import MCConfig 
+from .sacpickle import loadData, saveData, SacDataHdrs, taperWindow, windowIndex, windowData 
+from .qualsort import initQual, seleSeis
 
 def getOptions():
 	""" 

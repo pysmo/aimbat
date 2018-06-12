@@ -27,7 +27,7 @@ def initQual(saclist, hdrsel, qheaders):
 	for sacdh in saclist:
 		sel = sacdh.gethdr(hdrsel)
 		if sel == '-12345  ':
-			sacdh.sethdr(hdrsel, 'True    ')
+			sacdh.sethdr(hdrsel, b'True    ')
 			sacdh.selected = True
 		elif sel == 'True    ' or sel == b'True    ':  # for bytes in py3
 			sacdh.selected = True
