@@ -33,8 +33,8 @@ class sacfile(object):
     or data.
 
     Example:
-    >>> from pysmo.sac.sacio import sacfile
-    >>> sacobj = sacfile('file.sac', 'ro')
+    >>> import sacio
+    >>> sacobj = sacio.sacfile('file.sac', 'ro')
     >>> print sacobj.delta
     0.5
     >>> sacobj.delta = 2
