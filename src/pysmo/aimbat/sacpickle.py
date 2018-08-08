@@ -79,7 +79,7 @@ from scipy import signal
 from gzip import GzipFile
 from bz2  import BZ2File
 import os, sys
-import sacio
+import pysmo.sac.sacio as sacio
 import pickle
 
 
