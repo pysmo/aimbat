@@ -1,4 +1,5 @@
-#!/usr/bin/env pytho#------------------------------------------------
+#!/usr/bin/env python
+#------------------------------------------------
 # Filename: qualsort.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu

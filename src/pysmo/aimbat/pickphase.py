@@ -45,12 +45,12 @@ from matplotlib.widgets import Button
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
 from tkinter import messagebox
-from scipy import signal
 
 import ttconfig
 import qualsort
 import sacpickle as sacpkl
 import plotutils as putil
+import prepdata  as pdata
 import filtering as ftr
 
 
@@ -107,11 +107,7 @@ class PickPhase:
         Create array x as time series and get reference time.
         """
         sacdh = self.sacdh
-        b, npts, delta = sacdh.b, sacdh.npts, sacdh.delta
-        # Use linspace instead of arange to keep len(time) == npts.
-        # Arange give an extra point for large window.
-        #self.time = arange(b, b+npts*delta, delta)
-        self.time = np.linspace(b, b+(npts-1)*delta, npts)
+        self.time = sacdh.time
         reltime = self.opts.reltime
         if reltime >= 0:
             reftime = sacdh.thdrs[reltime]
@@ -137,44 +133,20 @@ class PickPhase:
         x = self.time - self.sacdh.reftime
         d = self.sacdh.data
 
-        # filter time signal d
-
-        if hasattr(opts, 'filterParameters') and opts.filterParameters['apply']:
-            NYQ = 1.0/(2*opts.delta)
-            
-            # make filter, default is bandpass
-            Wn = [opts.filterParameters['lowFreq']/NYQ, opts.filterParameters['highFreq']/NYQ]
-            B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
-            if opts.filterParameters['band']=='lowpass':
-                Wn = opts.filterParameters['lowFreq']/NYQ
-                B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
-            elif opts.filterParameters['band']=='highpass':
-                Wn = opts.filterParameters['highFreq']/NYQ
-                B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='highpass')
-
-            d = signal.lfilter(B, A, d)
-
-        axpp = self.axpp
-        if self.opts.ynorm > 0:
-            # normalize data within time window
-            if self.opts.ynormtwin_on:
-                try:
-                    indmin, indmax = np.searchsorted(self.time, self.twindow)
-                    indmax = min(len(x)-1, indmax)
-                    thisd = d[indmin:indmax+1]
-                    dnorm = putil.dataNorm(thisd)
-                except:
-                    dnorm = putil.dataNorm(d)
-            else:
-                dnorm = putil.dataNorm(d)
-            dnorm = 1/dnorm*self.opts.ynorm*.5
+        if hasattr(self, 'twindow') and opts.ynormtwin_on:
+            dnorm = pdata.dataNormWindow(d, self.time, self.twindow)
         else:
-            dnorm = 1
-        y = d * dnorm
+            dnorm = pdata.dataNorm(d)
+        dnorm = 1/dnorm * opts.ynorm/2
+        
+        yori = dnorm * d 
+        ymem = dnorm * self.sacdh.datamem
         # plot
         self.ynorm = [dnorm,]
-        line, = axpp.plot(x, y+ybase, ls='-', color=self.color, lw=self.linew, alpha=self.alpha, picker=5)
-        self.lines = [line,]
+        axpp = self.axpp
+        line1, = axpp.plot(x, yori+ybase, ls=':', color=self.color, lw=self.linew, alpha=self.alpha, picker=5)
+        line2, = axpp.plot(x, ymem+ybase, ls='-', color=self.color, lw=self.linew, alpha=self.alpha, picker=5)
+        self.lines = [line1, line2]
         if opts.fill == 0:
             axpp.axhline(y=ybase, color='k', ls=':')
             self.wvfills = []
@@ -182,14 +154,14 @@ class PickPhase:
             f = opts.fill
             fplus, fnega, = [], []
             for i in list(range(len(x))):
-                if f*y[i] > 0:
+                if f*ymem[i] > 0:
                     fplus.append(True)
                     fnega.append(False)
                 else:
                     fplus.append(False)
                     fnega.append(True)
-            wvfillplus = axpp.fill_between(x, ybase, y+ybase, where=fplus, color=self.color, alpha=self.alpha*0.6)
-            wvfillnega = axpp.fill_between(x, ybase, y+ybase, where=fnega, color=self.color, alpha=self.alpha*0.2)
+            wvfillplus = axpp.fill_between(x, ybase, ymem+ybase, where=fplus, color=self.color, alpha=self.alpha*0.6)
+            wvfillnega = axpp.fill_between(x, ybase, ymem+ybase, where=fnega, color=self.color, alpha=self.alpha*0.2)
             self.wvfills = [wvfillplus, wvfillnega]
         self.labelStation()
 
@@ -358,16 +330,11 @@ class PickPhase:
         """
         x = self.time - self.sacdh.reftime
         d = self.sacdh.data
-        indmin, indmax = np.searchsorted(x, xxlim)
-        indmax = min(len(x)-1, indmax)
-        thisd = d[indmin:indmax+1]
-        if len(thisd) > 0 and self.opts.ynorm > 0:
-            dnorm = putil.dataNorm(thisd)
-            dnorm = 1/dnorm*self.opts.ynorm*.5
-        else:
-            dnorm = self.ynorm[-1]
+        dnorm = pdata.dataNormWindow(d, x, xxlim)
+        dnorm = 1/dnorm * self.opts.ynorm/2
         self.ynorm.append(dnorm)
-        plt.setp(self.lines[0], ydata=self.ybase+d*dnorm)
+        plt.setp(self.lines[0], ydata=self.ybase+dnorm*d)
+        plt.setp(self.lines[1], ydata=self.ybase+dnorm*self.sacdh.datamem)
 
     def connect(self):
         self.cidpick = self.axpp.figure.canvas.mpl_connect('pick_event', self.on_pick)
@@ -519,11 +486,12 @@ class PickPhaseMenu():
         if evkey.lower() == 'z' and len(xzoom) > 1:
             del xzoom[-1]
             axpp.set_xlim(xzoom[-1])
-            print('Zoom back to: {:6.1f} {:6.1f) '.format(tuple(xzoom[-1])))
+            print('Zoom back to: {:6.1f} {:6.1f} '.format(xzoom[-1][0], xzoom[-1][1]))
             if self.opts.upylim_on:
                 for pp in self.pps:
                     del pp.ynorm[-1]
                     plt.setp(pp.lines[0], ydata=pp.ybase+pp.sacdh.data*pp.ynorm[-1])
+                    plt.setp(pp.lines[1], ydata=pp.ybase+pp.sacdh.datamem*pp.ynorm[-1])
             axpp.figure.canvas.draw()
 
     def plotPicks(self):
@@ -838,11 +806,14 @@ def getAxes(opts):
 
     return axs
 
+
+            
 def getDataOpts():
     'Get SAC Data and Options'
     opts, ifiles = getOptions()
     pppara = ttconfig.PPConfig()
     gsac = sacpkl.loadData(ifiles, opts, pppara)
+    gsac = pdata.filtData(gsac, opts, pppara)
     opts.pppara = pppara
     opts.qheaders = pppara.qheaders
     opts.qfactors = pppara.qfactors
@@ -857,6 +828,9 @@ def main():
     gsac, opts = getDataOpts()
     axs = getAxes(opts)
     PickPhaseMenu(gsac, opts, axs)
+
+
+
 
 
 if __name__ == "__main__":

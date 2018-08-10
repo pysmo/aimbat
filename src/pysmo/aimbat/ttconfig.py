@@ -63,7 +63,14 @@ class PPConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
-        self.qweights = [ float(val)  for val in config.get('sachdrs', 'qweights').split() ] 
+        self.qweights = [ float(val)  for val in config.get('sachdrs', 'qweights').split() ]
+        # SAC headers for filter
+        self.fhdrApply = config.get('sachdrs', 'fhdrApply')
+        self.fhdrBand = config.get('sachdrs', 'fhdrBand')
+        self.fhdrRevPass = config.get('sachdrs', 'fhdrRevPass')
+        self.fhdrLowFreq = config.get('sachdrs', 'fhdrLowFreq')
+        self.fhdrHighFreq = config.get('sachdrs', 'fhdrHighFreq')
+        self.fhdrOrder = config.get('sachdrs', 'fhdrOrder')
         # SAC plots
         self.figsize = [ float(val)  for val in config.get('sacplot', 'figsize').split() ]
         self.rectseis = [ float(val)  for val in config.get('sacplot', 'rectseis').split() ]
