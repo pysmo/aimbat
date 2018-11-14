@@ -64,13 +64,6 @@ class PPConfig:
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
         self.qweights = [ float(val)  for val in config.get('sachdrs', 'qweights').split() ]
-        # SAC headers for filter
-        self.fhdrApply = config.get('sachdrs', 'fhdrApply')
-        self.fhdrBand = config.get('sachdrs', 'fhdrBand')
-        self.fhdrRevPass = config.get('sachdrs', 'fhdrRevPass')
-        self.fhdrLowFreq = config.get('sachdrs', 'fhdrLowFreq')
-        self.fhdrHighFreq = config.get('sachdrs', 'fhdrHighFreq')
-        self.fhdrOrder = config.get('sachdrs', 'fhdrOrder')
         # SAC plots
         self.figsize = [ float(val)  for val in config.get('sacplot', 'figsize').split() ]
         self.rectseis = [ float(val)  for val in config.get('sacplot', 'rectseis').split() ]
@@ -87,6 +80,20 @@ class PPConfig:
         self.srate = config.getfloat('sacplot', 'srate')
         self.tapertype = config.get('signal', 'tapertype')
         self.taperwidth = config.getfloat('signal', 'taperwidth')
+        # SAC headers for filter 
+        self.fhdrApply = config.get('filter', 'fhdrApply')
+        self.fhdrBand = config.get('filter', 'fhdrBand')
+        self.fhdrRevPass = config.get('filter', 'fhdrRevPass')
+        self.fhdrLowFreq = config.get('filter', 'fhdrLowFreq')
+        self.fhdrHighFreq = config.get('filter', 'fhdrHighFreq')
+        self.fhdrOrder = config.get('filter', 'fhdrOrder')
+        # default values for filter 
+        self.fvalApply = config.get('filter', 'fvalApply')
+        self.fvalBand = config.get('filter', 'fvalBand')
+        self.fvalRevPass = config.get('filter', 'fvalRevPass')
+        self.fvalLowFreq = config.getfloat('filter', 'fvalLowFreq')
+        self.fvalHighFreq = config.getfloat('filter', 'fvalHighFreq')
+        self.fvalOrder = config.getint('filter', 'fvalOrder')
 
 
 

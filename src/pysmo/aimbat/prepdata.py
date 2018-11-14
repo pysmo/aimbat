@@ -19,22 +19,28 @@ Python module for preparing time and data arrays (original and filtered in memor
 """
 
 import numpy as np
+import sys
 from scipy import signal
+import qualsort
 
 def filtData(gsac, opts, pppara):
     """
     Create time and data (original and filtered in memory) arrays for plotting.
     """
-    
-    # set default filter parameters
+    # get default filter parameters
     filterParameters = {}
-    filterParameters['apply'] = True
-    filterParameters['advance'] = False
-    filterParameters['band'] = 'bandpass'
-    filterParameters['lowFreq'] = 0.05
-    filterParameters['highFreq'] = 0.3
-    filterParameters['order'] = 2
-    filterParameters['reversepass'] = False
+    filterParameters['band'] = pppara.fvalBand
+    filterParameters['lowFreq'] = pppara.fvalLowFreq
+    filterParameters['highFreq'] = pppara.fvalHighFreq
+    filterParameters['order'] = pppara.fvalOrder
+    if pppara.fvalApply == 'True':
+        filterParameters['apply'] = True
+    else:
+        filterParameters['apply'] = False
+    if pppara.fvalRevPass == 'True':
+        filterParameters['reversepass'] = True
+    else:
+        filterParameters['reversepass'] = False
     opts.filterParameters = filterParameters
 
     # override defaults if already set in SAC files
@@ -47,11 +53,8 @@ def filtData(gsac, opts, pppara):
         filterParameters['band'] = firstSacdh.__getattr__(pppara.fhdrBand)
     if hasattr(firstSacdh, pppara.fhdrOrder):
         filterParameters['order'] = int(firstSacdh.__getattr__(pppara.fhdrOrder))
-        
-    # Use linspace instead of arange to keep len(time) == npts.
-    # Arange give an extra point for large window.
-    #self.time = arange(b, b+npts*delta, delta)
-    
+
+    # create time array and filtered data in memory
     for sacdh in gsac.saclist:
         b, npts, delta = sacdh.b, sacdh.npts, sacdh.delta
         sacdh.time = np.linspace(b, b+(npts-1)*delta, npts)
@@ -69,7 +72,8 @@ def filtData(gsac, opts, pppara):
                 Wn = opts.filterParameters['highFreq']/NYQ
                 B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='highpass')
             sacdh.datamem = signal.lfilter(B, A, d)
-    
+        else:
+            sacdh.datamem = d
     return gsac
 
 
@@ -95,6 +99,48 @@ def dataNormWindow(d, t, twindow):
         dnorm = dataNorm(d)
     return dnorm
 
+def findPhase(filename):
+    """ Find phase (P or S) from component info (BH?) in file name 
+    """
+    lowf = filename.lower()
+    ind = lowf.find('bh')
+    zt = lowf[ind+2]
+    if zt == 'z':
+        phase = 'P'
+    elif zt == 't':
+        phase = 'S'
+    else:
+        print('Fail to identify phase. Exit.')
+        sys.exit()
+    return phase
 
+def paraDataOpts(opts, ifiles):
+    'Common parameters, data and options'
+    pppara = PPConfig()
+    qcpara = QCConfig()
+    ccpara = CCConfig()
+    mcpara = MCConfig()
+    gsac = sacpkl.loadData(ifiles, opts, pppara)
+    mcpara.delta = opts.delta
+    opts.qheaders = qcpara.qheaders
+    opts.qweights = qcpara.qweights
+    opts.qfactors = qcpara.qfactors
+    opts.hdrsel = qcpara.hdrsel
+    opts.fstack = ccpara.fstack
+    ccpara.qqhdrs = qcpara.qheaders
+    ccpara.twcorr = opts.twcorr
+    # find phase:
+    if opts.phase is None:
+        phase = findPhase(ifiles[0])
+        print ('Found phase to be: ' + phase + '\n')
+    else:
+        phase = opts.phase
+    mcpara.phase = phase
+    opts.qcpara = qcpara
+    opts.ccpara = ccpara
+    opts.mcpara = mcpara
+    opts.pppara = pppara
+    qualsort.initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
+    return gsac, opts
 
 

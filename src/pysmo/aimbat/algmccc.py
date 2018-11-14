@@ -531,23 +531,6 @@ def getParams(gsac, mcpara, opts=None):
         mcpara.mcname = mcpara.ofilename
     gsac.mcname = mcpara.mcname
     
-
-def findPhase(filename):
-    """ Find phase (P or S) from component info (BH?) in file name 
-    """
-    lowf = filename.lower()
-    ind = lowf.find('bh')
-    zt = lowf[ind+2]
-    if zt == 'z':
-        phase = 'P'
-    elif zt == 't':
-        phase = 'S'
-    else:
-        print('Fail to identify phase. Exit.')
-        sys.exit()
-    return phase
-
-
 def main():
     opts, ifiles = getOptions()
     mcpara = ttconfig.MCConfig()
