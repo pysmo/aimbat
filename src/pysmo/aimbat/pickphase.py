@@ -813,7 +813,7 @@ def getDataOpts():
     opts, ifiles = getOptions()
     pppara = ttconfig.PPConfig()
     gsac = sacpkl.loadData(ifiles, opts, pppara)
-    gsac = pdata.filtData(gsac, opts, pppara)
+    gsac = pdata.prepData(gsac, opts, pppara)
     opts.pppara = pppara
     opts.qheaders = pppara.qheaders
     opts.qfactors = pppara.qfactors

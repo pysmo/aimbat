@@ -21,9 +21,10 @@ Python module for preparing time and data arrays (original and filtered in memor
 import numpy as np
 import sys
 from scipy import signal
-import qualsort
+import qualsort, ttconfig
+import sacpickle as sacpkl
 
-def filtData(gsac, opts, pppara):
+def prepData(gsac, opts, pppara):
     """
     Create time and data (original and filtered in memory) arrays for plotting.
     """
@@ -42,7 +43,6 @@ def filtData(gsac, opts, pppara):
     else:
         filterParameters['reversepass'] = False
     opts.filterParameters = filterParameters
-
     # override defaults if already set in SAC files
     firstSacdh = gsac.saclist[0]
     if hasattr(firstSacdh, pppara.fhdrLowFreq):
@@ -53,13 +53,12 @@ def filtData(gsac, opts, pppara):
         filterParameters['band'] = firstSacdh.__getattr__(pppara.fhdrBand)
     if hasattr(firstSacdh, pppara.fhdrOrder):
         filterParameters['order'] = int(firstSacdh.__getattr__(pppara.fhdrOrder))
-
     # create time array and filtered data in memory
     for sacdh in gsac.saclist:
         b, npts, delta = sacdh.b, sacdh.npts, sacdh.delta
         sacdh.time = np.linspace(b, b+(npts-1)*delta, npts)
         d = sacdh.data.copy()
-        # filter time signal d:
+        # filter time signal d
         if hasattr(opts, 'filterParameters') and opts.filterParameters['apply']:
             NYQ = 1.0/(2*opts.delta)
             # make filter, default is bandpass
@@ -74,8 +73,34 @@ def filtData(gsac, opts, pppara):
             sacdh.datamem = signal.lfilter(B, A, d)
         else:
             sacdh.datamem = d
+        # get reference time 
+        reltime = opts.reltime
+        if reltime >= 0:
+            reftime = sacdh.thdrs[reltime]
+            if reftime == -12345.0:
+                out = 'Time pick T{0:d} is not defined in SAC file {1:s} of station {2:s}'
+                print(out.format(reltime, sacdh.filename, sacdh.netsta))
+                sys.exit()
+            else:
+                sacdh.reftime = reftime
+        else:
+            sacdh.reftime = 0.
+        # get time window
+        sacdh.twhdrs = pppara.twhdrs
+        tw0 = sacdh.gethdr(pppara.twhdrs[0])
+        tw1 = sacdh.gethdr(pppara.twhdrs[1])    
+        if tw0 == -12345.0:
+            tw0 = sacdh.time[0]
+        if tw1 == -12345.0:
+            tw1 = sacdh.time[-1]
+        sacdh.twindow = [tw0, tw1]
+        # get data normalization
+        if hasattr(sacdh, 'twindow') and opts.ynormtwin_on:
+            dnorm = dataNormWindow(sacdh.data, sacdh.time, sacdh.twindow)
+        else:
+            dnorm = dataNorm(sacdh.data)
+        sacdh.dscalor = 1/dnorm * opts.ynorm/2 
     return gsac
-
 
 def dataNorm(d, w=0.05):
     """ 
@@ -116,10 +141,10 @@ def findPhase(filename):
 
 def paraDataOpts(opts, ifiles):
     'Common parameters, data and options'
-    pppara = PPConfig()
-    qcpara = QCConfig()
-    ccpara = CCConfig()
-    mcpara = MCConfig()
+    pppara = ttconfig.PPConfig()
+    qcpara = ttconfig.QCConfig()
+    ccpara = ttconfig.CCConfig()
+    mcpara = ttconfig.MCConfig()
     gsac = sacpkl.loadData(ifiles, opts, pppara)
     mcpara.delta = opts.delta
     opts.qheaders = qcpara.qheaders

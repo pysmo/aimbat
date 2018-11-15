@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+#------------------------------------------------
+# Filename: filtering.py
+#   Author: Lay Kuan Loh 
+#    Email: lkloh2410@gmail.com
+#
+# Copyright (c) 2014 Lay Kuan Loh
+#------------------------------------------------
+
 import numpy as np
 from scipy import signal
 
