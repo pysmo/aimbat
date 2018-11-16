@@ -17,7 +17,7 @@ Python module for the ICCS (iterative cross-correlation and stack) algorithm.
     http://www.gnu.org/licenses/gpl.html
 """
 
-from numpy import array, ones, zeros, sqrt, dot, corrcoef, mean, transpose
+from numpy import array, ones, zeros, sqrt, dot, corrcoef, mean, transpose, linspace
 from numpy import linalg as LA
 import os, sys, copy
 from optparse import OptionParser
@@ -222,9 +222,11 @@ def ccWeightStack(saclist, opts):
     stkdh.stla = 0
     stkdh.stlo = 0
     stkdh.stel = 0
-    #stkdh.delta = delta
-    #stkdh.e = stkdh.b + (stkdh.npts-1)*delta
-    print(stkdh.b, stkdh.e, stkdh.npts, delta, stkdh.stla, stkdh.stlo, stkdh.stel)
+    stkdh.delta = delta
+    stkdh.e = stkdh.b + (stkdh.npts-1)*delta
+    stkdh.time = linspace(stkdh.b, stkdh.b+(stkdh.npts-1)*stkdh.delta, stkdh.npts)
+    stkdh.datamem = sdata
+    #print('stkdh: ',stkdh.b, stkdh.e, stkdh.npts, delta, stkdh.stla, stkdh.stlo, stkdh.stel)
     # set time window
     stkdh.sethdr(twhdrs[0], twcorr[0]+tfinmean)
     stkdh.sethdr(twhdrs[1], twcorr[1]+tfinmean)

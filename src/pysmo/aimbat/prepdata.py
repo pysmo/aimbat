@@ -21,7 +21,8 @@ Python module for preparing time and data arrays (original and filtered in memor
 import numpy as np
 import sys
 from scipy import signal
-import qualsort, ttconfig
+import qualsort
+import ttconfig
 import sacpickle as sacpkl
 
 def prepData(gsac, opts, pppara):

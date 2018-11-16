@@ -35,6 +35,7 @@ import ttconfig
 import qualsort
 import sacpickle as sacpkl
 import plotutils as putil
+import prepdata  as pdata
 import plotphase as pph
 import pickphase as ppk
 import filtering as ftr
@@ -587,7 +588,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'az';
+
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -1226,6 +1227,7 @@ def getDataOpts():
     mcpara = ttconfig.MCConfig()
 
     gsac = sacpkl.loadData(ifiles, opts, pppara)
+    gsac = pdata.prepData(gsac, opts, pppara)
 
     # set defaults
     filterParameters = {}
@@ -1259,7 +1261,7 @@ def getDataOpts():
     ccpara.twcorr = opts.twcorr
     # find phase:
     if opts.phase is None:
-        phase = mccc.findPhase(ifiles[0])
+        phase = pdata.findPhase(ifiles[0])
         print(('Found phase to be: ' + phase + '\n'))
     else:
         phase = opts.phase
