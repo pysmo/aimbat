@@ -25,84 +25,6 @@ import qualsort
 import ttconfig
 import sacpickle as sacpkl
 
-def prepData(gsac, opts, pppara):
-    """
-    Create time and data (original and filtered in memory) arrays for plotting.
-    """
-    # get default filter parameters
-    filterParameters = {}
-    filterParameters['band'] = pppara.fvalBand
-    filterParameters['lowFreq'] = pppara.fvalLowFreq
-    filterParameters['highFreq'] = pppara.fvalHighFreq
-    filterParameters['order'] = pppara.fvalOrder
-    if pppara.fvalApply == 'True':
-        filterParameters['apply'] = True
-    else:
-        filterParameters['apply'] = False
-    if pppara.fvalRevPass == 'True':
-        filterParameters['reversepass'] = True
-    else:
-        filterParameters['reversepass'] = False
-    opts.filterParameters = filterParameters
-    # override defaults if already set in SAC files
-    firstSacdh = gsac.saclist[0]
-    if hasattr(firstSacdh, pppara.fhdrLowFreq):
-        filterParameters['lowFreq'] = firstSacdh.__getattr__(pppara.fhdrLowFreq)
-    if hasattr(firstSacdh, pppara.fhdrHighFreq):
-        filterParameters['highFreq'] = firstSacdh.__getattr__(pppara.fhdrHighFreq)
-    if hasattr(firstSacdh, pppara.fhdrBand):
-        filterParameters['band'] = firstSacdh.__getattr__(pppara.fhdrBand)
-    if hasattr(firstSacdh, pppara.fhdrOrder):
-        filterParameters['order'] = int(firstSacdh.__getattr__(pppara.fhdrOrder))
-    # create time array and filtered data in memory
-    for sacdh in gsac.saclist:
-        b, npts, delta = sacdh.b, sacdh.npts, sacdh.delta
-        sacdh.time = np.linspace(b, b+(npts-1)*delta, npts)
-        d = sacdh.data.copy()
-        # filter time signal d
-        if hasattr(opts, 'filterParameters') and opts.filterParameters['apply']:
-            NYQ = 1.0/(2*opts.delta)
-            # make filter, default is bandpass
-            Wn = [opts.filterParameters['lowFreq']/NYQ, opts.filterParameters['highFreq']/NYQ]
-            B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='bandpass')
-            if opts.filterParameters['band']=='lowpass':
-                Wn = opts.filterParameters['lowFreq']/NYQ
-                B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='lowpass')
-            elif opts.filterParameters['band']=='highpass':
-                Wn = opts.filterParameters['highFreq']/NYQ
-                B, A = signal.butter(opts.filterParameters['order'], Wn, analog=False, btype='highpass')
-            sacdh.datamem = signal.lfilter(B, A, d)
-        else:
-            sacdh.datamem = d
-        # get reference time 
-        reltime = opts.reltime
-        if reltime >= 0:
-            reftime = sacdh.thdrs[reltime]
-            if reftime == -12345.0:
-                out = 'Time pick T{0:d} is not defined in SAC file {1:s} of station {2:s}'
-                print(out.format(reltime, sacdh.filename, sacdh.netsta))
-                sys.exit()
-            else:
-                sacdh.reftime = reftime
-        else:
-            sacdh.reftime = 0.
-        # get time window
-        sacdh.twhdrs = pppara.twhdrs
-        tw0 = sacdh.gethdr(pppara.twhdrs[0])
-        tw1 = sacdh.gethdr(pppara.twhdrs[1])    
-        if tw0 == -12345.0:
-            tw0 = sacdh.time[0]
-        if tw1 == -12345.0:
-            tw1 = sacdh.time[-1]
-        sacdh.twindow = [tw0, tw1]
-        # get data normalization
-        if hasattr(sacdh, 'twindow') and opts.ynormtwin_on:
-            dnorm = dataNormWindow(sacdh.data, sacdh.time, sacdh.twindow)
-        else:
-            dnorm = dataNorm(sacdh.data)
-        sacdh.dscalor = 1/dnorm * opts.ynorm/2 
-    return gsac
-
 def dataNorm(d, w=0.05):
     """ 
     Calculate normalization factor for d, which can be multi-dimensional arrays.
@@ -140,6 +62,146 @@ def findPhase(filename):
         sys.exit()
     return phase
 
+def getFilterPara(gsac, pppara):
+    #get default filter parameters
+    filterParameters = {}
+    filterParameters['band'] = pppara.fvalBand
+    filterParameters['lowFreq'] = pppara.fvalLowFreq
+    filterParameters['highFreq'] = pppara.fvalHighFreq
+    filterParameters['order'] = pppara.fvalOrder
+    if pppara.fvalApply == 'True':
+        filterParameters['apply'] = True
+    else:
+        filterParameters['apply'] = False
+    if pppara.fvalRevPass == 'True':
+        filterParameters['reversepass'] = True
+    else:
+        filterParameters['reversepass'] = False
+    # override defaults if already set in SAC files
+    firstSacdh = gsac.saclist[0]
+    if hasattr(firstSacdh, pppara.fhdrLowFreq):
+        filterParameters['lowFreq'] = firstSacdh.__getattr__(pppara.fhdrLowFreq)
+    if hasattr(firstSacdh, pppara.fhdrHighFreq):
+        filterParameters['highFreq'] = firstSacdh.__getattr__(pppara.fhdrHighFreq)
+    if hasattr(firstSacdh, pppara.fhdrBand):
+        filterParameters['band'] = firstSacdh.__getattr__(pppara.fhdrBand)
+    if hasattr(firstSacdh, pppara.fhdrOrder):
+        filterParameters['order'] = int(firstSacdh.__getattr__(pppara.fhdrOrder))
+    return filterParameters
+
+def createFilter(filterParameters, delta):
+    'Create butterworth filter. Default is bandpass'
+    NYQ = 1.0/(2*delta)
+    Wn = [filterParameters['lowFreq']/NYQ,filterParameters['highFreq']/NYQ]
+    B, A = signal.butter(filterParameters['order'], Wn, analog=False, btype='bandpass')
+    if filterParameters['band']=='lowpass':
+        Wn = filterParameters['lowFreq']/NYQ
+        B, A = signal.butter(filterParameters['order'], Wn, analog=False, btype='lowpass')
+    elif filterParameters['band']=='highpass':
+        Wn = filterParameters['highFreq']/NYQ
+        B, A = signal.butter(filterParameters['order'], Wn, analog=False, btype='highpass')
+    return NYQ, Wn, B, A
+
+def seisDataFilter(gsac, opts):
+    'Filter seismograms'
+    NYQ, Wn, B, A = createFilter(opts.filterParameters, opts.delta)
+    for sacdh in gsac.saclist:
+        sacdh.datamem = signal.lfilter(B, A, sacdh.data)
+    return 
+
+def seisTimeData(gsac):
+    'Create time and data (original and in memory) arrays'
+    for sacdh in gsac.saclist:
+        b, npts, delta = sacdh.b, sacdh.npts, sacdh.delta
+        sacdh.time = np.linspace(b, b+(npts-1)*delta, npts)
+        sacdh.datamem = sacdh.data.copy()
+    return 
+
+def seisTimeRefr(gsac, opts):
+    'get reference time for each seismogram'
+    reltime = opts.reltime
+    for sacdh in gsac.saclist:
+        if reltime >= 0:
+            reftime = sacdh.thdrs[reltime]
+            if reftime == -12345.0:
+                out = 'Time pick T{0:d} is not defined in SAC file {1:s} of station {2:s}'
+                print(out.format(reltime, sacdh.filename, sacdh.netsta))
+                sys.exit()
+            else:
+                sacdh.reftime = reftime
+        else:
+            sacdh.reftime = 0.
+    return
+
+def seisTimeWindow(gsac, twhdrs):
+    'get time window for each seismogram'
+    for sacdh in gsac.saclist:
+        sacdh.twhdrs =twhdrs
+        tw0 = sacdh.gethdr(twhdrs[0])
+        tw1 = sacdh.gethdr(twhdrs[1])    
+        if tw0 == -12345.0:
+            tw0 = sacdh.time[0]
+        if tw1 == -12345.0:
+            tw1 = sacdh.time[-1]
+        sacdh.twindow = [tw0, tw1]
+    return
+
+def seisDataNorm(gsac, opts):
+    'get data normalization factor each seismogram'
+    for sacdh in gsac.saclist:
+        if opts.ynormtwin_on:
+            dnorm = dataNormWindow(sacdh.datamem, sacdh.time, sacdh.twindow)
+        else:
+            dnorm = dataNorm(sacdh.datamem)
+        sacdh.datnorm = 1/dnorm * opts.ynorm/2
+    return
+
+def prepData(gsac, opts):
+    """
+    Prepare data for plotting
+    """  
+    opts.filterParameters = getFilterPara(gsac, opts.pppara)
+    print('Prepare data for plotting')
+    seisTimeData(gsac)
+    seisTimeWindow(gsac, opts.pppara.twhdrs)
+    if opts.filterParameters['apply']:
+        seisDataFilter(gsac, opts)
+    seisTimeRefr(gsac, opts)
+    seisDataNorm(gsac, opts)
+    return gsac
+
+def seisSort(gsac, opts):
+    'Sort seismograms by file indices, quality factors, time difference, or a given header.'
+    sortby = opts.sortby
+    # determine increase/decrease order
+    if sortby[-1] == '-':
+        sortincrease = False
+        sortby = sortby[:-1]
+    else:
+        sortincrease = True
+    opts.labelqual = True 
+    # sort 
+    if sortby == 'i':   # by file indices
+        gsac.selist, gsac.delist = qualsort.seleSeis(gsac.saclist)
+    elif sortby == 't':    # by time difference
+        ipick = opts.qcpara.ichdrs[0]
+        wpick = 't'+str(opts.reltime)
+        if ipick == wpick:
+            print('Same time pick: {0:s} and {1:s}. Exit'.format(ipick, wpick))
+            sys.exit()
+        gsac.selist, gsac.delist = qualsort.sortSeisHeaderDiff(gsac.saclist, ipick, wpick, sortincrease)
+    elif sortby.isdigit() or sortby in opts.qheaders + ['all',]: # by quality factors
+        if sortby == '1' or sortby == 'ccc':
+            opts.qweights = [1, 0, 0]
+        elif sortby == '2' or sortby == 'snr':
+            opts.qweights = [0, 1, 0]
+        elif sortby == '3' or sortby == 'coh':
+            opts.qweights = [0, 0, 1]
+        gsac.selist, gsac.delist = qualsort.sortSeisQual(gsac.saclist, opts.qheaders, opts.qweights, opts.qfactors, sortincrease)
+    else: # by a given header
+        gsac.selist, gsac.delist = qualsort.sortSeisHeader(gsac.saclist, sortby, sortincrease)
+    return
+
 def paraDataOpts(opts, ifiles):
     'Common parameters, data and options'
     pppara = ttconfig.PPConfig()
@@ -168,5 +230,6 @@ def paraDataOpts(opts, ifiles):
     opts.pppara = pppara
     qualsort.initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
     return gsac, opts
+
 
 
