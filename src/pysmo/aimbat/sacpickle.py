@@ -78,8 +78,8 @@ from numpy import array, linspace, mean, ones, zeros, pi, cos, concatenate
 from scipy import signal
 from gzip import GzipFile
 from bz2  import BZ2File
+from pysmo.core.sac import SacIO
 import os, sys
-import pysmo.sac.sacio as sacio
 import pickle
 
 
@@ -159,7 +159,7 @@ class SacDataHdrs:
         """ Read SAC file to python objects in memory.
         """
         print('Reading SAC file: '+ifile)
-        isac = sacio.sacfile(ifile, 'rw')
+        isac = SacIO.from_file(ifile)
         nthdr = 10
         nkhdr = 3
         thdrs  = [-12345.,] * nthdr
@@ -167,16 +167,16 @@ class SacDataHdrs:
         kusers = [b'-12345  ',] * nkhdr
         for i in list(range(nthdr)):
             try:
-                thdrs[i] = isac.__getattr__('t'+str(i))
+                thdrs[i] = getattr(isac, 't'+str(i))
             except:
                 pass
             try:
-                users[i] = isac.__getattr__('user'+str(i))
+                users[i] = getattr(isac,_'user'+str(i))
             except:
                 pass
         for i in list(range(nkhdr)):
             try:
-                kusers[i] = isac.__getattr__('kuser'+str(i))#.rstrip()
+                kusers[i] = getattr(isac, 'kuser'+str(i))#.rstrip()
             except:
                 pass
         self.thdrs = thdrs
@@ -186,10 +186,9 @@ class SacDataHdrs:
         self.baz = isac.baz
         self.dist = isac.dist
         self.gcarc = isac.gcarc
-        stla, stlo, stel = isac.stla, isac.stlo, isac.stel*0.001
-        self.stla = stla
-        self.stlo = stlo
-        self.stel = stel
+        self.stla = isac.stla
+        self.stlo = isac.stlo
+        self.stel = isac.stel*0.001
         self.staloc = [stla, stlo, stel]
         self.filename = ifile
         # resample data if given a different positive delta
@@ -207,7 +206,7 @@ class SacDataHdrs:
         self.cmpaz = isac.cmpaz
         self.cmpinc = isac.cmpinc
         self.kcmpnm = isac.kcmpnm
-        isac.close()
+        del isac
 
     def resampleData(self, delta):
         self.data, self.delta = resampleSeis(self.data, self.delta, delta)
@@ -244,42 +243,48 @@ class SacDataHdrs:
         hdrs[ind] = val
 
     def writeHdrs(self):
-        """ Write SAC headers (t_n, user_n, and kuser_n) in python obj to existing SAC file.
         """
-        sacobj = sacio.sacfile(self.filename, 'rw')
+        Write SAC headers (t_n, user_n, and kuser_n) in python obj to existing SAC file.
+        """
+        sacobj = SacIO.from_file(self.filename)
         self.savehdrs(sacobj)
-        sacobj.close()
+        sacobj.write(self.filename)
+        del sacobj
 
-    def savehdrs(self, sacobj):
-        """ Write SAC headers (t_n, user_n, and kuser_n) in python obj to SAC obj.
+    def sethdrs(self, sacobj):
+        """
+        Write SAC headers (t_n, user_n, and kuser_n) in python obj to SAC obj.
         """
         thdrs, users, kusers = self.thdrs, self.users, self.kusers
         nthdr = 10
         nkhdr = 3
         for i in list(range(nkhdr)):
-            sacobj.__setattr__('kuser'+str(i), kusers[i])
+            setattr(sacobj, 'kuser'+str(i), kusers[i])
         for i in list(range(nthdr)):
-            sacobj.__setattr__('t'+str(i), thdrs[i])
-            sacobj.__setattr__('user'+str(i), users[i])        
+            setattr(sacobj, 't'+str(i), thdrs[i])
+            setattr(sacobj, 'user'+str(i), users[i])
         
     def savesac(self):
-        """ Save all data and header variables to an existing or new sacfile. """
+        """
+        Save all data and header variables to an existing or new sacfile.
+        """
         if os.path.isfile(self.filename):
-            sacobj = sacio.sacfile(self.filename, 'rw')
+            sacobj = SacIO.from_file.(self.filename)
         else:
             fspl = self.filename.split('/')
             if len(fspl) > 1:
                 os.system('mkdir -p '+ '/'.join(fspl[:-1]))
-            sacobj = sacio.sacfile(self.filename, 'new')
+            sacobj = SacIO()
             sacobj.stla =  0
             sacobj.stlo =  0
             sacobj.stel =  0
         hdrs = ['o', 'b', 'npts', 'delta', 'data', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
         hdrs += ['cmpaz', 'cmpinc', 'kcmpnm', 'stla', 'stlo', 'stel']
         for hdr in hdrs:
-            sacobj.__setattr__(hdr, self.__dict__[hdr])
-        self.savehdrs(sacobj)
-        sacobj.close()
+            setattr(sacobj, hdr, self.__dict__[hdr])
+        self.sethdrs(sacobj)
+        sacobj.write(self.filename)
+        del sacobj
 
 # ############################################################################### #
 #                                                                                 #
@@ -309,7 +314,7 @@ class SacGroup:
         self.saclist = saclist
         self.ifiles = ifiles
         # get event info
-        isac = sacio.sacfile(ifiles[0], 'ro')
+        isac = Sacio.from_file(ifiles[0])
         year, jday = isac.nzyear, isac.nzjday
         mon, day = jul2date(year, jday)
         try:
@@ -323,7 +328,7 @@ class SacGroup:
             self.kevnm = isac.kevnm
         except:
             self.kevnm = 'unknown'
-        isac.close()
+        del isac
         if delta > 0:
             self.resampleData(delta)
 
@@ -383,10 +388,11 @@ def obj2sac(gsac):
         hdrs += ['stla', 'stlo', 'stel' ]
         hdrs += ['kevnm', 'idep', 'iztype']
         for sacdh in gsac.saclist:
-                sacobj = sacio.sacfile(sacdh.filename, 'rw')
+                sacobj = SacIO.from_file(sacdh.filename)
                 for hdr in hdrs:
-                        sacobj.__setattr__(hdr, eval(hdr))
-                sacobj.close()
+                        setattr(sacobj, hdr, eval(hdr))
+                sacobj.write(sacdh.filename)
+                del sacobj
     if 'stkdh' in gsac.__dict__:
         gsac.stkdh.savesac()
 
@@ -558,9 +564,9 @@ def loadData(ifiles, opts, para):
     opts.zipmode = zipmode
     if filemode == 'sac':
         if srate <= 0:
-            isac = sacio.sacfile(ifile0, 'ro')
+            isac = SacIO.from_file(ifile0)
             delta = isac.delta
-            isac.close()
+            del isac
         else:
             delta = 1.0/srate
         gsac = sac2obj(ifiles, delta)

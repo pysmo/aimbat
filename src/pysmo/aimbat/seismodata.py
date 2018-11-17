@@ -18,7 +18,6 @@ Python module for extracting waveform data from sac files.
 """
 
 from sacpickle import readPickle
-from sacio import sacfile
 from numpy import linspace, array
 from scipy import signal
 

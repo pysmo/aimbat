@@ -13,15 +13,15 @@ test_filename = '20120109.04071467.bhz.pkl'
 class qualctrlModel(unittest.TestCase):
 
     def test_getOptions(self):
-    	sys.argv[1:] = [test_filename]
-    	opts = getOptions()
-    	self.assertIsNone(opts[0].twin_on)
+        sys.argv[1:] = [test_filename]
+        opts = getOptions()
+        self.assertIsNone(opts[0].twin_on)
         self.assertEqual(opts[0].maxnum,(37,3))
         self.assertIsNone(opts[0].nlab_on)
 
     def test_getDataOpts(self):
-    	sys.argv[1:] = [test_filename]
-    	gsac, opts = getDataOpts()
+        sys.argv[1:] = [test_filename]
+        gsac, opts = getDataOpts()
         self.assertEqual(len(gsac.delist),7)
         self.assertEqual(len(gsac.selist),117)
         self.assertEqual(len(gsac.delist)+len(gsac.selist),len(gsac.saclist))

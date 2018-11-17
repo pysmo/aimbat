@@ -6,7 +6,7 @@ Xiaoting Lou (xlou@u.northwestern.edu)
 03/07/2012
 """
 
-from pysmo.aimbat.sacio import sacfile
+from pysmo.core.sac import SacIO
 from numpy import linspace, array
 from scipy import signal
 import matplotlib.pyplot as plt
@@ -14,7 +14,7 @@ import matplotlib.transforms as transforms
 
 # read sac file:
 ifilename = 'TA.109C.__.BHZ'
-sacobj = sacfile(ifilename, 'rw')
+sacobj = SacIO.from_file(ifilename)
 b = sacobj.b
 npts = sacobj.npts
 delta = sacobj.delta
@@ -41,4 +41,3 @@ plt.ylim(-1.2e-5,1.8e-5)
 
 fig.savefig('egsac.pdf', format='pdf')
 plt.show()
-
