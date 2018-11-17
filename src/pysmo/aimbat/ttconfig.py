@@ -73,6 +73,7 @@ class PPConfig:
         self.colortwsele = config.get('sacplot', 'colortwsele')
         self.alphatwfill = config.getfloat('sacplot', 'alphatwfill')
         self.alphatwsele = config.getfloat('sacplot', 'alphatwsele')
+        self.alphawave = config.getfloat('sacplot', 'alphawave')
         self.npick = config.getint('sacplot', 'npick')
         self.pickcolors = config.get('sacplot', 'pickcolors')
         self.pickstyles = config.get('sacplot', 'pickstyles').split()

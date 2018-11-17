@@ -1227,7 +1227,6 @@ def getDataOpts():
     mcpara = ttconfig.MCConfig()
 
     gsac = sacpkl.loadData(ifiles, opts, pppara)
-    gsac = pdata.prepData(gsac, opts, pppara)
 
     # set defaults
     filterParameters = {}
@@ -1278,6 +1277,7 @@ def getDataOpts():
     opts.zero_on = False
     opts.nlab_on = True
     opts.ynormtwin_on = True
+    gsac = pdata.prepData(gsac, opts)
     #checkCoverage(gsac, opts)
     qualsort.initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
     return gsac, opts

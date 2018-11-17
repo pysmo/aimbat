@@ -230,6 +230,7 @@ def ccWeightStack(saclist, opts):
     # set time window
     stkdh.sethdr(twhdrs[0], twcorr[0]+tfinmean)
     stkdh.sethdr(twhdrs[1], twcorr[1]+tfinmean)
+    stkdh.twindow = twcorr[0]+tfinmean, twcorr[1]+tfinmean
     if opts.fstack is None:
         stkdh.filename = ccpara.fstack
     else:
@@ -237,6 +238,7 @@ def ccWeightStack(saclist, opts):
     for sacdh, tfin in zip(saclist, tfins):
         sacdh.sethdr(twhdrs[0], tfin+twcorr[0])
         sacdh.sethdr(twhdrs[1], tfin+twcorr[1])
+        sacdh.twindow = tfin+twcorr[0], tfin+twcorr[1] 
     quas = array([ ccc, snr, coh ])
     return stkdh, stkdata, quas
 
