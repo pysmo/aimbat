@@ -156,6 +156,24 @@ def seisDataNorm(gsac, opts):
         sacdh.datnorm = 1/dnorm * opts.ynorm/2
     return
 
+def seisWave(sacdh):
+    'Calculate waveform X and Y for plot'
+    x = sacdh.time - sacdh.reftime
+    y = sacdh.datamem * sacdh.datnorm
+    return x, y 
+
+def seisDataBaseline(gsac):
+    'Create plotting baselines for each seismogram in selected and deselected sac lists'
+    # see plotutils.indexBaseTick for yindex, ybases and yticks
+    # no trace at ybase=0; ytick = -ybase
+    for i in range(len(gsac.selist)):
+        isac = gsac.selist[i]
+        isac.datbase = -i-1
+    for i in range(-len(gsac.delist),0):
+        isac = gsac.delist[i]
+        isac.datbase = -i
+    return
+
 def prepData(gsac, opts):
     """
     Prepare data for plotting
@@ -230,19 +248,22 @@ def paraDataOpts(opts, ifiles):
     opts.ccpara = ccpara
     opts.mcpara = mcpara
     opts.pppara = pppara
+    # initialize quality factors
     qualsort.initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
     return gsac, opts
 
 
 def convertColors(opts, pppara):
     'Convert color names to RGBA codes for pg'
-    
     opts.colorwave = convertToRGBA(pppara.colorwave, alpha=pppara.alphawave*100)
     opts.colorwavedel = convertToRGBA(pppara.colorwavedel, alpha=pppara.alphawave*100)
     opts.colortwfill = convertToRGBA(pppara.colortwfill, alpha=pppara.alphatwfill*100)
     opts.colortwsele = convertToRGBA(pppara.colortwsele, alpha=pppara.alphatwsele*100)
     opts.pickcolors = [ convertToRGB(c) for c in pppara.pickcolors ]
     return
+
+
+
 
 #------------------------------------------------
 # Modified from Arnav Sankaran's utils.py in 2016
