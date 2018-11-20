@@ -171,7 +171,7 @@ class SacDataHdrs:
             except:
                 pass
             try:
-                users[i] = getattr(isac,_'user'+str(i))
+                users[i] = getattr(isac, 'user'+str(i))
             except:
                 pass
         for i in list(range(nkhdr)):
@@ -189,7 +189,7 @@ class SacDataHdrs:
         self.stla = isac.stla
         self.stlo = isac.stlo
         self.stel = isac.stel*0.001
-        self.staloc = [stla, stlo, stel]
+        self.staloc = [self.stla, self.stlo, self.stel]
         self.filename = ifile
         # resample data if given a different positive delta
         self.data, self.delta = resampleSeis(array(isac.data), isac.delta, delta)
@@ -200,8 +200,10 @@ class SacDataHdrs:
         self.kstnm = isac.kstnm
         self.knetwk = isac.knetwk
         # bytes != str in py3 and need to decode/encode
-        net = isac.knetwk.rstrip().decode()
-        sta = isac.kstnm.rstrip().decode()
+        #net = isac.knetwk.rstrip().decode()
+        #sta = isac.kstnm.rstrip().decode()
+        net = isac.knetwk
+        sta = isac.kstnm
         self.netsta = net + '.' + sta
         self.cmpaz = isac.cmpaz
         self.cmpinc = isac.cmpinc
@@ -247,7 +249,7 @@ class SacDataHdrs:
         Write SAC headers (t_n, user_n, and kuser_n) in python obj to existing SAC file.
         """
         sacobj = SacIO.from_file(self.filename)
-        self.savehdrs(sacobj)
+        self.sethdrs(sacobj)
         sacobj.write(self.filename)
         del sacobj
 
@@ -269,7 +271,7 @@ class SacDataHdrs:
         Save all data and header variables to an existing or new sacfile.
         """
         if os.path.isfile(self.filename):
-            sacobj = SacIO.from_file.(self.filename)
+            sacobj = SacIO.from_file(self.filename)
         else:
             fspl = self.filename.split('/')
             if len(fspl) > 1:
@@ -278,7 +280,7 @@ class SacDataHdrs:
             sacobj.stla =  0
             sacobj.stlo =  0
             sacobj.stel =  0
-        hdrs = ['o', 'b', 'npts', 'delta', 'data', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
+        hdrs = ['o', 'b', 'delta', 'data', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
         hdrs += ['cmpaz', 'cmpinc', 'kcmpnm', 'stla', 'stlo', 'stel']
         for hdr in hdrs:
             setattr(sacobj, hdr, self.__dict__[hdr])
@@ -314,7 +316,7 @@ class SacGroup:
         self.saclist = saclist
         self.ifiles = ifiles
         # get event info
-        isac = Sacio.from_file(ifiles[0])
+        isac = SacIO.from_file(ifiles[0])
         year, jday = isac.nzyear, isac.nzjday
         mon, day = jul2date(year, jday)
         try:

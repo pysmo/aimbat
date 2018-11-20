@@ -22,13 +22,13 @@ from numpy import linspace, array
 from scipy import signal
 
 import sys
-from ttconfig import PPConfig, QCConfig, CCConfig, MCConfig, getParser
-from sacpickle import loadData
-from qualsort import initQual
-from algmccc import findPhase
+from pysmo.aimbat.ttconfig import PPConfig, QCConfig, CCConfig, MCConfig, getParser
+from pysmo.aimbat.sacpickle import loadData
+from pysmo.aimbat.qualsort import initQual
+from pysmo.aimbat.algmccc import findPhase
 
-from algiccs import ccWeightStack
-import filtering
+from pysmo.aimbat.algiccs import ccWeightStack
+import pysmo.aimbat.filtering
 
 
 class DataItem(object):

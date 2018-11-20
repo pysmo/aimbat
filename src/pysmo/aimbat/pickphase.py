@@ -46,12 +46,12 @@ from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
 from tkinter import messagebox
 
-import ttconfig
-import qualsort
-import sacpickle as sacpkl
-import plotutils as putil
-import prepdata  as pdata
-import filtering as ftr
+from pysmo.aimbat import ttconfig
+from pysmo.aimbat import qualsort
+from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat import plotutils as putil
+from pysmo.aimbat import prepdata  as pdata
+from pysmo.aimbat import filtering as ftr
 
 
 def getOptions():

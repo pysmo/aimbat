@@ -27,23 +27,23 @@ class filteringModel(unittest.TestCase):
         for i in xrange(len(amplitudeSignalFreq)):
             if amplitudeSignalFreq[i] > 1000: #spike detected
                 # check 1st signal
-                print '\nChecking 1st freq: %f' % f1
+                print('\nChecking 1st freq: %f' % f1)
                 if 0 < originalFreq[i] and originalFreq[i] < f2/2: 
-                    print 'Current Freq Detected at 1st spike: %f' % originalFreq[i]
+                    print('Current Freq Detected at 1st spike: %f' % originalFreq[i])
                     self.assertTrue(f1-5*delta_freq<originalFreq[i])
                     self.assertTrue(originalFreq[i]<(f1+5*delta_freq))
 
                 # check 2nd signal
-                print '\nChecking 2nd freq: %f' % f2
+                print('\nChecking 2nd freq: %f' % f2)
                 if f2/2 < originalFreq[i] and originalFreq[i] < f3/2: 
-                    print 'Current Freq Detected at 2nd spike: %f' % originalFreq[i]
+                    print('Current Freq Detected at 2nd spike: %f' % originalFreq[i])
                     self.assertTrue(f2-5*delta_freq<originalFreq[i])
                     self.assertTrue(originalFreq[i]<(f2+5*delta_freq))
 
                 # check 3rd signal
-                print '\nChecking 3rd freq: %f' % f3
+                print('\nChecking 3rd freq: %f' % f3)
                 if 0.75*f3 < originalFreq[i]:
-                    print 'Current Freq Detected at 3rd spike: %f' % originalFreq[i]
+                    print('Current Freq Detected at 3rd spike: %f' % originalFreq[i])
                     self.assertTrue(f3-5*delta_freq<originalFreq[i])
                     self.assertTrue(originalFreq[i]<(f3+5*delta_freq))
 
@@ -114,7 +114,7 @@ class filteringModel(unittest.TestCase):
         for i in xrange(len(filteredAmplitudeFreq)):
             if filteredAmplitudeFreq[i] > 1000: #spike detected
                 if 0<originalFreq[i]:
-                    print 'LOL %r' % originalFreq[i]
+                    print('LOL %r' % originalFreq[i])
                     # only 3rd freq detected
                     self.assertTrue(f3-delta_freq < originalFreq[i])
                     self.assertTrue(originalFreq[i] < f3+delta_freq)
@@ -124,8 +124,3 @@ class filteringModel(unittest.TestCase):
 
                     # NOT 2nd freq
                     self.assertFalse(originalFreq[i] < f2+5*delta_freq)
-
-
-
-
-

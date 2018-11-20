@@ -21,9 +21,9 @@ from numpy import array, ones, zeros, sqrt, dot, corrcoef, mean, transpose
 from numpy import linalg as LA
 import os, sys, copy
 from optparse import OptionParser
-import ttconfig
-import qualsort
-import sacpickle as sacpkl
+from pysmo.aimbat import ttconfig
+from pysmo.aimbat import qualsort
+from pysmo.aimbat import sacpickle as sacpkl
 
 
 def getOptions():
