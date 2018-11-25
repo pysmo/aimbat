@@ -93,8 +93,8 @@ def sortSeisQual(saclist, qheaders, qweights, qfactors, increase=True):
     else:
         print('Zero sacdh selected. Exit')
         sys.exit()
-    out1 = '  Average '
-    out2 = '  Weighted average quality: '
+    out1 = 'Average '
+    out2 = 'Weighted average quality: '
     for i in list(range(len(qweights))):
         qf = qfactors[i]
         #qw = qweights[i]

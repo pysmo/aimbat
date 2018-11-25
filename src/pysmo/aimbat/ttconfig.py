@@ -82,19 +82,19 @@ class PPConfig:
         self.tapertype = config.get('signal', 'tapertype')
         self.taperwidth = config.getfloat('signal', 'taperwidth')
         # SAC headers for filter 
-        self.fhdrApply = config.get('signal', 'fhdrApply')
-        self.fhdrBand = config.get('signal', 'fhdrBand')
-        self.fhdrRevPass = config.get('signal', 'fhdrRevPass')
-        self.fhdrLowFreq = config.get('signal', 'fhdrLowFreq')
-        self.fhdrHighFreq = config.get('signal', 'fhdrHighFreq')
-        self.fhdrOrder = config.get('signal', 'fhdrOrder')
+        self.fhdrApply = config.get('filter', 'fhdrApply')
+        self.fhdrBand = config.get('filter', 'fhdrBand')
+        self.fhdrRevPass = config.get('filter', 'fhdrRevPass')
+        self.fhdrLowFreq = config.get('filter', 'fhdrLowFreq')
+        self.fhdrHighFreq = config.get('filter', 'fhdrHighFreq')
+        self.fhdrOrder = config.get('filter', 'fhdrOrder')
         # default values for filter 
-        self.fvalApply = config.get('signal', 'fvalApply')
-        self.fvalBand = config.get('signal', 'fvalBand')
-        self.fvalRevPass = config.get('signal', 'fvalRevPass')
-        self.fvalLowFreq = config.getfloat('signal', 'fvalLowFreq')
-        self.fvalHighFreq = config.getfloat('signal', 'fvalHighFreq')
-        self.fvalOrder = config.getint('signal', 'fvalOrder')
+        self.fvalApply = config.get('filter', 'fvalApply')
+        self.fvalBand = config.get('filter', 'fvalBand')
+        self.fvalRevPass = config.get('filter', 'fvalRevPass')
+        self.fvalLowFreq = config.getfloat('filter', 'fvalLowFreq')
+        self.fvalHighFreq = config.getfloat('filter', 'fvalHighFreq')
+        self.fvalOrder = config.getint('filter', 'fvalOrder')
 
 
 

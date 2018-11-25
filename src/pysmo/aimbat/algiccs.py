@@ -164,7 +164,7 @@ def ccWeightStack(saclist, opts):
             conv = convergence(stkdata[it], stkdata[it-1])
             print ('=== Iteration {0:d} : {1:8.6f}'.format(it, conv))
             if conv <= convepsi:
-                print ('    Array stack converged... Done. Mean corrcoef={0:.3f}'.format(mean(ccc)))
+                print ('Array stack converged... Done. Mean corrcoef={0:.3f}'.format(mean(ccc)))
                 break
         # Find time lag at peak correlation between each trace and the array stack.
         # Calculate cross correlation coefficient, signal/noise ratio and temporal coherence
