@@ -144,9 +144,8 @@ class PickPhase:
         # plot
         self.ynorm = [dnorm,]
         axpp = self.axpp
-        line1, = axpp.plot(x, yori+ybase, ls=':', color=self.color, lw=self.linew, alpha=self.alpha, picker=5)
-        line2, = axpp.plot(x, ymem+ybase, ls='-', color=self.color, lw=self.linew, alpha=self.alpha, picker=5)
-        self.lines = [line1, line2]
+        line1, = axpp.plot(x, ymem+ybase, ls='-', color=self.color, lw=self.linew, alpha=self.alpha, picker=5)
+        self.lines = [line1, ]
         if opts.fill == 0:
             axpp.axhline(y=ybase, color='k', ls=':')
             self.wvfills = []
@@ -813,13 +812,13 @@ def getDataOpts():
     opts, ifiles = getOptions()
     pppara = ttconfig.PPConfig()
     gsac = sacpkl.loadData(ifiles, opts, pppara)
-    gsac = pdata.prepData(gsac, opts, pppara)
     opts.pppara = pppara
     opts.qheaders = pppara.qheaders
     opts.qfactors = pppara.qfactors
     opts.qweights = pppara.qweights
     opts.hdrsel = pppara.hdrsel
     opts.pick_on = True
+    gsac = pdata.prepData(gsac, opts)
     qualsort.initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
     sortSeis(gsac, opts)
     return gsac, opts

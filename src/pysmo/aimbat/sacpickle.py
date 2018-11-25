@@ -4,7 +4,7 @@
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
-# Copyright (c) 2011-2018 Xiaoting Lou
+# Copyright (c) 2011 Xiaoting Lou
 #------------------------------------------------
 """
 Python module for converting SAC files to python pickle data structure to increase 

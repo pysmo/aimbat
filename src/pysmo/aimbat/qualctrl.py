@@ -41,6 +41,7 @@ from pysmo.aimbat import filtering as ftr
 from pysmo.aimbat import plotstations as psta
 from pysmo.aimbat import algiccs as iccs
 from pysmo.aimbat import algmccc as mccc
+from pysmo.aimbat import prepdata  as pdata
 
 
 
@@ -587,7 +588,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'az';
+
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -1082,7 +1083,7 @@ class PickPhaseMenuMore:
         """
         opts = self.opts
         ccpara = opts.ccpara
-        opts.ccpara.twcorr = self.twcorr
+        ccpara.twcorr = self.twcorr
         ccpara.cchdrs = self.cchdrs
         hdr0, hdr1 = int(ccpara.cchdrs[0][1]), int(ccpara.cchdrs[1][1])
         stkdh, stkdata, quas = iccs.ccWeightStack(self.gsac.selist, self.opts)
@@ -1259,7 +1260,7 @@ def getDataOpts():
     ccpara.twcorr = opts.twcorr
     # find phase:
     if opts.phase is None:
-        phase = mccc.findPhase(ifiles[0])
+        phase = pdata.findPhase(ifiles[0])
         print(('Found phase to be: ' + phase + '\n'))
     else:
         phase = opts.phase
@@ -1276,6 +1277,7 @@ def getDataOpts():
     opts.zero_on = False
     opts.nlab_on = True
     opts.ynormtwin_on = True
+    gsac = pdata.prepData(gsac, opts)
     #checkCoverage(gsac, opts)
     qualsort.initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
     return gsac, opts
