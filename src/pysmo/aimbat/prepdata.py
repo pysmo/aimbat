@@ -25,6 +25,7 @@ import qualsort
 import ttconfig
 import sacpickle as sacpkl
 
+
 def dataNorm(d, w=0.05):
     """ 
     Calculate normalization factor for d, which can be multi-dimensional arrays.
@@ -46,6 +47,15 @@ def dataNormWindow(d, t, twindow):
     except:
         dnorm = dataNorm(d)
     return dnorm
+
+def axLimit(minmax, w=0.05):
+    """ 
+    Calculate axis limit with white space (default 5%) from given min/max values.
+    """
+    ymin, ymax = minmax
+    dy = ymax - ymin
+    ylim = [ymin-w*dy, ymax+w*dy]
+    return ylim
 
 def findPhase(filename):
     """ Find phase (P or S) from component info (BH?) in file name 
@@ -136,24 +146,30 @@ def seisTimeRefr(gsac, opts):
 def seisTimeWindow(gsac, twhdrs):
     'get time window for each seismogram'
     for sacdh in gsac.saclist:
-        sacdh.twhdrs =twhdrs
+        sacdh.twhdrs = twhdrs
         tw0 = sacdh.gethdr(twhdrs[0])
         tw1 = sacdh.gethdr(twhdrs[1])    
         if tw0 == -12345.0:
             tw0 = sacdh.time[0]
         if tw1 == -12345.0:
             tw1 = sacdh.time[-1]
-        sacdh.twindow = [tw0, tw1]
+        sacdh.twindow = [tw0, tw1] # absolute time values
+    return
+
+
+def sacDataNorm(sacdh, opts):
+    'get data normalization factor one seismogram'
+    if opts.ynormtwin_on:
+        dnorm = dataNormWindow(sacdh.datamem, sacdh.time, sacdh.twindow)
+    else:
+        dnorm = dataNorm(sacdh.datamem)
+    sacdh.datnorm = 1/dnorm * opts.ynorm/2
     return
 
 def seisDataNorm(gsac, opts):
     'get data normalization factor each seismogram'
     for sacdh in gsac.saclist:
-        if opts.ynormtwin_on:
-            dnorm = dataNormWindow(sacdh.datamem, sacdh.time, sacdh.twindow)
-        else:
-            dnorm = dataNorm(sacdh.datamem)
-        sacdh.datnorm = 1/dnorm * opts.ynorm/2
+        sacDataNorm(sacdh, opts)
     return
 
 def seisWave(sacdh):
@@ -163,15 +179,20 @@ def seisWave(sacdh):
     return x, y 
 
 def seisDataBaseline(gsac):
-    'Create plotting baselines for each seismogram in selected and deselected sac lists'
+    """
+    Create plotting baselines for each seismogram in selected and deselected sac lists
+    Example
+            delist (n=5)     selist a(na=11)
+        [ -5, -4, -3, -2, -1] [0,  1, 2, 3, 4, 5, 6, 7, 8,  9, 10] <-- yindex
+        [  5,  4,  3,  2,  1] [0, -1,-2,-3,-4,-5,-6,-7,-8, -9,-10] <-- ybases
+    """
     # see plotutils.indexBaseTick for yindex, ybases and yticks
     # no trace at ybase=0; ytick = -ybase
-    for i in range(len(gsac.selist)):
-        isac = gsac.selist[i]
-        isac.datbase = -i-1
     for i in range(-len(gsac.delist),0):
-        isac = gsac.delist[i]
-        isac.datbase = -i
+        gsac.delist[i].datbase = -i
+    for i in range(len(gsac.selist)):
+        gsac.selist[i].datbase = -i
+    gsac.stkdh.datbase = 0
     return
 
 def prepData(gsac, opts):
@@ -197,10 +218,11 @@ def seisSort(gsac, opts):
         sortby = sortby[:-1]
     else:
         sortincrease = True
-    opts.labelqual = True 
+#    opts.labelqual = True 
     # sort 
-    if sortby == 'i':   # by file indices
+    if sortby == 'i':   
         gsac.selist, gsac.delist = qualsort.seleSeis(gsac.saclist)
+        print('Select seismograms by sacdh.selected')
     elif sortby == 't':    # by time difference
         ipick = opts.qcpara.ichdrs[0]
         wpick = 't'+str(opts.reltime)
@@ -209,12 +231,18 @@ def seisSort(gsac, opts):
             sys.exit()
         gsac.selist, gsac.delist = qualsort.sortSeisHeaderDiff(gsac.saclist, ipick, wpick, sortincrease)
     elif sortby.isdigit() or sortby in opts.qheaders + ['all',]: # by quality factors
-        if sortby == '1' or sortby == 'ccc':
+        if sortby == '0' or sortby == 'all':
+            opts.qweights = [1./3, 1./3, 1./3]
+            print('Sort by all quality factors: ccc+snr+coh')
+        elif sortby == '1' or sortby == 'ccc':
             opts.qweights = [1, 0, 0]
+            print('Sort by quality factor ccc (Cross Correlation Coefficient)')
         elif sortby == '2' or sortby == 'snr':
             opts.qweights = [0, 1, 0]
+            print('Sort by quality factor snr (Signal/Noise Ratio)')
         elif sortby == '3' or sortby == 'coh':
             opts.qweights = [0, 0, 1]
+            print('Sort by quality factor coh (Coherence)')
         gsac.selist, gsac.delist = qualsort.sortSeisQual(gsac.saclist, opts.qheaders, opts.qweights, opts.qfactors, sortincrease)
     else: # by a given header
         gsac.selist, gsac.delist = qualsort.sortSeisHeader(gsac.saclist, sortby, sortincrease)

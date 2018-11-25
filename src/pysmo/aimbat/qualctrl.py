@@ -1083,7 +1083,7 @@ class PickPhaseMenuMore:
         """
         opts = self.opts
         ccpara = opts.ccpara
-        opts.ccpara.twcorr = self.twcorr
+        ccpara.twcorr = self.twcorr
         ccpara.cchdrs = self.cchdrs
         hdr0, hdr1 = int(ccpara.cchdrs[0][1]), int(ccpara.cchdrs[1][1])
         stkdh, stkdata, quas = iccs.ccWeightStack(self.gsac.selist, self.opts)
