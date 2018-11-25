@@ -3,6 +3,7 @@
 .svn
 *.swp
 *.bak
+*.mc*
 tobedel/
 build/
 dist/
