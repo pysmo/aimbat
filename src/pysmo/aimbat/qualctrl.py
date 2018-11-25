@@ -31,17 +31,17 @@ from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
 import tkinter.messagebox
 
-import ttconfig
-import qualsort
-import sacpickle as sacpkl
-import plotutils as putil
-import prepdata  as pdata
-import plotphase as pph
-import pickphase as ppk
-import filtering as ftr
-import plotstations as psta
-import algiccs as iccs
-import algmccc as mccc
+from pysmo.aimbat import ttconfig
+from pysmo.aimbat import qualsort
+from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat import plotutils as putil
+from pysmo.aimbat import plotphase as pph
+from pysmo.aimbat import pickphase as ppk
+from pysmo.aimbat import filtering as ftr
+from pysmo.aimbat import plotstations as psta
+from pysmo.aimbat import algiccs as iccs
+from pysmo.aimbat import algmccc as mccc
+from pysmo.aimbat import prepdata  as pdata
 
 
 

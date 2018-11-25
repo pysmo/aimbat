@@ -44,14 +44,14 @@ class sacpickleModel(unittest.TestCase):
         self.assertEqual(zipmode3, None)
 
     def test_pkl2sac(self):
-    	    pkfile = '20120109.04071467.bhz.pkl'
+        pkfile = '20120109.04071467.bhz.pkl'
         zipmode = None
         gsac = readPickle(pkfile, zipmode)
         sacdh = gsac.saclist[0]
         dirarr = sacdh.filename.split('/')
         dirname = dirarr[0]+'/'+dirarr[1]
-
-    	    pkl2sac(pkfile, zipmode)
+        
+        pkl2sac(pkfile, zipmode)
 
         #sac is default folder name for sacfiles to be put to
         self.assertTrue(os.path.isdir(dirarr[0]))

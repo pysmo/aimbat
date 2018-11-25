@@ -25,9 +25,10 @@ from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum
 import os, sys
 from time import strftime, tzname
 from optparse import OptionParser
-import ttconfig
-import qualsort
-import sacpickle as sacpkl
+from pysmo.aimbat import ttconfig
+from pysmo.aimbat import qualsort
+from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat.prepdata import findPhase
 
 #from .ttconfig import MCConfig 
 #from .sacpickle import loadData, saveData, SacDataHdrs, taperWindow, windowIndex, windowData 

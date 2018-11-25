@@ -45,9 +45,9 @@ import numpy as np
 from matplotlib import transforms
 from matplotlib.font_manager import FontProperties
 
-import ttconfig
-import sacpickle as sacpkl
-import plotutils as putil
+from pysmo.aimbat import ttconfig
+from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat import plotutils as putil
 
 
 def getOptions():
