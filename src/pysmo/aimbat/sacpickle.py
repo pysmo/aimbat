@@ -164,7 +164,7 @@ class SacDataHdrs:
         nkhdr = 3
         thdrs  = [-12345.,] * nthdr
         users  = [-12345.,] * nthdr
-        kusers = [b'-12345  ',] * nkhdr
+        kusers = ['-1234567',] * nkhdr
         for i in list(range(nthdr)):
             try:
                 thdrs[i] = getattr(isac, 't'+str(i))
@@ -197,17 +197,12 @@ class SacDataHdrs:
         self.b = isac.b
         self.e = isac.e
         self.o = isac.o
-        self.kstnm = isac.kstnm
-        self.knetwk = isac.knetwk
-        # bytes != str in py3 and need to decode/encode
-        #net = isac.knetwk.rstrip().decode()
-        #sta = isac.kstnm.rstrip().decode()
-        net = isac.knetwk
-        sta = isac.kstnm
-        self.netsta = net + '.' + sta
+        self.kstnm = isac.kstnm.replace('\x00','')
+        self.knetwk = isac.knetwk.replace('\x00','')
+        self.netsta = '.'.join([self.knetwk, self.kstnm])
         self.cmpaz = isac.cmpaz
         self.cmpinc = isac.cmpinc
-        self.kcmpnm = isac.kcmpnm
+        self.kcmpnm = isac.kcmpnm.replace('\x00','')
         del isac
 
     def resampleData(self, delta):
@@ -305,16 +300,13 @@ class SacGroup:
         Get event information.
     """
     def __init__(self, ifiles, delta=-1):
-        stadict = {}
-        saclist = []
+        self.stadict = {}
+        self.saclist = []
         for ifile in ifiles:
             sacdh = SacDataHdrs(ifile, delta)
-            stadict[sacdh.netsta] = sacdh.staloc
-            saclist.append(sacdh)
+            self.stadict[sacdh.netsta] = sacdh.staloc
+            self.saclist.append(sacdh)
             del sacdh.staloc
-        self.stadict = stadict
-        self.saclist = saclist
-        self.ifiles = ifiles
         # get event info
         isac = SacIO.from_file(ifiles[0])
         year, jday = isac.nzyear, isac.nzjday
@@ -656,6 +648,8 @@ def getOptions():
 if __name__ == '__main__':
 
     from optparse import OptionParser
+    import pysmo.core.sac.sacio
+    print('Using SacIO from: ', pysmo.core.sac.sacio.__file__)
     opts, ifiles = getOptions()
     if opts.s2p:
         print('File conversion: sac --> pkl')

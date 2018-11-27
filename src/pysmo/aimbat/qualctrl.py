@@ -1088,7 +1088,7 @@ class PickPhaseMenuMore:
         hdr0, hdr1 = int(ccpara.cchdrs[0][1]), int(ccpara.cchdrs[1][1])
         stkdh, stkdata, quas = iccs.ccWeightStack(self.gsac.selist, self.opts)
         stkdh.selected = True
-        stkdh.sethdr(opts.qcpara.hdrsel, b'True    ')
+        stkdh.sethdr(opts.qcpara.hdrsel, 'True')
         self.gsac.stkdh = stkdh
         if opts.reltime != hdr1:
             out = '\n--> change opts.reltime from %i to %i'
@@ -1112,7 +1112,7 @@ class PickPhaseMenuMore:
         mcpara.evline = evline
         mcpara.mcname = mcname
         mcpara.kevnm = gsac.kevnm
-        solution, solist_LonLat, delay_times = mccc(gsac, mcpara)
+        solution, solist_LonLat, delay_times = mccc.mccc(gsac, mcpara)
         self.gsac.solist_LonLat = solist_LonLat
         self.gsac.delay_times = delay_times
 

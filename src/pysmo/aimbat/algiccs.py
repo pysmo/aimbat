@@ -206,14 +206,14 @@ def ccWeightStack(saclist, opts):
     stkdh = copy.copy(saclist[0])
     stkdh.thdrs = [-12345.,] * 10
     stkdh.users = [-12345.,] * 10
-    stkdh.kusers = [b'-12345  ',] * 3
+    stkdh.kusers = ['-1234567',] * 3
     stkdh.b = twplot[0] - taperwindow*0.5 + tfinmean
     stkdh.npts = len(sdata)
     stkdh.data = sdata
     stkdh.sethdr(cchdr0, tinimean)
     stkdh.sethdr(cchdr1, tfinmean)
-    stkdh.knetwk = b'Array   '
-    stkdh.kstnm = b'Stack   '
+    stkdh.knetwk = 'Array'
+    stkdh.kstnm = 'Stack'
     stkdh.netsta = 'Array.Stack'
     stkdh.gcarc = -1
     stkdh.dist = -1
@@ -317,7 +317,7 @@ def autoiccs(gsac, opts):
             ccc, snr, coh = tquas[i]
             if ccc < minccc or snr < minsnr or coh < mincoh:
                 inddel.append(i)
-                sacdh.sethdr(hdrsel, b'False   ')
+                sacdh.sethdr(hdrsel, 'False')
                 sacdh.selected = False
                 print ('--> Seismogram: {0:s} quality factors {1:.2f} {2:.2f} {3:.2f} < min. Deleted. '.format(sacdh.filename, ccc, snr, coh))
             else:
@@ -395,7 +395,7 @@ def main():
         hdrsel = opts.ccpara.hdrsel
         for sacdh in gsac.saclist:
             sacdh.selected = True
-            sacdh.sethdr(hdrsel, b'True    ')
+            sacdh.sethdr(hdrsel, 'True')
         autoiccs(gsac, opts)
     else:
         stkdh, stkdata, quas = ccWeightStack(gsac.saclist, opts)
