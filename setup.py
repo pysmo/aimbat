@@ -19,11 +19,10 @@ from setuptools import find_packages
 from numpy.distutils.core import setup, Extension
 
 doclines = __doc__.split("\n")
-version = open('Version.txt').read().split()[0]
 
 setup(
     name='pysmo.aimbat',
-    version=version,
+    use_scm_version=True,
     description=doclines[0],
     long_description="\n".join(doclines[2:]),
     author='Xiaoting Lou',
@@ -36,5 +35,12 @@ setup(
     ext_package='pysmo.aimbat',
     ext_modules=[Extension('xcorrf90', ['src/pysmo/aimbat/xcorr.f90'])],
     zip_safe=False,
-    platforms=['Mac OS X', 'Linux/Unix', 'Windows']
+    platforms=['Mac OS X', 'Linux/Unix', 'Windows'],
+    install_requires=[i.strip() for i in open("requirements.txt").readlines()],
+    entry_points={
+        'console_scripts': [
+            'mccc=pysmo.aimbat.algmccc:main',
+            'algiccs=pysmo.aimbat.algiccs:main',
+        ]
+    },
 )
