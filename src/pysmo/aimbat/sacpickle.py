@@ -615,9 +615,9 @@ def saveData(gsac, opts):
     print ('SAC headers saved!')
 
 
-############################################################################## for test only
 def getOptions():
     """ Parse arguments and options. """
+    from optparse import OptionParser
     usage = "Usage: %prog [options] <sacfile(s)>"
     parser = OptionParser(usage=usage)
 
@@ -645,11 +645,7 @@ def getOptions():
         sys.exit()
     return opts, files
 
-if __name__ == '__main__':
-
-    from optparse import OptionParser
-    import pysmo.core.sac.sacio
-    print('Using SacIO from: ', pysmo.core.sac.sacio.__file__)
+def main():
     opts, ifiles = getOptions()
     if opts.s2p:
         print('File conversion: sac --> pkl')
@@ -659,3 +655,6 @@ if __name__ == '__main__':
         filemode, zipmode = fileZipMode(ifiles[0])
         for pkfile in ifiles:
             pkl2sac(pkfile, zipmode)
+
+if __name__ == '__main__':
+    main()

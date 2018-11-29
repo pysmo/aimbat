@@ -40,7 +40,16 @@ setup(
     entry_points={
         'console_scripts': [
             'mccc=pysmo.aimbat.algmccc:main',
-            'algiccs=pysmo.aimbat.algiccs:main',
+            'iccs=pysmo.aimbat.algiccs:main',
+            'sac2pkl=pysmo.aimbat.sacpickle:main',
+            'sacp1=pysmo.aimbat.plotphase:sacp1_standalone',
+            'sacp2=pysmo.aimbat.plotphase:sacp2_standalone',
+            'sacpaz=pysmo.aimbat.plotphase:sacpaz_standalone',
+            'sacpbaz=pysmo.aimbat.plotphase:sacpbaz_standalone',
+            'sacplot=pysmo.aimbat.plotphase:sacplot_standalone',
+            'sacprs=pysmo.aimbat.plotphase:sacprs_standalone',
+            'sacppk=pysmo.aimbat.pickphase:sacppk_standalone',
+            'ttpick=pysmo.aimbat.qualctrl:main',
         ]
     },
 )

@@ -823,6 +823,13 @@ def getDataOpts():
     sortSeis(gsac, opts)
     return gsac, opts
 
+def sacppk_standalone():
+    gsac, opts = getDataOpts()
+    axs = getAxes(opts)
+    ppm = PickPhaseMenu(gsac, opts, axs)
+    plt.show()
+
+
 def main():
     gsac, opts = getDataOpts()
     axs = getAxes(opts)

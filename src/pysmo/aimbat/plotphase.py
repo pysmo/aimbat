@@ -584,6 +584,43 @@ def getDataOpts():
     opts.pppara = pppara
     return gsac, opts
 
+def sacp1_standalone():
+    gsac, opts = getDataOpts()
+    axss = getAxes(opts)
+    ssg = sacp1(gsac.saclist, opts, axss)
+    plt.show()
+
+def sacp2_standalone():
+    gsac, opts = getDataOpts()
+    axss = getAxes(opts)
+    ssg = sacp2(gsac.saclist, opts, axss)
+    plt.show()
+
+def sacpaz_standalone():
+    gsac, opts = getDataOpts()
+    axss = getAxes(opts)
+    ssg = sacpaz(gsac.saclist, opts, axss)
+    plt.show()
+
+def sacpbaz_standalone():
+    gsac, opts = getDataOpts()
+    axss = getAxes(opts)
+    ssg = sacpbaz(gsac.saclist, opts, axss)
+    plt.show()
+
+def sacplot_standalone():
+    gsac, opts = getDataOpts()
+    axss = getAxes(opts)
+    ssg = SingleSeisGather(gsac.saclist, opts, axss)
+    plt.show()
+
+def sacprs_standalone():
+    gsac, opts = getDataOpts()
+    axss = getAxes(opts)
+    ssg = sacprs(gsac.saclist, opts, axss)
+    plt.show()
+
+
 def main():
     gsac, opts = getDataOpts()
     axss = getAxes(opts)
