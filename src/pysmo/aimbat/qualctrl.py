@@ -1392,6 +1392,7 @@ def main():
         else:
             fignm = opts.pklfile + '.' + fmt
         plt.savefig(fignm, format=fmt, dpi=300)
+	# plt.savefig(fignm, format=fmt)
     else:
         plt.show()        
 
