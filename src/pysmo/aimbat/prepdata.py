@@ -200,7 +200,7 @@ def prepData(gsac, opts):
     Prepare data for plotting
     """  
     opts.filterParameters = getFilterPara(gsac, opts.pppara)
-    print('Prepare data for plotting')
+    print('--> Prepare data for plotting')
     seisTimeData(gsac)
     seisTimeWindow(gsac, opts.pppara.twhdrs)
     if opts.filterParameters['apply']:

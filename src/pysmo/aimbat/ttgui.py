@@ -93,6 +93,10 @@ class mainGUI(object):
             pstyle = QtCore.Qt.DotLine
         self.opts.pickpens = [pg.mkPen(c, width=2, style=pstyle) for c in self.opts.pickcolors]
         self.opts.cursorpen = pg.mkPen(width=1, style=QtCore.Qt.DashLine)
+        self.opts.picknames = ['T'+str(i) for i in range(self.opts.pppara.npick)]
+        self.opts.picknones = [None,] * self.opts.pppara.npick
+        self.opts.oripen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwavedel[:3])
+        self.opts.mempen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwave[:3])
         
     def setupGUI(self):
         resoRect = self.app.desktop().availableGeometry()
@@ -146,7 +150,7 @@ class mainGUI(object):
         sac2Button = QtGui.QPushButton('Sac P2')
         mstaButton = QtGui.QPushButton('Map Stations')
         sortButton = QtGui.QPushButton('Sort\n by Name/Qual/Hdr')
-        filtButton = QtGui.QPushButton('Filter\n on Stack/Trace')
+        filtButton = QtGui.QPushButton('Filter\n on Stack/Traces')
 
         # connect:
         ccimButton.clicked.connect(self.ccimButtonClicked)
@@ -213,11 +217,11 @@ class mainGUI(object):
         stackWidget = pg.GraphicsLayoutWidget()
         stackWidget.resize(xSize, ySize)
         stackWidget.ci.setSpacing(0)
-        stackPlotItem = stackWidget.addPlot(title='Array Stack')
+        stackPlotItem = stackWidget.addPlot(title='Stack')
+        stackPlotItem.addLegend(offset=[10,1])
+        stackPlotItem.setAutoVisible(y=True)
         stackWaveItem = pplot.SeisWaveItem(self.gsac.stkdh)
         self.addWaveStack(stackWaveItem, stackPlotItem, self.opts.colorwave)
-
-        stackPlotItem.setAutoVisible(y=True)
 
         self.stackPlotItem = stackPlotItem
         self.stackWaveItem = stackWaveItem
@@ -229,25 +233,24 @@ class mainGUI(object):
         traceWidget = pg.GraphicsLayoutWidget()
         traceWidget.resize(xSize, ySize)
         traceWidget.ci.setSpacing(0)
-        tracePlotItem = traceWidget.addPlot(title='Seismograms')
+        tracePlotItem = traceWidget.addPlot(title='Traces')
         tracePlotItem.setXLink(self.stackPlotItem)
+        tracePlotItem.addLegend()
+        tracePlotItem.legend.setPos(10,10)
         # plot deselected and selected traces
-        traceWaveItemList = []
-        traceWaveformList = []
+        self.traceWaveItemList = []
+        self.traceWaveformList = []
         clist  = [self.opts.colorwavedel,] * len(self.gsac.delist)
         clist += [self.opts.colorwave,   ] * len(self.gsac.selist)
         slist = self.gsac.delist + self.gsac.selist
         for isac, icol in zip (slist, clist):
             traceWaveItem = pplot.SeisWaveItem(isac)
             self.addWaveTrace(traceWaveItem, tracePlotItem, icol)
-            traceWaveItemList.append(traceWaveItem)
-            traceWaveformList.append(traceWaveItem.waveCurve)
             #connect waveCurve (plotDataItem) to mouse click events
             traceWaveItem.waveCurve.sigClicked.connect(self.waveClicked)
-        self.traceWaveItemList = traceWaveItemList
-        self.traceWaveformList = traceWaveformList
+            self.traceWaveItemList.append(traceWaveItem)
+            self.traceWaveformList.append(traceWaveItem.waveCurve)
         
-
         #print(tracePlotItem.viewRange())
 
         self.tracePlotItem = tracePlotItem
@@ -273,12 +276,11 @@ class mainGUI(object):
         xx = sacdh.time[0] - sacdh.reftime
         ip = int(self.opts.qcpara.ichdrs[0][1])
         xx = sacdh.b - sacdh.thdrs[ip]
-#        print('add label ', sacdh.filename, sacdh.selected, fillBrush)
         text.setPos(xx, yy)
         waveItem.waveLabel = text
         
-    def addWave(self, waveItem, plotItem, fillBrush):
-        'Add waveform for each trace'
+    def addWaveFill(self, waveItem, plotItem, fillBrush):
+        'Add waveform fill for each trace'
         # plotDataItem:
         sacdh = waveItem.sacdh
         yb = sacdh.datbase
@@ -288,18 +290,34 @@ class mainGUI(object):
         # plotCurveItem set for mouse click to work
         waveItem.waveCurve.curve.setClickable(True)
         
+    def addWaveCurve(self, waveItem, plotItem, fillBrush):
+        'Add original and filtered waveforms for a (stack) seismogram'
+        sacdh = waveItem.sacdh
+        xx = sacdh.time - sacdh.reftime
+        yo = sacdh.data    * sacdh.datnorm + sacdh.datbase
+        ym = sacdh.datamem * sacdh.datnorm + sacdh.datbase
+        waveItem.waveCurveOri = plotItem.plot(xx, yo, name='Original', pen=self.opts.oripen)
+        waveItem.waveCurveMem = plotItem.plot(xx, ym, name='Filtered', pen=self.opts.mempen)
+        waveItem.waveCurveOri.curve.setClickable(False)
+        waveItem.waveCurveMem.curve.setClickable(False)
+            
     def addWaveStack(self, waveItem, plotItem, fillBrush):
         'Add waveform, time picks, and time window for stack'
-        self.addWave(waveItem, plotItem, fillBrush)
-        #waveItem.waveCurve.setPen(pdata.convertToRGB(self.opts.pppara.colorwave))
+        self.addWaveFill(waveItem, plotItem, fillBrush)
+        self.addWaveCurve(waveItem, plotItem, fillBrush)
         waveItem.waveCurve.curve.setClickable(False) # disable click
-        self.addPick(waveItem, plotItem, plotLegend=False)
+        self.addPick(waveItem, plotItem, self.opts.picknones)
         self.addWindStack(waveItem, plotItem)
 
     def addWaveTrace(self, waveItem, plotItem, fillBrush):
         'Add waveform, time picks, and time window for trace'
-        self.addWave(waveItem, plotItem, fillBrush)
-        self.addPick(waveItem, plotItem, plotLegend=True)
+        self.addWaveFill(waveItem, plotItem, fillBrush)
+        # plot pick legend only once
+        if len(self.traceWaveItemList) == 0:
+            pickNames = self.opts.picknames
+        else:
+            pickNames = self.opts.picknones
+        self.addPick(waveItem, plotItem, pickNames)
         self.addWindTrace(waveItem, plotItem)
         self.addLabelTrace(waveItem, plotItem, fillBrush)
 
@@ -311,7 +329,7 @@ class mainGUI(object):
         twinRegion.setBrush(self.opts.colortwfill)
         twinRegion.setZValue(10)
         plotItem.addItem(twinRegion)
-        # cannot update time window real time. Use button.
+        # cannot update time window real time. Use button or key w.
         #twinRegion.sigRegionChanged.connect(self.twinRegionChanged)
         self.twinRegion = twinRegion
         waveItem.twinRegion = twinRegion
@@ -328,18 +346,16 @@ class mainGUI(object):
         waveItem.twinFill = ff
         waveItem.twinCurves = [c0, c1]
 
-    def addPick(self, waveItem, plotItem, plotLegend=False):
+    def addPick(self, waveItem, plotItem, pickNames=[None,]*4):
         'Add time picks for a seismogram/waveItem'
-        if plotLegend:
-            plotItem.addLegend()
         sacdh = waveItem.sacdh
         yp = [sacdh.datbase-0.5, sacdh.datbase+0.5]
         for i in range(self.opts.pppara.npick):
             th = sacdh.thdrs[i]
             xp = [th-sacdh.reftime, th-sacdh.reftime]
-            tpick = plotItem.plot(xp, yp, pen=self.opts.pickpens[i], name='T'+str(i))
+            tpick = plotItem.plot(xp, yp, pen=self.opts.pickpens[i], name=pickNames[i])
             waveItem.tpickCurves.append(tpick)
-
+            
     def waveClicked(self, waveCurve):
         'Change seismogram selection status and color by mouse click'
         # find waveItem by waveform index in the list
@@ -526,7 +542,8 @@ class mainGUI(object):
         self.opts.reltime = wpint
         pdata.seisTimeRefr(self.gsac, self.opts) # update reftime for all traces
         self.gsac.stkdh = stkdh
-        self.stackWaveItem.sacdh = stkdh
+        if hasattr(self, 'stackWaveItem'):
+            self.stackWaveItem.sacdh = stkdh
         
     def ccimButtonClicked(self):
         """ 
@@ -770,6 +787,7 @@ if __name__ == '__main__':
     gsac, opts = getDataOpts()
     pg.setConfigOption('background', 'w')
     pg.setConfigOption('foreground', 'k')
+    
     gui = mainGUI(gsac, opts)
     
     if sys.flags.interactive != 1 or not hasattr(QtCore, 'PYQT_VERSION'):

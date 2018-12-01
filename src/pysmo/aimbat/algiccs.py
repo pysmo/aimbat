@@ -202,11 +202,9 @@ def ccWeightStack(saclist, opts):
     nstart, ntotal = sacpkl.windowIndex(saclist, tfins, twplot, taperwindow)
     windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
     sdatamem = normWeightStack(windata, wgts, taperwidth, tapertype)
-    print('iccs', windata)
     # also create stack from original data
     datatype = 'data'
     windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
-    print('iccs', windata)
     sdata  = normWeightStack(windata, wgts, taperwidth, tapertype)
     tinimean = mean(tinis)
     tfinmean = mean(tfins)
