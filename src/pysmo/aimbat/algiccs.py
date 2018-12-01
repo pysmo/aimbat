@@ -152,7 +152,7 @@ def ccWeightStack(saclist, opts):
     coh = zeros(nseis)
     wgts = ones(nseis)
     stkdata = []
-    for it in list(range(maxiter)):
+    for it in range(maxiter):
         # recut data and update array stack
         nstart, ntotal = sacpkl.windowIndex(saclist, tfins, twcorr, taperwindow)
         windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype)
@@ -169,7 +169,7 @@ def ccWeightStack(saclist, opts):
         # Find time lag at peak correlation between each trace and the array stack.
         # Calculate cross correlation coefficient, signal/noise ratio and temporal coherence
         sdatanorm = sdata/LA.norm(sdata)
-        for i in list(range(nseis)):
+        for i in range(nseis):
             datai = windata[i]
             delay, ccmax, ccpol = corrmax(sdata, datai, delta, xcorr, shift)
             tfins[i] += delay
@@ -185,7 +185,7 @@ def ccWeightStack(saclist, opts):
             sacdh.sethdr(hdrcoh, coh[i])
     # get maximum time window for plot (excluding taperwindow)
     bb, ee = [], []
-    for i in list(range(nseis)):
+    for i in range(nseis):
         sacdh = saclist[i]
         b = sacdh.b - tfins[i]
         e = b + (sacdh.npts-1)* delta
@@ -291,7 +291,7 @@ def coherence(datai, datas):
 def plotiter(stkdata):
     import matplotlib.pyplot as plt
     plt.figure()
-    for i in list(range(len(stkdata))):
+    for i in range(len(stkdata)):
         plt.plot(stkdata[i], label='iter'+str(i))
     plt.legend()
     plt.show()
@@ -312,7 +312,7 @@ def autoiccs(gsac, opts):
         stkdh, stkdata, quas = ccWeightStack(selist, opts)
         tquas = transpose(quas)
         indsel, inddel = [], []
-        for i in list(range(len(selist))):
+        for i in range(len(selist)):
             sacdh = selist[i]
             ccc, snr, coh = tquas[i]
             if ccc < minccc or snr < minsnr or coh < mincoh:
@@ -358,7 +358,7 @@ def checkCoverage(gsac, opts, textra=0.0):
     saclist = gsac.saclist
     nsac = len(saclist)
     indsel, inddel = [], []
-    for i in list(range(nsac)):
+    for i in range(nsac):
         sacdh = saclist[i]
         t0 = sacdh.gethdr(ipick)
         b = sacdh.b

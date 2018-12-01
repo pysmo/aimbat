@@ -32,7 +32,7 @@ def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
     cols = pickcolors
     lss = pickstyles
     ncol = len(cols)
-    for i in list(range(npick)):
+    for i in range(npick):
         ipk = 't' + str(i)
         ia = int(i%ncol)
         ib = int(i/ncol)
@@ -127,26 +127,26 @@ def indexBaseTick(na, nb, pagesize, pna):
     indb = list(range(ib0, nb))
     yindex[0] = [inda, indb]
     # positive page:
-    for ipage in list(range(1, npagea+1)):
+    for ipage in range(1, npagea+1):
         i1 = pna + ipage * pagesize
         i0 = i1 - pagesize
         inda = list(range(i0, min(i1, na)))
         yindex[ipage] = [inda, []]
     # negative page:
-    for ipage in list(range(-npageb, 0)):
+    for ipage in range(-npageb, 0):
         i1 = ib0 + ipage * pagesize + pagesize
         i0 = max(0, i1-pagesize)
         indb = list(range(i0, i1))
         yindex[ipage] = [[], indb]
-    for ipage in list(range(-npageb, npagea+1)):
+    for ipage in range(-npageb, npagea+1):
         #print 'page ', ipage, yindex[ipage]
         ybases[ipage] = [ [], [] ]
         yticks[ipage] = [ [], [] ]
     ### ybases and yticks
-    for ipage in list(range(0, npagea+1)):
+    for ipage in range(0, npagea+1):
         ybases[ipage][0] = [ -1-ind for ind in yindex[ipage][0] ]
         yticks[ipage][0] = [  1+ind for ind in yindex[ipage][0] ]
-    for ipage in list(range(-npageb, 1)):
+    for ipage in range(-npageb, 1):
         ybases[ipage][1] = [ nb-ind for ind in yindex[ipage][1] ]
         yticks[ipage][1] = [ ind-nb for ind in yindex[ipage][1] ]
     return ipages, yindex, ybases, yticks
