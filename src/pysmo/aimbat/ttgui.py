@@ -7,8 +7,29 @@
 # Copyright (c) 2018 Xiaoting Lou
 #------------------------------------------------
 """
-Python module for measuring seismic wave travel times.
+Python module for interactively measuring seismic wave travel times and quality control.
 
+* User interaction using mouse and keyboard:
+  ** Key pressed event handler in pyqtgraph is redefined in prepplot.py
+  ** Use mouse to change time window and press key 'w' to set <-- work on stack only
+  ** Press key 't[0-9]' to set time picks like SAC PPK        <-- work on both stack and traces
+  ** Mouse click on waveform to change trace selection status <-- work on trace only
+
+* Trace plots:
+  ** All traces are plotted in the same plotItem.
+  ** Always plot time picks. Always plot time window as a fill.
+  ** Normalization: can normalized within time window.
+  
+* Data 
+  ** Define class SeisWaveItem in prepdata.py to hold sacDataHdrs and plotting itmes including
+     waveform curve, time pick curves, and time window.
+  ** Data is loaded to sacdh.datamem according to filter parameters in the headers.
+     Original data in sacdh.data is not touched.
+
+
+* A few components of Arnav Sankaran's Qt version was used.
+  https://github.com/ASankaran/AIMBAT_Qt
+  
 :copyright:
     Xiaoting Lou
 
@@ -174,7 +195,6 @@ class mainGUI(object):
         self.tracePlotItem.setXRange(xlim0, xlim1)
         self.tracePlotItem.setYRange(ylim0, ylim1)
 #        self.traceScrollArea.setMinimumSize(ssx, ssy)
-
 #        print('viewRange: ',self.tracePlotItem.viewRange())
 
 
@@ -614,68 +634,78 @@ class mainGUI(object):
 
     def sac2ButtonClicked(self):
         resoRect = self.app.desktop().availableGeometry()
-        self.sacp2Window = sacp2GUI(self.gsac, self.opts, resoRect)
-        self.sacp2Window.start()
-
+        resoRect.setWidth(resoRect.width()*0.5)
+        resoRect.setHeight(resoRect.height()*0.7)
+        hdrList = list(self.opts.qcpara.ichdrs) + [self.opts.mcpara.wpick]
+        selTraceWaveItemList = [ item  for item in self.traceWaveItemList  if item.sacdh.selected]
+        self.sacp2Window = sacp2GUI(selTraceWaveItemList, hdrList, resoRect)
 
 
     def mstaButtonClicked(self):
         mapper = StationMapper(self.gsac)
         mapper.start()
         
-#    def twinButtonClicked(self):
-#        'update time window'
-#        twinRegion = self.twinRegion
-#        timewindow = twinRegion.getRegion()
-#        twh0, twh1 = self.opts.pppara.twhdrs
-#        self.gsac.stkdh.sethdr(twh0, timewindow[0])
-#        self.gsac.stkdh.sethdr(twh1, timewindow[1])
-#        out = 'File {:s}: set time window to {:s} and {:s}: {:6.1f} to {:6.1f} s'
-#        print((out.format(self.gsac.stkdh.filename, twh0, twh1, timewindow[0], timewindow[1])))
-
-
-
-
-    def scalePlotYRange(self, plt):
-        # Set plot y range to min and max y values on the visual x range
-        xRange = plt.viewRange()[0]
-        dataSet = getWaveDataSetFromSacItem(plt.sacdh, self.opts)
-        startXIndex = 0
-        endXIndex = len(dataSet.x)
-        for index in list(range(0, len(dataSet.x))):
-            startXIndex = index
-            if dataSet.x[index] > xRange[0]:
-                break
-        for index in list(range(len(dataSet.x) - 1, -1, -1)):
-            endXIndex = index
-            if dataSet.x[index] < xRange[1]:
-                break
-        yData = dataSet.y[startXIndex : endXIndex]
-        plt.setYRange(min(yData), max(yData))
-
-    def scalePlotXRange(self, plt):
-        hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
-        wpick = self.opts.mcpara.wpick
-
-        if self.opts.reltime == 0:
-            plt.setXRange(plt.sacdh.gethdr(hdrmed) + self.opts.xlimit[0], plt.sacdh.gethdr(hdrmed) + self.opts.xlimit[1])
-        elif self.opts.reltime == 1:
-            plt.setXRange(plt.sacdh.gethdr(hdrmed) + self.opts.xlimit[0], plt.sacdh.gethdr(hdrmed) + self.opts.xlimit[1])
-        elif self.opts.reltime == 2:
-            plt.setXRange(plt.sacdh.gethdr(hdrfin) + self.opts.xlimit[0], plt.sacdh.gethdr(hdrfin) + self.opts.xlimit[1])
-        elif self.opts.reltime == 3:
-            plt.setXRange(plt.sacdh.gethdr(wpick) + self.opts.xlimit[0], plt.sacdh.gethdr(wpick) + self.opts.xlimit[1])
 
     def overrideAutoScaleButton(self, plot):
         plot.autoBtn.clicked.disconnect()
-        plot.autoBtn.clicked.connect(lambda: self.autoScalePlot(plot))
+        plot.autoBtn.clicked.connect(lambda: self.setXYLimit())
 
-    def autoScalePlot(self, plot):
-        self.scalePlotXRange(plot)
-        self.scalePlotYRange(plot)
+    def autoScalePlot(self):
+        self.setXYLimit()
 
 
 ###################################################################################################
+class sacp2GUI(object):
+    """
+    Plot each seismogram in the given waveItemList in SAC P2 overlay style.
+    Relative time picks are given in hdrList.
+    """
+    def __init__(self, waveItemList, hdrList, resoRect):
+        self.hdrList = hdrList
+        sacp2Window = QtGui.QWidget()
+        sacp2Window.setWindowTitle('SAC P2')
+        sacp2Window.show()
+        sacp2Layout = QtGui.QGridLayout(sacp2Window)
+        sacp2Widget = pg.GraphicsLayoutWidget()
+        sacp2Window.resize(resoRect.width(), resoRect.height())
+        # create plotItems for each header in hdrList
+        self.plotItemList = []
+        zeropen = pg.mkPen(width=1, style=QtCore.Qt.DashLine)
+        for i in range(len(hdrList)):
+            plotItem = sacp2Widget.addPlot()
+            self.plotItemList.append(plotItem)
+            sacp2Widget.nextRow()
+#            plotItem.hideAxis('left')
+            xlabel = 'Time - {:s} [s]'.format(self.hdrList[i].upper())
+            plotItem.setLabel('bottom', text=xlabel)
+            vline = pg.InfiniteLine(angle=90, movable=False, pen=zeropen)
+            plotItem.addItem(vline, ignorebounds=True)
+        # link x axis
+        for i in range(1, len(hdrList)):
+            self.plotItemList[i].setXLink(self.plotItemList[0])
+        # plot 
+        for waveItem in waveItemList:
+            self.addWave(waveItem)
+        sacp2Layout.addWidget(sacp2Widget, 0, 0, 1, 1)
+        self.sacp2Window = sacp2Window
+        self.sacp2Widget = sacp2Widget
+        
+    def addWave(self, waveItem):
+        'Add waveform relative to time picks'
+        sacdh = waveItem.sacdh
+        yy = sacdh.datamem
+        for i in range(len(self.plotItemList)):
+            xx = sacdh.time - sacdh.gethdr(self.hdrList[i])
+            waveItem.waveCurve = self.plotItemList[i].plot(xx, yy)
+            waveItem.waveCurve.curve.setClickable(True)
+            waveItem.waveCurve.curve.opts['name'] = sacdh.filename
+            waveItem.waveCurve.curve.sigClicked.connect(self.mouseClickEvents)
+            
+    def mouseClickEvents(self, event):
+        print('Clicked seismogram: ', event.name())
+
+###################################################################################################
+
 
 
 
