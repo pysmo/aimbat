@@ -5,6 +5,7 @@
 *.bak
 *.mc*
 tobedel/
+__pycache__/
 build/
 dist/
 src/pysmo.aimbat.egg-info/

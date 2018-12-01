@@ -23,6 +23,7 @@ import sys
 from scipy import signal
 from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat import prepplot  as pplot
 
 
 def dataNorm(d, w=0.05):
@@ -263,7 +264,7 @@ def paraDataOpts(opts, ifiles):
     opts.fstack = ccpara.fstack
     ccpara.qqhdrs = qcpara.qheaders
     ccpara.twcorr = opts.twcorr
-    convertColors(opts, pppara)
+    pplot.convertColors(opts, pppara)
     # find phase:
     if opts.phase is None:
         phase = findPhase(ifiles[0])

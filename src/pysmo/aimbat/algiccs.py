@@ -152,10 +152,11 @@ def ccWeightStack(saclist, opts):
     coh = zeros(nseis)
     wgts = ones(nseis)
     stkdata = []
+    datatype = 'datamem'
     for it in range(maxiter):
         # recut data and update array stack
         nstart, ntotal = sacpkl.windowIndex(saclist, tfins, twcorr, taperwindow)
-        windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype)
+        windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
         sdata = normWeightStack(windata, wgts, taperwidth, tapertype)
         stkdata.append(sdata)
         if it == 0:
@@ -199,8 +200,14 @@ def ccWeightStack(saclist, opts):
     # set time picks of stkdh as mean of tinis and tfins
     taperwindow = sacpkl.taperWindow(twplot, taperwidth)
     nstart, ntotal = sacpkl.windowIndex(saclist, tfins, twplot, taperwindow)
-    windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype)
-    sdata = normWeightStack(windata, wgts, taperwidth, tapertype)
+    windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
+    sdatamem = normWeightStack(windata, wgts, taperwidth, tapertype)
+    print('iccs', windata)
+    # also create stack from original data
+    datatype = 'data'
+    windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
+    print('iccs', windata)
+    sdata  = normWeightStack(windata, wgts, taperwidth, tapertype)
     tinimean = mean(tinis)
     tfinmean = mean(tfins)
     stkdh = copy.copy(saclist[0])
@@ -225,8 +232,7 @@ def ccWeightStack(saclist, opts):
     stkdh.delta = delta
     stkdh.e = stkdh.b + (stkdh.npts-1)*delta
     stkdh.time = linspace(stkdh.b, stkdh.b+(stkdh.npts-1)*stkdh.delta, stkdh.npts)
-    stkdh.datamem = sdata
-    #print('stkdh: ',stkdh.b, stkdh.e, stkdh.npts, delta, stkdh.stla, stkdh.stlo, stkdh.stel)
+    stkdh.datamem = sdatamem
     # set time window
     stkdh.sethdr(twhdrs[0], twcorr[0]+tfinmean)
     stkdh.sethdr(twhdrs[1], twcorr[1]+tfinmean)
@@ -331,7 +337,6 @@ def autoiccs(gsac, opts):
     nsel = len(selist)
     print ('\nDone selecting seismograms: {0:d} out of {1:d} selected.'.format(nsel, len(saclist)))
 
-#    save = raw_input('Save to file? [y/n] \n')
     save = input('Save to file? [y/n] \n')
     if save[0].lower() == 'y':
         if opts.filemode == 'sac':

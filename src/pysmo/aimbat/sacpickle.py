@@ -472,22 +472,25 @@ def windowIndex(saclist, reftimes, timewindow=(-5.0,5.0), taperwindow=1.0):
         nstart: index of first sample point of datacut in each sacdh.data
         ntotal: length of data within the time window
     """
-    nseis = len(saclist)
     delta = saclist[0].delta
     tw0, tw1 = timewindow
     twleft = tw0 - taperwindow*.5
     ntotal = int(round((tw1-tw0+taperwindow)/delta)) + 1
-    nstart = [ int(round((twleft+reftimes[i]-saclist[i].b)/delta)) for i in range(nseis) ] 
+    nstart = [ int(round((twleft+reftimes[i]-saclist[i].b)/delta)) for i in range(len(saclist)) ] 
     return nstart, ntotal
 
-def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
+def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning', datatype='data'):
     """ Cut data within a time window using given indices.
         Pad dat with zero if not enough sample.
+        Use sacdh.data or sacdh.datamem based on data type
     """
-    nseis = len(saclist)
     datawin = []
-    for i in range(nseis):
-        sacd = saclist[i].data
+    if datatype == 'data':
+        datalist = [ sacdh.data     for sacdh in saclist ]
+    elif datatype == 'datamem':
+        datalist = [ sacdh.datamem  for sacdh in saclist ]
+    for i in range(len(saclist)):
+        sacd = datalist[i]
         na = nstart[i] 
         nb = na + ntotal
         data = sacd[na:nb].copy()
@@ -507,10 +510,9 @@ def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
     """ Cut time within a time window using given indices.
     """
-    nseis = len(saclist)
     delta = saclist[0].delta
     timewin = []
-    for i in range(nseis):
+    for i in range(len(saclist)):
         sacdh = saclist[i]
         ta = sacdh.b + nstart[i]*delta
         tb = ta + ntotal*delta
@@ -521,10 +523,9 @@ def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
 def windowTimeData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
     """ Cut part of the time and data based on given indices.
     """
-    nseis = len(saclist)
     delta = saclist[0].delta
     timecut, datacut = [], []
-    for i in range(nseis):
+    for i in range(len(saclist)):
         sacdh = saclist[i]
         na = nstart[i] 
         nb = na + ntotal
