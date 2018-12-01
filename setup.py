@@ -23,6 +23,7 @@ doclines = __doc__.split("\n")
 setup(
     name='pysmo.aimbat',
     use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     description=doclines[0],
     long_description="\n".join(doclines[2:]),
     author='Xiaoting Lou',

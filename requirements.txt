@@ -3,3 +3,4 @@ scipy>=1.0.0
 matplotlib>=2.2.2
 future>=0.16.0
 pysmo>=0.7.0
+pyqtgraph>=0.10.0
