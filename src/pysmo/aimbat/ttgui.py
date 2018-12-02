@@ -674,8 +674,8 @@ class mainGUI(object):
     def sortButtonClicked(self):
         self.opts.sortby = self.ptreeItem.sortby
         print('Sort seismograms by: ',self.opts.sortby)
-        self.resetAllPlots()
-        
+        self.setupData()
+        self.resetTracePlot()
 
     def sac2ButtonClicked(self):
         resoRect = self.app.desktop().availableGeometry()
@@ -806,8 +806,9 @@ def getDataOpts():
     opts.ynormtwin_on = True
     opts.labelqual = True
     
+    pplot.convertColors(opts, opts.pppara)
     gsac = pdata.prepData(gsac, opts)
-        
+    
     return gsac, opts
 
 #def main():

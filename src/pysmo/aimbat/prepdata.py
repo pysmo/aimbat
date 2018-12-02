@@ -22,7 +22,6 @@ import numpy as np
 import sys
 from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
-from pysmo.aimbat import prepplot  as pplot
 from pysmo.aimbat import filtering as ftr
 
 def dataNorm(d, w=0.05):
@@ -230,9 +229,11 @@ def seisSort(gsac, opts):
     if sortby == 'i':   
         gsac.selist, gsac.delist = qualsort.seleSeis(gsac.saclist)
         print('Select seismograms by sacdh.selected')
-    elif sortby == 't':    # by time difference
-        ipick = opts.qcpara.ichdrs[0]
-        wpick = 't'+str(opts.reltime)
+    elif sortby[0] == 't':    # by time difference
+#        ipick = opts.qcpara.ichdrs[0]
+#        wpick = 't'+str(opts.reltime)
+        ipick = 't'+sortby[2]
+        wpick = 't'+sortby[1]
         if ipick == wpick:
             print('Same time pick: {0:s} and {1:s}. Exit'.format(ipick, wpick))
             sys.exit()
@@ -271,7 +272,6 @@ def paraDataOpts(opts, ifiles):
     opts.fstack = ccpara.fstack
     ccpara.qqhdrs = qcpara.qheaders
     ccpara.twcorr = opts.twcorr
-    pplot.convertColors(opts, pppara)
     # find phase:
     if opts.phase is None:
         phase = findPhase(ifiles[0])

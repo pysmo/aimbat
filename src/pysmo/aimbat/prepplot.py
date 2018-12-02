@@ -102,8 +102,14 @@ def setTimePick(sacdh, ipick, rpick):
 
 class RadioParameter(pTypes.GroupParameter):
     """
-    This parameter generates three exclusive child parameters, like radio buttons.
-    Set an unique value (sortby) for sorting seismograms
+    This parameter generates four exclusive child parameters, like radio buttons.
+    Set an unique value (sortby) for sorting seismograms in prepdata.seisSort().
+    Sort by:
+        'i':        File indices
+        '0/1/2/3':  Quality factors All/CCC/SNR/COH
+        Header:     GCARC, DIST, AZ, BAZ, STLA, STLO, B, E, NPTS
+        HeaderDiff: T1-T0, T2-T0...
+    Default to sort in increase order. Append '-' to sort in decrease order.
     """
     def __init__(self, **opts):
         opts['type'] = 'bool'
@@ -117,6 +123,9 @@ class RadioParameter(pTypes.GroupParameter):
         dictc = {'name': 'Header', 'type': 'list', 'values':
             {"N/A": 0, "GCARC": 1, "DIST": 2, "AZ": 3, "BAZ": 4, "STLA": 5, "STLO": 6, "B": 7, "E": 8, "NPTS": 9
             }, 'value': 0}
+        dictf = {'name': 'HeaderDiff', 'type': 'list', 'values':
+            {"N/A": 0, "T1-T0": 10, "T2-T0": 20, "T3-T0": 30, "T2-T1": 21, "T3-T1": 31,"T3-T2": 32,  
+            }, 'value': 0}
         dictd = {'name': 'Sort_Increase', 'type': 'bool', 'value': True, 'tip': "This is a checkbox"}
         dicte = {'name': 'Confirm_Sort_Parameters', 'type': 'action'}
         dictbChild = {'name': 'QualityWeights', 'type': 'group', 'children': [
@@ -127,16 +136,19 @@ class RadioParameter(pTypes.GroupParameter):
         self.addChild(dicta)
         self.addChild(dictb)
         self.addChild(dictc)
+        self.addChild(dictf)
         self.addChild(dictd)
         self.addChild(dicte)
         self.a = self.param('Filename')
         self.b = self.param('Quality')
 #        self.b.addChild(dictbChild)
         self.c = self.param('Header')
+        self.f = self.param('HeaderDiff')
         self.d = self.param('Sort_Increase')
         self.a.sigValueChanged.connect(self.aChanged)
         self.b.sigValueChanged.connect(self.bChanged)
         self.c.sigValueChanged.connect(self.cChanged)
+        self.f.sigValueChanged.connect(self.fChanged)
         self.d.sigValueChanged.connect(self.dChanged)
         self.hdict = dictc['values']
         self.sortby = 1
@@ -146,6 +158,7 @@ class RadioParameter(pTypes.GroupParameter):
         if self.a.value() != 0:
             self.b.setValue(0)
             self.c.setValue(0)
+            self.f.setValue(0)
             self.sortby = 'i'
 
     def bChanged(self):
@@ -153,6 +166,7 @@ class RadioParameter(pTypes.GroupParameter):
         if bv != 0:
             self.a.setValue(0)
             self.c.setValue(0)
+            self.f.setValue(0)
             if bv == 4:
                 self.sortby = 0
             else:
@@ -163,11 +177,19 @@ class RadioParameter(pTypes.GroupParameter):
         if cv != 0:
             self.b.setValue(0)
             self.a.setValue(0)
+            self.f.setValue(0)
             self.sortby = list(self.hdict.keys())[list(self.hdict.values()).index(cv)]
                 
     def dChanged(self):
         self.increase = self.d.value()
 
+    def fChanged(self):
+        fv = self.f.value()
+        if fv != 0:
+            self.b.setValue(0)
+            self.a.setValue(0)
+            self.c.setValue(0)
+            self.sortby = 't'+str(fv)
 
 class ParaTreeItem(object):
     """
