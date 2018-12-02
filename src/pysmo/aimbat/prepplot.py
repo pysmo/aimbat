@@ -82,8 +82,8 @@ def setTimeWindow(sacdh, twhdrs, twvals):
     twh0, twh1 = twhdrs
     twv0, twv1 = twvals
     twa0, twa1 = twv0+sacdh.reftime, twv1+sacdh.reftime
-    sacdh.sethdr(twh0, twv0)
-    sacdh.sethdr(twh1, twv1)
+    sacdh.sethdr(twh0, twa0)
+    sacdh.sethdr(twh1, twa1)
     sacdh.twindow = [twa0, twa1]
     out = 'File {:s}: set time window to {:s} and {:s}: {:6.1f} to {:6.1f} s, abs {:6.1f} to {:6.1f} s'
     print((out.format(sacdh.filename, twh0, twh1, twv0, twv1,twa0, twa1)))

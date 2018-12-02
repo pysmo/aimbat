@@ -101,7 +101,7 @@ class mainGUI(object):
         
     def setupGUI(self):
         resoRect = self.app.desktop().availableGeometry()
-        self.window.resize(resoRect.width()*0.8, resoRect.height()*0.8)
+        self.window.resize(resoRect.width()*0.8, resoRect.height()*0.9)
         # stack
         self.stackWidget = self.getStackGraphWidget(resoRect.width()*0.8, 170)
         self.stackScrollArea = QtGui.QScrollArea()
@@ -527,6 +527,13 @@ class mainGUI(object):
         if not 'stkdh' in gsac.__dict__:
             if opts.filemode == 'sac' and os.path.isfile(opts.fstack):
                 gsac.stkdh = sacpkl.SacDataHdrs(opts.fstack, opts.delta)
+                pdata.seisTimeData([gsac.stkdh,])
+                pdata.seisTimeWindow([gsac.stkdh,], opts.pppara.twhdrs)
+                if opts.filterParameters['apply']:
+                    pplot.seisApplyFilter([gsac.stkdh,], opts)
+                pdata.seisTimeRefr([gsac.stkdh,], opts)
+                pdata.seisDataNorm([gsac.stkdh,], opts)
+    
             else:
                 hdrini, hdrmed, hdrfin = opts.qcpara.ichdrs
                 # set cross-correlation input and output headers
@@ -553,7 +560,7 @@ class mainGUI(object):
             out = '\n--> change opts.reltime from %i to %i'
             print(out % (self.opts.reltime, wpint))
         self.opts.reltime = wpint
-        pdata.seisTimeRefr(self.gsac, self.opts) # update reftime for all traces
+        pdata.seisTimeRefr(self.gsac.saclist, self.opts) # update reftime for all traces
         self.gsac.stkdh = stkdh
         if hasattr(self, 'stackWaveItem'):
             self.stackWaveItem.sacdh = stkdh
@@ -626,7 +633,7 @@ class mainGUI(object):
             out = '\n--> change opts.reltime from %i to %i'
             print(out % (self.opts.reltime, wpint))
         self.opts.reltime = wpint
-        pdata.seisTimeRefr(gsac, opts) # update reftime for all traces
+        pdata.seisTimeRefr(self.gsac.saclist, self.opts) # update reftime for all traces
         self.resetAllPlots()
         
 

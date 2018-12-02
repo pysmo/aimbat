@@ -20,7 +20,6 @@ Python module for preparing time and data arrays (original and filtered in memor
 
 import numpy as np
 import sys
-from scipy import signal
 from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat import prepplot  as pplot
@@ -115,18 +114,18 @@ def seisUnApplyFilter(saclist):
         sacdh.datamem = sacdh.data
     return
 
-def seisTimeData(gsac):
+def seisTimeData(saclist):
     'Create time and data (original and in memory) arrays'
-    for sacdh in gsac.saclist:
+    for sacdh in saclist:
         b, npts, delta = sacdh.b, sacdh.npts, sacdh.delta
         sacdh.time = np.linspace(b, b+(npts-1)*delta, npts)
         sacdh.datamem = sacdh.data.copy()
     return 
 
-def seisTimeRefr(gsac, opts):
+def seisTimeRefr(saclist, opts):
     'get reference time for each seismogram'
     reltime = opts.reltime
-    for sacdh in gsac.saclist:
+    for sacdh in saclist:
         if reltime >= 0:
             reftime = sacdh.thdrs[reltime]
             if reftime == -12345.0:
@@ -139,9 +138,9 @@ def seisTimeRefr(gsac, opts):
             sacdh.reftime = 0.
     return
 
-def seisTimeWindow(gsac, twhdrs):
+def seisTimeWindow(saclist, twhdrs):
     'get time window for each seismogram'
-    for sacdh in gsac.saclist:
+    for sacdh in saclist:
         sacdh.twhdrs = twhdrs
         tw0 = sacdh.gethdr(twhdrs[0])
         tw1 = sacdh.gethdr(twhdrs[1])    
@@ -162,9 +161,9 @@ def sacDataNorm(sacdh, opts):
     sacdh.datnorm = 1/dnorm * opts.ynorm/2
     return
 
-def seisDataNorm(gsac, opts):
+def seisDataNorm(saclist, opts):
     'get data normalization factor each seismogram'
-    for sacdh in gsac.saclist:
+    for sacdh in saclist:
         sacDataNorm(sacdh, opts)
     return
 
@@ -182,8 +181,8 @@ def seisDataBaseline(gsac):
         [ -5, -4, -3, -2, -1] [0,  1, 2, 3, 4, 5, 6, 7, 8,  9, 10] <-- yindex
         [  5,  4,  3,  2,  1] [0, -1,-2,-3,-4,-5,-6,-7,-8, -9,-10] <-- ybases
     """
-    # see plotutils.indexBaseTick for yindex, ybases and yticks
-    # no trace at ybase=0; ytick = -ybase
+    # similar to plotutils.indexBaseTick for yindex, ybases and yticks
+    # Haven't yet set ytick = -ybase 
     for i in range(-len(gsac.delist),0):
         gsac.delist[i].datbase = -i
     for i in range(len(gsac.selist)):
@@ -197,12 +196,12 @@ def prepData(gsac, opts):
     """  
     opts.filterParameters = getFilterPara(gsac, opts.pppara)
     print('--> Prepare data for plotting')
-    seisTimeData(gsac)
-    seisTimeWindow(gsac, opts.pppara.twhdrs)
+    seisTimeData(gsac.saclist)
+    seisTimeWindow(gsac.saclist, opts.pppara.twhdrs)
     if opts.filterParameters['apply']:
-        seisDataFilter(gsac, opts)
-    seisTimeRefr(gsac, opts)
-    seisDataNorm(gsac, opts)
+        pplot.seisApplyFilter(gsac.saclist, opts)
+    seisTimeRefr(gsac.saclist, opts)
+    seisDataNorm(gsac.saclist, opts)
     return gsac
 
 def seisSort(gsac, opts):
