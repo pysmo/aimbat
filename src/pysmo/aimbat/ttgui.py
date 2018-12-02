@@ -50,6 +50,7 @@ import sacpickle as sacpkl
 import filtering as ftr
 import prepdata as pdata
 import prepplot as pplot
+import qualsort as qsort
 import algiccs as iccs
 import algmccc as mccc
 
@@ -507,8 +508,10 @@ class mainGUI(object):
         'Reset filtered waveforms for a (stack) seismogram'
         sacdh = waveItem.sacdh
         xx = sacdh.time - sacdh.reftime
+        yo = sacdh.data    * sacdh.datnorm + sacdh.datbase
         ym = sacdh.datamem * sacdh.datnorm + sacdh.datbase
         waveItem.waveCurveMem.setData(xx, ym)
+        waveItem.waveCurveOri.setData(xx, yo)
         
     def resetStackPlot(self):
         self.resetStackCurve(self.stackWaveItem)
@@ -524,16 +527,9 @@ class mainGUI(object):
         'Create stack by ICCS if not existing'
         gsac = self.gsac
         opts = self.opts
-        if not 'stkdh' in gsac.__dict__:
+        if not hasattr(gsac, 'stkdh'):
             if opts.filemode == 'sac' and os.path.isfile(opts.fstack):
-                gsac.stkdh = sacpkl.SacDataHdrs(opts.fstack, opts.delta)
-                pdata.seisTimeData([gsac.stkdh,])
-                pdata.seisTimeWindow([gsac.stkdh,], opts.pppara.twhdrs)
-                if opts.filterParameters['apply']:
-                    pplot.seisApplyFilter([gsac.stkdh,], opts)
-                pdata.seisTimeRefr([gsac.stkdh,], opts)
-                pdata.seisDataNorm([gsac.stkdh,], opts)
-    
+                gsac.stkdh = pdata.prepStack(opts)
             else:
                 hdrini, hdrmed, hdrfin = opts.qcpara.ichdrs
                 # set cross-correlation input and output headers
@@ -813,6 +809,9 @@ def getDataOpts():
     gsac = pdata.prepData(gsac, opts)
         
     return gsac, opts
+
+#def main():
+    
 
 ### Start Qt event loop unless running in interactive mode or using pyside.
 if __name__ == '__main__':

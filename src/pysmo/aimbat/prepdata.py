@@ -199,11 +199,23 @@ def prepData(gsac, opts):
     seisTimeData(gsac.saclist)
     seisTimeWindow(gsac.saclist, opts.pppara.twhdrs)
     if opts.filterParameters['apply']:
-        pplot.seisApplyFilter(gsac.saclist, opts)
+        seisApplyFilter(gsac.saclist, opts)
     seisTimeRefr(gsac.saclist, opts)
     seisDataNorm(gsac.saclist, opts)
     return gsac
 
+def prepStack(opts):
+    'Prep stack from existing sacfile opts.fstack'
+    stkdh = sacpkl.SacDataHdrs(opts.fstack, opts.delta)
+    seisTimeData([stkdh,])
+    seisTimeWindow([stkdh,], opts.pppara.twhdrs)
+    if opts.filterParameters['apply']:
+        seisApplyFilter([stkdh,], opts)
+    seisTimeRefr([stkdh,], opts)
+    seisDataNorm([stkdh,], opts)
+    qualsort.initQual([stkdh,], opts.hdrsel, opts.qheaders)
+    return stkdh
+                
 def seisSort(gsac, opts):
     'Sort seismograms by file indices, quality factors, time difference, or a given header.'
     sortby = opts.sortby
