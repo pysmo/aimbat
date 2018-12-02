@@ -795,7 +795,6 @@ def getDataOpts():
     'Get SAC Data and Options'
     opts, ifiles = getOptions()
     gsac, opts = pdata.paraDataOpts(opts, ifiles)
-
     # more options:
     opts.upylim_on = False
     opts.twin_on = True
@@ -805,24 +804,21 @@ def getDataOpts():
     opts.nlab_on = True
     opts.ynormtwin_on = True
     opts.labelqual = True
-    
+    # prep data:
     pplot.convertColors(opts, opts.pppara)
     gsac = pdata.prepData(gsac, opts)
-    
     return gsac, opts
 
-#def main():
-    
-
-### Start Qt event loop unless running in interactive mode or using pyside.
-if __name__ == '__main__':
+def main():
     gsac, opts = getDataOpts()
     pg.setConfigOption('background', 'w')
     pg.setConfigOption('foreground', 'k')
-    
     gui = mainGUI(gsac, opts)
-    
+    ### Start Qt event loop unless running in interactive mode or using pyside.
     if sys.flags.interactive != 1 or not hasattr(QtCore, 'PYQT_VERSION'):
         #pg.QtGui.QApplication.exec_()
         gui.app.exec_()
-        
+
+
+if __name__ == '__main__':
+    main()
