@@ -24,7 +24,7 @@ from scipy import signal
 from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat import prepplot  as pplot
-
+from pysmo.aimbat import filtering as ftr
 
 def dataNorm(d, w=0.05):
     """ 
@@ -99,25 +99,21 @@ def getFilterPara(gsac, pppara):
         filterParameters['order'] = int(firstSacdh.__getattr__(pppara.fhdrOrder))
     return filterParameters
 
-def createFilter(filterParameters, delta):
-    'Create butterworth filter. Default is bandpass'
-    NYQ = 1.0/(2*delta)
-    Wn = [filterParameters['lowFreq']/NYQ,filterParameters['highFreq']/NYQ]
-    B, A = signal.butter(filterParameters['order'], Wn, analog=False, btype='bandpass')
-    if filterParameters['band']=='lowpass':
-        Wn = filterParameters['lowFreq']/NYQ
-        B, A = signal.butter(filterParameters['order'], Wn, analog=False, btype='lowpass')
-    elif filterParameters['band']=='highpass':
-        Wn = filterParameters['highFreq']/NYQ
-        B, A = signal.butter(filterParameters['order'], Wn, analog=False, btype='highpass')
-    return NYQ, Wn, B, A
+def seisApplyFilter(saclist, filtParas):
+    'Filter seismograms by butterworth filter'
+    for sacdh in saclist:
+        origTimeT = sacdh.time - sacdh.reftime
+        origDataT = sacdh.data
+        origTimeF, origDataF = ftr.time_to_freq(origTimeT, origDataT, sacdh.delta)
+        filtDataT, filtDataF, adjw, adjh = ftr.filtering_time_freq(origTimeT, origDataT, sacdh.delta, filtParas['band'], filtParas['highFreq'], filtParas['lowFreq'], filtParas['order'], filtParas['reversepass'])
+        sacdh.datamem = filtDataT
+    return
 
-def seisDataFilter(gsac, opts):
-    'Filter seismograms'
-    NYQ, Wn, B, A = createFilter(opts.filterParameters, opts.delta)
-    for sacdh in gsac.saclist:
-        sacdh.datamem = signal.lfilter(B, A, sacdh.data)
-    return 
+def seisUnApplyFilter(saclist):
+    'Filter seismograms by butterworth filter'
+    for sacdh in saclist:
+        sacdh.datamem = sacdh.data
+    return
 
 def seisTimeData(gsac):
     'Create time and data (original and in memory) arrays'

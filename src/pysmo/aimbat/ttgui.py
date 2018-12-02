@@ -97,6 +97,7 @@ class mainGUI(object):
         self.opts.picknones = [None,] * self.opts.pppara.npick
         self.opts.oripen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwavedel[:3])
         self.opts.mempen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwave[:3])
+        self.picklist = list(range(self.opts.pppara.npick))
         
     def setupGUI(self):
         resoRect = self.app.desktop().availableGeometry()
@@ -136,9 +137,9 @@ class mainGUI(object):
         hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
         ipick = self.opts.mcpara.ipick
         wpick = self.opts.mcpara.wpick
-        tccim = 'Align\n{:s}-->{:s}'.format(hdrini.upper(), hdrmed.upper())
+        tccim = 'Align\nICCS {:s}-->{:s}'.format(hdrini.upper(), hdrmed.upper())
         tsync = 'Sync\n{:s} and Time Window'.format(hdrfin.upper())
-        tccff = 'Refine\n{:s}-->{:s}'.format(hdrfin.upper(), hdrfin.upper())
+        tccff = 'Refine\nICCS {:s}-->{:s}'.format(hdrfin.upper(), hdrfin.upper())
         tmccc = 'Finalize \nMCCC {:s}-->{:s}'.format(ipick.upper(), wpick.upper())
         
         ccimButton = QtGui.QPushButton(tccim)
@@ -289,8 +290,8 @@ class mainGUI(object):
         waveItem.waveCurve = plotItem.plot(xx, yy, fillLevel=yb, fillBrush=fillBrush)
         # plotCurveItem set for mouse click to work
         waveItem.waveCurve.curve.setClickable(True)
-        
-    def addWaveCurve(self, waveItem, plotItem, fillBrush):
+    
+    def addStackCurve(self, waveItem, plotItem):
         'Add original and filtered waveforms for a (stack) seismogram'
         sacdh = waveItem.sacdh
         xx = sacdh.time - sacdh.reftime
@@ -300,11 +301,11 @@ class mainGUI(object):
         waveItem.waveCurveMem = plotItem.plot(xx, ym, name='Filtered', pen=self.opts.mempen)
         waveItem.waveCurveOri.curve.setClickable(False)
         waveItem.waveCurveMem.curve.setClickable(False)
-            
+        
     def addWaveStack(self, waveItem, plotItem, fillBrush):
         'Add waveform, time picks, and time window for stack'
         self.addWaveFill(waveItem, plotItem, fillBrush)
-        self.addWaveCurve(waveItem, plotItem, fillBrush)
+        self.addStackCurve(waveItem, plotItem)
         waveItem.waveCurve.curve.setClickable(False) # disable click
         self.addPick(waveItem, plotItem, self.opts.picknones)
         self.addWindStack(waveItem, plotItem)
@@ -492,20 +493,32 @@ class mainGUI(object):
             if waveItem is not self.stackWaveItem:
                 waveItem.waveLabel.setColor(fbrush[:3])
                 waveItem.waveLabel.setPos(xx[0], sacdh.datbase)
-            
+        
     def resetAllPlots(self):
-#        self.gsac.ybasesPrev = self.gsac.ybases.copy()
-        picklist = list(range(self.opts.pppara.npick))
         print('--> Reset all plots')
         self.setupData()
-        self.resetWave([self.stackWaveItem])
-        self.resetWave(self.traceWaveItemList)
-        self.resetWind(self.traceWaveItemList)
-        self.resetPick([self.stackWaveItem],   picklist)
-        self.resetPick(self.traceWaveItemList, picklist)
+        self.resetStackPlot()
+        self.resetTracePlot()
         xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
         self.stackPlotItem.setLabel('bottom', text=xlabel)
         self.tracePlotItem.setLabel('bottom', text=xlabel)
+        
+    def resetStackCurve(self, waveItem):
+        'Reset filtered waveforms for a (stack) seismogram'
+        sacdh = waveItem.sacdh
+        xx = sacdh.time - sacdh.reftime
+        ym = sacdh.datamem * sacdh.datnorm + sacdh.datbase
+        waveItem.waveCurveMem.setData(xx, ym)
+        
+    def resetStackPlot(self):
+        self.resetStackCurve(self.stackWaveItem)
+        self.resetWave([self.stackWaveItem])
+        self.resetPick([self.stackWaveItem],   self.picklist)
+        
+    def resetTracePlot(self):
+        self.resetWave(self.traceWaveItemList)
+        self.resetWind(self.traceWaveItemList)
+        self.resetPick(self.traceWaveItemList, self.picklist)
 
     def initStack(self):
         'Create stack by ICCS if not existing'
@@ -641,6 +654,18 @@ class mainGUI(object):
     def filtButtonClicked(self):
         print('Filter with parameters')
         print(self.opts.filterParameters)
+        if self.ptreeItem.onStack:
+            saclist = [self.gsac.stkdh,]
+        else:
+            saclist = self.gsac.saclist
+        if self.opts.filterParameters['apply']:
+            pdata.seisApplyFilter(saclist, self.opts.filterParameters)
+        else:
+            pdata.seisUnApplyFilter(saclist)
+        if self.ptreeItem.onStack:
+            self.resetStackPlot()
+        else:
+            self.resetTracePlot()
         
         
     def sortButtonClicked(self):

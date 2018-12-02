@@ -199,6 +199,7 @@ class ParaTreeItem(object):
         self.paraTree.sigTreeStateChanged.connect(self.treeChanged)
         self.paraSort = self.paraTree.children()[0]
         self.paraFilt = self.paraTree.children()[1]
+        self.onStack = True
         # get parameters for action:
         self.getSortPara()
         self.setFiltTree()
@@ -247,7 +248,6 @@ class ParaTreeItem(object):
                     action = 'Apply'
                 else:
                     action = 'Remove'
-                
                 if self.paraFilt['seis'] == 0:
                     seis = 'Stack'
                     self.onStack = True

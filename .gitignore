@@ -4,6 +4,7 @@
 *.swp
 *.bak
 *.mc*
+.eggs/
 tobedel/
 __pycache__/
 build/
