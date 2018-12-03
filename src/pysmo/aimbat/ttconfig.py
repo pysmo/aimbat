@@ -49,7 +49,7 @@ def getDefaults():
     return defaults
 
 defaults = getDefaults()
-#print('Read configuration file: ' + defaults)
+print('Read configuration file: ' + defaults)
 
 class PPConfig:
     """    Class for SAC PlotPhase and PickPhase configurations.
@@ -89,9 +89,9 @@ class PPConfig:
         self.fhdrHighFreq = config.get('signal', 'fhdrHighFreq')
         self.fhdrOrder = config.get('signal', 'fhdrOrder')
         # default values for filter 
-        self.fvalApply = config.get('signal', 'fvalApply')
+        self.fvalApply = config.getint('signal', 'fvalApply')
         self.fvalBand = config.get('signal', 'fvalBand')
-        self.fvalRevPass = config.get('signal', 'fvalRevPass')
+        self.fvalRevPass = config.getint('signal', 'fvalRevPass')
         self.fvalLowFreq = config.getfloat('signal', 'fvalLowFreq')
         self.fvalHighFreq = config.getfloat('signal', 'fvalHighFreq')
         self.fvalOrder = config.getint('signal', 'fvalOrder')

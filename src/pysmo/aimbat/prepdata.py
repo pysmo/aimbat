@@ -70,37 +70,50 @@ def findPhase(filename):
         sys.exit()
     return phase
 
-def getFilterPara(gsac, pppara):
-    #get default filter parameters
+def getFilterPara(sacdh, pppara):
+    """
+    Get default filter parameters from ttdefaults.conf.
+    Override defaults if already set in SAC file
+    """
     filterParameters = {}
     filterParameters['band'] = pppara.fvalBand
     filterParameters['lowFreq'] = pppara.fvalLowFreq
     filterParameters['highFreq'] = pppara.fvalHighFreq
     filterParameters['order'] = pppara.fvalOrder
-    if pppara.fvalApply == 'True':
-        filterParameters['apply'] = True
-    else:
-        filterParameters['apply'] = False
-    if pppara.fvalRevPass == 'True':
-        filterParameters['reversepass'] = True
-    else:
-        filterParameters['reversepass'] = False
+    filterParameters['apply'] = pppara.fvalApply==1
+    filterParameters['reversepass'] = pppara.fvalRevPass==1
+    print(filterParameters)
     # override defaults if already set in SAC files
-    firstSacdh = gsac.saclist[0]
-    if hasattr(firstSacdh, pppara.fhdrLowFreq):
-        filterParameters['lowFreq'] = firstSacdh.__getattr__(pppara.fhdrLowFreq)
-    if hasattr(firstSacdh, pppara.fhdrHighFreq):
-        filterParameters['highFreq'] = firstSacdh.__getattr__(pppara.fhdrHighFreq)
-    if hasattr(firstSacdh, pppara.fhdrBand):
-        filterParameters['band'] = firstSacdh.__getattr__(pppara.fhdrBand)
-    if hasattr(firstSacdh, pppara.fhdrOrder):
-        filterParameters['order'] = int(firstSacdh.__getattr__(pppara.fhdrOrder))
+#    if hasattr(sacdh, pppara.fhdrLowFreq):
+    if sacdh.gethdr(pppara.fhdrLowFreq) != -12345.:
+        filterParameters['lowFreq'] = sacdh.gethdr(pppara.fhdrLowFreq)
+    if sacdh.gethdr(pppara.fhdrHighFreq) != -12345.:
+        filterParameters['highFreq'] = sacdh.gethdr(pppara.fhdrHighFreq)
+    if sacdh.gethdr(pppara.fhdrBand) != '-1234567':
+        filterParameters['band'] =  sacdh.gethdr(pppara.fhdrBand)
+    if int(sacdh.gethdr(pppara.fhdrOrder)) != -12345:
+        filterParameters['order'] = int(sacdh.gethdr(pppara.fhdrOrder))
+    filterParameters['apply'] = sacdh.gethdr(pppara.fhdrApply)==1
+    filterParameters['reversepass'] = sacdh.gethdr(pppara.fhdrRevPass)==1
+    print(filterParameters)
     return filterParameters
+
+def setFilterPara(sacdh, pppara, filterParameters):
+    """
+    Set filter parameters dict to sacdh.
+    """
+    sacdh.sethdr(pppara.fhdrApply,    filterParameters['apply'])
+    sacdh.sethdr(pppara.fhdrBand,     filterParameters['band'])
+    sacdh.sethdr(pppara.fhdrLowFreq,  filterParameters['lowFreq'])
+    sacdh.sethdr(pppara.fhdrHighFreq, filterParameters['highFreq'])
+    sacdh.sethdr(pppara.fhdrOrder,    filterParameters['order'])
+    sacdh.sethdr(pppara.fhdrRevPass,  filterParameters['reversepass'])
+    return
 
 def seisApplyFilter(saclist, filtParas):
     'Filter seismograms by butterworth filter'
     for sacdh in saclist:
-        origTimeT = sacdh.time - sacdh.reftime
+        origTimeT = sacdh.time
         origDataT = sacdh.data
         origTimeF, origDataF = ftr.time_to_freq(origTimeT, origDataT, sacdh.delta)
         filtDataT, filtDataF, adjw, adjh = ftr.filtering_time_freq(origTimeT, origDataT, sacdh.delta, filtParas['band'], filtParas['highFreq'], filtParas['lowFreq'], filtParas['order'], filtParas['reversepass'])
@@ -193,12 +206,12 @@ def prepData(gsac, opts):
     """
     Prepare data for plotting
     """  
-    opts.filterParameters = getFilterPara(gsac, opts.pppara)
+    opts.filterParameters = getFilterPara(gsac.saclist[0], opts.pppara)
     print('--> Prepare data for plotting')
     seisTimeData(gsac.saclist)
     seisTimeWindow(gsac.saclist, opts.pppara.twhdrs)
     if opts.filterParameters['apply']:
-        seisApplyFilter(gsac.saclist, opts)
+        seisApplyFilter(gsac.saclist, opts.filterParameters)
     seisTimeRefr(gsac.saclist, opts)
     seisDataNorm(gsac.saclist, opts)
     return gsac
@@ -209,7 +222,7 @@ def prepStack(opts):
     seisTimeData([stkdh,])
     seisTimeWindow([stkdh,], opts.pppara.twhdrs)
     if opts.filterParameters['apply']:
-        seisApplyFilter([stkdh,], opts)
+        seisApplyFilter([stkdh,], opts.filterParameters)
     seisTimeRefr([stkdh,], opts)
     seisDataNorm([stkdh,], opts)
     qualsort.initQual([stkdh,], opts.hdrsel, opts.qheaders)

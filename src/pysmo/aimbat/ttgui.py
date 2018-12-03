@@ -47,10 +47,8 @@ import sys, os
 
 import ttconfig
 import sacpickle as sacpkl
-import filtering as ftr
 import prepdata as pdata
 import prepplot as pplot
-import qualsort as qsort
 import algiccs as iccs
 import algmccc as mccc
 
@@ -66,7 +64,7 @@ class mainGUI(object):
         #self.window = QtGui.QWidget()
         self.window = pplot.KeyPressWidget()
         self.window.twhdrs = opts.pppara.twhdrs
-        self.window.setWindowTitle('ttguiQt')
+        self.window.setWindowTitle('aimbat-qtpick')
         # Display the widget as a new window
         self.window.show() 
         self.layout = QtGui.QGridLayout(self.window)
@@ -655,12 +653,13 @@ class mainGUI(object):
         self.app.closeAllWindows()
 
     def filtButtonClicked(self):
-        print('Filter with parameters')
-        print(self.opts.filterParameters)
+        print('Filter with parameters and change sac header')
         if self.ptreeItem.onStack:
             saclist = [self.gsac.stkdh,]
         else:
             saclist = self.gsac.saclist
+        for sacdh in saclist:
+            pdata.setFilterPara(sacdh, self.opts.pppara, self.opts.filterParameters)
         if self.opts.filterParameters['apply']:
             pdata.seisApplyFilter(saclist, self.opts.filterParameters)
         else:
@@ -821,4 +820,12 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+#    main()
+    gsac, opts = getDataOpts()
+    pg.setConfigOption('background', 'w')
+    pg.setConfigOption('foreground', 'k')
+    gui = mainGUI(gsac, opts)
+    ### Start Qt event loop unless running in interactive mode or using pyside.
+    if sys.flags.interactive != 1 or not hasattr(QtCore, 'PYQT_VERSION'):
+        #pg.QtGui.QApplication.exec_()
+        gui.app.exec_()
