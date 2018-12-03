@@ -42,3 +42,20 @@ aimbat-v0.3-alpha1
 June 3, 2018
 * Upgrade to python3 (May not back-compatible with python2). No change in functionalities from v0.2.
 * Include sacio in the same aimbat source package.
+
+aimbat-v1.0.0
+============
+Dec 3, 2018
+* Use new pysmo.core.sac.SacIO (pysmo-pysmo-v0.7.0) instead of pysmo.sac.sacio.SacFile
+* New setup.py:
+  ** Wrap all scripts into a callable function and add them to entry_point, e.g.,
+     aimbat-ttpick is automatically generated in your bin folder.
+  ** Use git commit/tag to determine version automatically.
+* SAC plotting and aimbat-ttpick are still using Matplotlib GUI.
+* New GUI (aimbat-qtpick) using pyqtgraph for fast plotting. Similar user interactions as v0.3:
+  ** Key pressed event handler in pyqtgraph is redefined 
+  ** Use mouse to change time window and press key 'w' to set <-- work on stack only
+  ** Press key 't[0-9]' to set time picks like SAC PPK        <-- work on both stack and traces
+  ** Mouse click on waveform to change trace selection status <-- work on trace only
+* Better separation between data and plot.
+* Filter and sort are both in the main GUI controlled by a parameter tree.
