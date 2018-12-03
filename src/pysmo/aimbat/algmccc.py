@@ -358,15 +358,7 @@ def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
 def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
     """ Write output file, set output time picks.
     """
-    ofilename = mcpara.mcname
-    kevnm = mcpara.kevnm
-    delta = mcpara.delta
-    lsqr = mcpara.lsqr
     nsta = len(solist)
-    stalist = [ sacdh.netsta for sacdh in solist ]
-    filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
-    shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
-
     # set wpick    
     wpick = mcpara.wpick
     itmean = mean(reftimes)

@@ -185,3 +185,18 @@ def getAxes(opts):
     return axs
 
 
+def plotDelay(x, y, z, opts):
+    fig, ax = plt.subplots()
+    ckey = 'RdBu_r'
+    cmap = plt.get_cmap(ckey)
+    ss = ax.scatter(stalos, stalas, c=dtimes, cmap=cmap, marker='^', vmin=opts.vminmax[0], opts.vmax=vminmax[1])
+    cbar = fig.colorbar(ss)
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Longitude')
+    fmt = 'png'
+    if opts.savefig:
+        fignm = opts.mcpara.mcname+'.'+fmt
+        plt.savefig(fignm, format=fmt, dpi=300)
+    else:
+        plt.show()
+    return fig

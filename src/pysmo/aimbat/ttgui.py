@@ -45,12 +45,12 @@ import pyqtgraph as pg
 import numpy as np
 import sys, os
 
-import ttconfig
-import sacpickle as sacpkl
-import prepdata as pdata
-import prepplot as pplot
-import algiccs as iccs
-import algmccc as mccc
+from pysmo.aimbat import ttconfig
+from pysmo.aimbat import algiccs as iccs
+from pysmo.aimbat import algmccc as mccc
+from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat import prepdata  as pdata
+from pysmo.aimbat import prepplot  as pplot
 
 from stationmapping import StationMapper
 
@@ -124,11 +124,8 @@ class mainGUI(object):
         self.tracePlotItem.setLabel('bottom', text=xlabel)
 #        self.tracePlotItem.setLabel('left', text='Trace Number')
         self.setXYLimit()
-
-
 #        self.traceWidget.scene().sigMouseClicked.connect(self.traceMouseClickEvents)
 #        self.stackWidget.scene().sigMouseClicked.connect(self.stackMouseClickEvents)
-#
 
         
     def addButtons(self):
@@ -148,7 +145,7 @@ class mainGUI(object):
         saveButton = QtGui.QPushButton('Save')
         quitButton = QtGui.QPushButton('Quit')
         sac2Button = QtGui.QPushButton('Sac P2')
-        mstaButton = QtGui.QPushButton('Map Stations')
+        tmapButton = QtGui.QPushButton('Plot Delay Times')
         sortButton = QtGui.QPushButton('Sort\n by Name/Qual/Hdr')
         filtButton = QtGui.QPushButton('Filter\n on Stack/Traces')
 
@@ -162,10 +159,10 @@ class mainGUI(object):
         sortButton.clicked.connect(self.sortButtonClicked)
         sac2Button.clicked.connect(self.sac2ButtonClicked)
         filtButton.clicked.connect(self.filtButtonClicked)
-        mstaButton.clicked.connect(self.mstaButtonClicked)
+        tmapButton.clicked.connect(self.tmapButtonClicked)
         # add to layout in two columns
         btns1 = [ccimButton, syncButton, ccffButton, mcccButton, sortButton]
-        btns0 = [sac2Button, mstaButton, saveButton, quitButton, filtButton]
+        btns0 = [sac2Button, tmapButton, saveButton, quitButton, filtButton]
         for i in range(len(btns0)):
             self.addLayoutWidget(btns0[i], i, 0)
         for i in range(len(btns1)):
@@ -195,7 +192,6 @@ class mainGUI(object):
         
         xlim1 = xlim0 + (xlim1-xlim0)*ssx/shx
         ylim0 = ylim1 - (ylim1-ylim0)*ssy/shy
-#        print('viewRange: ',self.tracePlotItem.viewRange())
         self.tracePlotItem.setXRange(xlim0, xlim1)
         self.tracePlotItem.setYRange(ylim0, ylim1)
 #        self.traceScrollArea.setMinimumSize(ssx, ssy)
@@ -250,9 +246,6 @@ class mainGUI(object):
             traceWaveItem.waveCurve.sigClicked.connect(self.waveClicked)
             self.traceWaveItemList.append(traceWaveItem)
             self.traceWaveformList.append(traceWaveItem.waveCurve)
-        
-        #print(tracePlotItem.viewRange())
-
         self.tracePlotItem = tracePlotItem
         return traceWidget
 
@@ -635,19 +628,6 @@ class mainGUI(object):
         # save headers
         sacpkl.saveData(self.gsac, self.opts)
         
-#        # write params to user headers of sac files
-#        for sacdh in self.gsac.saclist: 
-#            sacdh.user0 = self.opts.filterParameters['lowFreq']
-#            sacdh.user1 = self.opts.filterParameters['highFreq']
-#            sacdh.kuser0 = self.opts.filterParameters['band']
-#            sacdh.kuser1 = self.opts.filterParameters['order']
-#        if 'stkdh' in self.gsac.__dict__:
-#            self.gsac.stkdh.user0 = self.opts.filterParameters['lowFreq']
-#            self.gsac.stkdh.user1 = self.opts.filterParameters['highFreq']
-#            self.gsac.stkdh.kuser0 = self.opts.filterParameters['band']
-#            self.gsac.stkdh.kuser1 = self.opts.filterParameters['order']
-
-        
 
     def quitButtonClicked(self):
         self.app.closeAllWindows()
@@ -685,7 +665,7 @@ class mainGUI(object):
         self.sacp2Window = sacp2GUI(selTraceWaveItemList, hdrList, resoRect)
 
 
-    def mstaButtonClicked(self):
+    def tmapButtonClicked(self):
         mapper = StationMapper(self.gsac)
         mapper.start()
         
