@@ -491,6 +491,7 @@ class mainGUI(object):
     def resetAllPlots(self):
         print('--> Reset all plots')
         self.setupData()
+        self.resetTraceWaveItemList()
         self.resetStackPlot()
         self.resetTracePlot()
         xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
@@ -655,7 +656,6 @@ class mainGUI(object):
         self.opts.sortby = self.ptreeItem.sortby
         print('Sort seismograms by: ',self.opts.sortby)
         self.setupData()
-        self.resetTraceWaveItemList()
         self.resetTracePlot()
 
     def resetTraceWaveItemList(self):
