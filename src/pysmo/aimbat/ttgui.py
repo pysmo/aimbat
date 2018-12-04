@@ -392,7 +392,7 @@ class mainGUI(object):
         else:
             self.window.mouseOnStack = False                           
             ind = -round(mpy) + len(self.gsac.delist)
-            if ind > 0 and ind < len(self.traceWaveItemList):
+            if ind >= 0 and ind < len(self.traceWaveItemList):
                 self.window.waveItem = self.traceWaveItemList[ind]
         self.window.mousePoint = [mpx, mpy]
 
@@ -649,13 +649,20 @@ class mainGUI(object):
         else:
             self.resetTracePlot()
         
-        
     def sortButtonClicked(self):
         self.opts.sortby = self.ptreeItem.sortby
         print('Sort seismograms by: ',self.opts.sortby)
         self.setupData()
+        self.resetTraceWaveItemList()
         self.resetTracePlot()
 
+    def resetTraceWaveItemList(self):
+        'Reset traceWaveItemList after sorting'
+        newlist = self.gsac.delist + self.gsac.selist
+        oldlist = [ twi.sacdh  for twi in self.traceWaveItemList]
+        inds = [ oldlist.index(sacdh)  for sacdh in newlist ]
+        self.traceWaveItemList = [ self.traceWaveItemList[i]  for i in inds]
+            
     def sac2ButtonClicked(self):
         resoRect = self.app.desktop().availableGeometry()
         resoRect.setWidth(resoRect.width()*0.5)
