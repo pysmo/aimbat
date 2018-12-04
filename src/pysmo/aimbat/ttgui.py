@@ -101,33 +101,29 @@ class mainGUI(object):
     def setupGUI(self):
         resoRect = self.app.desktop().availableGeometry()
         self.window.resize(resoRect.width()*0.8, resoRect.height()*0.9)
-        # stack
+        # stack and individual traces
         self.stackWidget = self.getStackGraphWidget(resoRect.width()*0.8, 180)
-        self.stackScrollArea = QtGui.QScrollArea()
-        self.stackScrollArea.setWidget(self.stackWidget)
-        # individual traces
         self.traceWidget = self.getTraceGraphWidget(resoRect.width()*0.8, resoRect.height()-200 )
-        self.traceScrollArea = QtGui.QScrollArea()
-        self.traceScrollArea.setWidget(self.traceWidget)
-        # add widgets and buttons:
-        self.addLayoutWidget(self.stackScrollArea, 0, 3, xSpan = 4, ySpan = 20)
-        #self.addLayoutWidget(self.stackWidget, 0, 1, xSpan = 4, ySpan = 10)
-        self.addLayoutWidget(self.traceScrollArea, 4, 3, xSpan = 14, ySpan = 20)
+        self.useScrollArea = False
+        if self.useScrollArea:
+            self.stackScrollArea = QtGui.QScrollArea()
+            self.traceScrollArea = QtGui.QScrollArea()
+            self.stackScrollArea.setWidget(self.stackWidget)
+            self.traceScrollArea.setWidget(self.traceWidget)
+            self.addLayoutWidget(self.stackScrollArea, 0, 3, xSpan = 4, ySpan = 20)
+            self.addLayoutWidget(self.traceScrollArea, 4, 3, xSpan = 14, ySpan = 20)
+        else:
+            self.addLayoutWidget(self.stackWidget, 0, 3, xSpan = 4, ySpan = 20)
+            self.addLayoutWidget(self.traceWidget, 4, 3, xSpan = 14, ySpan = 20)
         self.addButtons()
         self.addCursorLine()
-        
         self.addParaTree()
-        
         # label and limit:
         xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
         self.stackPlotItem.setLabel('bottom', text=xlabel)
         self.tracePlotItem.setLabel('bottom', text=xlabel)
-#        self.tracePlotItem.setLabel('left', text='Trace Number')
         self.setXYLimit()
-#        self.traceWidget.scene().sigMouseClicked.connect(self.traceMouseClickEvents)
-#        self.stackWidget.scene().sigMouseClicked.connect(self.stackMouseClickEvents)
 
-        
     def addButtons(self):
         'Create and connect buttons'
         hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
@@ -137,7 +133,6 @@ class mainGUI(object):
         tsync = 'Sync\n{:s} and Time Window'.format(hdrfin.upper())
         tccff = 'Refine\nICCS {:s}-->{:s}'.format(hdrfin.upper(), hdrfin.upper())
         tmccc = 'Finalize \nMCCC {:s}-->{:s}'.format(ipick.upper(), wpick.upper())
-        
         ccimButton = QtGui.QPushButton(tccim)
         syncButton = QtGui.QPushButton(tsync)
         ccffButton = QtGui.QPushButton(tccff)
@@ -148,7 +143,6 @@ class mainGUI(object):
         tmapButton = QtGui.QPushButton('Plot Delay Times')
         sortButton = QtGui.QPushButton('Sort\n by Name/Qual/Hdr')
         filtButton = QtGui.QPushButton('Filter\n on Stack/Traces')
-
         # connect:
         ccimButton.clicked.connect(self.ccimButtonClicked)
         syncButton.clicked.connect(self.syncButtonClicked)
@@ -185,28 +179,28 @@ class mainGUI(object):
         self.getXYLimit()
         xlim0, xlim1 = self.xlimit
         ylim0, ylim1 = self.ylimit
-        ssx = self.traceScrollArea.size().width()
-        shx = self.traceScrollArea.sizeHint().width()
-        ssy = self.traceScrollArea.size().height()
-        shy = self.traceScrollArea.sizeHint().height()
-        
-        xlim1 = xlim0 + (xlim1-xlim0)*ssx/shx
-        ylim0 = ylim1 - (ylim1-ylim0)*ssy/shy
+        if self.useScrollArea:
+            ssx = self.traceScrollArea.size().width()
+            shx = self.traceScrollArea.sizeHint().width()
+            ssy = self.traceScrollArea.size().height()
+            shy = self.traceScrollArea.sizeHint().height()
+            xlim1 = xlim0 + (xlim1-xlim0)*ssx/shx
+            ylim0 = ylim1 - (ylim1-ylim0)*ssy/shy
         self.tracePlotItem.setXRange(xlim0, xlim1)
         self.tracePlotItem.setYRange(ylim0, ylim1)
-#        self.traceScrollArea.setMinimumSize(ssx, ssy)
+
         print('viewRange: ',self.tracePlotItem.viewRange())
 
 
 
     def getXYLimit(self):
         'Get x limit (relative to reference time)'
-        b = [ sacdh.b - sacdh.reftime for sacdh in self.gsac.saclist]
-        e = [ sacdh.e - sacdh.reftime for sacdh in self.gsac.saclist]
-        mm = min(b), max(e)
-        xlimit = pdata.axLimit(mm)
-        self.xlimit = xlimit
-        self.ylimit = -len(self.gsac.selist), len(self.gsac.delist)+1
+        self.xlimit = self.opts.xlimit
+        maxsel, maxdel = self.opts.maxnum
+        nsel = min(maxsel, len(self.gsac.selist))
+        ndel = min(maxdel, len(self.gsac.delist))
+        self.ylimit = -nsel+0.5, ndel+1 
+        
         
     def getStackGraphWidget(self, xSize, ySize):
         'Get graphics widget for stack'
@@ -214,15 +208,13 @@ class mainGUI(object):
         stackWidget.resize(xSize, ySize)
         stackWidget.ci.setSpacing(0)
         stackPlotItem = stackWidget.addPlot(title='Stack')
-        stackPlotItem.addLegend(offset=[10,1])
+        stackPlotItem.addLegend(offset=[-1,1])
         stackPlotItem.setAutoVisible(y=True)
         stackWaveItem = pplot.SeisWaveItem(self.gsac.stkdh)
         self.addWaveStack(stackWaveItem, stackPlotItem, self.opts.colorwave)
-
         self.stackPlotItem = stackPlotItem
         self.stackWaveItem = stackWaveItem
         return stackWidget
-
 
     def getTraceGraphWidget(self, xSize, ySize):
         'Get graphics widget for traces'
@@ -231,8 +223,7 @@ class mainGUI(object):
         traceWidget.ci.setSpacing(0)
         tracePlotItem = traceWidget.addPlot(title='Traces')
         tracePlotItem.setXLink(self.stackPlotItem)
-        tracePlotItem.addLegend()
-        tracePlotItem.legend.setPos(10,10)
+        tracePlotItem.addLegend(offset=[-1,1])
         # plot deselected and selected traces
         self.traceWaveItemList = []
         self.traceWaveformList = []
@@ -248,7 +239,6 @@ class mainGUI(object):
             self.traceWaveformList.append(traceWaveItem.waveCurve)
         self.tracePlotItem = tracePlotItem
         return traceWidget
-
 
     def addLabelTrace(self, waveItem, plotItem, fillBrush):
         'Add station label for each trace'
