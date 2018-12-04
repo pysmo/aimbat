@@ -102,7 +102,7 @@ class mainGUI(object):
         resoRect = self.app.desktop().availableGeometry()
         self.window.resize(resoRect.width()*0.8, resoRect.height()*0.9)
         # stack
-        self.stackWidget = self.getStackGraphWidget(resoRect.width()*0.8, 170)
+        self.stackWidget = self.getStackGraphWidget(resoRect.width()*0.8, 180)
         self.stackScrollArea = QtGui.QScrollArea()
         self.stackScrollArea.setWidget(self.stackWidget)
         # individual traces
@@ -195,7 +195,7 @@ class mainGUI(object):
         self.tracePlotItem.setXRange(xlim0, xlim1)
         self.tracePlotItem.setYRange(ylim0, ylim1)
 #        self.traceScrollArea.setMinimumSize(ssx, ssy)
-#        print('viewRange: ',self.tracePlotItem.viewRange())
+        print('viewRange: ',self.tracePlotItem.viewRange())
 
 
 
@@ -264,9 +264,11 @@ class mainGUI(object):
             co = sacdh.gethdr(hdrco)
             slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
         text = pg.TextItem(slab, color=fillBrush[:3])
+        font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
+        text.setFont(font)
         plotItem.addItem(text)
         yy = sacdh.datbase
-        xx = sacdh.time[0] - sacdh.reftime
+        xx = sacdh.time[0] - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
         ip = int(self.opts.qcpara.ichdrs[0][1])
         xx = sacdh.b - sacdh.thdrs[ip]
         text.setPos(xx, yy)
@@ -390,7 +392,7 @@ class mainGUI(object):
             self.window.mouseOnStack = True
             self.window.waveItem = self.stackWaveItem
         else:
-            self.window.mouseOnStack = False                           
+            self.window.mouseOnStack = False
             ind = -round(mpy) + len(self.gsac.delist)
             if ind >= 0 and ind < len(self.traceWaveItemList):
                 self.window.waveItem = self.traceWaveItemList[ind]
