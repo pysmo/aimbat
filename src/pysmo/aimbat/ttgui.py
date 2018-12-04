@@ -263,11 +263,11 @@ class mainGUI(object):
             sn = sacdh.gethdr(hdrsn)
             co = sacdh.gethdr(hdrco)
             slab += 'qual={0:4.2f}/{1:4.1f}/{2:4.2f}'.format(cc, sn, co)
-        text = pg.TextItem(slab, color=fillBrush[:3])
+        text = pg.TextItem(slab, color=fillBrush[:3], anchor=(0,0.5))
         font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
         text.setFont(font)
         plotItem.addItem(text)
-        yy = sacdh.datbase + 0.2
+        yy = sacdh.datbase
         xx = sacdh.time[0] - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
         ip = int(self.opts.qcpara.ichdrs[0][1])
         xx = sacdh.b - sacdh.thdrs[ip]
@@ -486,7 +486,9 @@ class mainGUI(object):
             waveItem.waveCurve.setFillBrush(fbrush)
             if waveItem is not self.stackWaveItem:
                 waveItem.waveLabel.setColor(fbrush[:3])
-                waveItem.waveLabel.setPos(xx[0], sacdh.datbase)
+                xw = sacdh.b - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
+                yw = sacdh.datbase
+                waveItem.waveLabel.setPos(xw, yw)
         
     def resetAllPlots(self):
         print('--> Reset all plots')
@@ -597,6 +599,8 @@ class mainGUI(object):
         self.getWindStack(self.opts.ccpara.cchdrs[0])
         self.getPickStack()
         self.ccStack()
+        self.gsac.stkdh.sethdr(hdrini, self.tini)
+        self.gsac.stkdh.sethdr(hdrmed, self.tmed)
         self.resetAllPlots()
 
     def mcccButtonClicked(self):
