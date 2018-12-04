@@ -262,12 +262,12 @@ class mainGUI(object):
             cc = sacdh.gethdr(hdrcc)
             sn = sacdh.gethdr(hdrsn)
             co = sacdh.gethdr(hdrco)
-            slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
+            slab += 'qual={0:4.2f}/{1:4.1f}/{2:4.2f}'.format(cc, sn, co)
         text = pg.TextItem(slab, color=fillBrush[:3])
         font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
         text.setFont(font)
         plotItem.addItem(text)
-        yy = sacdh.datbase
+        yy = sacdh.datbase + 0.2
         xx = sacdh.time[0] - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
         ip = int(self.opts.qcpara.ichdrs[0][1])
         xx = sacdh.b - sacdh.thdrs[ip]
@@ -628,7 +628,7 @@ class mainGUI(object):
         
 
     def saveButtonClicked(self):
-        # save headers
+        'Save SAC headers'
         sacpkl.saveData(self.gsac, self.opts)
         
 
@@ -664,6 +664,7 @@ class mainGUI(object):
         oldlist = [ twi.sacdh  for twi in self.traceWaveItemList]
         inds = [ oldlist.index(sacdh)  for sacdh in newlist ]
         self.traceWaveItemList = [ self.traceWaveItemList[i]  for i in inds]
+        self.traceWaveformList = [ twi.waveCurve  for twi in self.traceWaveItemList ]
             
     def sac2ButtonClicked(self):
         resoRect = self.app.desktop().availableGeometry()
