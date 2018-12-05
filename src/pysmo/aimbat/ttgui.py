@@ -201,7 +201,6 @@ class mainGUI(object):
         ndel = min(maxdel, len(self.gsac.delist))
         self.ylimit = -nsel+0.5, ndel+1 
         
-        
     def getStackGraphWidget(self, xSize, ySize):
         'Get graphics widget for stack'
         stackWidget = pg.GraphicsLayoutWidget()
@@ -240,8 +239,8 @@ class mainGUI(object):
         self.tracePlotItem = tracePlotItem
         return traceWidget
 
-    def addLabelTrace(self, waveItem, plotItem, fillBrush):
-        'Add station label for each trace'
+    def getLabelTrace(self, waveItem):
+        'Get station label for each trace'
         sacdh = waveItem.sacdh
         if self.opts.nlab_on:
             slab = '{0:<8s}'.format(sacdh.netsta)
@@ -252,17 +251,23 @@ class mainGUI(object):
             cc = sacdh.gethdr(hdrcc)
             sn = sacdh.gethdr(hdrsn)
             co = sacdh.gethdr(hdrco)
-            slab += 'qual={0:4.2f}/{1:4.1f}/{2:4.2f}'.format(cc, sn, co)
-        text = pg.TextItem(slab, color=fillBrush[:3], anchor=(0,0.5))
+            slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
+        waveItem.waveLabelText = slab
+
+    def addLabelTrace(self, waveItem, plotItem, fillBrush):
+        'Add station label for each trace'
+        self.getLabelTrace(waveItem)
+        sacdh = waveItem.sacdh
+        waveLabel = pg.TextItem(waveItem.waveLabelText, color=fillBrush[:3], anchor=(0,0.5))
         font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
-        text.setFont(font)
-        plotItem.addItem(text)
+        waveLabel.setFont(font)
+        plotItem.addItem(waveLabel)
         yy = sacdh.datbase
         xx = sacdh.time[0] - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
         ip = int(self.opts.qcpara.ichdrs[0][1])
         xx = sacdh.b - sacdh.thdrs[ip]
-        text.setPos(xx, yy)
-        waveItem.waveLabel = text
+        waveLabel.setPos(xx, yy)
+        waveItem.waveLabel = waveLabel
         
     def addWaveFill(self, waveItem, plotItem, fillBrush):
         'Add waveform fill for each trace'
@@ -479,6 +484,9 @@ class mainGUI(object):
                 xw = sacdh.b - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
                 yw = sacdh.datbase
                 waveItem.waveLabel.setPos(xw, yw)
+                #update text of trace label as well for changing in qfactors
+                self.getLabelTrace(waveItem)
+                waveItem.waveLabel.setText(waveItem.waveLabelText)
         
     def resetAllPlots(self):
         print('--> Reset all plots')

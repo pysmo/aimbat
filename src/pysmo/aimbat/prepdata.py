@@ -82,7 +82,6 @@ def getFilterPara(sacdh, pppara):
     filterParameters['order'] = pppara.fvalOrder
     filterParameters['apply'] = pppara.fvalApply==1
     filterParameters['reversepass'] = pppara.fvalRevPass==1
-    print(filterParameters)
     # override defaults if already set in SAC files
 #    if hasattr(sacdh, pppara.fhdrLowFreq):
     if sacdh.gethdr(pppara.fhdrLowFreq) != -12345.:
@@ -95,7 +94,6 @@ def getFilterPara(sacdh, pppara):
         filterParameters['order'] = int(sacdh.gethdr(pppara.fhdrOrder))
     filterParameters['apply'] = sacdh.gethdr(pppara.fhdrApply)==1
     filterParameters['reversepass'] = sacdh.gethdr(pppara.fhdrRevPass)==1
-    print(filterParameters)
     return filterParameters
 
 def setFilterPara(sacdh, pppara, filterParameters):
