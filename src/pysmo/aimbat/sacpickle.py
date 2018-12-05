@@ -166,19 +166,16 @@ class SacDataHdrs:
         users  = [-12345.,] * nthdr
         kusers = ['-1234567',] * nkhdr
         for i in range(nthdr):
-            try:
-                thdrs[i] = getattr(isac, 't'+str(i))
-            except:
-                pass
-            try:
-                users[i] = getattr(isac, 'user'+str(i))
-            except:
-                pass
+            thdr = getattr(isac, 't'+str(i))
+            user = getattr(isac, 'user'+str(i))
+            if thdr is not None:
+                thdrs[i] = thdr
+            if user is not None:
+                users[i] = user
         for i in range(nkhdr):
-            try:
-                kusers[i] = getattr(isac, 'kuser'+str(i))#.rstrip()
-            except:
-                pass
+            kuser = getattr(isac, 'kuser'+str(i))#.rstrip()
+            if kuser is not None:
+                kusers[i] = kuser
         self.thdrs = thdrs
         self.users = users
         self.kusers = kusers
@@ -311,17 +308,11 @@ class SacGroup:
         isac = SacIO.from_file(ifiles[0])
         year, jday = isac.nzyear, isac.nzjday
         mon, day = jul2date(year, jday)
-        try:
-            mag = isac.mag
-        except:
-            mag = 0.
+        mag = isac.mag or 0.
         self.event = [ year, mon, day, isac.nzhour, isac.nzmin, isac.nzsec+isac.nzmsec*0.001, isac.evla, isac.evlo, isac.evdp*0.001, mag ]
         self.idep = isac.idep
         self.iztype = isac.iztype
-        try:
-            self.kevnm = isac.kevnm
-        except:
-            self.kevnm = 'unknown'
+        self.kevnm = isac.kevnm or 'unknown'
         del isac
         if delta > 0:
             self.resampleData(delta)
