@@ -161,6 +161,7 @@ class CCConfig:
         except:
             exec(cmd1a)
         exec(cmd2)
+        print('Using {:s}.{:s} as cross-correlation method for ICCS'.format(modu, func))
         self.xcorr_modu = modu
         self.xcorr_func = func
 
@@ -199,6 +200,7 @@ class MCConfig:
         except:
             exec(cmd1a)
         exec(cmd2)
+        print('Using {:s}.{:s} as cross-correlation method for MCCC'.format(modu, func))
         self.xcorr_modu = modu
         self.xcorr_func = func
 

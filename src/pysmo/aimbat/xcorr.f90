@@ -3,7 +3,7 @@
 !   Author: Xiaoting Lou
 !    Email: xlou@u.northwestern.edu
 !
-! Copyright (c) 2009-2012 Xiaoting Lou
+! Copyright (c) 2009 Xiaoting Lou
 !!!---------------------------------------------------------------------!!!
 ! Module to calculate cross correlation function of two time series with the same length.
 !      c(k) = sum_i  x(i) * y(i+k)
@@ -109,17 +109,7 @@ do k = -n+1,n-1,shift
         ccmax = cc
         delay = k
     endif
-    if (cc.lt.ccmin) then
-        ccmin = cc
-        kmin = k
-    endif
 enddo
-! if (ccmax.gt.-ccmin) then
-!     ccpol = 1
-! else
-!     ccmax = -ccmin
-!     delay = kmin
-!     ccpol = -1
 ccpol = 1
 ccmax = ccmax/sqrt( dot_product(x,x) * dot_product(y,y) )
 
@@ -164,6 +154,7 @@ do s = 0,size(shifts)-1
             kmin = k
         endif
     enddo
+enddo
 if (ccmax.gt.-ccmin) then
     ccpol = 1
 else
@@ -171,8 +162,6 @@ else
     delay = kmin
     ccpol = -1
 endif
-enddo
-
 ccmax = ccmax/sqrt( dot_product(x,x) * dot_product(y,y) )
 
 end subroutine xcorr_fast
@@ -218,4 +207,79 @@ end subroutine xcorr_faster
 !!!---------------------------------------------------------------------!!!
 
 
+
+!!!---------------------------------------------------------------------!!!
+subroutine xcorr_fast_polarity(x, y, n, shift, delay, ccmax, ccpol)
+! Fast cross-correlation using 1 level of coarse shift.
+! This does not correct the polarity
+implicit none
+integer :: n, shift, delay, ccpol
+real(8), dimension(0:n-1) :: x, y
+real(8) :: cc, ccmax, ccmin
+integer :: s, k, k0, k1, kmin
+integer, dimension(0:1) :: shifts
+real(8) :: crosscorr
+!f2py intent(in)  :: x, y, n, shift
+!f2py intent(out) :: delay, ccmax, ccpol
+!f2py intent(hide):: cc, s, k, k0, k1, kmin, ccmin
+
+shifts=(/shift,1/)
+ccmax = 0
+ccmin = 0
+kmin = 0
+do s = 0,size(shifts)-1
+    if (s.eq.0) then
+        k0 = 1-n
+        k1 = n-1
+    else
+        k0 = delay-shifts(s-1)
+        k1 = delay+shifts(s-1)
+    endif
+    do k = k0, k1, shifts(s)
+        cc = crosscorr(x,y,n,k)
+        if (cc.gt.ccmax) then
+            ccmax = cc
+            delay = k
+        endif
+    enddo
+enddo
+ccpol = 1
+ccmax = ccmax/sqrt( dot_product(x,x) * dot_product(y,y) )
+
+end subroutine xcorr_fast_polarity
+!!!---------------------------------------------------------------------!!!
+
+
+!!!---------------------------------------------------------------------!!!
+subroutine xcorr_faster_polarity(x, y, n, shift, delay, ccmax, ccpol)
+! Faster cross-correlation only for time lags around zero.
+! This does not correct the polarity
+implicit none
+integer :: n, shift, delay, k, kmin, ccpol
+real(8), dimension(0:n-1) :: x, y
+real(8) :: cc, ccmax, ccmin
+real(8) :: crosscorr
+!f2py intent(in)  :: x, y, n, shift
+!f2py intent(out) :: delay, ccmax, ccpol
+!f2py intent(hide):: cc, k, kmin, ccmin
+
+ccmax = 0
+ccmin = 0
+kmin = 0
+do k = -shift, shift, 1
+    cc = crosscorr(x,y,n,k)   
+    if (cc.gt.ccmax) then
+        ccmax = cc
+        delay = k
+    endif
+    if (cc.lt.ccmin) then
+        ccmin = cc
+        kmin = k
+    endif
+enddo
+ccpol = 1
+ccmax = ccmax/sqrt( dot_product(x,x) * dot_product(y,y) )
+
+end subroutine xcorr_faster_polarity
+!!!---------------------------------------------------------------------!!!
 

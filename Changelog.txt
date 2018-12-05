@@ -59,3 +59,10 @@ Dec 3, 2018
   ** Mouse click on waveform to change trace selection status <-- work on trace only
 * Better separation between data and plot.
 * Filter and sort are both in the main GUI controlled by a parameter tree.
+
+aimbat-v1.0.1
+============
+Dec 4, 2018
+* Fix bugs in changing trace selection status (QC), manual phase picking, and trace label.
+* Change in GUI settings. Using right button dragging is enough and give up on QScrollArea.
+* In cross-correlation, do not allow reverse polarity which causes cycle skipping too often.
