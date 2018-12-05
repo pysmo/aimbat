@@ -9,7 +9,12 @@
 """
 Python module for interactively measuring seismic wave travel times and quality control.
 
-* User interaction using mouse and keyboard:
+* Common pyqtgraph mouse interactions:
+  ** http://www.pyqtgraph.org/documentation/mouse_interaction.html
+  ** E.g., Right button drag:
+     Dragging left/right scales horizontally; dragging up/down scales vertically.
+  
+* AIMBAT specific user interactions using mouse and keyboard:
   ** Key pressed event handler in pyqtgraph is redefined in prepplot.py
   ** Use mouse to change time window and press key 'w' to set <-- work on stack only
   ** Press key 't[0-9]' to set time picks like SAC PPK        <-- work on both stack and traces
@@ -122,7 +127,7 @@ class mainGUI(object):
         xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
         self.stackPlotItem.setLabel('bottom', text=xlabel)
         self.tracePlotItem.setLabel('bottom', text=xlabel)
-        self.setXYLimit()
+        self.setXYRange()
 
     def addButtons(self):
         'Create and connect buttons'
@@ -173,33 +178,42 @@ class mainGUI(object):
         self.layout.addWidget(widget, xLoc, yLoc, xSpan, ySpan)
         
     def setXYLimit(self):
-        """
-        Set xy limit
-        """
-        self.getXYLimit()
-        xlim0, xlim1 = self.xlimit
-        ylim0, ylim1 = self.ylimit
+        'Set X and Y axis limits that constrain the possible view ranges'
+        b = [ sacdh.b - sacdh.reftime for sacdh in self.gsac.saclist]
+        e = [ sacdh.e - sacdh.reftime for sacdh in self.gsac.saclist]
+        xmin, xmax = pdata.axLimit([min(b), max(e)],0.01)
+        ymin = -len(self.gsac.selist) - 0.5
+        ymax =  len(self.gsac.delist) + 1.5
+        self.tracePlotItem.setLimits(xMin=xmin, xMax=xmax, yMin=ymin, yMax=ymax)
+        
+    def setXYRange(self):
+        ' Set X and Y axis ranges'
+        self.setXYLimit()
+        self.getXYRange()
+        xrange0, xrange1 = self.xRange
+        yrange0, yrange1 = self.yRange
         if self.useScrollArea:
             ssx = self.traceScrollArea.size().width()
             shx = self.traceScrollArea.sizeHint().width()
             ssy = self.traceScrollArea.size().height()
             shy = self.traceScrollArea.sizeHint().height()
-            xlim1 = xlim0 + (xlim1-xlim0)*ssx/shx
-            ylim0 = ylim1 - (ylim1-ylim0)*ssy/shy
-        self.tracePlotItem.setXRange(xlim0, xlim1)
-        self.tracePlotItem.setYRange(ylim0, ylim1)
+            xrange1 = xrange0 + (xrange1-xrange0)*ssx/shx
+            yrange0 = yrange1 - (yrange1-yrange0)*ssy/shy
+        self.tracePlotItem.setXRange(xrange0, xrange1)
+        self.tracePlotItem.setYRange(yrange0, yrange1)
 
         print('viewRange: ',self.tracePlotItem.viewRange())
 
 
 
-    def getXYLimit(self):
+    def getXYRange(self):
         'Get x limit (relative to reference time)'
-        self.xlimit = self.opts.xlimit
+        self.xRange = self.opts.xlimit
         maxsel, maxdel = self.opts.maxnum
         nsel = min(maxsel, len(self.gsac.selist))
         ndel = min(maxdel, len(self.gsac.delist))
-        self.ylimit = -nsel+0.5, ndel+1 
+        self.yRange = -nsel+0.5, ndel+0.5
+        
         
     def getStackGraphWidget(self, xSize, ySize):
         'Get graphics widget for stack'
@@ -376,13 +390,15 @@ class mainGUI(object):
         self.tracePlotItem.addItem(vCursorLine, ignoreBounds=True)
         self.tracePlotItem.scene().sigMouseMoved.connect(self.traceMouseMoved)
         self.tracePlotItem.vCursorLine = vCursorLine
-        
+
     def mouseMoved(self, event, plotItem):
         'Mouse moved events. Set mouse position and find waveItem by ybase'
         mousePoint = plotItem.vb.mapSceneToView(event)
         mpx, mpy = [mousePoint.x(), mousePoint.y()]
-        if plotItem.sceneBoundingRect().contains(event):
-            plotItem.vCursorLine.setPos(mpx)
+        #if plotItem.sceneBoundingRect().contains(event):
+        #update cursor line for both stack and traces
+        self.stackPlotItem.vCursorLine.setPos(mpx)
+        self.tracePlotItem.vCursorLine.setPos(mpx)
         if plotItem is self.stackPlotItem:
             self.window.mouseOnStack = True
             self.window.waveItem = self.stackWaveItem
@@ -684,10 +700,10 @@ class mainGUI(object):
 
     def overrideAutoScaleButton(self, plot):
         plot.autoBtn.clicked.disconnect()
-        plot.autoBtn.clicked.connect(lambda: self.setXYLimit())
+        plot.autoBtn.clicked.connect(lambda: self.setXYRange())
 
     def autoScalePlot(self):
-        self.setXYLimit()
+        self.setXYRange()
 
 
 ###################################################################################################
