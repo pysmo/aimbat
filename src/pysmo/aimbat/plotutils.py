@@ -189,7 +189,7 @@ def plotDelay(x, y, z, opts):
     fig, ax = plt.subplots()
     ckey = 'RdBu_r'
     cmap = plt.get_cmap(ckey)
-    ss = ax.scatter(stalos, stalas, c=dtimes, cmap=cmap, marker='^', vmin=opts.vminmax[0], opts.vmax=vminmax[1])
+    ss = ax.scatter(stalos, stalas, c=dtimes, cmap=cmap, marker='^', vmin=opts.vminmax[0], vmax=opts.vminmax[1])
     cbar = fig.colorbar(ss)
     ax.set_xlabel('Longitude')
     ax.set_ylabel('Longitude')
