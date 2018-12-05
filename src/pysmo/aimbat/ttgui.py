@@ -771,7 +771,7 @@ def getOptions():
     sortby = '1'
     fill = 1
     reltime = 0
-    xlimit = -30, 30
+    xlimit = -40, 40
     parser.set_defaults(xlimit=xlimit)
     parser.set_defaults(twcorr=twcorr)
     parser.set_defaults(reltime=reltime)

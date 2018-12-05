@@ -1,4 +1,4 @@
-pysmo>=0.7.1
+pysmo>=0.7.3
 scipy==1.1
 numpy~=1.15
 matplotlib~=2.2

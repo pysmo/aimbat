@@ -204,8 +204,8 @@ class ParaTreeItem(object):
         self.filtDict = {'name': 'Filter', 'type': 'group', 'children': [
             {'name': 'band', 'type': 'list', 'values': self.bandDict, 'value': 0},
             {'name': 'order', 'type': 'int', 'value': 2},
-            {'name': 'lowFreq', 'type': 'float', 'value': 0.02, 'step': 0.1, 'suffix': 'Hz'},
-            {'name': 'highFreq', 'type': 'float', 'value': 2.0, 'step': 0.1, 'suffix': 'Hz'},
+            {'name': 'lowFreq', 'type': 'float', 'value': 0.02, 'step': 0.1, 'suffix': ' Hz'},
+            {'name': 'highFreq', 'type': 'float', 'value': 2.0, 'step': 0.1, 'suffix': ' Hz'},
             {'name': 'reversepass', 'type': 'bool', 'value': False, 'tip': "This is a checkbox"},
             {'name': 'seis', 'type': 'list', 'values': {"Stack": 0, "Trace": 1}, 'value': 0},
             {'name': 'apply', 'type': 'bool', 'value': False, 'tip': "This is a checkbox"},
