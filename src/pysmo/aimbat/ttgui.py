@@ -57,7 +57,6 @@ from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat import prepdata  as pdata
 from pysmo.aimbat import prepplot  as pplot
 
-from stationmapping import StationMapper
 
 
 ###################################################################################################
@@ -145,7 +144,7 @@ class mainGUI(object):
         saveButton = QtGui.QPushButton('Save')
         quitButton = QtGui.QPushButton('Quit')
         sac2Button = QtGui.QPushButton('Sac P2')
-        tmapButton = QtGui.QPushButton('Plot Delay Times')
+        tmapButton = QtGui.QPushButton('Map Delay Times')
         sortButton = QtGui.QPushButton('Sort\n by Name/Qual/Hdr')
         filtButton = QtGui.QPushButton('Filter\n on Stack/Traces')
         # connect:
@@ -635,7 +634,6 @@ class mainGUI(object):
         solution, solist_LonLat, delay_times = mccc.mccc(self.gsac, self.opts.mcpara)
         self.gsac.solist_LonLat = solist_LonLat
         self.gsac.delay_times = delay_times
-
         wpint = int(self.opts.mcpara.wpick[1])
         if self.opts.reltime != wpint:
             out = '\n--> change opts.reltime from %i to %i'
@@ -694,8 +692,23 @@ class mainGUI(object):
 
 
     def tmapButtonClicked(self):
-        mapper = StationMapper(self.gsac)
-        mapper.start()
+        self.usegmt = False
+        if self.usegmt:
+            from stationmapping import StationMapper
+            mapper = StationMapper(self.gsac)
+            mapper.start()
+        else:
+            import plotutils as putil
+            lalo = np.array(self.gsac.solist_LonLat)
+            lo = lalo[:,0]
+            la = lalo[:,1]
+            dt = np.array(self.gsac.delay_times)
+            if self.opts.phase == 'P':
+                self.opts.vminmax = [-1, 1]
+            else:
+                self.opts.vminmax = [-3, 3]
+            self.opts.savefig = True
+            putil.plotDelay(lo, la, dt, self.opts)
         
 
     def overrideAutoScaleButton(self, plot):

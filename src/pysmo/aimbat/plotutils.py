@@ -22,6 +22,7 @@ from numpy import sign
 import matplotlib.pyplot as plt
 from matplotlib.widgets import SpanSelector
 from matplotlib._pylab_helpers import Gcf
+import os
 
 
 def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
@@ -185,7 +186,7 @@ def getAxes(opts):
     return axs
 
 
-def plotDelay(x, y, z, opts):
+def plotDelay(stalos, stalas, dtimes, opts):
     fig, ax = plt.subplots()
     ckey = 'RdBu_r'
     cmap = plt.get_cmap(ckey)
@@ -197,6 +198,7 @@ def plotDelay(x, y, z, opts):
     if opts.savefig:
         fignm = opts.mcpara.mcname+'.'+fmt
         plt.savefig(fignm, format=fmt, dpi=300)
+        os.system('open '+fignm)
     else:
         plt.show()
     return fig
