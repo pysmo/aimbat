@@ -392,6 +392,16 @@ class mainGUI(object):
         self.tracePlotItem.addItem(vCursorLine, ignoreBounds=True)
         self.tracePlotItem.scene().sigMouseMoved.connect(self.traceMouseMoved)
         self.tracePlotItem.vCursorLine = vCursorLine
+        # mouse position label:
+        self.tracePlotItem.mouseLabel = pg.TextItem()
+        self.tracePlotItem.addItem(self.tracePlotItem.mouseLabel)
+        
+    def updateMouseLabel(self):
+        yt = self.tracePlotItem.viewRange()[1][1]
+        xx = self.window.mousePoint[0]
+        tt = 'T={:.2f}'.format(xx)
+        self.tracePlotItem.mouseLabel.setPos(xx, yt)
+        self.tracePlotItem.mouseLabel.setText(tt)
 
     def mouseMoved(self, event, plotItem):
         'Mouse moved events. Set mouse position and find waveItem by ybase'
@@ -410,6 +420,7 @@ class mainGUI(object):
             if ind >= 0 and ind < len(self.traceWaveItemList):
                 self.window.waveItem = self.traceWaveItemList[ind]
         self.window.mousePoint = [mpx, mpy]
+        self.updateMouseLabel()
 
     def stackMouseMoved(self, event):
         self.mouseMoved(event, self.stackPlotItem)
