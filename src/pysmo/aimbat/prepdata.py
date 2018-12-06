@@ -100,12 +100,12 @@ def setFilterPara(sacdh, pppara, filterParameters):
     """
     Set filter parameters dict to sacdh.
     """
-    sacdh.sethdr(pppara.fhdrApply,    filterParameters['apply'])
+    sacdh.sethdr(pppara.fhdrApply,    int(filterParameters['apply']))
     sacdh.sethdr(pppara.fhdrBand,     filterParameters['band'])
     sacdh.sethdr(pppara.fhdrLowFreq,  filterParameters['lowFreq'])
     sacdh.sethdr(pppara.fhdrHighFreq, filterParameters['highFreq'])
     sacdh.sethdr(pppara.fhdrOrder,    filterParameters['order'])
-    sacdh.sethdr(pppara.fhdrRevPass,  filterParameters['reversepass'])
+    sacdh.sethdr(pppara.fhdrRevPass,  int(filterParameters['reversepass']))
     return
 
 def seisApplyFilter(saclist, filtParas):
