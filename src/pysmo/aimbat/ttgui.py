@@ -85,6 +85,9 @@ class mainGUI(object):
         pdata.seisSort(self.gsac, self.opts)
         pdata.seisDataBaseline(self.gsac)
         pdata.sacDataNorm(self.gsac.stkdh, self.opts)
+        stkdh = self.gsac.stkdh
+        ystack = stkdh.data * stkdh.datnorm + stkdh.datbase
+        self.yLimitStack =  pdata.axLimit([ystack.min(), ystack.max()], 0.1)
         
     def setupPen(self):
         pscode =  self.opts.pppara.pickstyles[0]
@@ -122,10 +125,10 @@ class mainGUI(object):
         self.addButtons()
         self.addCursorLine()
         self.addParaTree()
-        # label and limit:
         xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
         self.stackPlotItem.setLabel('bottom', text=xlabel)
         self.tracePlotItem.setLabel('bottom', text=xlabel)
+        self.getXLimit()
         self.setXYRange()
 
     def addButtons(self):
@@ -167,7 +170,7 @@ class mainGUI(object):
             self.addLayoutWidget(btns1[i], i, 1)
             
     def addParaTree(self):
-        ' Add parameter tree for filter and sort'
+        'Add parameter tree for filter and sort'
         self.ptreeItem = pplot.ParaTreeItem(self.opts.filterParameters)
         ptree = ParameterTree()
         ptree.setParameters(self.ptreeItem.paraTree, showTop=False)
@@ -176,17 +179,23 @@ class mainGUI(object):
     def addLayoutWidget(self, widget, xLoc, yLoc, xSpan = 1, ySpan = 1):
         self.layout.addWidget(widget, xLoc, yLoc, xSpan, ySpan)
         
+    def getXLimit(self):
+        hdrini = self.opts.qcpara.ichdrs[0]
+        b = [ sacdh.b - sacdh.gethdr(hdrini) for sacdh in self.gsac.saclist]
+        e = [ sacdh.e - sacdh.gethdr(hdrini) for sacdh in self.gsac.saclist]
+        self.xLimit  = pdata.axLimit([min(b), max(e)],0.05)
+        
     def setXYLimit(self):
         'Set X and Y axis limits that constrain the possible view ranges'
-        b = [ sacdh.b - sacdh.reftime for sacdh in self.gsac.saclist]
-        e = [ sacdh.e - sacdh.reftime for sacdh in self.gsac.saclist]
-        xmin, xmax = pdata.axLimit([min(b), max(e)],0.01)
-        ymin = -len(self.gsac.selist) - 0.5
-        ymax =  len(self.gsac.delist) + 1.5
-        self.tracePlotItem.setLimits(xMin=xmin, xMax=xmax, yMin=ymin, yMax=ymax)
+        xmin, xmax = self.xLimit
+        symin, symax = self.yLimitStack
+        tymin = -len(self.gsac.selist) 
+        tymax =  len(self.gsac.delist) + 1
+        self.tracePlotItem.setLimits(xMin=xmin, xMax=xmax, yMin=tymin, yMax=tymax)
+        self.stackPlotItem.setLimits(xMin=xmin, xMax=xmax, yMin=symin, yMax=symax)
         
     def setXYRange(self):
-        ' Set X and Y axis ranges'
+        'Set X and Y axis ranges'
         self.setXYLimit()
         self.getXYRange()
         xrange0, xrange1 = self.xRange
@@ -198,21 +207,19 @@ class mainGUI(object):
             shy = self.traceScrollArea.sizeHint().height()
             xrange1 = xrange0 + (xrange1-xrange0)*ssx/shx
             yrange0 = yrange1 - (yrange1-yrange0)*ssy/shy
+        self.tracePlotItem.setYRange(yrange0, yrange1)
         self.tracePlotItem.setXRange(xrange0, xrange1)
         self.tracePlotItem.setYRange(yrange0, yrange1)
-
+        
 #        print('viewRange: ',self.tracePlotItem.viewRange())
-
-
-
+        
     def getXYRange(self):
-        'Get x limit (relative to reference time)'
+        'Get x and y ranges (relative to reference time)'
         self.xRange = self.opts.xlimit
         maxsel, maxdel = self.opts.maxnum
         nsel = min(maxsel, len(self.gsac.selist))
         ndel = min(maxdel, len(self.gsac.delist))
-        self.yRange = -nsel+0.5, ndel+0.5
-        
+        self.yRange = -nsel, ndel+1
         
     def getStackGraphWidget(self, xSize, ySize):
         'Get graphics widget for stack'
@@ -227,6 +234,7 @@ class mainGUI(object):
         self.addWaveStack(stackWaveItem, stackPlotItem, self.opts.colorwave)
         self.stackPlotItem = stackPlotItem
         self.stackWaveItem = stackWaveItem
+        self.overrideAutoScaleButton(stackPlotItem)
         return stackWidget
 
     def getTraceGraphWidget(self, xSize, ySize):
@@ -247,12 +255,14 @@ class mainGUI(object):
         slist = self.gsac.delist + self.gsac.selist
         for isac, icol in zip (slist, clist):
             traceWaveItem = pplot.SeisWaveItem(isac)
+            print('Plot trace ', isac.filename)
             self.addWaveTrace(traceWaveItem, tracePlotItem, icol)
             #connect waveCurve (plotDataItem) to mouse click events
             traceWaveItem.waveCurve.sigClicked.connect(self.waveClicked)
             self.traceWaveItemList.append(traceWaveItem)
             self.traceWaveformList.append(traceWaveItem.waveCurve)
         self.tracePlotItem = tracePlotItem
+        self.overrideAutoScaleButton(tracePlotItem)
         return traceWidget
 
     def getLabelTrace(self, waveItem):
@@ -393,15 +403,15 @@ class mainGUI(object):
         self.tracePlotItem.scene().sigMouseMoved.connect(self.traceMouseMoved)
         self.tracePlotItem.vCursorLine = vCursorLine
         # mouse position label:
-        self.tracePlotItem.mouseLabel = pg.TextItem()
-        self.tracePlotItem.addItem(self.tracePlotItem.mouseLabel)
+        self.stackPlotItem.mouseLabel = pg.TextItem()
+        self.stackPlotItem.addItem(self.stackPlotItem.mouseLabel)
         
     def updateMouseLabel(self):
         yt = self.tracePlotItem.viewRange()[1][1]
         xx = self.window.mousePoint[0]
-        tt = 'T={:.2f}'.format(xx)
-        self.tracePlotItem.mouseLabel.setPos(xx, yt)
-        self.tracePlotItem.mouseLabel.setText(tt)
+        tt = 'T={:.1f}'.format(xx)
+        self.stackPlotItem.mouseLabel.setPos(xx, yt)
+        self.stackPlotItem.mouseLabel.setText(tt)
 
     def mouseMoved(self, event, plotItem):
         'Mouse moved events. Set mouse position and find waveItem by ybase'

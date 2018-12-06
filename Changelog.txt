@@ -71,3 +71,8 @@ aimbat-v1.0.2
 ============
 Dec 5, 2018
 * Add option to plot simple delay time map by matplotlib.pyplot
+
+aimbat-v1.0.3
+============
+Dec 5, 2018
+* Some GUI setting changes
