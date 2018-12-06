@@ -495,6 +495,14 @@ class mainGUI(object):
             th1 = waveItem.sacdh.twindow[1] - waveItem.sacdh.reftime
             waveItem.twinCurves[0].setData([th0,th0], yy)
             waveItem.twinCurves[1].setData([th1,th1], yy)
+    
+    def resetWindStack(self):
+        'Reset time window (LinearRegion)for stack'
+        wh0, wh1 = self.opts.qcpara.twhdrs
+        waveItem = self.stackWaveItem
+        th0 = waveItem.sacdh.twindow[0] - waveItem.sacdh.reftime
+        th1 = waveItem.sacdh.twindow[1] - waveItem.sacdh.reftime
+        waveItem.twinRegion.setRegion([th0, th1])
 
     def resetPick(self, waveItemList, ipicklist=[0,1,2,3]):
         'Reset time picks with new tpicks, reftime, and/or datbases'
@@ -556,6 +564,7 @@ class mainGUI(object):
         self.resetStackCurve(self.stackWaveItem)
         self.resetWave([self.stackWaveItem])
         self.resetPick([self.stackWaveItem],   self.picklist)
+        self.resetWindStack()
         
     def resetTracePlot(self):
         self.resetWave(self.traceWaveItemList)
