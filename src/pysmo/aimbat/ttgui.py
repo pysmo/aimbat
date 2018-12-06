@@ -201,7 +201,7 @@ class mainGUI(object):
         self.tracePlotItem.setXRange(xrange0, xrange1)
         self.tracePlotItem.setYRange(yrange0, yrange1)
 
-        print('viewRange: ',self.tracePlotItem.viewRange())
+#        print('viewRange: ',self.tracePlotItem.viewRange())
 
 
 
@@ -220,6 +220,7 @@ class mainGUI(object):
         stackWidget.resize(xSize, ySize)
         stackWidget.ci.setSpacing(0)
         stackPlotItem = stackWidget.addPlot(title='Stack')
+        stackPlotItem.titleLabel.font().setPointSize(20)
         stackPlotItem.addLegend(offset=[-1,1])
         stackPlotItem.setAutoVisible(y=True)
         stackWaveItem = pplot.SeisWaveItem(self.gsac.stkdh)
@@ -234,8 +235,10 @@ class mainGUI(object):
         traceWidget.resize(xSize, ySize)
         traceWidget.ci.setSpacing(0)
         tracePlotItem = traceWidget.addPlot(title='Traces')
+        tracePlotItem.titleLabel.font().setPointSize(20)
         tracePlotItem.setXLink(self.stackPlotItem)
         tracePlotItem.addLegend(offset=[-1,1])
+        tracePlotItem.vb.sigXRangeChanged.connect(self.resetWaveLabelPos)
         # plot deselected and selected traces
         self.traceWaveItemList = []
         self.traceWaveformList = []
@@ -502,7 +505,13 @@ class mainGUI(object):
                 #update text of trace label as well for changing in qfactors
                 self.getLabelTrace(waveItem)
                 waveItem.waveLabel.setText(waveItem.waveLabelText)
-        
+    
+    def resetWaveLabelPos(self, event):
+        for waveItem in self.traceWaveItemList:
+            yw = waveItem.waveLabel.pos()[1]
+            xw = self.tracePlotItem.viewRange()[0][0]
+            waveItem.waveLabel.setPos(xw, yw)
+            
     def resetAllPlots(self):
         print('--> Reset all plots')
         self.setupData()
