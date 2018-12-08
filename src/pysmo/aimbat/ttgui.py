@@ -146,6 +146,7 @@ class mainGUI(object):
         mcccButton = QtGui.QPushButton(tmccc)
         saveButton = QtGui.QPushButton('Save')
         quitButton = QtGui.QPushButton('Quit')
+        sac1Button = QtGui.QPushButton('Sac P1')
         sac2Button = QtGui.QPushButton('Sac P2')
         tmapButton = QtGui.QPushButton('Map Delay Times')
         sortButton = QtGui.QPushButton('Sort\n by Name/Qual/Hdr')
@@ -158,12 +159,13 @@ class mainGUI(object):
         quitButton.clicked.connect(self.quitButtonClicked)
         saveButton.clicked.connect(self.saveButtonClicked)
         sortButton.clicked.connect(self.sortButtonClicked)
+        sac1Button.clicked.connect(self.sac1ButtonClicked)
         sac2Button.clicked.connect(self.sac2ButtonClicked)
         filtButton.clicked.connect(self.filtButtonClicked)
         tmapButton.clicked.connect(self.tmapButtonClicked)
         # add to layout in two columns
-        btns1 = [ccimButton, syncButton, ccffButton, mcccButton, sortButton]
-        btns0 = [sac2Button, tmapButton, saveButton, quitButton, filtButton]
+        btns1 = [ccimButton, syncButton, ccffButton, mcccButton, sortButton, filtButton]
+        btns0 = [sac1Button, sac2Button, tmapButton, saveButton, quitButton]
         for i in range(len(btns0)):
             self.addLayoutWidget(btns0[i], i, 0)
         for i in range(len(btns1)):
@@ -174,7 +176,7 @@ class mainGUI(object):
         self.ptreeItem = pplot.ParaTreeItem(self.opts.filterParameters)
         ptree = ParameterTree()
         ptree.setParameters(self.ptreeItem.paraTree, showTop=False)
-        self.addLayoutWidget(ptree, 5, 0, -1, 2 )
+        self.addLayoutWidget(ptree, 6, 0, -1, 2 )
         
     def addLayoutWidget(self, widget, xLoc, yLoc, xSpan = 1, ySpan = 1):
         self.layout.addWidget(widget, xLoc, yLoc, xSpan, ySpan)
@@ -198,8 +200,8 @@ class mainGUI(object):
         'Set X and Y axis ranges'
         self.setXYLimit()
         self.getXYRange()
-        xrange0, xrange1 = self.xRange
-        yrange0, yrange1 = self.yRange
+        xrange0, xrange1 = self.opts.xRange
+        yrange0, yrange1 = self.opts.yRange
         if self.useScrollArea:
             ssx = self.traceScrollArea.size().width()
             shx = self.traceScrollArea.sizeHint().width()
@@ -215,11 +217,11 @@ class mainGUI(object):
         
     def getXYRange(self):
         'Get x and y ranges (relative to reference time)'
-        self.xRange = self.opts.xlimit
         maxsel, maxdel = self.opts.maxnum
         nsel = min(maxsel, len(self.gsac.selist))
         ndel = min(maxdel, len(self.gsac.delist))
-        self.yRange = -nsel, ndel+1
+        self.opts.yRange = -nsel, ndel+1
+        self.opts.xRange = self.opts.xlimit
         
     def getStackGraphWidget(self, xSize, ySize):
         'Get graphics widget for stack'
@@ -255,7 +257,7 @@ class mainGUI(object):
         slist = self.gsac.delist + self.gsac.selist
         for isac, icol in zip (slist, clist):
             traceWaveItem = pplot.SeisWaveItem(isac)
-            print('Plot trace ', isac.filename)
+#            print('Plot trace ', isac.filename)
             self.addWaveTrace(traceWaveItem, tracePlotItem, icol)
             #connect waveCurve (plotDataItem) to mouse click events
             traceWaveItem.waveCurve.sigClicked.connect(self.waveClicked)
@@ -727,9 +729,16 @@ class mainGUI(object):
         resoRect.setHeight(resoRect.height()*0.7)
         hdrList = list(self.opts.qcpara.ichdrs) + [self.opts.mcpara.wpick]
         selTraceWaveItemList = [ item  for item in self.traceWaveItemList  if item.sacdh.selected]
-        self.sacp2Window = sacp2GUI(selTraceWaveItemList, hdrList, resoRect)
+        self.sacp2Window = sacp2GUI(selTraceWaveItemList, hdrList, resoRect, self.opts)
 
-
+    def sac1ButtonClicked(self):
+        resoRect = self.app.desktop().availableGeometry()
+        resoRect.setWidth(resoRect.width()*0.5)
+        resoRect.setHeight(resoRect.height()*0.7)
+        hdrList = list(self.opts.qcpara.ichdrs) + [self.opts.mcpara.wpick]
+        selTraceWaveItemList = [ item  for item in self.traceWaveItemList  if item.sacdh.selected]
+        self.sacp1Window = sacp1GUI(selTraceWaveItemList, hdrList, resoRect, self.opts)
+        
     def tmapButtonClicked(self):
         self.usegmt = False
         if self.usegmt:
@@ -757,14 +766,68 @@ class mainGUI(object):
     def autoScalePlot(self):
         self.setXYRange()
 
-
+###################################################################################################
+class sacp1GUI(object):
+    """
+    Plot each seismogram in the given waveItemList in SAC P1 style.
+    Relative time picks are given in hdrList.
+    """
+    def __init__(self, waveItemList, hdrList, resoRect, opts):
+        self.opts = opts
+        self.hdrList = hdrList
+        sacp1Window = QtGui.QWidget()
+        sacp1Window.setWindowTitle('SAC P2')
+        sacp1Window.show()
+        sacp1Layout = QtGui.QGridLayout(sacp1Window)
+        sacp1Widget = pg.GraphicsLayoutWidget()
+        sacp1Window.resize(resoRect.width(), resoRect.height())
+        # create plotItems for each header in hdrList
+        self.plotItemList = []
+        zeropen = pg.mkPen(width=1, style=QtCore.Qt.DashLine)
+        for i in range(len(hdrList)):
+            plotItem = sacp1Widget.addPlot()
+            self.plotItemList.append(plotItem)
+            sacp1Widget.nextCol()
+#            plotItem.hideAxis('left')
+            xlabel = 'Time - {:s} [s]'.format(self.hdrList[i].upper())
+            plotItem.setLabel('bottom', text=xlabel)
+            vline = pg.InfiniteLine(angle=90, movable=False, pen=zeropen)
+            plotItem.addItem(vline, ignorebounds=True)
+        # link x axis
+        for i in range(1, len(hdrList)):
+            self.plotItemList[i].setXLink(self.plotItemList[0])
+            self.plotItemList[i].setYLink(self.plotItemList[0])
+        # plot 
+        for waveItem in waveItemList:
+            self.addWave(waveItem)
+        self.plotItemList[0].setXRange(self.opts.xRange[0], self.opts.xRange[1])
+        sacp1Layout.addWidget(sacp1Widget, 0, 0, 1, 1)
+        self.sacp1Window = sacp1Window
+        self.sacp1Widget = sacp1Widget
+        
+    def addWave(self, waveItem):
+        'Add waveform relative to time picks'
+        sacdh = waveItem.sacdh
+        yy = sacdh.datamem* sacdh.datnorm + sacdh.datbase
+        fb = self.opts.colorwave
+        for i in range(len(self.plotItemList)):
+            xx = sacdh.time - sacdh.gethdr(self.hdrList[i])
+            waveCurve = self.plotItemList[i].plot(xx, yy, fillLevel=sacdh.datbase, fillBrush=fb)
+            waveCurve.curve.setClickable(True)
+            waveCurve.curve.opts['name'] = sacdh.filename
+            waveCurve.curve.sigClicked.connect(self.mouseClickEvents)
+            
+    def mouseClickEvents(self, event):
+        print('Clicked seismogram: ', event.name())
+        
 ###################################################################################################
 class sacp2GUI(object):
     """
     Plot each seismogram in the given waveItemList in SAC P2 overlay style.
     Relative time picks are given in hdrList.
     """
-    def __init__(self, waveItemList, hdrList, resoRect):
+    def __init__(self, waveItemList, hdrList, resoRect, opts):
+        self.opts = opts
         self.hdrList = hdrList
         sacp2Window = QtGui.QWidget()
         sacp2Window.setWindowTitle('SAC P2')
@@ -787,9 +850,11 @@ class sacp2GUI(object):
         # link x axis
         for i in range(1, len(hdrList)):
             self.plotItemList[i].setXLink(self.plotItemList[0])
+            self.plotItemList[i].setYLink(self.plotItemList[0])
         # plot 
         for waveItem in waveItemList:
             self.addWave(waveItem)
+        self.plotItemList[0].setXRange(self.opts.xRange[0], self.opts.xRange[1])
         sacp2Layout.addWidget(sacp2Widget, 0, 0, 1, 1)
         self.sacp2Window = sacp2Window
         self.sacp2Widget = sacp2Widget
@@ -800,10 +865,10 @@ class sacp2GUI(object):
         yy = sacdh.datamem
         for i in range(len(self.plotItemList)):
             xx = sacdh.time - sacdh.gethdr(self.hdrList[i])
-            waveItem.waveCurve = self.plotItemList[i].plot(xx, yy)
-            waveItem.waveCurve.curve.setClickable(True)
-            waveItem.waveCurve.curve.opts['name'] = sacdh.filename
-            waveItem.waveCurve.curve.sigClicked.connect(self.mouseClickEvents)
+            waveCurve = self.plotItemList[i].plot(xx, yy, pen=self.opts.colorwave)
+            waveCurve.curve.setClickable(True)
+            waveCurve.curve.opts['name'] = sacdh.filename
+            waveCurve.curve.sigClicked.connect(self.mouseClickEvents)
             
     def mouseClickEvents(self, event):
         print('Clicked seismogram: ', event.name())
