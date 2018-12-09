@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 #------------------------------------------------
-# Filename: ttgui.py
+# Filename: ttguiqt.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2018 Xiaoting Lou
 #------------------------------------------------
 """
-Python module for interactively measuring seismic wave travel times and quality control.
+Python module for interactively measuring seismic wave travel times and quality control,
+in a GUI built by pyqtgraph.
 
 * Common pyqtgraph mouse interactions:
   ** http://www.pyqtgraph.org/documentation/mouse_interaction.html
@@ -32,7 +33,7 @@ Python module for interactively measuring seismic wave travel times and quality 
      Original data in sacdh.data is not touched.
 
 
-* A few components of Arnav Sankaran's Qt version was used.
+* A few components of Arnav Sankaran's Qt version of AIMBAT were used.
   https://github.com/ASankaran/AIMBAT_Qt
   
 :copyright:

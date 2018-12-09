@@ -51,7 +51,7 @@ setup(
             'aimbat-sacprs=pysmo.aimbat.plotphase:sacprs_standalone',
             'aimbat-sacppk=pysmo.aimbat.pickphase:sacppk_standalone',
             'aimbat-ttpick=pysmo.aimbat.qualctrl:main',
-            'aimbat-qtpick=pysmo.aimbat.ttgui:main',
+            'aimbat-qttpick=pysmo.aimbat.ttguiqt:main',
         ]
     },
 )
