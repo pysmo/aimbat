@@ -69,7 +69,7 @@ class mainGUI(object):
         #self.window = QtGui.QWidget()
         self.window = pplot.KeyPressWidget()
         self.window.twhdrs = opts.pppara.twhdrs
-        self.window.setWindowTitle('aimbat-qtpick')
+        self.window.setWindowTitle('aimbat-qttpick')
         # Display the widget as a new window
         self.window.show() 
         self.layout = QtGui.QGridLayout(self.window)
@@ -78,6 +78,7 @@ class mainGUI(object):
         self.opts = opts
         self.initStack()
         self.setupData()
+        self.getXYRange()
         self.setupPen()
         self.setupGUI()
         
@@ -105,6 +106,7 @@ class mainGUI(object):
         self.opts.oripen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwavedel[:3])
         self.opts.mempen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwave[:3])
         self.picklist = list(range(self.opts.pppara.npick))
+        self.opts.colorwaves = [ self.opts.colorwavedel, self.opts.colorwave ]
         
     def setupGUI(self):
         resoRect = self.app.desktop().availableGeometry()
@@ -234,7 +236,7 @@ class mainGUI(object):
         stackPlotItem.addLegend(offset=[-1,1])
         stackPlotItem.setAutoVisible(y=True)
         stackWaveItem = pplot.SeisWaveItem(self.gsac.stkdh)
-        self.addWaveStack(stackWaveItem, stackPlotItem, self.opts.colorwave)
+        self.addWaveStack(stackWaveItem, stackPlotItem)
         self.stackPlotItem = stackPlotItem
         self.stackWaveItem = stackWaveItem
         self.overrideAutoScaleButton(stackPlotItem)
@@ -250,20 +252,18 @@ class mainGUI(object):
         tracePlotItem.setXLink(self.stackPlotItem)
         tracePlotItem.addLegend(offset=[-1,1])
         tracePlotItem.vb.sigXRangeChanged.connect(self.resetWaveLabelPos)
-        # plot deselected and selected traces
-        self.traceWaveItemList = []
-        self.traceWaveformList = []
-        clist  = [self.opts.colorwavedel,] * len(self.gsac.delist)
-        clist += [self.opts.colorwave,   ] * len(self.gsac.selist)
+        # load all traces
         slist = self.gsac.delist + self.gsac.selist
-        for isac, icol in zip (slist, clist):
-            traceWaveItem = pplot.SeisWaveItem(isac)
-#            print('Plot trace ', isac.filename)
-            self.addWaveTrace(traceWaveItem, tracePlotItem, icol)
-            #connect waveCurve (plotDataItem) to mouse click events
-            traceWaveItem.waveCurve.sigClicked.connect(self.waveClicked)
-            self.traceWaveItemList.append(traceWaveItem)
-            self.traceWaveformList.append(traceWaveItem.waveCurve)
+        self.traceWaveItemList = [ pplot.SeisWaveItem(isac) for isac in slist ]
+        #plot a subset of deselected and selected traces
+        nsel = -self.opts.yRange[0]
+        ndel =  self.opts.yRange[1]-1 
+        ndelist = len(self.gsac.delist)
+        self.traceWaveItemListPlotted = []
+        for traceWaveItem in self.traceWaveItemList[ndelist-ndel:ndelist+nsel]:
+            self.addWaveTrace(traceWaveItem, tracePlotItem)
+            self.traceWaveItemListPlotted.append(traceWaveItem)
+        self.traceWaveformList = [ twi.waveCurve  for twi in self.traceWaveItemList ]
         self.tracePlotItem = tracePlotItem
         self.overrideAutoScaleButton(tracePlotItem)
         return traceWidget
@@ -320,17 +320,20 @@ class mainGUI(object):
         waveItem.waveCurveOri.curve.setClickable(False)
         waveItem.waveCurveMem.curve.setClickable(False)
         
-    def addWaveStack(self, waveItem, plotItem, fillBrush):
+    def addWaveStack(self, waveItem, plotItem):
         'Add waveform, time picks, and time window for stack'
-        self.addWaveFill(waveItem, plotItem, fillBrush)
+        self.addWaveFill(waveItem, plotItem, self.opts.colorwave)
         self.addStackCurve(waveItem, plotItem)
         waveItem.waveCurve.curve.setClickable(False) # disable click
         self.addPick(waveItem, plotItem, self.opts.picknones)
         self.addWindStack(waveItem, plotItem)
 
-    def addWaveTrace(self, waveItem, plotItem, fillBrush):
+    def addWaveTrace(self, waveItem, plotItem):
         'Add waveform, time picks, and time window for trace'
+        fillBrush = self.opts.colorwaves[int(waveItem.sacdh.selected)]
         self.addWaveFill(waveItem, plotItem, fillBrush)
+        #connect waveCurve (plotDataItem) to mouse click events for selection change
+        waveItem.waveCurve.sigClicked.connect(self.waveClicked)
         # plot pick legend only once
         if len(self.traceWaveItemList) == 0:
             pickNames = self.opts.picknames
@@ -500,7 +503,7 @@ class mainGUI(object):
             waveItem.twinCurves[1].setData([th1,th1], yy)
     
     def resetWindStack(self):
-        'Reset time window (LinearRegion)for stack'
+        'Reset time window (LinearRegion) for stack'
         wh0, wh1 = self.opts.qcpara.twhdrs
         waveItem = self.stackWaveItem
         th0 = waveItem.sacdh.twindow[0] - waveItem.sacdh.reftime
@@ -524,10 +527,7 @@ class mainGUI(object):
             yy = sacdh.datamem * sacdh.datnorm + sacdh.datbase
             waveItem.waveCurve.setData(xx, yy)
             waveItem.waveCurve.setFillLevel(sacdh.datbase)
-            if sacdh.selected:
-                fbrush = self.opts.colorwave
-            else:
-                fbrush = self.opts.colorwavedel
+            fbrush = self.opts.colorwaves[int(sacdh.selected)]
             waveItem.waveCurve.setFillBrush(fbrush)
             if waveItem is not self.stackWaveItem:
                 waveItem.waveLabel.setColor(fbrush[:3])
@@ -540,9 +540,10 @@ class mainGUI(object):
     
     def resetWaveLabelPos(self, event):
         for waveItem in self.traceWaveItemList:
-            yw = waveItem.waveLabel.pos()[1]
-            xw = self.tracePlotItem.viewRange()[0][0]
-            waveItem.waveLabel.setPos(xw, yw)
+            if waveItem.waveLabel is not None:
+                yw = waveItem.waveLabel.pos()[1]
+                xw = self.tracePlotItem.viewRange()[0][0]
+                waveItem.waveLabel.setPos(xw, yw)
             
     def resetAllPlots(self):
         print('--> Reset all plots')
@@ -570,9 +571,9 @@ class mainGUI(object):
         self.resetWindStack()
         
     def resetTracePlot(self):
-        self.resetWave(self.traceWaveItemList)
-        self.resetWind(self.traceWaveItemList)
-        self.resetPick(self.traceWaveItemList, self.picklist)
+        self.resetWave(self.traceWaveItemListPlotted)
+        self.resetWind(self.traceWaveItemListPlotted)
+        self.resetPick(self.traceWaveItemListPlotted, self.picklist)
 
     def initStack(self):
         'Create stack by ICCS if not existing'

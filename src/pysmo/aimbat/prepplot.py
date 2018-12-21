@@ -30,7 +30,11 @@ class SeisWaveItem(object):
     def __init__(self, sacdh):
         self.sacdh = sacdh
         self.waveCurve = None
+        self.waveLabel = None
+        self.waveLabelText = sacdh.netsta
         self.twinRegion = None
+        self.twinFill = None
+        self.twinCurves = []
         self.tpickCurves = []
         
     def getXY(self):
