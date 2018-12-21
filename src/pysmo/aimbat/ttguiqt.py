@@ -262,7 +262,11 @@ class mainGUI(object):
         self.traceWaveItemListPlotted = []
         for traceWaveItem in self.traceWaveItemList[ndelist-ndel:ndelist+nsel]:
             self.addWaveTrace(traceWaveItem, tracePlotItem)
+            self.addLabelTrace(traceWaveItem, tracePlotItem)
             self.traceWaveItemListPlotted.append(traceWaveItem)
+        # For other traces: plot only labels, but not waveFill, Picks and TimeWindow
+        for traceWaveItem in self.traceWaveItemList[:ndelist-ndel] + self.traceWaveItemList[ndelist+nsel:]:
+            self.addLabelTrace(traceWaveItem, tracePlotItem)
         self.traceWaveformList = [ twi.waveCurve  for twi in self.traceWaveItemList ]
         self.tracePlotItem = tracePlotItem
         self.overrideAutoScaleButton(tracePlotItem)
@@ -283,8 +287,9 @@ class mainGUI(object):
             slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
         waveItem.waveLabelText = slab
 
-    def addLabelTrace(self, waveItem, plotItem, fillBrush):
+    def addLabelTrace(self, waveItem, plotItem):
         'Add station label for each trace'
+        fillBrush = self.opts.colorwaves[int(waveItem.sacdh.selected)]
         self.getLabelTrace(waveItem)
         sacdh = waveItem.sacdh
         waveLabel = pg.TextItem(waveItem.waveLabelText, color=fillBrush[:3], anchor=(0,0.5))
@@ -298,8 +303,9 @@ class mainGUI(object):
         waveLabel.setPos(xx, yy)
         waveItem.waveLabel = waveLabel
         
-    def addWaveFill(self, waveItem, plotItem, fillBrush):
+    def addWaveFill(self, waveItem, plotItem):
         'Add waveform fill for each trace'
+        fillBrush = self.opts.colorwaves[int(waveItem.sacdh.selected)]
         # plotDataItem:
         sacdh = waveItem.sacdh
         yb = sacdh.datbase
@@ -322,7 +328,7 @@ class mainGUI(object):
         
     def addWaveStack(self, waveItem, plotItem):
         'Add waveform, time picks, and time window for stack'
-        self.addWaveFill(waveItem, plotItem, self.opts.colorwave)
+        self.addWaveFill(waveItem, plotItem)
         self.addStackCurve(waveItem, plotItem)
         waveItem.waveCurve.curve.setClickable(False) # disable click
         self.addPick(waveItem, plotItem, self.opts.picknones)
@@ -330,8 +336,7 @@ class mainGUI(object):
 
     def addWaveTrace(self, waveItem, plotItem):
         'Add waveform, time picks, and time window for trace'
-        fillBrush = self.opts.colorwaves[int(waveItem.sacdh.selected)]
-        self.addWaveFill(waveItem, plotItem, fillBrush)
+        self.addWaveFill(waveItem, plotItem)
         #connect waveCurve (plotDataItem) to mouse click events for selection change
         waveItem.waveCurve.sigClicked.connect(self.waveClicked)
         # plot pick legend only once
@@ -341,7 +346,6 @@ class mainGUI(object):
             pickNames = self.opts.picknones
         self.addPick(waveItem, plotItem, pickNames)
         self.addWindTrace(waveItem, plotItem)
-        self.addLabelTrace(waveItem, plotItem, fillBrush)
 
     def addWindStack(self, waveItem, plotItem):
         'Add an interactive time window for stack using LinearRegion for user to change'
@@ -518,9 +522,9 @@ class mainGUI(object):
                 tpick = waveItem.sacdh.thdrs[ipick] - waveItem.sacdh.reftime
                 waveItem.tpickCurves[ipick].setData([tpick, tpick], yy)
 
-    def resetWave(self, waveItemList):
+    def resetWaveCurve(self, waveItemList):
         'Reset waveCurve with new reftime and/or datbases'
-        wh0, wh1 = self.opts.qcpara.twhdrs
+#        wh0, wh1 = self.opts.qcpara.twhdrs
         for waveItem in waveItemList:
             sacdh = waveItem.sacdh
             xx = sacdh.time - sacdh.reftime
@@ -529,21 +533,26 @@ class mainGUI(object):
             waveItem.waveCurve.setFillLevel(sacdh.datbase)
             fbrush = self.opts.colorwaves[int(sacdh.selected)]
             waveItem.waveCurve.setFillBrush(fbrush)
-            if waveItem is not self.stackWaveItem:
-                waveItem.waveLabel.setColor(fbrush[:3])
-                xw = sacdh.b - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
-                yw = sacdh.datbase
-                waveItem.waveLabel.setPos(xw, yw)
-                #update text of trace label as well for changing in qfactors
-                self.getLabelTrace(waveItem)
-                waveItem.waveLabel.setText(waveItem.waveLabelText)
+        
+    def resetWaveLabel(self, waveItemList):
+        'Reset waveLabel with new reftime and/or datbases'
+        for waveItem in waveItemList:
+            sacdh = waveItem.sacdh
+            fbrush = self.opts.colorwaves[int(sacdh.selected)]
+            waveItem.waveLabel.setColor(fbrush[:3])
+            xw = sacdh.b - sacdh.gethdr(self.opts.qcpara.ichdrs[0])
+            yw = sacdh.datbase
+            waveItem.waveLabel.setPos(xw, yw)
+            #update text of trace label as well for changing in qfactors
+            self.getLabelTrace(waveItem)
+            waveItem.waveLabel.setText(waveItem.waveLabelText)
     
     def resetWaveLabelPos(self, event):
         for waveItem in self.traceWaveItemList:
-            if waveItem.waveLabel is not None:
-                yw = waveItem.waveLabel.pos()[1]
-                xw = self.tracePlotItem.viewRange()[0][0]
-                waveItem.waveLabel.setPos(xw, yw)
+            if waveItem.waveLabel is None: continue
+            yw = waveItem.waveLabel.pos()[1]
+            xw = self.tracePlotItem.viewRange()[0][0]
+            waveItem.waveLabel.setPos(xw, yw)
             
     def resetAllPlots(self):
         print('--> Reset all plots')
@@ -566,12 +575,13 @@ class mainGUI(object):
         
     def resetStackPlot(self):
         self.resetStackCurve(self.stackWaveItem)
-        self.resetWave([self.stackWaveItem])
-        self.resetPick([self.stackWaveItem],   self.picklist)
+        self.resetWaveCurve([self.stackWaveItem])
+        self.resetPick([self.stackWaveItem], self.picklist)
         self.resetWindStack()
         
     def resetTracePlot(self):
-        self.resetWave(self.traceWaveItemListPlotted)
+        self.resetWaveCurve(self.traceWaveItemListPlotted)
+        self.resetWaveLabel(self.traceWaveItemList)
         self.resetWind(self.traceWaveItemListPlotted)
         self.resetPick(self.traceWaveItemListPlotted, self.picklist)
 
