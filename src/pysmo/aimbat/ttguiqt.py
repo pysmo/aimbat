@@ -221,9 +221,9 @@ class mainGUI(object):
     def getXYRange(self):
         'Get x and y ranges (relative to reference time)'
         maxsel, maxdel = self.opts.maxnum
-        nsel = min(maxsel, len(self.gsac.selist))
-        ndel = min(maxdel, len(self.gsac.delist))
-        self.opts.yRange = -nsel, ndel+1
+        self.opts.nsel = min(maxsel, len(self.gsac.selist))
+        self.opts.ndel = min(maxdel, len(self.gsac.delist))
+        self.opts.yRange = -self.opts.nsel, self.opts.ndel+1
         self.opts.xRange = self.opts.xlimit
         
     def getStackGraphWidget(self, xSize, ySize):
@@ -256,22 +256,32 @@ class mainGUI(object):
         slist = self.gsac.delist + self.gsac.selist
         self.traceWaveItemList = [ pplot.SeisWaveItem(isac) for isac in slist ]
         #plot a subset of deselected and selected traces
-        nsel = -self.opts.yRange[0]
-        ndel =  self.opts.yRange[1]-1 
-        ndelist = len(self.gsac.delist)
-        self.traceWaveItemListPlotted = []
-        for traceWaveItem in self.traceWaveItemList[ndelist-ndel:ndelist+nsel]:
-            self.addWaveTrace(traceWaveItem, tracePlotItem)
-            self.addLabelTrace(traceWaveItem, tracePlotItem)
-            self.traceWaveItemListPlotted.append(traceWaveItem)
         # For other traces: plot only labels, but not waveFill, Picks and TimeWindow
-        for traceWaveItem in self.traceWaveItemList[:ndelist-ndel] + self.traceWaveItemList[ndelist+nsel:]:
+        self.getTraceWaveItemListPlotted()
+        for traceWaveItem in self.traceWaveItemListPlotted:
+            self.addWaveTrace(traceWaveItem, tracePlotItem)
+        for traceWaveItem in self.traceWaveItemList:
             self.addLabelTrace(traceWaveItem, tracePlotItem)
         self.traceWaveformList = [ twi.waveCurve  for twi in self.traceWaveItemList ]
         self.tracePlotItem = tracePlotItem
         self.overrideAutoScaleButton(tracePlotItem)
         return traceWidget
 
+    def getTraceWaveItemListPlotted(self):
+        nsel = self.opts.nsel
+        ndel = self.opts.ndel
+        ndelist = len(self.gsac.delist)
+        nselist = len(self.gsac.selist)
+        if not hasattr(self, 'traceWaveItemListPlotted'):
+            self.traceWaveItemListPlotted = self.traceWaveItemList[ndelist-ndel:ndelist+nsel]
+        else:
+            for twi in self.traceWaveItemList[ndelist-ndel:ndelist+nsel]:
+                if twi not in self.traceWaveItemListPlotted:
+                    self.traceWaveItemListPlotted.append(twi)
+                    nsel += 1
+        out = '--> Plot {:d}/{:d} deselected and {:d}/{:d} selected traces'
+        print(out.format(ndel, ndelist, nsel, nselist))
+        
     def getLabelTrace(self, waveItem):
         'Get station label for each trace'
         sacdh = waveItem.sacdh
@@ -560,9 +570,23 @@ class mainGUI(object):
         self.resetTraceWaveItemList()
         self.resetStackPlot()
         self.resetTracePlot()
+        self.addTraceMissing()
         xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
         self.stackPlotItem.setLabel('bottom', text=xlabel)
         self.tracePlotItem.setLabel('bottom', text=xlabel)
+        
+    def addTraceMissing(self):
+        #add traces that are in the range but not previously plotted
+        self.getTraceWaveItemListPlotted()
+        addList = []
+        for traceWaveItem in self.traceWaveItemListPlotted:
+            if traceWaveItem.waveCurve is None:
+                print('Add trace to the plots: ', traceWaveItem.waveLabelText)
+                self.addWaveTrace(traceWaveItem, self.tracePlotItem) 
+                ind = self.traceWaveItemList.index(traceWaveItem)
+                self.traceWaveformList[ind] = traceWaveItem.waveCurve
+                addList.append(traceWaveItem.sacdh.netsta)
+#        print('Add {:d} more traces to the plot'.format(len(addList)))
         
     def resetStackCurve(self, waveItem):
         'Reset filtered waveforms for a (stack) seismogram'
@@ -725,7 +749,9 @@ class mainGUI(object):
         self.opts.sortby = self.ptreeItem.sortby
         print('Sort seismograms by: ',self.opts.sortby)
         self.setupData()
+        self.resetTraceWaveItemList()
         self.resetTracePlot()
+        self.addTraceMissing()
 
     def resetTraceWaveItemList(self):
         'Reset traceWaveItemList after sorting'
