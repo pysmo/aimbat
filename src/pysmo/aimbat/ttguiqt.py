@@ -215,7 +215,6 @@ class mainGUI(object):
         self.tracePlotItem.setYRange(yrange0, yrange1)
         self.tracePlotItem.setXRange(xrange0, xrange1)
         self.tracePlotItem.setYRange(yrange0, yrange1)
-        
 #        print('viewRange: ',self.tracePlotItem.viewRange())
         
     def getXYRange(self):
@@ -278,7 +277,8 @@ class mainGUI(object):
             for twi in self.traceWaveItemList[ndelist-ndel:ndelist+nsel]:
                 if twi not in self.traceWaveItemListPlotted:
                     self.traceWaveItemListPlotted.append(twi)
-                    nsel += 1
+        nsel = len([ twi  for twi in self.traceWaveItemListPlotted if twi.sacdh.selected ])
+        ndel = len(self.traceWaveItemListPlotted) - nsel
         out = '--> Plot {:d}/{:d} deselected and {:d}/{:d} selected traces'
         print(out.format(ndel, ndelist, nsel, nselist))
         
@@ -567,6 +567,7 @@ class mainGUI(object):
     def resetAllPlots(self):
         print('--> Reset all plots')
         self.setupData()
+        self.setXYRange()
         self.resetTraceWaveItemList()
         self.resetStackPlot()
         self.resetTracePlot()
