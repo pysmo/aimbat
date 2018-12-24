@@ -74,5 +74,11 @@ Dec 5, 2018
 
 aimbat-v1.0.3
 ============
-Dec 5, 2018
+Dec 7, 2018
 * Some GUI setting changes
+
+aimbat-v1.0.4
+============
+Dec 23, 2018
+* Add SAC P1 Button to the main GUI
+* Plot only a subset of traces for faster data QC and (de)selection. All labels are plotted. Add a button to plot more traces

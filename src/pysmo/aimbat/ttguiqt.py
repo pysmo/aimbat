@@ -151,6 +151,7 @@ class mainGUI(object):
         quitButton = QtGui.QPushButton('Quit')
         sac1Button = QtGui.QPushButton('Sac P1')
         sac2Button = QtGui.QPushButton('Sac P2')
+        pmorButton = QtGui.QPushButton('Plot More Traces')
         tmapButton = QtGui.QPushButton('Map Delay Times')
         sortButton = QtGui.QPushButton('Sort\n by Name/Qual/Hdr')
         filtButton = QtGui.QPushButton('Filter\n on Stack/Traces')
@@ -164,11 +165,13 @@ class mainGUI(object):
         sortButton.clicked.connect(self.sortButtonClicked)
         sac1Button.clicked.connect(self.sac1ButtonClicked)
         sac2Button.clicked.connect(self.sac2ButtonClicked)
+        sac2Button.clicked.connect(self.sac2ButtonClicked)
         filtButton.clicked.connect(self.filtButtonClicked)
         tmapButton.clicked.connect(self.tmapButtonClicked)
+        pmorButton.clicked.connect(self.pmorButtonClicked)
         # add to layout in two columns
         btns1 = [ccimButton, syncButton, ccffButton, mcccButton, sortButton, filtButton]
-        btns0 = [sac1Button, sac2Button, tmapButton, saveButton, quitButton]
+        btns0 = [sac1Button, sac2Button, tmapButton, saveButton, quitButton, pmorButton]
         for i in range(len(btns0)):
             self.addLayoutWidget(btns0[i], i, 0)
         for i in range(len(btns1)):
@@ -254,8 +257,9 @@ class mainGUI(object):
         # load all traces
         slist = self.gsac.delist + self.gsac.selist
         self.traceWaveItemList = [ pplot.SeisWaveItem(isac) for isac in slist ]
-        #plot a subset of deselected and selected traces
+        # plot a subset of deselected and selected traces
         # For other traces: plot only labels, but not waveFill, Picks and TimeWindow
+        self.traceWaveItemListPlotted = []
         self.getTraceWaveItemListPlotted()
         for traceWaveItem in self.traceWaveItemListPlotted:
             self.addWaveTrace(traceWaveItem, tracePlotItem)
@@ -266,21 +270,24 @@ class mainGUI(object):
         self.overrideAutoScaleButton(tracePlotItem)
         return traceWidget
 
-    def getTraceWaveItemListPlotted(self):
-        nsel = self.opts.nsel
-        ndel = self.opts.ndel
-        ndelist = len(self.gsac.delist)
-        nselist = len(self.gsac.selist)
-        if not hasattr(self, 'traceWaveItemListPlotted'):
-            self.traceWaveItemListPlotted = self.traceWaveItemList[ndelist-ndel:ndelist+nsel]
-        else:
-            for twi in self.traceWaveItemList[ndelist-ndel:ndelist+nsel]:
-                if twi not in self.traceWaveItemListPlotted:
-                    self.traceWaveItemListPlotted.append(twi)
-        nsel = len([ twi  for twi in self.traceWaveItemListPlotted if twi.sacdh.selected ])
-        ndel = len(self.traceWaveItemListPlotted) - nsel
+    def getTraceWaveItemListPlotted(self, indmin=None, indmax=None):
+        'Get the list of plotted traceWaveItem by indices of traceWaveItemList'
+        if indmin is None:
+            nsel = self.opts.nsel
+            ndel = self.opts.ndel
+            ndelist = len(self.gsac.delist)
+            indmin = ndelist-ndel
+            indmax = ndelist+nsel
+        for twi in self.traceWaveItemList[indmin:indmax]:
+            if twi not in self.traceWaveItemListPlotted:
+                self.traceWaveItemListPlotted.append(twi)
+        self.getTracePlottedNumbers()
+        
+    def getTracePlottedNumbers(self):
+        self.opts.nselplt = len([ twi  for twi in self.traceWaveItemListPlotted if twi.sacdh.selected ])
+        self.opts.ndelplt = len(self.traceWaveItemListPlotted) - self.opts.nselplt
         out = '--> Plot {:d}/{:d} deselected and {:d}/{:d} selected traces'
-        print(out.format(ndel, ndelist, nsel, nselist))
+        print(out.format(self.opts.ndelplt, len(self.gsac.delist), self.opts.nselplt, len(self.gsac.selist)))
         
     def getLabelTrace(self, waveItem):
         'Get station label for each trace'
@@ -571,23 +578,25 @@ class mainGUI(object):
         self.resetTraceWaveItemList()
         self.resetStackPlot()
         self.resetTracePlot()
+        self.getTraceWaveItemListPlotted()
         self.addTraceMissing()
         xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
         self.stackPlotItem.setLabel('bottom', text=xlabel)
         self.tracePlotItem.setLabel('bottom', text=xlabel)
         
     def addTraceMissing(self):
-        #add traces that are in the range but not previously plotted
-        self.getTraceWaveItemListPlotted()
+        #add traces that are in the list but not yet plotted
         addList = []
         for traceWaveItem in self.traceWaveItemListPlotted:
             if traceWaveItem.waveCurve is None:
-                print('Add trace to the plots: ', traceWaveItem.waveLabelText)
+#                print('Add trace to the plot: ', traceWaveItem.waveLabelText)
                 self.addWaveTrace(traceWaveItem, self.tracePlotItem) 
                 ind = self.traceWaveItemList.index(traceWaveItem)
                 self.traceWaveformList[ind] = traceWaveItem.waveCurve
                 addList.append(traceWaveItem.sacdh.netsta)
-#        print('Add {:d} more traces to the plot'.format(len(addList)))
+        if len(addList) > 0:
+            print('Add {:d} more traces to the plot'.format(len(addList)))
+            print(addList)
         
     def resetStackCurve(self, waveItem):
         'Reset filtered waveforms for a (stack) seismogram'
@@ -752,6 +761,7 @@ class mainGUI(object):
         self.setupData()
         self.resetTraceWaveItemList()
         self.resetTracePlot()
+        self.getTraceWaveItemListPlotted()
         self.addTraceMissing()
 
     def resetTraceWaveItemList(self):
@@ -762,6 +772,17 @@ class mainGUI(object):
         self.traceWaveItemList = [ self.traceWaveItemList[i]  for i in inds]
         self.traceWaveformList = [ twi.waveCurve  for twi in self.traceWaveItemList ]
             
+    def pmorButtonClicked(self):
+        ndelist = len(self.gsac.delist)
+        # find the first not-plotted selected trace if any
+        slist = self.traceWaveformList[ndelist:]
+        if None in slist:
+            ind = slist.index(None)
+            indmin = ndelist + ind
+            indmax = ndelist + ind + self.opts.nsel
+            self.getTraceWaveItemListPlotted(indmin, indmax)
+            self.addTraceMissing()
+        
     def sac2ButtonClicked(self):
         resoRect = self.app.desktop().availableGeometry()
         resoRect.setWidth(resoRect.width()*0.5)
