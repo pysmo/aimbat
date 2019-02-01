@@ -13,3 +13,4 @@ src/pysmo.aimbat.egg-info/
 .DS_Store
 .pytest_cache/
 pysmo.aimbat.egg-info/
+.python-version
