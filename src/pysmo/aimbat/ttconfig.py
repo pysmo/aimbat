@@ -15,7 +15,7 @@ Create parser for command line arguments and options.
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
 
@@ -26,12 +26,12 @@ from optparse        import OptionParser
 
 
 def getDefaults():
-    """ 
-    Get default parameters from a configuration file: ttdefaults.conf. 
+    """
+    Get default parameters from a configuration file: ttdefaults.conf.
     The file is searched in this order:
         (0) the current working directory
         (1) home directory
-        (2) environment variable TTCONFIG 
+        (2) environment variable TTCONFIG
         (3) the same directory as this program.
     """
     conf = 'TTCONFIG'
@@ -63,10 +63,10 @@ class PPConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
-        self.qweights = [ float(val)  for val in config.get('sachdrs', 'qweights').split() ]
+        self.qweights = [float(val)  for val in config.get('sachdrs', 'qweights').split()]
         # SAC plots
-        self.figsize = [ float(val)  for val in config.get('sacplot', 'figsize').split() ]
-        self.rectseis = [ float(val)  for val in config.get('sacplot', 'rectseis').split() ]
+        self.figsize = [float(val)  for val in config.get('sacplot', 'figsize').split()]
+        self.rectseis = [float(val)  for val in config.get('sacplot', 'rectseis').split()]
         self.colorwave = config.get('sacplot', 'colorwave')
         self.colorwavedel = config.get('sacplot', 'colorwavedel')
         self.colortwfill = config.get('sacplot', 'colortwfill')
@@ -81,14 +81,14 @@ class PPConfig:
         self.srate = config.getfloat('sacplot', 'srate')
         self.tapertype = config.get('signal', 'tapertype')
         self.taperwidth = config.getfloat('signal', 'taperwidth')
-        # SAC headers for filter 
+        # SAC headers for filter
         self.fhdrApply = config.get('signal', 'fhdrApply')
         self.fhdrBand = config.get('signal', 'fhdrBand')
         self.fhdrRevPass = config.get('signal', 'fhdrRevPass')
         self.fhdrLowFreq = config.get('signal', 'fhdrLowFreq')
         self.fhdrHighFreq = config.get('signal', 'fhdrHighFreq')
         self.fhdrOrder = config.get('signal', 'fhdrOrder')
-        # default values for filter 
+        # default values for filter
         self.fvalApply = config.getint('signal', 'fvalApply')
         self.fvalBand = config.get('signal', 'fvalBand')
         self.fvalRevPass = config.getint('signal', 'fvalRevPass')
@@ -110,7 +110,7 @@ class QCConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
-        self.qweights = [ float(val)  for val in config.get('sachdrs', 'qweights').split() ] 
+        self.qweights = [float(val)  for val in config.get('sachdrs', 'qweights').split()]
         # SAC headers for ICCS time picks
         self.ichdrs = config.get('sachdrs', 'ichdrs').split()
         # plots
@@ -146,7 +146,7 @@ class CCConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
-        self.qweights = [ float(val)  for val in config.get('sachdrs', 'qweights').split() ] 
+        self.qweights = [float(val)  for val in config.get('sachdrs', 'qweights').split()]
         # SAC headers for ICCS time picks
         self.ichdrs = config.get('sachdrs', 'ichdrs').split()
         # Choose a xcorr module and function
@@ -156,6 +156,7 @@ class CCConfig:
         cmd1a = 'from  {:s} import {:s}'.format(modu, func)
         cmd1r = 'from .{:s} import {:s}'.format(modu, func)
         cmd2 = 'self.xcorr = {:s}'.format(func)
+        # try importing fortran xcorr
         try:
             exec(cmd1r)
         except:
@@ -166,7 +167,7 @@ class CCConfig:
         self.xcorr_func = func
 
 class MCConfig:
-    """ Class for MCCC configuration. 
+    """ Class for MCCC configuration.
     """
     def __init__(self):
         defaults = getDefaults()
@@ -207,7 +208,7 @@ class MCConfig:
 def getParser():
     """ Parse command line arguments and options. """
     reltime = -1
-    fill = 0 
+    fill = 0
     ynorm = 2.0
     usage = "Usage: %prog [options] <sacfile(s) or a picklefile>"
     parser = OptionParser(usage=usage)
@@ -215,25 +216,27 @@ def getParser():
     parser.set_defaults(fill=fill)
     parser.set_defaults(ynorm=ynorm)
 
-    parser.add_option('-f', '--fill', dest='fill', type = 'int',
-        help='Fill/shade seismogram with positive (1) or negative (-1) signal. Default is none ({:d}).'.format(fill))
-    parser.add_option('-r', '--relative-time',  dest='reltime', type='int',
-        help='Relative time to a time pick header (t0-t9). Default is {:d}, None, use absolute time.'.format(reltime))
+    parser.add_option('-f', '--fill', dest='fill', type='int',
+                      help='Fill/shade seismogram with positive (1) or negative (-1) signal. '
+                      'Default is none ({:d}).'.format(fill))
+    parser.add_option('-r', '--relative-time', dest='reltime', type='int',
+                      help='Relative time to a time pick header (t0-t9). '
+                      'Default is {:d}, None, use absolute time.'.format(reltime))
     parser.add_option('-u', '--upylim', action="store_true", dest='upylim_on',
-        help='Update ylim every time of zooming in.')
+                      help='Update ylim every time of zooming in.')
     parser.add_option('-k', '--pick', action="store_true", dest='pick_on',
-        help='Plot time picks.')
+                      help='Plot time picks.')
     parser.add_option('-w', '--twin', action="store_true", dest='twin_on',
-        help='Plot time window.')
-    parser.add_option('-x', '--xlimit',  dest='xlimit', type='float', nargs=2, 
-        help='Left and right x-axis limit to plot.')
-    parser.add_option('-y', '--ynorm',  dest='ynorm', type='float',
-        help='Normalize ydata of seismograms. Effective only for positive number. Default is {:f}.'.format(ynorm))
+                      help='Plot time window.')
+    parser.add_option('-x', '--xlimit', dest='xlimit', type='float', nargs=2,
+                      help='Left and right x-axis limit to plot.')
+    parser.add_option('-y', '--ynorm', dest='ynorm', type='float',
+                      help='Normalize ydata of seismograms. Effective only for positive number. '
+                      'Default is {:f}.'.format(ynorm))
     parser.add_option('-Y', '--ynormtwin', action="store_true", dest='ynormtwin_on',
-        help='Normalize seismogram within time window.')
-    parser.add_option('-S', '--srate',  dest='srate', type='float',
-        help='Sampling rate to load SAC data. Default is None, use the original rate of first file.')
+                      help='Normalize seismogram within time window.')
+    parser.add_option('-S', '--srate', dest='srate', type='float',
+                      help='Sampling rate to load SAC data. '
+                      'Default is None, use the original rate of first file.')
 
     return parser
-
-

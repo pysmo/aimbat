@@ -27,7 +27,7 @@ Output ccpol=1 if positive or ccpol=-1 if negative. xlou 03/2011
 from numpy import correlate, dot, argmax, argmin, sqrt
 
 def _xcorr(x, y, cmode='full'):
-    """ 
+    """
     Cross-correlation of two 1-D arrays using 'full' or 'same' mode.
         c[k] = sum_i x[i]*y[i+k]
     Full mode: indices of array c --> j=0:nx+ny-2 <-- k=ny-1:-nx+1:-1 (j=ny-1-k)
@@ -41,17 +41,17 @@ def _xcorr(x, y, cmode='full'):
     if ccmax >= -ccmin:
         ccpol = 1
         delay = len(y)-1-imax
-        ccmax =  ccmax / sqrt(dot(x,x)*dot(y,y))
+        ccmax = ccmax / sqrt(dot(x, x)*dot(y, y))
     else:
         ccpol = -1
         delay = len(y)-1-imin
-        ccmax = -ccmin / sqrt(dot(x,x)*dot(y,y))
+        ccmax = -ccmin / sqrt(dot(x, x)*dot(y, y))
     if cmode == 'same':
         delay -= (len(y)-1)/2
     return delay, ccmax, ccpol
 
 def _xcorr_polarity(x, y, cmode='full'):
-    """ 
+    """
     Cross-correlation of two 1-D arrays using 'full' or 'same' mode.
         c[k] = sum_i x[i]*y[i+k]
     Full mode: indices of array c --> j=0:nx+ny-2 <-- k=ny-1:-nx+1:-1 (j=ny-1-k)
@@ -65,20 +65,20 @@ def _xcorr_polarity(x, y, cmode='full'):
     ccmax = cc[imax]
     ccpol = 1
     delay = len(y)-1-imax
-    ccmax =  ccmax / sqrt(dot(x,x)*dot(y,y))
+    ccmax = ccmax / sqrt(dot(x, x)*dot(y, y))
     if cmode == 'same':
         delay -= (len(y)-1)/2
     return delay, ccmax, ccpol
 
 def xcorr_full(x, y, shift=1):
-    """ 
+    """
     Cross-correlation of two 1-D arrays using 'full' mode.
     Argument shift=1 is here only in order to make the same number of arguments for all xcorr functions.
     """
     return _xcorr(x, y, 'full')
 
 def xcorr_full_polarity(x, y, shift=1):
-    """ 
+    """
     Cross-correlation of two 1-D arrays using 'full' mode.
     Argument shift=1 is here only in order to make the same number of arguments for all xcorr functions.
     Not correct the polarity
@@ -86,14 +86,14 @@ def xcorr_full_polarity(x, y, shift=1):
     return _xcorr_polarity(x, y, 'full')
 
 def xcorr_same(x, y):
-    """ 
+    """
     Cross-correlation of two 1-D arrays using 'same' mode.
     """
     return _xcorr(x, y, 'same')
 
 def xcorr_select(x, y, lags):
-    """ 
-    Cross-correlation of two time series of the same length 
+    """
+    Cross-correlation of two time series of the same length
     for selected lag(shift) times
     """
     n = len(x)
@@ -110,15 +110,15 @@ def xcorr_select(x, y, lags):
     if ccmax >= -ccmin:
         ccpol = 1
         delay = lags[imax]
-        ccmax =  ccmax / sqrt(dot(x,x)*dot(y,y))
+        ccmax = ccmax / sqrt(dot(x, x)*dot(y, y))
     else:
         ccpol = -1
         delay = lags[imin]
-        ccmax = -ccmin / sqrt(dot(x,x)*dot(y,y))
+        ccmax = -ccmin / sqrt(dot(x, x)*dot(y, y))
     return delay, ccmax, ccpol
 
 def xcorr_fast(x, y, shift=10):
-    """ 
+    """
     Fast cross-correlation of two time series of the same length.
     One level of coarse shift by downsampling the signal.
     """
@@ -130,7 +130,7 @@ def xcorr_fast(x, y, shift=10):
     return delay, ccmax, ccpol
 
 def xcorr_faster(x, y, shift=10):
-    """ 
+    """
     Faster cross-correlation only for time lags around zero.
     """
     lags = list(range(-shift, shift+1, 1))
@@ -138,8 +138,8 @@ def xcorr_faster(x, y, shift=10):
     return delay, ccmax, ccpol
 
 def xcorr_select_polarity(x, y, lags):
-    """ 
-    Cross-correlation of two time series of the same length 
+    """
+    Cross-correlation of two time series of the same length
     for selected lag(shift) times
     Do not correct polarity
     """
@@ -154,11 +154,11 @@ def xcorr_select_polarity(x, y, lags):
     ccmax = cc[imax]
     ccpol = 1
     delay = lags[imax]
-    ccmax =  ccmax / sqrt(dot(x,x)*dot(y,y))
+    ccmax = ccmax / sqrt(dot(x, x)*dot(y, y))
     return delay, ccmax, ccpol
 
 def xcorr_fast_polarity(x, y, shift=10):
-    """ 
+    """
     Fast cross-correlation of two time series of the same length.
     One level of coarse shift by downsampling the signal.
     Do not correct polarity
@@ -171,7 +171,7 @@ def xcorr_fast_polarity(x, y, shift=10):
     return delay, ccmax, ccpol
 
 def xcorr_faster_polarity(x, y, shift=10):
-    """ 
+    """
     Faster cross-correlation only for time lags around zero.
     Do not correct polarity
     """

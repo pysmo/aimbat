@@ -23,11 +23,12 @@ doclines = __doc__.split("\n")
 def run_setup(with_fortran=True):
     if with_fortran is True:
         fortran_kw = dict(
-                ext_modules=[
-                    Extension(
-                        'xcorrf90',
-                        sources=['src/pysmo/aimbat/xcorr.f90'],)
-                ]
+            ext_modules=[
+                Extension(
+                    'xcorrf90',
+                    sources=['src/pysmo/aimbat/xcorr.f90'],
+                )
+            ]
         )
     else:
         fortran_kw = {}
