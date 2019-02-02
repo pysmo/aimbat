@@ -16,15 +16,16 @@ Code transcribed from the original MCCC 3.0 fortran version using the same funct
     Xiaoting Lou, John VanDecar
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
 
 
-from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum, std, shape, sqrt, argsort, identity 
-import os, sys
+import os
+import sys
 from time import strftime, tzname
 from optparse import OptionParser
+from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum, std, shape, sqrt, argsort, identity 
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
 from pysmo.aimbat import sacpickle as sacpkl
@@ -32,36 +33,39 @@ from pysmo.aimbat.prepdata import findPhase
 
 
 def getOptions():
-    """ 
-    Parse arguments and options from command line. 
+    """
+    Parse arguments and options from command line.
     No default value is given here because it will override values from configuration file.
     """
     usage = "Usage: %prog [options] <sacfile(s) or a picklefile>"
     parser = OptionParser(usage=usage)
-    parser.add_option('-S', '--srate',  dest='srate', type='float',
-        help='Sampling rate to load SAC data. Default is None, use the original rate of first file.')
-    parser.add_option('-W', '--window',  dest='window', type='float',
-        help='Use a correlation window length in seconds.')
-    parser.add_option('-I', '--inset',  dest='inset', type='float',
-        help='Use a time length of inset seconds from initial pick time to start of correlation window.')
-    parser.add_option('-T', '--taper',  dest='taper', type='float',
-        help='Apply a Hanning taper with width of taper seconds. Half of taper extends beyond both sides of window.')
-    parser.add_option('-s', '--shift',  dest='shift', type='int',
-        help='Shift in number of samples in cross-correlation.')
-    parser.add_option('-i', '--ipick',  dest='ipick', type='str',
-        help='SAC header variable to read initial time pick.')
-    parser.add_option('-w', '--wpick',  dest='wpick', type='str',
-        help='SAC header variable to write MCCC time pick.')
-    parser.add_option('-p', '--phase',  dest='phase', type='str',
-        help='Seismic phase name: P/S .')
-    parser.add_option('-l', '--lsqr',  dest='lsqr', type='str',
-        help='LSQR method to solve eqs: nowe, lnco, lnre.')
-    parser.add_option('-o', '--ofilename',  dest='ofilename', type='str',
-        help='Output file name. Default is $evdate.mc$phase')
+    parser.add_option('-S', '--srate', dest='srate', type='float',
+                      help='Sampling rate to load SAC data. Default is None, '
+                      'use the original rate of first file.')
+    parser.add_option('-W', '--window', dest='window', type='float',
+                      help='Use a correlation window length in seconds.')
+    parser.add_option('-I', '--inset', dest='inset', type='float',
+                      help='Use a time length of inset seconds from initial pick '
+                      'time to start of correlation window.')
+    parser.add_option('-T', '--taper', dest='taper', type='float',
+                      help='Apply a Hanning taper with width of taper seconds. '
+                      'Half of taper extends beyond both sides of window.')
+    parser.add_option('-s', '--shift', dest='shift', type='int',
+                      help='Shift in number of samples in cross-correlation.')
+    parser.add_option('-i', '--ipick', dest='ipick', type='str',
+                      help='SAC header variable to read initial time pick.')
+    parser.add_option('-w', '--wpick', dest='wpick', type='str',
+                      help='SAC header variable to write MCCC time pick.')
+    parser.add_option('-p', '--phase', dest='phase', type='str',
+                      help='Seismic phase name: P/S .')
+    parser.add_option('-l', '--lsqr', dest='lsqr', type='str',
+                      help='LSQR method to solve eqs: nowe, lnco, lnre.')
+    parser.add_option('-o', '--ofilename', dest='ofilename', type='str',
+                      help='Output file name. Default is $evdate.mc$phase')
     parser.add_option('-a', '--allseis', action="store_true", dest='allseis_on',
-        help='Use all seismograms. Default to use selected ones.')
+                      help='Use all seismograms. Default to use selected ones.')
     opts, files = parser.parse_args(sys.argv[1:])
-    if len(files) == 0:
+    if not files:
         print(parser.usage)
         sys.exit()
     return opts, files
@@ -131,9 +135,9 @@ def corread(saclist, ipick, timewindow, taperwindow, tapertype):
     """
     tw = timewindow[1] - timewindow[0]
     taperwidth = taperwindow/(taperwindow+tw)
-    reftimes = array([ sacdh.gethdr(ipick) for sacdh in saclist])
+    reftimes = array([sacdh.gethdr(ipick) for sacdh in saclist])
     if -12345.0 in reftimes:
-        print ('Not all seismograms has ipick={:s} set. Exit.'.format(ipick))
+        print('Not all seismograms has ipick={:s} set. Exit.'.format(ipick))
         sys.exit()
         #return
     nstart, ntotal = sacpkl.windowIndex(saclist, reftimes, timewindow, taperwindow)
@@ -141,7 +145,7 @@ def corread(saclist, ipick, timewindow, taperwindow, tapertype):
     return windata, reftimes
 
 def corrmax(datai, timei, dataj, timej, mcpara):
-    """ 
+    """
     Calculate cross-correlation derived relative delay times by calling one of the xcorr functions.
             dt_ij = t_i - t_j - tau_max
     where t_i and t_j are initial time picks for the i-th and j-th traces,
@@ -154,7 +158,7 @@ def corrmax(datai, timei, dataj, timej, mcpara):
     return timei - timej - delay*delta, ccmax
 
 def corrcff_fish(ccmatrix):
-    """ 
+    """
     Calculate mean and standard deviation of correlation coefficients
     using Fisher's transform:
             z = 0.5 * ln((1+r)/(1-r))
@@ -168,7 +172,7 @@ def corrcff_fish(ccmatrix):
     nsta = len(ccmatrix)
     ccmean, ccstd = zeros(nsta), zeros(nsta)
     for i in range(nsta):
-        z = concatenate((fish[i,0:i], fish[i,i+1:nsta]))
+        z = concatenate((fish[i, 0:i], fish[i, i+1:nsta]))
         mz = mean(z)
         ccmean[i] = (exp(2*mz)-1)/(exp(2*mz)+1)
         ccstd[i] = std(z, ddof=1)
@@ -181,28 +185,28 @@ def corrcff(ccmatrix):
     nsta = len(ccmatrix)
     ccmean, ccstd = zeros(nsta), zeros(nsta)
     for i in range(nsta):
-        z = concatenate((fish[i,0:i], fish[i,i+1:nsta]))
+        z = concatenate((fish[i, 0:i], fish[i, i+1:nsta]))
         ccmean[i] = mean(z)
-        ccstd[i]  = std(z, ddof=1)
+        ccstd[i] = std(z, ddof=1)
     return ccmean, ccstd
 
 def correrr(dtmatrix, invmodel):
-    """ 
+    """
     Calculate the rms misfit between cross correlated derived relative delay times
     and least-squares solution:
         res_ij = dt_ij - (t_i - t_j)
     """
     nsta = len(dtmatrix)
-    resmatrix = zeros((nsta,nsta))
+    resmatrix = zeros((nsta, nsta))
     for i in range(nsta):
-        for j in range(i+1,nsta):
-            resmatrix[i, j] = dtmatrix[i,j] - (invmodel[i] - invmodel[j])
+        for j in range(i+1, nsta):
+            resmatrix[i, j] = dtmatrix[i, j] - (invmodel[i] - invmodel[j])
     resmatrix -= transpose(resmatrix)
-    rms = sqrt(sum(resmatrix**2,0)/(nsta-2))
+    rms = sqrt(sum(resmatrix**2, 0)/(nsta-2))
     return rms, resmatrix
 
 def corrmat(windata, reftimes, mcpara):
-    """ 
+    """
     Build matrices of cross-correlation derived relative delay times for least-squares solution.
             A * t = dt
     invmatrix A: sparse n*(n-1)/2+1 by n coefficient matrix including zero mean constraint
@@ -212,13 +216,13 @@ def corrmat(windata, reftimes, mcpara):
     nsta = len(windata)
     nrow = nsta*(nsta-1)//2 + 1
     invdata = zeros(nrow)
-    invmatrix = zeros((nrow,nsta))
-    ccmatrix = zeros((nsta,nsta))
-    dtmatrix = zeros((nsta,nsta))
+    invmatrix = zeros((nrow, nsta))
+    ccmatrix = zeros((nsta, nsta))
+    dtmatrix = zeros((nsta, nsta))
     k = 0
     for i in range(nsta):
         datai, timei = windata[i], reftimes[i]
-        for j in range(i+1,nsta):
+        for j in range(i+1, nsta):
             dataj, timej = windata[j], reftimes[j]
             delay, ccmax = corrmax(datai, timei, dataj, timej, mcpara)
             invdata[k] = delay
@@ -232,7 +236,7 @@ def corrmat(windata, reftimes, mcpara):
     return invmatrix, invdata, ccmatrix, dtmatrix
 
 def corrnow(invmatrix, invdata):
-    """ 
+    """
     Solve A * t = dt by lease-squares without weighting:
             t = inv(A'A) * A' * dt = 1/n * A' * dt, where A'A = nI
     """
@@ -254,7 +258,7 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
         w = ccmatrix
     elif wgtscheme == 'residual':
         w = resmatrix
-    wgt = [abs(w[i,j]) for i in range(nsta) for j in range(i+1,nsta)]
+    wgt = [abs(w[i, j]) for i in range(nsta) for j in range(i+1, nsta)]
     wgt.append(exwt)
     wgt = identity(nrow)*array(wgt)
     atw = dot(transpose(invmatrix), wgt)
@@ -269,44 +273,44 @@ def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_
     delta = mcpara.delta
     lsqr = mcpara.lsqr
     nsta = len(solist)
-    stalist = [ sacdh.netsta for sacdh in solist ]
-    filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
+    stalist = [sacdh.netsta for sacdh in solist]
+    filelist = [sacdh.filename.split('/')[-1] for sacdh in solist]
     shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
 
     # write mc file (with delay times)
     ofile = open(ofilename, 'w')
     tzone = tzname[0]
-    tdate = strftime("%a, %d %b %Y %H:%M:%S") 
+    tdate = strftime("%a, %d %b %Y %H:%M:%S")
     line0 = 'MCCC processed: %s at: %s %s \n' % (kevnm, tdate, tzone)
     line1 = 'station, mccc delay,    std,    cc coeff,  cc std,   pol   , t0_times  , delay_times\n'
-    ofile.write( line0 )
-    ofile.write( line1 )
+    ofile.write(line0)
+    ofile.write(line1)
     fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}  {7:9.4f}  {8:9.4f}\n'
 
-    selist_LonLat = zeros(shape=(len(solist),2))
+    selist_LonLat = zeros(shape=(len(solist), 2))
     nsta = len(solist)
     for i in range(nsta):
         dt, err, cc, ccstd = solution[i]
-        selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
-        ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i], t0_times[i], delay_times[i]) )
+        selist_LonLat[i] = [solist[i].stlo, solist[i].stla]
+        ofile.write(fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i], t0_times[i], delay_times[i]))
 
-    ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
+    ofile.write('Mean_arrival_time:  {0:9.4f} \n'.format(itmean))
     if lsqr == 'nowe':
         ofile.write('No weighting of equations. \n')
     elif lsqr == 'lnco':
         ofile.write('LAPACK solution with weighting by corr. coef. \n')
     elif lsqr == 'lnre':
         ofile.write('LAPACK solution with weighting by residuals. \n')
-    fmt = 'Window: %6.2f   Inset: %6.2f  Shift: %6.2f \n' 
+    fmt = 'Window: %6.2f   Inset: %6.2f  Shift: %6.2f \n'
     ofile.write(fmt % (tw[1]-tw[0]-tap, -tw[0]-tap/2., shift*delta))
     fmt = 'Variance: %7.5f   Coefficient: %7.5f  Sample rate: %8.3f \n'
     ofile.write(fmt % (outvar, outcc, 1./delta))
     ofile.write('Taper: %6.2f \n' % tap)
 
     # write phase and event
-    ofile.write( 'Phase: {0:8s} \n'.format(mcpara.phase) )
-    ofile.write( mcpara.evline + '\n' )
-    ofile.close()    
+    ofile.write('Phase: {0:8s} \n'.format(mcpara.phase))
+    ofile.write(mcpara.evline + '\n')
+    ofile.close()
 
     return selist_LonLat, delay_times
 
@@ -316,71 +320,71 @@ def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
     delta = mcpara.delta
     lsqr = mcpara.lsqr
     nsta = len(solist)
-    stalist = [ sacdh.netsta for sacdh in solist ]
-    filelist = [ sacdh.filename.split('/')[-1] for sacdh in solist ]
+    stalist = [sacdh.netsta for sacdh in solist]
+    filelist = [sacdh.filename.split('/')[-1] for sacdh in solist]
     shift, tw, tap = mcpara.shift, mcpara.timewindow, mcpara.taperwindow
 
     # write mc file (with delay times)
     ofile = open(ofilename, 'w')
     tzone = tzname[0]
-    tdate = strftime("%a, %d %b %Y %H:%M:%S") 
+    tdate = strftime("%a, %d %b %Y %H:%M:%S")
     line0 = 'MCCC processed: %s at: %s %s \n' % (kevnm, tdate, tzone)
     line1 = 'station, mccc delay,    std,    cc coeff,  cc std,   pol\n'
-    ofile.write( line0 )
-    ofile.write( line1 )
+    ofile.write(line0)
+    ofile.write(line1)
     fmt = ' {0:<9s} {1:9.4f} {2:9.4f} {3:>9.4f} {4:>9.4f} {5:4d}  {6:<s}\n'
 
-    selist_LonLat = zeros(shape=(len(solist),2))
+    selist_LonLat = zeros(shape=(len(solist), 2))
     nsta = len(solist)
     for i in range(nsta):
         dt, err, cc, ccstd = solution[i]
-        selist_LonLat[i] = [solist[i].stlo,solist[i].stla]
-        ofile.write( fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]))
+        selist_LonLat[i] = [solist[i].stlo, solist[i].stla]
+        ofile.write(fmt.format(stalist[i], dt, err, cc, ccstd, 0, filelist[i]))
 
-    ofile.write( 'Mean_arrival_time:  {0:9.4f} \n'.format(itmean) )
+    ofile.write('Mean_arrival_time:  {0:9.4f} \n'.format(itmean))
     if lsqr == 'nowe':
         ofile.write('No weighting of equations. \n')
     elif lsqr == 'lnco':
         ofile.write('LAPACK solution with weighting by corr. coef. \n')
     elif lsqr == 'lnre':
         ofile.write('LAPACK solution with weighting by residuals. \n')
-    fmt = 'Window: %6.2f   Inset: %6.2f  Shift: %6.2f \n' 
+    fmt = 'Window: %6.2f   Inset: %6.2f  Shift: %6.2f \n'
     ofile.write(fmt % (tw[1]-tw[0]-tap, -tw[0]-tap/2., shift*delta))
     fmt = 'Variance: %7.5f   Coefficient: %7.5f  Sample rate: %8.3f \n'
     ofile.write(fmt % (outvar, outcc, 1./delta))
     ofile.write('Taper: %6.2f \n' % tap)
 
     # write phase and event
-    ofile.write( 'Phase: {0:8s} \n'.format(mcpara.phase) )
-    ofile.write( mcpara.evline + '\n' )
-    ofile.close()    
+    ofile.write('Phase: {0:8s} \n'.format(mcpara.phase))
+    ofile.write(mcpara.evline + '\n')
+    ofile.close()
 
 def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
     """ Write output file, set output time picks.
     """
     nsta = len(solist)
-    # set wpick    
+    # set wpick
     wpick = mcpara.wpick
     itmean = mean(reftimes)
     for i in range(nsta):
-        wt = itmean + solution[i,0]
+        wt = itmean + solution[i, 0]
         solist[i].sethdr(wpick, wt)
     t0_times = [sacdh.gethdr('t0') for sacdh in solist]
-    delay_times = [(solution[i,0]-(t0_times[i]-itmean)) for i in range(nsta)]
+    delay_times = [(solution[i, 0]-(t0_times[i]-itmean)) for i in range(nsta)]
 
     selist_LonLat, delay_times = WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_times, itmean)
     WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean)
     return selist_LonLat, delay_times
 
 def mccc(gsac, mcpara):
-    """ Run MCCC. 
+    """ Run MCCC.
     """
     selist = gsac.selist
     delist = gsac.delist
     # sort sacdh list by net.sta
-    stalist = [ sacdh.netsta for sacdh in selist ]
+    stalist = [sacdh.netsta for sacdh in selist]
     stainds = argsort(stalist)
-    solist = [ selist[i] for i in stainds ]
+    solist = [selist[i] for i in stainds]
     nsta = len(solist)
     ipick = mcpara.ipick
     wpick = mcpara.wpick
@@ -427,29 +431,29 @@ def mccc(gsac, mcpara):
 
 
 def eventListName(evlist='event.list', phase='S', isol='PDE'):
-    """ 
+    """
     Read evlist (either event.list file or gsac.event list) for hypocenter and origin time.
     Create output filename.
     """
-    eventfmt  = '{0:<6s} {1:4d} {2:2d} {3:2d} {4:2d} {5:2d} {6:5.2f} '
+    eventfmt = '{0:<6s} {1:4d} {2:2d} {3:2d} {4:2d} {5:2d} {6:5.2f} '
     eventfmt += '{7:9.3f} {8:9.3f} {9:6.1f} {10:4.1f} {11:4.1f} '
-    fnamefmt  = '{0!s:0>4}{1!s:0>2}{2!s:0>2}.{3!s:0>2}{4!s:0>2}{5!s:0>4}.mc{6:s}'
+    fnamefmt = '{0!s:0>4}{1!s:0>2}{2!s:0>2}.{3!s:0>2}{4!s:0>2}{5!s:0>4}.mc{6:s}'
     if type(evlist) == type(''):
         evhypo = open(evlist).readline().split()
-        elat, elon, dum, edep = [ float(v) for v in evhypo[:4] ]
-        sec, mb, mw = [ float(v) for v in evhypo[8:11] ]
-        iyr, jday, ihr, imin = [ int(v) for v in evhypo[4:8] ]
-        imon, iday = [ int(v) for v in evhypo[13:15] ]
+        elat, elon, dum, edep = [float(v) for v in evhypo[:4]]
+        sec, mb, mw = [float(v) for v in evhypo[8:11]]
+        iyr, jday, ihr, imin = [int(v) for v in evhypo[4:8]]
+        imon, iday = [int(v) for v in evhypo[13:15]]
     else:
         iyr, imon, iday, ihr, imin, sec, elat, elon, edep, mw = evlist
         mb = 0
     isec = int(round(sec*100))
     evline = eventfmt.format(isol, iyr, imon, iday, ihr, imin, sec, elat, elon, edep, mb, mw)
-    mcname = fnamefmt.format(iyr, imon, iday, ihr, imin, isec, phase.lower() )
+    mcname = fnamefmt.format(iyr, imon, iday, ihr, imin, isec, phase.lower())
     return evline, mcname
 
 def getWindow(stkdh, ipick, twhdrs, taperwidth=0.1):
-    """ Get timewindow and taperwindow from gsac.stkdh """    
+    """ Get timewindow and taperwindow from gsac.stkdh """
     tw0, tw1 = twhdrs
     t0 = stkdh.gethdr(ipick)
     th0 = stkdh.gethdr(tw0) - t0
@@ -464,8 +468,8 @@ def getParams(gsac, mcpara, opts=None):
     """
     nsta = len(gsac.saclist)
     if nsta < 5:
-        print ('\n Less than five stations - stop')
-        sys.exit()    
+        print('\n Less than five stations - stop')
+        sys.exit()
     # get window from gsac.stkdh
     if 'stkdh' in gsac.__dict__:
         timewindow, taperwindow = getWindow(gsac.stkdh, mcpara.ipick, mcpara.twhdrs, mcpara.taperwidth)
@@ -497,7 +501,7 @@ def getParams(gsac, mcpara, opts=None):
                 mdict[key] = odict[key]
     # check if params are complete
     if 'phase' not in mdict:
-        print ('\n No phase name given - stop')
+        print('\n No phase name given - stop')
         sys.exit()
     if 'timewindow' not in mdict:
         if 'window' in mdict and 'inset' in mdict:
@@ -508,7 +512,7 @@ def getParams(gsac, mcpara, opts=None):
             else:
                 mcpara.taperwindow = sacpkl.taperWindow(mcpara.timewindow, mcpara.taperwidth)
         else:
-            print ('No window and inset length give - stop')
+            print('No window and inset length give - stop')
             sys.exit()
     # get event info from either event.list or gsac
     if not os.path.isfile(mcpara.evlist):
@@ -520,7 +524,7 @@ def getParams(gsac, mcpara, opts=None):
     if mcpara.ofilename != 'mc':
         mcpara.mcname = mcpara.ofilename
     gsac.mcname = mcpara.mcname
-    
+
 def main():
     opts, ifiles = getOptions()
     mcpara = ttconfig.MCConfig()
@@ -528,12 +532,12 @@ def main():
 
     if opts.phase is None:
         phase = findPhase(ifiles[0])
-        print ('Found phase to be: ' + phase + '\n')
+        print('Found phase to be: ' + phase + '\n')
         mcpara.phase = phase
 
     opts.fstack = mcpara.fstack
     if opts.filemode == 'sac' and os.path.isfile(opts.fstack):
-        print ('Read array stack file: ' + opts.fstack )
+        print('Read array stack file: ' + opts.fstack)
         gsac.stkdh = sacpkl.SacDataHdrs(opts.fstack, opts.delta)
 
     getParams(gsac, mcpara, opts)
@@ -550,4 +554,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
