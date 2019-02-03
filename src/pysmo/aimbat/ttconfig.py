@@ -7,7 +7,8 @@
 # Copyright (c) 2009-2012 Xiaoting Lou
 #------------------------------------------------
 """
-Python module for setting up default parameters for SACPLOT (PlotPhase and PickPhase), ICCS, MCCC and QCTRL.
+Python module for setting up default parameters for SACPLOT (PlotPhase and
+PickPhase), ICCS, MCCC and QCTRL.
 Create parser for command line arguments and options.
 
 
@@ -21,6 +22,7 @@ Create parser for command line arguments and options.
 
 
 import os
+from importlib import import_module
 from configparser    import ConfigParser
 from optparse        import OptionParser
 
@@ -153,18 +155,23 @@ class CCConfig:
         self.shift = config.getint('iccs', 'shift')
         modu = config.get('iccs', 'xcorr_modu')
         func = config.get('iccs', 'xcorr_func')
-        cmd1a = 'from  {:s} import {:s}'.format(modu, func)
-        cmd1r = 'from .{:s} import {:s}'.format(modu, func)
-        cmd2 = 'self.xcorr = {:s}'.format(func)
+        #cmd1a = 'from  {:s} import {:s}'.format(modu, func)
+        #cmd1r = 'from .{:s} import {:s}'.format(modu, func)
+        #cmd2 = 'self.xcorr = {:s}'.format(func)
         # try importing fortran xcorr
         try:
-            exec(cmd1r)
-        except:
-            exec(cmd1a)
-        exec(cmd2)
-        print('Using {:s}.{:s} as cross-correlation method for ICCS'.format(modu, func))
-        self.xcorr_modu = modu
-        self.xcorr_func = func
+            xcorr_modu = import_module('pysmo.aimbat.xcorrf90')
+            xcorr_func = getattr(xcorr_modu, func)
+            #exec(cmd1r)
+        except ModuleNotFoundError:
+            xcorr_modu = import_module('pysmo.aimbat.xcorr')
+            xcorr_func = getattr(xcorr_modu, func)
+            #exec(cmd1a)
+        #exec(cmd2)
+        print('Using {:s}.{:s} as cross-correlation method for ICCS'.format(xcorr_modu.__name__, func))
+        self.xcorr = xcorr_func
+        self.xcorr_modu = xcorr_modu
+        self.xcorr_func = xcorr_func
 
 class MCConfig:
     """ Class for MCCC configuration.
@@ -193,17 +200,22 @@ class MCConfig:
         self.shift = config.getint('mccc', 'shift')
         modu = config.get('mccc', 'xcorr_modu')
         func = config.get('mccc', 'xcorr_func')
-        cmd1a = 'from  {:s} import {:s}'.format(modu, func)
-        cmd1r = 'from .{:s} import {:s}'.format(modu, func)
-        cmd2 = 'self.xcorr = {:s}'.format(func)
+        #cmd1a = 'from  {:s} import {:s}'.format(modu, func)
+        #cmd1r = 'from .{:s} import {:s}'.format(modu, func)
+        #cmd2 = 'self.xcorr = {:s}'.format(func)
         try:
-            exec(cmd1r)
-        except:
-            exec(cmd1a)
-        exec(cmd2)
+            xcorr_modu = import_module('pysmo.aimbat.xcorrf90')
+            xcorr_func = getattr(xcorr_modu, func)
+            #exec(cmd1r)
+        except ModuleNotFoundError:
+            xcorr_modu = import_module('pysmo.aimbat.xcorr')
+            xcorr_func = getattr(xcorr_modu, func)
+            #exec(cmd1a)
+        #exec(cmd2)
         print('Using {:s}.{:s} as cross-correlation method for MCCC'.format(modu, func))
-        self.xcorr_modu = modu
-        self.xcorr_func = func
+        self.xcorr = xcorr_func
+        self.xcorr_modu = xcorr_modu
+        self.xcorr_func = xcorr_func
 
 def getParser():
     """ Parse command line arguments and options. """
