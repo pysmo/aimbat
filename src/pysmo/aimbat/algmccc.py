@@ -25,7 +25,7 @@ import os
 import sys
 from time import strftime, tzname
 from optparse import OptionParser
-from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum, std, shape, sqrt, argsort, identity 
+from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum, std, shape, sqrt, argsort, identity
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
 from pysmo.aimbat import sacpickle as sacpkl
@@ -246,7 +246,7 @@ def corrnow(invmatrix, invdata):
     return invmodel
 
 def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', exwt=1000.0):
-    """ 
+    """
     Solve A * t = dt by weighted least-squares:
             t = inv(A'WA) * A' * W * dt
     W: n*(n-1)/2+1 by n*(n-1)/2+1 diagonal weighting matrix
@@ -394,7 +394,7 @@ def mccc(gsac, mcpara):
     out = 'Run MCCC: ipick={0:s} wpick={1:s} timewindow=[{2:.3f}, {3:.3f}] taperwindow={4:.3f} s '
     print(out.format(ipick, wpick, timewindow[0], timewindow[1], taperwindow))
     out = 'Cross-correlation module.function: {:s}.{:s} with a shift of {:d} samples.'
-    print(out.format(mcpara.xcorr_modu, mcpara.xcorr_func, mcpara.shift))
+    print(out.format(mcpara.xcorr_modu.__name__, mcpara.xcorr.__name__, mcpara.shift))
     print('Input: {0:d} traces. Output file: {1:s} '.format(nsta, mcpara.mcname))
     # read data
     windata, reftimes = corread(solist, ipick, timewindow, taperwindow, tapertype)
@@ -472,7 +472,8 @@ def getParams(gsac, mcpara, opts=None):
         sys.exit()
     # get window from gsac.stkdh
     if 'stkdh' in gsac.__dict__:
-        timewindow, taperwindow = getWindow(gsac.stkdh, mcpara.ipick, mcpara.twhdrs, mcpara.taperwidth)
+        timewindow, taperwindow = getWindow(gsac.stkdh, mcpara.ipick,
+                                            mcpara.twhdrs, mcpara.taperwidth)
         mcpara.timewindow = timewindow
         mcpara.taperwindow = taperwindow
 

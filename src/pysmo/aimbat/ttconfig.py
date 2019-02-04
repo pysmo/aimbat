@@ -153,25 +153,17 @@ class CCConfig:
         self.ichdrs = config.get('sachdrs', 'ichdrs').split()
         # Choose a xcorr module and function
         self.shift = config.getint('iccs', 'shift')
-        modu = config.get('iccs', 'xcorr_modu')
         func = config.get('iccs', 'xcorr_func')
-        #cmd1a = 'from  {:s} import {:s}'.format(modu, func)
-        #cmd1r = 'from .{:s} import {:s}'.format(modu, func)
-        #cmd2 = 'self.xcorr = {:s}'.format(func)
-        # try importing fortran xcorr
         try:
             xcorr_modu = import_module('pysmo.aimbat.xcorrf90')
             xcorr_func = getattr(xcorr_modu, func)
-            #exec(cmd1r)
         except ModuleNotFoundError:
             xcorr_modu = import_module('pysmo.aimbat.xcorr')
             xcorr_func = getattr(xcorr_modu, func)
-            #exec(cmd1a)
-        #exec(cmd2)
-        print('Using {:s}.{:s} as cross-correlation method for ICCS'.format(xcorr_modu.__name__, func))
+        print('Imported {:s} from {:s} as cross-correlation method for ICCS'
+              .format(xcorr_func.__name__, xcorr_modu.__name__))
         self.xcorr = xcorr_func
         self.xcorr_modu = xcorr_modu
-        self.xcorr_func = xcorr_func
 
 class MCConfig:
     """ Class for MCCC configuration.
@@ -196,26 +188,19 @@ class MCConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         # SAC headers for MCCC time picks
         self.ipick, self.wpick = config.get('sachdrs', 'mchdrs').split()
-        # Choose a xcorr module and function
+        # Choose a xcorr function
         self.shift = config.getint('mccc', 'shift')
-        modu = config.get('mccc', 'xcorr_modu')
         func = config.get('mccc', 'xcorr_func')
-        #cmd1a = 'from  {:s} import {:s}'.format(modu, func)
-        #cmd1r = 'from .{:s} import {:s}'.format(modu, func)
-        #cmd2 = 'self.xcorr = {:s}'.format(func)
         try:
             xcorr_modu = import_module('pysmo.aimbat.xcorrf90')
             xcorr_func = getattr(xcorr_modu, func)
-            #exec(cmd1r)
         except ModuleNotFoundError:
             xcorr_modu = import_module('pysmo.aimbat.xcorr')
             xcorr_func = getattr(xcorr_modu, func)
-            #exec(cmd1a)
-        #exec(cmd2)
-        print('Using {:s}.{:s} as cross-correlation method for MCCC'.format(modu, func))
+        print('Imported {:s} from {:s} as cross-correlation method for MCCC'
+              .format(xcorr_func.__name__, xcorr_modu.__name__))
         self.xcorr = xcorr_func
         self.xcorr_modu = xcorr_modu
-        self.xcorr_func = xcorr_func
 
 def getParser():
     """ Parse command line arguments and options. """
