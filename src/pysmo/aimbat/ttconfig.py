@@ -128,6 +128,27 @@ class QCConfig:
         self.fstack = config.get('iccs', 'fstack')
 
 
+def _load_xcorr_func(func):
+    """
+    Load cross-correlation function from
+    either the fortran or python module
+    """
+    # Try importing from the fortran extension first
+    try:
+        xcorr_modu = import_module('pysmo.aimbat.xcorrf90')
+        xcorr_func = getattr(xcorr_modu, func)
+        # Set the __name__ attribute to the function name
+        # TODO: Can this be set in the f90 file instead?
+        setattr(xcorr_func, '__name__', func)
+
+    # Fortran extension is not available, or CC func
+    # only exists in the Python version
+    except (ModuleNotFoundError, AttributeError):
+        xcorr_modu = import_module('pysmo.aimbat.xcorr')
+        xcorr_func = getattr(xcorr_modu, func)
+
+    return(xcorr_modu, xcorr_func)
+
 class CCConfig:
     """ Class for ICCS configuration.
     """
@@ -154,16 +175,10 @@ class CCConfig:
         # Choose a xcorr module and function
         self.shift = config.getint('iccs', 'shift')
         func = config.get('iccs', 'xcorr_func')
-        try:
-            xcorr_modu = import_module('pysmo.aimbat.xcorrf90')
-            xcorr_func = getattr(xcorr_modu, func)
-        except ModuleNotFoundError:
-            xcorr_modu = import_module('pysmo.aimbat.xcorr')
-            xcorr_func = getattr(xcorr_modu, func)
+        xcorr_modu, xcorr_func = _load_xcorr_func(func)
         print('Imported {:s} from {:s} as cross-correlation method for ICCS'
               .format(xcorr_func.__name__, xcorr_modu.__name__))
         self.xcorr = xcorr_func
-        self.xcorr_modu = xcorr_modu
 
 class MCConfig:
     """ Class for MCCC configuration.
@@ -191,12 +206,7 @@ class MCConfig:
         # Choose a xcorr function
         self.shift = config.getint('mccc', 'shift')
         func = config.get('mccc', 'xcorr_func')
-        try:
-            xcorr_modu = import_module('pysmo.aimbat.xcorrf90')
-            xcorr_func = getattr(xcorr_modu, func)
-        except ModuleNotFoundError:
-            xcorr_modu = import_module('pysmo.aimbat.xcorr')
-            xcorr_func = getattr(xcorr_modu, func)
+        xcorr_modu, xcorr_func = _load_xcorr_func(func)
         print('Imported {:s} from {:s} as cross-correlation method for MCCC'
               .format(xcorr_func.__name__, xcorr_modu.__name__))
         self.xcorr = xcorr_func

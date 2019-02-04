@@ -71,7 +71,10 @@ def run_setup(with_fortran=True):
     )
 
 try:
-    run_setup(with_fortan=True)
+    print('*' * 75)
+    print("Attempting to build fortran extension for cross-correlation")
+    run_setup()
+    print('*' * 75)
 except:
     print('*' * 75)
     print("Unable to build fortran extensions, building in pure python")
