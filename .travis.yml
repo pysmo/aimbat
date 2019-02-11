@@ -1,16 +1,26 @@
 language: python
 python:
-  - "2.7"
-  - "3.6"
+  - 3.6
+
+matrix:
+  include:
+    - python: 3.7
+      dist: xenial
+      sudo: true
+
 cache: pip
+
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq gfortran
+
 install:
   - pip install -r requirements-travis.txt
+
 script:
   - python setup.py build
   - python setup.py install
+
 notifications:
   webhooks:
     urls:
