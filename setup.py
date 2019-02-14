@@ -50,7 +50,14 @@ def run_setup(with_fortran=True):
         ext_package='pysmo.aimbat',
         zip_safe=False,
         platforms=['Mac OS X', 'Linux/Unix', 'Windows'],
-        install_requires=[i.strip() for i in open("requirements.txt").readlines()],
+        install_requires=[
+            'scipy',
+            'numpy',
+            'matplotlib',
+            'pyqtgraph',
+            'pysmo'
+        ],
+
         entry_points={
             'console_scripts': [
                 'aimbat-mccc=pysmo.aimbat.algmccc:main',
