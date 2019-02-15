@@ -1,11 +1,6 @@
-=============================
-Visualizing Stations on a map
-=============================
+.. Please edit the file src/pysmo/aimbat/plotstations.py to update the documentation.
 
-After running::
-
-	ttpick.py <sac-files>
-
-Hit ``Map of Stations`` in order to get a visual respresentation of where exactly each station is. Dots represent circles used for computing delay times; black triangles represent discarded stations. Click on a dot to get the station name in the terminal.
-
-.. image:: plot-stations/basemap_stations.png
+.. automodule:: pysmo.aimbat.plotstations
+   :members:
+   :undoc-members:
+   :show-inheritance:

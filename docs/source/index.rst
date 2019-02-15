@@ -14,9 +14,7 @@ Contents:
 
 
    introduction
-   install_dependencies
-   install_aimbat
-   upgrading_aimbat
+   installation
    gettingData
    sacioAIMBAT
    analyzingData
