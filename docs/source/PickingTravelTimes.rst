@@ -76,7 +76,7 @@ You can get some example data to test this out by downloading the Github reposit
 
 and a python GUI should pop up.
 
-.. image:: pickingTravelTimes-images/pick_travel_times.png
+.. image:: images/pick_travel_times.png
 
 At the top of the GUI is the scaled sum of all of the seismograms known as the array stack, which gives a characteristic waveform of the event for the stations involved. Beneath this is a page of seismograms, with the corresponding station and various quality factors listed on the right. ``CCC`` is the cross-correlation coefficient between that seismogram and the array stack, ``SNR`` is the signal-to-noise ratio, and ``COH`` is the coherence between that seismogram and the array stack.
 
@@ -101,7 +101,7 @@ Sync, refine, and setting time window
 
 After hitting the ``Align`` button, place the cursor on the array stack where the first motion of the seismogram, either up or down, occurs. Press ``t`` and ``2`` simultaneously on the keyboard to select the arrival time. Now press ``Sync``. Use the mouse to drag and select the desired time window on the seismogram on the array stack. This time window is the portion of the seismogram on which cross-correlation will be run. The time window should begin 2-10 seconds before the first arrival and include a few seconds of the first motion of the waveform. The final time window should be smaller than the default window to increase the accuracy of the cross-correlation.
 
-.. image:: pickingTravelTimes-images/selecting-time-window-highlight.png
+.. image:: images/selecting-time-window-highlight.png
 
 Next, set the cursor over the array stack and press the ``w`` key. If the new time window has been saved, a message noting the new size of the time window will be printed in the terminal. The entire width of the x-axis is now colored green and will be stored as the time window to use for the cross-correlations. Press ``Save headers only`` if you wish to keep this time window for future applications.
 
@@ -114,7 +114,7 @@ Filtering
 
 If you wish to apply a filter to your data, hit the ``Filter`` button, and a window will pop up for you to use the `Butterworth filter <http://en.wikipedia.org/wiki/Butterworth_filter>`_ to filter your data.
 
-.. image:: pickingTravelTimes-images/filtering-interface.png
+.. image:: images/filtering-interface.png
 
 The defaults used for filtering are:
 
@@ -148,7 +148,7 @@ Hit ``SACP2`` and go to the last figure, (d). Zoom in to have a better look. Zoo
 
 Click on the outliers that stray from the main group of stacked seismograms. The terminal will output the names of the seismograms that you clicked on, so you can return to the main GUI window and readjust the travel times. Note: hitting ``SACP2`` before hitting ``Finalize`` will often cause AIMBAT to close, so make sure you have finalized before using SACP2.
 
-.. image:: pickingTravelTimes-images/SACP2_popup.png
+.. image:: images/SACP2_popup.png
 
 .. ----------------------------------------------------------------------------- ..
 
@@ -206,7 +206,7 @@ Getting the output
 
 In the same folder as the initial PKL file you ran ``ttpick.py`` on, you can find the output list with extension ``<event name>.mcp``, which contains the travel time arrivals.
 
-.. image:: pickingTravelTimes-images/output_list.png
+.. image:: images/output_list.png
 
 ``mccc delay`` is `t3+average arrival times`, and `t0_times` are the theoretical arrival times. `delay_times` are obtained by taking `t3-t0`.
 
@@ -222,7 +222,7 @@ Getting the stations of the seismograms chosen
 
 Run ``getsta.py`` in the additional scripts (not on Github for now). It gives the unique list of stations where the seismograms came from. You need to run it with the list of all ``pkl`` files chosen after you saved to. To do this, type ``./getsta.py *.pkl``.
 
-.. image:: pickingTravelTimes-images/count_stations.png
+.. image:: images/count_stations.png
 
 
 .. ############################################################################ ..

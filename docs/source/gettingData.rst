@@ -68,11 +68,11 @@ First, download `SOD <http://www.seis.sc.edu/index.html>`_.
 
 Once you have gotten the folder for SOD, put it somewhere where you won't touch it too much. What I did was put the SOD folder in my home directory, though other places are acceptable as well, as long as it is not too easy to delete it by accident.
 
-.. image:: sod-images/sod_location.png
+.. image:: images/sod_location.png
 
 Once you have it there, get the path to the sod folder's bin and put it in your path folder.
 
-.. image:: sod-images/path_to_sod_bin.png
+.. image:: images/path_to_sod_bin.png
 
 Inside your home directory (you get there by typing `cd`), put the path to `sod-3.2.3/bin` by adding it to either the `.bashrc`, `.bash_profile`, or `.profile` files.
 
