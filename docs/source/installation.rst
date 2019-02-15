@@ -1,21 +1,18 @@
-=======================
-Installing Dependencies
-=======================
+
+=========================
+Installation and Upgrades
+=========================
+
+Dependencies
+------------
 
 AIMBAT is built on top of `standard Python <https://www.python.org/>`_ and uses several extra Python libraries as well. This page guides the user through checking if the required libraries are already installed on the computer they want to install AIMBAT on, and how to get them if not.
 
 To install AIMBAT, you will need sudo/root privileges for the computer you are installing it on.
 
 
-
-
-
-.. ############################################################################ ..
-.. #                              OPERATING SYSTEM                            # ..
-.. ############################################################################ ..
-
 Getting your operating system
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 We assume that most users of AIMBAT will be using Macs. If our assumptions are wrong, please :ref:`contact the authors <authors-contacts>`, and if there is sufficient interest we will test and write documentation for installations on other operating systems as well.
 
@@ -23,24 +20,9 @@ On a Mac, to find the version of your operating system, first click on the Apple
 
 .. image:: installing-images/system_preferences.png
 
-.. ############################################################################ ..
-.. #                              OPERATING SYSTEM                            # ..
-.. ############################################################################ ..
 
-
-
-
-
-
-
-
-
-.. ############################################################################ ..
-.. #                                 GITHUB                                   # ..
-.. ############################################################################ ..
-
-Github
-------
+Git
+~~~
 
 `Optional`
 
@@ -60,21 +42,9 @@ If Git is not installed, the terminal will respond by telling you that it is not
 
 To install Git, download the package installer `here <http://git-scm.com/download/mac>`_. This would allow only command line usage of Git, so if you want to use a GUI, we recommend `Git for Mac <https://mac.github.com/>`_.
 
-.. ############################################################################ ..
-.. #                                 GITHUB                                   # ..
-.. ############################################################################ ..
-
-
-
-
-
-
-.. ############################################################################ ..
-.. #                                 MACPORTS                                 # ..
-.. ############################################################################ ..
 
 MacPorts
---------
+~~~~~~~~
 
 `Highly recommended`
 
@@ -95,22 +65,8 @@ If MacPorts is not installed, you should see the terminal output that ``port`` i
 To get MacPorts, download the package installer `here <http://www.macports.org/install.php>`_ and follow the instructions to install it. Be sure to get the right version of MacPorts for your operating system.
 
 
-.. ############################################################################ ..
-.. #                                 MACPORTS                                 # ..
-.. ############################################################################ ..
-
-
-
-
-
-
-
-.. ############################################################################ ..
-.. #                            PYTHON DEPENDENCIES                           # ..
-.. ############################################################################ ..
-
 Python and its Dependencies
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 AIMBAT requires python 2.7 and above to run. Note that Python is usually installed by default on Mac computers.
 
@@ -122,7 +78,7 @@ AIMBAT requires the following packages to run:
 #. `Basemap <http://matplotlib.org/basemap/>`_: Used for plotting world maps
 
 Checking if Python is installed
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Open the terminal and type::
 
@@ -137,7 +93,7 @@ If Python is not installed, the terminal will output::
   -bash: python: command not found
 
 If Python is not installed
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Inside the terminal, once python is installed, type these commands in using sudo mode. Note you will need to enter your admin password::
 
@@ -154,7 +110,7 @@ Installing the last two packages is optional. ``ipython`` is an enhanced interac
   port select --set python python27
 
 If Python is already installed
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If Python is already installed, first check if you have the four required dependencies. Open up the Python console by typing::
 
@@ -197,21 +153,9 @@ Now, install the missing packages by doing::
   sudo port install py27-matplotlib
   sudo port install py27-matplotlib-basemap
 
-.. ############################################################################ ..
-.. #                       INSTALLING BASIC PYTHON PACKAGES                   # ..
-.. ############################################################################ ..
-
-
-
-
-
-
-.. ############################################################################ ..
-.. #                           INSTALLING BASEMAP                             # ..
-.. ############################################################################ ..
 
 Installing Basemap without MacPorts
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you have already installed Basemap, which means that::
 
@@ -238,19 +182,9 @@ and then::
 
 If installed correctly, no errors will occur.
 
-.. ############################################################################ ..
-.. #                           INSTALLING BASEMAP                             # ..
-.. ############################################################################ ..
-
-
-
-
-.. ############################################################################ ..
-.. #                                 GFORTRAN                                 # ..
-.. ############################################################################ ..
 
 Fortran
--------
+~~~~~~~
 
 GFortran must be installed for AIMBAT. Note that f90 or f77 are also acceptable.
 
@@ -267,26 +201,15 @@ If GFortran is not installed, the terminal will respond with::
 GFortran is available `here <https://gcc.gnu.org/wiki/GFortranBinaries>`_. Be sure to get the correct version for your operating system.
 
 
-.. ############################################################################ ..
-.. #                                 GFORTRAN                                 # ..
-.. ############################################################################ ..
-
-
-
-
-.. ############################################################################ ..
-.. #                              POSSIBLE ISSUES                             # ..
-.. ############################################################################ ..
-
 Possible Issues
----------------
+~~~~~~~~~~~~~~~
 
 Here some common problems and possible resolutions. If your problem is not listed here, or you have a suggestion, please :ref:`contact the authors <authors-contacts>`.
 
 .. -------------------------------------------------------------------------------- ..
 
 Macports
-~~~~~~~~
+^^^^^^^^
 
 Many of the issues encountered can be solved by upgrading all Python directories on your computer using MacPorts. To do this, in the command line type::
 
@@ -314,14 +237,14 @@ Do not uninstall MacPorts unless you know what you are doing. Uninstalling MacPo
 .. -------------------------------------------------------------------------------- ..
 
 Installing Python with Pip
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Be careful with the operating system. For OS X 10.9 and above, Python 2.7 is not fully compatible and there may be problems installing python with Pip. Best to use Enthought Canopy or Python 3 with OS X 10.9.
 
 .. -------------------------------------------------------------------------------- ..
 
 Setting the Python Path to the scripts
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You are asked to add the path to the AIMBAT scripts in your file. To do that, you add them to the ``.bashrc`` file. There are other files you could add it to that work as well, such as the ``.profile`` or ``.bash_profile`` files. You can see the files by opening the terminal, going to your home directory and doing ``ls -a`` to see all the hidden files, and open them by doing ``vim .bashrc`` in vim, for instance. If the ``.bashrc`` file does not exist, ``vim .bashrc`` will create it and open it for editing. To ensure you can open a script, you need to add::
 
@@ -333,7 +256,7 @@ to the ``.bashrc`` file. We recommend adding the paths to the ``.bashrc`` file.
 .. -------------------------------------------------------------------------------- ..
 
 Terminal Commands stop working
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If ever the terminal commands such as ``ls`` stop working in the terminal, it could be that something went wrong with a path in the ``.bashrc`` or ``.profile`` files. If that happens, you may not be able to open them in vim as that command would have stopped working as well. Instead, in the terminal, do::
 
@@ -345,7 +268,7 @@ That should allow the commands to start working again. Figure out what you did w
 .. -------------------------------------------------------------------------------- ..
 
 Path to python files not found
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 After adding the path to your directory with scripts in ``.bashrc``, you still need to source the ``.bashrc`` files in ``.profile``, or the system may not find the directory. See `here <http://publib.boulder.ibm.com/infocenter/pseries/v5r3/index.jsp?topic=/com.ibm.aix.baseadmn/doc/baseadmndita/prof_file.htm>`_ for more details on how the profile file is sourced. Note that this one will override the file in `/etc/profile`.
 
@@ -356,6 +279,120 @@ This is what the bashrc and profile files should look like on your home director
 .. image:: installing-images/profile_home.png
 
 
-.. ############################################################################ ..
-.. #                              POSSIBLE ISSUES                             # ..
-.. ############################################################################ ..
+Installing AIMBAT
+-----------------
+
+Getting the Packages
+~~~~~~~~~~~~~~~~~~~~
+
+AIMBAT is released as a sub-package of pysmo under the name ``pysmo.aimbat`` along with another sub-package ``pysmo.sac``. The latest stable release of AIMBAT is available for download at the `official project webpage <http://www.earth.northwestern.edu/~xlou/aimbat.html>`_.
+
+We are working on a new release of AIMBAT, available on `Github <https://github.com/pysmo>`_. Download `pysmo.aimbat <https://github.com/pysmo/aimbat>`_ and `pysmo.sac <https://github.com/pysmo/sac>`_ from Github. You will now have two folders called ``aimbat`` and ``sac`` respectively.
+
+You may want to download `example code <https://github.com/pysmo/data-example>`_ to run AIMBAT on as well.
+
+Building the Pysmo Packages
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You need to be an administrator on the computer you are installing AIMBAT on, as you need to run the commands with ``sudo``.
+
+Building pysmo.sac
+^^^^^^^^^^^^^^^^^^
+
+Python module ``Distutils`` is used to write a setup.py script to build, distribute, and install ``pysmo.sac``. cd into the ``sac`` directory on the command line and run::
+
+	sudo python setup.py build
+  	sudo python setup.py install
+
+If you successfully installed the sac module, in the python console, after you type::
+
+	from pysmo import sac
+
+there should be no errors.
+
+Installing pysmo.aimbat
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Three sub-directories are included in the ``aimbat`` directory:
+
+- ``example``: Example SAC files
+- ``scripts``: Python scripts to run at the command line
+- ``src``: Python modules to install
+
+The core cross-correlation functions are written in both Python/Numpy (``xcorr.py``) and Fortran (``xcorr.f90``). Therefore, we need to use Numpy’s ``Distutils`` module for enhanced support of Fortran extension. The usage is similar to the standard Disutils.
+
+Note that some sort of Fortran compiler must already be installed first. Specify them in place of gfortran in the following commands.
+
+cd into the ``aimbat`` directory and run::
+
+	sudo python setup.py build --fcompiler=gfortran
+  	sudo python setup.py install
+
+to install the :code:`src` directory.
+
+Add ``<path-to-folder>/aimbat/scripts`` to environment variable ``PATH`` in a shells start-up file for command line execution of the scripts. Inside the :code:`~/.bashrc` file, add the lines
+
+Bash Shell Users::
+
+	export PATH=$PATH:<path-to-folder>/aimbat/scripts
+
+C Shell Users::
+
+	setenv PATH=$PATH:<path-to-folder>/aimbat/scripts
+
+Don't forget to run :code:`source ~/.bashrc` If AIMBAT has been installed, type ``from pysmo import aimbat`` in a Python shell, and no errors should appear.
+
+If you have added the scripts correctly, typing part of the name of the script in the terminal should be sufficient to allow the system to autocomplete the name.
+
+
+
+Example Data
+~~~~~~~~~~~~
+
+Get the repository `data-example <https://github.com/pysmo/data-example>`_ from Github. There is some example code inside `data-example/example_pkl_files` that will be needed for later demonstrations.
+
+Upgrading AIMBAT
+----------------
+
+Getting the latest version
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The latest version of AIMBAT, currently version 0.1.3, is hosted on the `pysmo repository <https://github.com/pysmo>`_ on Github. We will periodically be making updates to it.
+
+To upgrade AIMBAT, first delete the old AIMBAT files on your computer.
+
+Next, download the newest version of `AIMBAT <https://github.com/pysmo/aimbat>`_ and `SAC <https://github.com/pysmo/sac>`_ from github. Now, cd into the newest AIMBAT folder and run::
+
+	sudo python setup.py build --fcompiler=gfortran
+	sudo python setup.py install
+
+Also, cd into the newest SAC folder and run::
+
+	sudo python setup.py build
+	sudo python setup.py install
+
+Now, go to the ``.profile`` file and add the `scripts` folder in the new AIMBAT version to your path.
+
+.. image:: upgrading-aimbat/upgrade-profile.png
+
+Possible Issues
+~~~~~~~~~~~~~~~
+
+Some users have reported errors with upgrading. If there are any problems running the updated AIMBAT, try the following:
+
+Get the location of the python ``site-packages`` directory by typing the following into the python console::
+
+	import site
+	site.getsitepackages()
+
+The path to the site packages directory is highlighted in the figure below.
+
+.. image:: upgrading-aimbat/get-site-package.png
+
+cd into the site-packages directory and remove all the folders with the word ``pysmo`` in their names by typing::
+
+	sudo rm -rf <psymo-folder>
+
+Now, reinstall the new version of AIMBAT.
+
+If this still does not work, upgrade your Python libraries as detailed in section 2.7.1 of this manual and reinstall the new verson of AIMBAT.
