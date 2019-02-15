@@ -19,7 +19,7 @@ The Python class ``sacfile`` of module ``sacio`` opens a SAC file and returns an
 
 The ``<pkg-install-dir>/aimbat/scripts/egsac.py`` script gives a simple example to read, resample, and plot a seismogram using pysmo, Scipy, and Matplotlib. You can type the codes in a Python/iPython shell, or run as a script in the data example directory ``<pkg-install-dir>/data-example/example_pkl_files/Event_2011.09.15.19.31.04.080``, hereafter referred to as `<example-event-dir>`.
 
-.. image:: SACdataAccess/prog-egsac.png
+.. image:: images/prog-egsac.png
 
 Resampling Seismograms
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -32,7 +32,7 @@ Add the following codes to write the resampled seismogram to file ``TA.109C.\_\_
 	sacobj.npts = nptsnew
 	sacobj.data = y2
 
-.. image:: SACdataAccess/egsac-109c.png
+.. image:: images/egsac-109c.png
 
 .. ############################################################################ ..
 .. #                         PYTHON OBJECT FOR SAC FILE                       # ..
@@ -86,7 +86,7 @@ After processing, run::
 
 to convert the pickle file to SAC files.
 
-.. image:: SACdataAccess/help-sac2pkl.png
+.. image:: images/help-sac2pkl.png
 
 See the doc string of ``pysmo.aimbat.sacpickle`` by typing in a python console::
 
@@ -113,16 +113,16 @@ and also the documentation on `pickle <http://docs.python.org/library/pickle.htm
 SAC Plotting and Phase Picking
 ------------------------------
 
-.. image:: SACdataAccess/help-sacplot.png
+.. image:: images/help-sacplot.png
 
 SAC plotting and phase picking functionalities are replicated and enhanced based on the GUI neutral widgets (such as Button and SpanSelector) and the event (keyboard and mouse events such as ``key\_press\_event`` and ``mouse\_motion\_event`` handling API of Matplotlib.
 
 They are implemented in two modules, ``pysmo.aimbat.plotphase`` and ``pysmo.aimbat.pickphase``, which are used by corresponding scripts ``sacplot.py`` and ``sacppk.py`` executable at command line. Their help messages are displayed in the figures below.
 
 
-.. image:: SACdataAccess/help-sacppk.png
+.. image:: images/help-sacppk.png
 
-.. image:: SACdataAccess/prog-egplot.png
+.. image:: images/prog-egplot.png
 
 
 SAC Plotting
@@ -158,7 +158,7 @@ Besides using the standard ``sacplot.py`` script, the user can modify its ``getA
 
 at command line to produce the figure below.
 
-.. image:: SACdataAccess/egplot.png
+.. image:: images/egplot.png
 
 The "-C" option uses random color for each seismogram.
 The "-f1" option fills the positive signals of waveform with less transparency.  
@@ -201,7 +201,7 @@ The filename printing out by mouse clicking feature is also available in ``pysmo
 A major improvement over SAC is picking a time window in addition to time picks.
 Pressing the 'w' key to save the current time axis range to two user-defined SAC header variables. A transparent green span is plotted within the time window, as shown in the figure below.
 
-.. image:: SACdataAccess/sacppk.png
+.. image:: images/sacppk.png
 
 Another major improvement involves quality control with convenient operations to (de)select seismograms. In the GUI above, there are two divisions of selected and deleted seismograms. 
 Selected seismograms with a positive trace number are displayed with blue wiggles, while deleted seismograms with negative trace numbers are plotted in gray. The user can simply click on a certain seismogram to switch the selection status, either to exclude it or bring it back for inclusion. The trace selection status is stored in a user-defined SAC header variable.
@@ -235,11 +235,11 @@ Sorting by azimuth and back-azimuth is similar::
 
 The help message of the ``iccs.py`` script is shown below:
 
-.. image:: SACdataAccess/help-iccs.png
+.. image:: images/help-iccs.png
 
 The help message of the ``mccs.py`` script is shown below:
 
-.. image:: SACdataAccess/help-mccc.png
+.. image:: images/help-mccc.png
 
 
 .. ############################################################################ ..

@@ -18,7 +18,7 @@ We assume that most users of AIMBAT will be using Macs. If our assumptions are w
 
 On a Mac, to find the version of your operating system, first click on the Apple icon on the top bar of your desktop, go to ``System Preferences``, and click on ``Startup Disk``. The operating system version should then be displayed.
 
-.. image:: installing-images/system_preferences.png
+.. image:: images/system_preferences.png
 
 
 Git
@@ -274,9 +274,9 @@ After adding the path to your directory with scripts in ``.bashrc``, you still n
 
 This is what the bashrc and profile files should look like on your home directory:
 
-.. image:: installing-images/bashrc_home.png
+.. image:: images/bashrc_home.png
 
-.. image:: installing-images/profile_home.png
+.. image:: images/profile_home.png
 
 
 Installing AIMBAT
@@ -373,7 +373,7 @@ Also, cd into the newest SAC folder and run::
 
 Now, go to the ``.profile`` file and add the `scripts` folder in the new AIMBAT version to your path.
 
-.. image:: upgrading-aimbat/upgrade-profile.png
+.. image:: images/upgrade-profile.png
 
 Possible Issues
 ~~~~~~~~~~~~~~~
@@ -387,7 +387,7 @@ Get the location of the python ``site-packages`` directory by typing the followi
 
 The path to the site packages directory is highlighted in the figure below.
 
-.. image:: upgrading-aimbat/get-site-package.png
+.. image:: images/get-site-package.png
 
 cd into the site-packages directory and remove all the folders with the word ``pysmo`` in their names by typing::
 
