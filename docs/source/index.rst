@@ -9,22 +9,24 @@ Welcome to AIMBAT's documentation!
 Contents:
 
 .. toctree::
-    :numbered:
+   :numbered:
+   :caption: Contents:
 
-    introduction
-    install_dependencies
-    install_aimbat
-    upgrading_aimbat
-    gettingData
-    sacioAIMBAT
-    analyzingData
-    parameterConfiguration
-    SACdataAccess
-    PickingTravelTimes
-    VisualizingStations
-    unitTests
-    updatingThisManual
-    citations
+
+   introduction
+   install_dependencies
+   install_aimbat
+   upgrading_aimbat
+   gettingData
+   sacioAIMBAT
+   analyzingData
+   parameterConfiguration
+   SACdataAccess
+   PickingTravelTimes
+   VisualizingStations
+   unitTests
+   updatingThisManual
+   citations
 
 Indices and tables
 ==================
