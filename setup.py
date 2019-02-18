@@ -26,7 +26,7 @@ def run_setup(with_fortran=True):
             ext_modules=[
                 Extension(
                     'xcorrf90',
-                    sources=['src/pysmo/aimbat/xcorr.f90'],
+                    sources=['pysmo/aimbat/xcorr.f90'],
                 )
             ]
         )
@@ -45,8 +45,7 @@ def run_setup(with_fortran=True):
         url='http://www.earth.northwestern.edu/~xlou/aimbat.html',
         package_data={'pysmo.aimbat': ['ttdefaults.conf', 'Readme.txt', 'Version.txt',
                                        'License.txt', 'Changelog.txt']},
-        package_dir={'':'src'},
-        packages=find_packages(where='./src'),
+        packages=find_packages(where='.', exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
         ext_package='pysmo.aimbat',
         zip_safe=False,
         platforms=['Mac OS X', 'Linux/Unix', 'Windows'],
