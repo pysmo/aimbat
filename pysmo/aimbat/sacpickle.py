@@ -89,7 +89,7 @@ Place the SAC files you want to convert to a pickle (PKL) file into the same fol
 
 The output should be a PKL file in the same folder as the sac files. 
 
-.. image:: image/sac_to_pkl_conversion.png
+.. image:: images/sac_to_pkl_conversion.png
 
 
 .. ############################################################################ ..
@@ -112,7 +112,7 @@ cd into the folder containing the PKL file that you wish to convert into SAC fil
 
 The SAC files contained within will output into the same folder as the PKL file is stored in.
 
-.. image:: image/pkl_to_sac_conversion.png
+.. image:: images/pkl_to_sac_conversion.png
 """
 
 
