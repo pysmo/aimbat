@@ -23,9 +23,9 @@ Installing AIMBAT
 
 pip - Python package installer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-AIMBAT is available as a package from the `Python Package Index <https://pypi.org/>`_. This means it can be easily installed with the ``pip`` command (available by default in Python 3 >=3.4).
+AIMBAT is available as a package from the `Python Package Index <https://pypi.org/>`_. This means it can be easily installed with the ``pip`` command (available by default since Python version 3.4).
 
-.. caution:: It is possible to have multiple versions of Python installed on a computer. If this is the case, then there will also be multiple versions of the ``pip`` command. It is therefore important to use the ``pip`` command belonging to the Python version you intend to use for AIMBAT!
+.. caution:: It is possible to have multiple versions of Python installed on a computer. If this is the case, then there will also be multiple versions of the ``pip`` command. It is therefore important to use the ``pip`` command belonging to the Python version you intend to use for AIMBAT! Running ``pip --version`` will show you which Python version it belongs to.
 
 .. note:: On some systems Python 2 and Python 3 are installed alongside eachother. Typically there is a ``pip`` command belonging to Python 2 and a ``pip3`` command belonging to Python 3.
 
@@ -57,6 +57,12 @@ Get the repository `data-example <https://github.com/pysmo/data-example>`_ from 
 
 Upgrading AIMBAT
 ----------------
+
+Upgrading AIMBAT with ``pip`` is done with the same command used to install, with the addition of the ``-U`` flag::
+
+   $ pip install -U pysmo.aimbat
+
+.. note:: If you used the ``--user`` flag during installation you also need to use it while upgrading
 
 Uninstalling AIMBAT
 -------------------
