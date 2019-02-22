@@ -35,7 +35,7 @@ If you are using conda to manage Python packages, we recommend installing AIMBAT
 
    $ conda install scipy numpy matplotlib pyqtgraph pyyaml pyproj
 
-.. note:: If you are using a package manager on Linux, or something like brew or macports on OSX, you may also want to install these dependencies (if available) via those mechanisms.  
+.. note:: Similarly, if you are using a package manager on Linux, or something like brew or macports on OSX, you may want to install these dependencies (if available) via those mechanisms instead of ``pip``.
 
 
 Installing AIMBAT with pip
