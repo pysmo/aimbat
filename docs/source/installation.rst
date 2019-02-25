@@ -9,18 +9,22 @@ Python
 ~~~~~~
 AIMBAT is built on top of `standard Python <https://www.python.org/>`_ and uses several extra Python libraries as well. We develop and test AIMBAT on Python versions 3.6 and newer. AIMBAT may run on older versions too, but we strongly suggest upgrading Python should you be running an older version (not just for AIMBAT!).
 
+Compilers
+~~~~~~~~~
 Fortran
-~~~~~~
-Fortran is an optional dependancy used to compile a fast cross-correlation routine during AIMBAT installation. AIMBAT will fall back to a Python cross-correlation routine if Fortran is not available, but it is slower. We therefore highly recommend installing a Fortran compiler (e.g. `gfortran <https://gcc.gnu.org/fortran/>`_).
+^^^^^^^
+Fortran is an optional dependency used to compile a fast cross-correlation routine during AIMBAT installation. AIMBAT will fall back to a Python cross-correlation routine if Fortran is not available, but it is slower. We therefore highly recommend installing a Fortran compiler (e.g. `gfortran <https://gcc.gnu.org/fortran/>`_).
+
+C
+^
+While AIMBAT itself does not use C, some of the Python libraries it uses potentially require a C compiler during installation. This may vary depending on computer platform, or Python version/distribution used.
 
 Operating System
 ~~~~~~~~~~~~~~~~
 AIMBAT is designed to run on UNIX like systems (e.g. Mac OSX and Linux). Installation on Windows is probably possible (since Python can be installed on almost any platform), though untested.
 
-
 Installing AIMBAT
 -----------------
-
 pip - Python package installer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 AIMBAT is available as a package from the `Python Package Index <https://pypi.org/>`_. This means it can be easily installed with the ``pip`` command (available by default since Python version 3.4).
@@ -40,7 +44,6 @@ If you are using conda to manage Python packages, we recommend installing AIMBAT
 
 Installing AIMBAT with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 To install the latest stable version of AIMBAT and all dependencies not already installed, simply issue this command::
 
    $ pip install pysmo.aimbat
@@ -49,15 +52,18 @@ To install the latest stable version of AIMBAT and all dependencies not already 
 
    $ pip install --user pysmo.aimbat
 
+If you wish to install the latest developement version of AIMBAT *instead* of the stable release::
+
+   $ pip install git+https://github.com/pysmo/aimbat
+
+.. note:: It is possible to install the stable release alongside the development version. Please read :ref:`Developing AIMBAT` for instructions.
 
 Example Data
 ~~~~~~~~~~~~
-
 Get the repository `data-example <https://github.com/pysmo/data-example>`_ from Github. There is some example code inside `data-example/example_pkl_files` that will be needed for later demonstrations.
 
 Upgrading AIMBAT
 ----------------
-
 Upgrading AIMBAT with ``pip`` is done with the same command used to install, with the addition of the ``-U`` flag::
 
    $ pip install -U pysmo.aimbat
@@ -66,3 +72,8 @@ Upgrading AIMBAT with ``pip`` is done with the same command used to install, wit
 
 Uninstalling AIMBAT
 -------------------
+To remove aimbat from your system with ``pip`` run this command::
+
+   $ pip uninstall pysmo.aimbat
+
+.. note:: Unfortunately ``pip`` currently does not remove dependencies that were automatically installed. We suggest running ``pip list`` to see the installed packages, which can then also be removed using ``pip uninstall``

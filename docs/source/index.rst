@@ -22,7 +22,7 @@ Contents:
    SACdataAccess
    PickingTravelTimes
    VisualizingStations
-   unitTests
+   developing
    updatingThisManual
    citations
 
