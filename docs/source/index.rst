@@ -9,6 +9,7 @@ Welcome to AIMBAT's documentation!
 Contents:
 
 .. toctree::
+   :maxdepth: 2
    :numbered:
    :caption: Contents:
 
