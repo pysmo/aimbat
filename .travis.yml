@@ -2,6 +2,7 @@ language: python
 
 matrix:
   include:
+    - name: 
     - os: linux
       dist: xenial
     - os: osx
@@ -16,7 +17,7 @@ cache: pip
 before_install: |
   if [ "$TRAVIS_OS_NAME" == "osx" ]; then
     brew update
-    brew install  gfortran
+    brew install gcc
   elif [ "$TRAVIS_OS_NAME" == "linux" ]; then
     sudo apt-get update -qq
     sudo apt-get install -qq gfortran
