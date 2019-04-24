@@ -6,17 +6,13 @@
 Welcome to AIMBAT's documentation!
 ==================================
 
-Contents:
-
 .. toctree::
    :maxdepth: 2
    :numbered:
    :caption: Contents:
 
-
    introduction
    installation
-   gettingData
    sacioAIMBAT
    analyzingData
    parameterConfiguration
@@ -33,4 +29,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

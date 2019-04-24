@@ -7,74 +7,15 @@
 # Copyright (c) 2011 Xiaoting Lou
 #------------------------------------------------
 """
-Python module for converting SAC files to python pickle data structure to increase 
-data processing efficiency by avoiding frequent SAC file I/O.
-
-Read and write SAC files are done only once each before and after data processing. 
-Intermediate processing are performed on python objects and pickles. 
-Changes made during data processing are not saved instantly, which is different from pysmo.
-
-
-               disk I/O                        (un)pickling
-SAC files <----------------> Python objects <----------------> pickle file
-            sac2obj/obj2sac        |         read/writePickle
-                                   v
-                             data processing
-
-Pickling and unpickling preserve python object hierarchy. See this website for documents:
-    http://docs.python.org/library/pickle.html
-
-Pickle files are optionally compressed using either bzip2 or gzip to save disk space.
-    http://docs.python.org/library/bz2.html
-    http://docs.python.org/library/gzip.html
-
-
-Class SacDataHdrs reads in data and headers of a SAC file.
-Class SacGroup includes SacDataHdrs of multiple SAC files.
-
-Structure:
-    SacGroup
-         ||
-    gsac.saclist + gsac.stadict       + gsac.event
-         ||        (station locations)  (event origin and hypocenter)
-         || 
-    list of SacDataHdrs 
-               ||
-        sacdh.b/delta/npts/y
-        sacdh.thdrs/users/kusers
-        sacdh.az/baz/dist/gcarc
-        sacdh.netsta/filename
-        sacdh.staloc = [stla, stlo, stel]
-
-gsac.event parameters:
-    [ year, mon, day, isac.nzhour, isac.nzmin, isac.nzsec+isac.nzmsec*0.001, 
-      isac.evla, isac.evlo, isac.evdp*0.001, mag ]
-
-Time array is not saved in sacdh object but is generated and used in memeory. 
-Time array is always in absolute sense. Reference time is an independent variable
- and relative is calculated whenever needed.
-
-Function loadData() reads either SAC, pickle, .pkl.gz or .pkl.bz2 files into python object.
-Output file type (filemode and zipmode) is always the same as input file.
-Run script sac2pkl.py to convert SAC to pkl.
-
-
-*** Note ***:
-Don't pickle inside the __main__ namespace to avoid the following error in unpickling (readPickle):
-    AttributeError: 'FakeModule' object has no attribute 'SacGroup'
-http://stackoverflow.com/questions/3431419/how-to-get-unpickling-to-work-with-ipython
-
-
-:copyright:
-    Xiaoting Lou
-
-:license:
-    GNU General Public License, Version 3 (GPLv3) 
-    http://www.gnu.org/licenses/gpl.html
-
 ======================================
 SAC Input/Output procedures for AIMBAT
 ======================================
+
+Aimbat converts SAC files to python pickle data structure to increase
+data processing efficiency by avoiding frequent SAC file I/O.
+
+Reading and writing SAC files is done only once each before and after data processing, and
+intermediate processing is performed on python objects and pickles.
 
 .. ############################################################################ ..
 .. #                               SAC -> PKL                                 # ..
@@ -83,11 +24,13 @@ SAC Input/Output procedures for AIMBAT
 Converting from SAC to PKL files
 --------------------------------
 
-Place the SAC files you want to convert to a pickle (PKL) file into the same folder. Suppose, for instance, they are BHZ channels. Note that the SAC files must be of the same channel. cd into that folder, and run::
+Place the SAC files you want to convert to a pickle (PKL) file into the same folder.
+Suppose, for instance, they are BHZ channels. Note that the SAC files must be of the
+same channel. cd into that folder, and run::
 
-	sac2pkl.py -s *.BHZ.sac 
+    aimbat-sac2pkl -s *.BHZ.sac
 
-The output should be a PKL file in the same folder as the sac files. 
+The output should be a PKL file in the same folder as the sac files.
 
 .. image:: images/sac_to_pkl_conversion.png
 
@@ -108,7 +51,7 @@ Converting from PKL to SAC files
 
 cd into the folder containing the PKL file that you wish to convert into SAC files, and run::
 
-	sac2pkl.py --p2s <name-of-file>.pkl
+	aimbat-sac2pkl --p2s <name-of-file>.pkl
 
 The SAC files contained within will output into the same folder as the PKL file is stored in.
 
@@ -116,13 +59,13 @@ The SAC files contained within will output into the same folder as the PKL file 
 """
 
 
-from numpy import array, linspace, mean, ones, zeros, pi, cos, concatenate
-from scipy import signal
-from gzip import GzipFile
-from bz2  import BZ2File
-from pysmo.core.sac import SacIO
 import os, sys
 import pickle
+from bz2  import BZ2File
+from gzip import GzipFile
+from numpy import array, linspace, mean, ones, zeros, pi, cos, concatenate
+from scipy import signal
+from pysmo.core.sac import SacIO
 
 
 # ############################################################################### #
@@ -132,7 +75,8 @@ import pickle
 # ############################################################################### #
 
 def zipFile(zipmode='gz'):
-    """ Return file compress method: bz2 or gz.
+    """
+    Return file compress method: bz2 or gz.
     """
     if zipmode not in (None, 'bz2', 'gz'):
         raise ValueError('zipmode={:s} not in (bz2, gz)'.format(zipmode))
@@ -143,9 +87,10 @@ def zipFile(zipmode='gz'):
     return zfile
 
 def fileZipMode(ifilename):
-    """ Determine if an input file is SAC, pickle or compressed pickle file
     """
-    zipmode = ifilename.split('.')[-1] 
+    Determine if an input file is SAC, pickle or compressed pickle file
+    """
+    zipmode = ifilename.split('.')[-1]
     if zipmode in ('bz2', 'gz'):
         filemode = 'pkl'
     elif zipmode == 'pkl':
@@ -158,7 +103,9 @@ def fileZipMode(ifilename):
 
 
 def writePickle(d, picklefile, zipmode=None):
-    """ Write python objects to pickle file and compress with highest protocal (binary) if zipmode is not None.
+    """
+    Write python objects to pickle file and compress with highest
+    protocal (binary) if zipmode is not None.
     """
     if zipmode is None:
         with open(picklefile, 'wb') as f:
@@ -169,7 +116,8 @@ def writePickle(d, picklefile, zipmode=None):
             pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
 
 def readPickle(picklefile, zipmode=None):
-    """ Read compressed pickle file to python objects.
+    """
+    Read compressed pickle file to python objects.
     """
     if zipmode is None:
         with open(picklefile, 'rb') as f:
@@ -181,7 +129,7 @@ def readPickle(picklefile, zipmode=None):
     return d
 
 
-            
+
 # ############################################################################### #
 #                                                                                 #
 #                         MANIPULATING PICKLE FILES                               #
@@ -204,8 +152,8 @@ class SacDataHdrs:
         isac = SacIO.from_file(ifile)
         nthdr = 10
         nkhdr = 3
-        thdrs  = [-12345.,] * nthdr
-        users  = [-12345.,] * nthdr
+        thdrs = [-12345.,] * nthdr
+        users = [-12345.,] * nthdr
         kusers = ['-1234567',] * nkhdr
         for i in range(nthdr):
             thdr = getattr(isac, 't'+str(i))
@@ -262,7 +210,7 @@ class SacDataHdrs:
             sys.exit()
         ind = int(hdr[-1])
         return hdrs[ind]
-    
+
     def sethdr(self, hdr, val):
         """ Write a header variable (t_n, user_n, or kuser_n).
         """
@@ -299,7 +247,7 @@ class SacDataHdrs:
         for i in range(nthdr):
             setattr(sacobj, 't'+str(i), thdrs[i])
             setattr(sacobj, 'user'+str(i), users[i])
-        
+
     def savesac(self):
         """
         Save all data and header variables to an existing or new sacfile.
@@ -311,9 +259,9 @@ class SacDataHdrs:
             if len(fspl) > 1:
                 os.system('mkdir -p '+ '/'.join(fspl[:-1]))
             sacobj = SacIO()
-            sacobj.stla =  0
-            sacobj.stlo =  0
-            sacobj.stel =  0
+            sacobj.stla = 0
+            sacobj.stlo = 0
+            sacobj.stel = 0
         hdrs = ['o', 'b', 'delta', 'data', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
         hdrs += ['cmpaz', 'cmpinc', 'kcmpnm', 'stla', 'stlo', 'stel']
         for hdr in hdrs:
@@ -509,39 +457,41 @@ def windowIndex(saclist, reftimes, timewindow=(-5.0,5.0), taperwindow=1.0):
     tw0, tw1 = timewindow
     twleft = tw0 - taperwindow*.5
     ntotal = int(round((tw1-tw0+taperwindow)/delta)) + 1
-    nstart = [ int(round((twleft+reftimes[i]-saclist[i].b)/delta)) for i in range(len(saclist)) ] 
+    nstart = [int(round((twleft+reftimes[i]-saclist[i].b)/delta)) for i in range(len(saclist))]
     return nstart, ntotal
 
 def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning', datatype='data'):
-    """ Cut data within a time window using given indices.
-        Pad dat with zero if not enough sample.
-        Use sacdh.data or sacdh.datamem based on data type
+    """
+    Cut data within a time window using given indices.
+    Pad dat with zero if not enough sample.
+    Use sacdh.data or sacdh.datamem based on data type
     """
     datawin = []
     if datatype == 'data':
-        datalist = [ sacdh.data     for sacdh in saclist ]
+        datalist = [sacdh.data for sacdh in saclist]
     elif datatype == 'datamem':
-        datalist = [ sacdh.datamem  for sacdh in saclist ]
+        datalist = [sacdh.datamem for sacdh in saclist]
     for i in range(len(saclist)):
         sacd = datalist[i]
-        na = nstart[i] 
+        na = nstart[i]
         nb = na + ntotal
         data = sacd[na:nb].copy()
         if len(data) < ntotal:
             nd = len(sacd)
             zpada = zeros(max(0, -na))
-            zpadb = zeros(max(nb-nd,0))
+            zpadb = zeros(max(nb-nd, 0))
             na0 = max(0, na)
-            nb0 = min(nb,nd)
+            nb0 = min(nb, nd)
             data = concatenate((zpada, sacd[na0:nb0], zpadb))
-            print((saclist[i].netsta+': not enough sample around reftime. Pad left {0:d} right {1:d} zeros'.format(len(zpada),len(zpadb))))
+            print((saclist[i].netsta+': not enough sample around reftime. Pad left {0:d} right {1:d} zeros'.format(len(zpada), len(zpadb))))
         data -= mean(data)
         data = taper(data, taperwidth, tapertype)
         datawin.append(data)
     return array(datawin)
 
 def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
-    """ Cut time within a time window using given indices.
+    """
+    Cut time within a time window using given indices.
     """
     delta = saclist[0].delta
     timewin = []
@@ -554,32 +504,34 @@ def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
     return array(timewin)
 
 def windowTimeData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
-    """ Cut part of the time and data based on given indices.
+    """
+    Cut part of the time and data based on given indices.
     """
     delta = saclist[0].delta
     timecut, datacut = [], []
     for i in range(len(saclist)):
         sacdh = saclist[i]
-        na = nstart[i] 
+        na = nstart[i]
         nb = na + ntotal
         data = sacdh.data[na:nb].copy()
         data -= mean(data)
         data = taper(data, taperwidth, tapertype)
         ta = sacdh.b + nstart[i]*delta
         tb = ta + ntotal*delta
-        time = linspace(ta, tb, ntotal) 
+        time = linspace(ta, tb, ntotal)
         datacut.append(data)
         timecut.append(time)
     return array(timecut), array(datacut)
 
 
 def loadData(ifiles, opts, para):
-    """ Load data either from SAC files or (gz/bz2 compressed) pickle file.
-        Get sampling rate from command line option or default config file.
-        Resample data if a positive sample rate is given.
-        Output file type is the same as input file (filemode and zipmode do not change).
-        If filemode == 'sac': zipmode = None
-        If filemode == 'pkl': zipmode = None/bz2/gz 
+    """
+    Load data either from SAC files or (gz/bz2 compressed) pickle file.
+    Get sampling rate from command line option or default config file.
+    Resample data if a positive sample rate is given.
+    Output file type is the same as input file (filemode and zipmode do not change).
+    If filemode == 'sac': zipmode = None
+    If filemode == 'pkl': zipmode = None/bz2/gz 
     """
     if opts.srate is not None:
         srate = opts.srate
@@ -633,7 +585,8 @@ def loadData(ifiles, opts, para):
 
 # saves headers for TTPICK.PY
 def saveData(gsac, opts):
-    """ Save pickle or sac files.
+    """
+    Save pickle or sac files.
     """
     if opts.filemode == 'sac':
         for sacdh in gsac.saclist: 
@@ -643,13 +596,15 @@ def saveData(gsac, opts):
     elif opts.filemode == 'pkl':
         writePickle(gsac, opts.pklfile, opts.zipmode)
     else:
-        print ('Unknown file type. Exit..')
+        print('Unknown file type. Exit..')
         sys.exit()
-    print ('SAC headers saved!')
+    print('SAC headers saved!')
 
 
 def getOptions():
-    """ Parse arguments and options. """
+    """
+    Parse arguments and options.
+    """
     from optparse import OptionParser
     usage = "Usage: %prog [options] <sacfile(s)>"
     parser = OptionParser(usage=usage)
@@ -659,15 +614,15 @@ def getOptions():
     parser.set_defaults(delta=delta)
     parser.set_defaults(ofilename=ofilename)
     parser.add_option('-s', '--s2p', action="store_true", dest='s2p',
-        help='Convert SAC files to pickle file. Default is True.')
+                      help='Convert SAC files to pickle file. Default is True.')
     parser.add_option('-p', '--p2s', action="store_true", dest='p2s',
-        help='Convert pickle file (save headers) to SAC files.')
-    parser.add_option('-d', '--delta',  dest='delta', type='float',
-        help='Time sampling interval. Default is %f ' % delta)
-    parser.add_option('-o', '--ofilename',  dest='ofilename', type='str',
-        help='Output filename which works only with -s option.')
-    parser.add_option('-z', '--zipmode',  dest='zipmode', type='str',
-        help='Zip mode: bz2 or gz. Default is None.')
+                      help='Convert pickle file (save headers) to SAC files.')
+    parser.add_option('-d', '--delta', dest='delta', type='float',
+                      help='Time sampling interval. Default is %f ' % delta)
+    parser.add_option('-o', '--ofilename', dest='ofilename', type='str',
+                      help='Output filename which works only with -s option.')
+    parser.add_option('-z', '--zipmode', dest='zipmode', type='str',
+                      help='Zip mode: bz2 or gz. Default is None.')
 
     opts, files = parser.parse_args(sys.argv[1:])
     opts.s2p = True
