@@ -7,21 +7,18 @@ Welcome to AIMBAT's documentation!
 ==================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :numbered:
    :caption: Contents:
 
-   introduction
+   readme
    installation
-   sacioAIMBAT
-   analyzingData
-   parameterConfiguration
-   SACdataAccess
-   PickingTravelTimes
-   VisualizingStations
+   usage
    developing
-   updatingThisManual
    citations
+   credits
+   changelog
+
 
 Indices and tables
 ==================

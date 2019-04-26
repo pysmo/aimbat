@@ -1,28 +1,23 @@
-===============
 SAC Data Access
-===============
+---------------
 
 NOTE: All ``.sac`` files must include origin time, hypocenter, as well as station coordinates and elevation in their headers.
 
-.. ############################################################################ ..
-.. #                         PYTHON OBJECT FOR SAC FILE                       # ..
-.. ############################################################################ ..
-
 Python Object for SAC File
---------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``pysmo.sac`` package is developed to read and write individual SAC files.
 The Python class ``sacfile`` of module ``sacio`` opens a SAC file and returns an object including data and all SAC header variables as their attributes. Modifications of object attributes are saved to file. It is written purely in Python so that it also runs with `Jython <http://www.jython.org>`_.
   	
 `egsac.py`
-~~~~~~~~~~
+^^^^^^^^^^
 
 The ``<pkg-install-dir>/aimbat/scripts/egsac.py`` script gives a simple example to read, resample, and plot a seismogram using pysmo, Scipy, and Matplotlib. You can type the codes in a Python/iPython shell, or run as a script in the data example directory ``<pkg-install-dir>/data-example/example_pkl_files/Event_2011.09.15.19.31.04.080``, hereafter referred to as `<example-event-dir>`.
 
 .. image:: images/prog-egsac.png
 
 Resampling Seismograms
-~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^
 
 In this example, a SAC file named ``TA.109C.\_\_.BHZ.sac`` is read in as a sacfile object. The time array is calculated from SAC headers.  The data array is resampled from interval 0.025 to 2.0 seconds using Scipy's signalprocessing module.
 
@@ -34,25 +29,9 @@ Add the following codes to write the resampled seismogram to file ``TA.109C.\_\_
 
 .. image:: images/egsac-109c.png
 
-.. ############################################################################ ..
-.. #                         PYTHON OBJECT FOR SAC FILE                       # ..
-.. ############################################################################ ..
-
-
-
-
-
-
-
-
-
-
-.. ############################################################################ ..
-.. #                        PYTHON PICKLE FOR SAC FILES                       # ..
-.. ############################################################################ ..
 
 Python Pickle for SAC Files
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``pysmo.sacio`` module converts SAC files to ``sacfile`` objects. Any modification of the objects are instantly written to files. In data processing, the user may want to abandon changes made earlier, which brings the need of a buffer for the ``sacfile`` objects.
 
@@ -96,22 +75,9 @@ See the doc string of ``pysmo.aimbat.sacpickle`` by typing in a python console::
 and also the documentation on `pickle <http://docs.python.org/library/pickle.html>`_ for more information about the Python data structure, pickling, and unpickling.
 
 
-.. ############################################################################ ..
-.. #                        PYTHON PICKLE FOR SAC FILES                       # ..
-.. ############################################################################ ..
-
-
-
-
-
-
-
-.. ############################################################################ ..
-.. #                        SAC PLOTTING AND PHASE PICKING                    # ..
-.. ############################################################################ ..
 
 SAC Plotting and Phase Picking
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. image:: images/help-sacplot.png
 
@@ -170,19 +136,6 @@ Another improvement is easier window zooming enabled by the SpanSelector widget 
 Press the 'z' key to zoom out to the previous time range.
 
 
-.. ############################################################################ ..
-.. #                        SAC PLOTTING AND PHASE PICKING                    # ..
-.. ############################################################################ ..
-
-
-
-
-
-
-.. ############################################################################ ..
-.. #                              SAC PHASE PICKING                           # ..
-.. ############################################################################ ..
-
 SAC Phase Picking
 -----------------
 
@@ -240,11 +193,3 @@ The help message of the ``iccs.py`` script is shown below:
 The help message of the ``mccs.py`` script is shown below:
 
 .. image:: images/help-mccc.png
-
-
-.. ############################################################################ ..
-.. #                              SAC PHASE PICKING                           # ..
-.. ############################################################################ ..
-
-
-

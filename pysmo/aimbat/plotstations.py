@@ -1,27 +1,17 @@
 #!/usr/bin/env python
 """
-Visualizing Stations on a map
-=============================
-
-After running::
-
-	ttpick.py <sac-files>
-
-Hit ``Map of Stations`` in order to get a visual respresentation of where exactly each station is. Dots represent circles used for computing delay times; black triangles represent discarded stations. Click on a dot to get the station name in the terminal.
-
-.. image:: images/basemap_stations.png
 """
 
+import math
 import matplotlib
 matplotlib.rcParams['backend'] = "TkAgg"
-import math
 import matplotlib.pyplot as plt
 import numpy as np
 try:
- from mpl_toolkits.basemap import Basemap
- basemapthere=True
+    from mpl_toolkits.basemap import Basemap
+    basemapthere = True
 except:
- basemapthere=False
+    basemapthere = False
 
 class PlotStations:
 
@@ -43,34 +33,36 @@ class PlotStations:
         # Central lat/lon coordinates.
         centerLat = 0.5 * (minLat + maxLat)
         centerLon = 0.5 * (minLon + maxLon)
-        
+
         qLat = min(abs(minLat),abs(maxLat))
         h = 1.2*6370997.*np.radians(maxLat-minLat)
         w = 1.1*6370997.*np.radians(maxLon-minLon)*np.cos(np.radians(qLat))
 
-        #make the basemap 
+        #make the basemap
         if basemapthere:
-        #ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat, 
+        #ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat,
         #            urcrnrlon=maxLon, urcrnrlat= maxLat,
             ax = Basemap(width=w,
-                height=h, 
-                resolution='i',
-                area_thresh=1000., projection='lcc',
-                lat_0=centerLat, lon_0=centerLon)
+                         height=h,
+                         resolution='i',
+                         area_thresh=1000.,
+                         projection='lcc',
+                         lat_0=centerLat,
+                         lon_0=centerLon)
             ax.drawstates()
             ax.drawcountries()
-            ax.drawcoastlines()   
-            plt.xlabel('Black triangles: deleted stations\n Red Points: selected stations')   
+            ax.drawcoastlines()
+            plt.xlabel('Black triangles: deleted stations\n Red Points: selected stations')
         else:
-            simplexmin=minLon-1.
-            simplexmax=maxLon+1.
-            simpleymin=minLat-1.
-            simpleymax=maxLat+1.
+            simplexmin = minLon-1.
+            simplexmax = maxLon+1.
+            simpleymin = minLat-1.
+            simpleymax = maxLat+1.
             ax = figStation.add_subplot(111)
-            ax.axis([simplexmin,simplexmax,simpleymin,simpleymax])
-            plt.xlabel('Black triangles: deleted stations\n Red Points: selected stations\n No coastline because Basemap module not found')   
+            ax.axis([simplexmin, simplexmax, simpleymin, simpleymax])
+            plt.xlabel('Black triangles: deleted stations\n Red Points: selected stations\n No coastline because Basemap module not found')
 
-            plt.title(self.plotname)  
+            plt.title(self.plotname)
 
         # plot stations
         if hasattr(gsac, 'delay_times'):
@@ -95,9 +87,9 @@ class PlotStations:
         for sacdh in self.saclist:
             (xpt, ypt) = self.ax(sacdh.stlo, sacdh.stla)
             dist = math.sqrt((xpt-clicked_lon)**2+(ypt-clicked_lat)**2)
-            if dist<nearest:
+            if dist < nearest:
                 station_name = sacdh.netsta
-                nearest=dist
+                nearest = dist
         print(('Nearest Station selected: %s' % station_name))
 
     def bounding_rectangle(self):
@@ -115,15 +107,17 @@ class PlotStations:
         return minLat, minLon, maxLat, maxLon
 
     def plot_selected_stations(self, axes_handle):
-        selected_lon = [] 
+        selected_lon = []
         selected_lat = []
         for sacdh in self.selist:
             selected_lon.append(sacdh.stlo)
             selected_lat.append(sacdh.stla)
         if basemapthere:
-          axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c='r', picker=True)
+            axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o',
+                                c='r', picker=True)
         else:
-          axes_handle.scatter(selected_lon, selected_lat, s=50, marker='o', c='r', picker=True)
+            axes_handle.scatter(selected_lon, selected_lat, s=50, marker='o',
+                                c='r', picker=True)
 
     def plot_selected_stations_color_delay_times(self, axes_handle, delay_times):
         selected_lon = [] 
@@ -133,19 +127,21 @@ class PlotStations:
             selected_lat.append(sacdh.stla)
         cm = plt.cm.get_cmap('seismic')
         if basemapthere:
-          sc = axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o', c=delay_times, picker=True, cmap=cm)
+            sc = axes_handle.scatter(selected_lon, selected_lat, s=50, latlon=True, marker='o',
+                                     c=delay_times, picker=True, cmap=cm)
         else:
-          sc = axes_handle.scatter(selected_lon, selected_lat, s=50, marker='o', c=delay_times, picker=True, cmap=cm)
+            sc = axes_handle.scatter(selected_lon, selected_lat, s=50, marker='o',
+                                     c=delay_times, picker=True, cmap=cm)
         plt.colorbar(sc)
 
     def plot_deleted_stations(self, axes_handle):
-        deleted_lon = [] 
+        deleted_lon = []
         deleted_lat = []
         for sacdh in self.delist:
             deleted_lon.append(sacdh.stlo)
             deleted_lat.append(sacdh.stla)
         if basemapthere:
-           axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='^', c='k', picker=True)
+            axes_handle.scatter(deleted_lon, deleted_lat, s=50, latlon=True, marker='^',
+                                c='k', picker=True)
         else:
-           axes_handle.scatter(deleted_lon, deleted_lat, s=50, marker='^', c='k', picker=True)
-
+            axes_handle.scatter(deleted_lon, deleted_lat, s=50, marker='^', c='k', picker=True)

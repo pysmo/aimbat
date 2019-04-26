@@ -1,7 +1,3 @@
-==============
-Analyzing Data
-==============
-
 Seismic Analysis Code (SAC)
 ---------------------------
 
