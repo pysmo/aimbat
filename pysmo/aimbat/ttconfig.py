@@ -7,17 +7,9 @@
 # Copyright (c) 2009-2012 Xiaoting Lou
 #------------------------------------------------
 """
-Python module for setting up default parameters for SACPLOT (PlotPhase and
-PickPhase), ICCS, MCCC and QCTRL.
-Create parser for command line arguments and options.
-
-
-:copyright:
-    Xiaoting Lou
-
-:license:
-    GNU General Public License, Version 3 (GPLv3)
-    http://www.gnu.org/licenses/gpl.html
+===========================
+Module: ttconfig.py
+===========================
 """
 
 

@@ -6,25 +6,19 @@
 Welcome to AIMBAT's documentation!
 ==================================
 
-Contents:
-
 .. toctree::
-    :numbered:
+   :maxdepth: 4
+   :numbered:
+   :caption: Contents:
 
-    introduction
-    install_dependencies
-    install_aimbat
-    upgrading_aimbat
-    gettingData
-    sacioAIMBAT
-    analyzingData
-    parameterConfiguration
-    SACdataAccess
-    PickingTravelTimes
-    VisualizingStations
-    unitTests
-    updatingThisManual
-    citations
+   readme
+   installation
+   usage
+   developing
+   citations
+   credits
+   changelog
+
 
 Indices and tables
 ==================
@@ -32,4 +26,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
