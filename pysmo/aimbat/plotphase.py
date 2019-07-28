@@ -40,11 +40,10 @@ Program structure:
 
 
 import sys, copy
+import matplotlib as mpl
+mpl.rcParams['backend'] = "TkAgg"
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import transforms
-from matplotlib.font_manager import FontProperties
-
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat import plotutils as putil
@@ -325,8 +324,8 @@ class SingleSeisGather():
         """
         axss = self.axss
         stations = [ sacdh.netsta for sacdh in self.saclist ]
-        trans = transforms.blended_transform_factory(axss.transAxes, axss.transData)
-        font = FontProperties()
+        trans = mpl.transforms.blended_transform_factory(axss.transAxes, axss.transData)
+        font = mpl.font_manager.FontProperties()
         font.set_family('monospace')
         for i in range(self.nseis):
             axss.text(1.02, self.ybases[i], stations[i], transform=trans, va='center', 
@@ -472,7 +471,7 @@ class SingleSeisGather():
         if evkey.lower() == 'z' and len(xzoom) > 1:
             del xzoom[-1]
             axss.set_xlim(xzoom[-1])
-            print('Zoom back to: {:6.1f} {:6.1f}'.format(tuple(xzoom[-1])) )
+            print('Zoom back to: {:6.1f} {:6.1f}'.format(*xzoom[-1]) )
             axss.figure.canvas.draw()
 
     def connect(self):

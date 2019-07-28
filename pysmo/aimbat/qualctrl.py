@@ -24,11 +24,13 @@ Used by ttpick.py
 """
 
 import numpy as np
+import matplotlib as mpl
+mpl.rcParams['backend'] = "TkAgg"
 import matplotlib.pyplot as plt
 import os, sys, copy
-from matplotlib.widgets import Button, RadioButtons
-from matplotlib import transforms
-from matplotlib.font_manager import FontProperties
+#from matplotlib.widgets import Button, RadioButtons
+#from matplotlib import transforms
+#from matplotlib.font_manager import FontProperties
 import tkinter.messagebox
 
 from pysmo.aimbat import ttconfig
@@ -164,11 +166,11 @@ class PickPhaseMenuMore:
         self.ppm.axpp.set_title('Seismograms')
         if self.opts.filemode == 'pkl':
             axstk = self.axstk
-            trans = transforms.blended_transform_factory(axstk.transAxes, axstk.transAxes)
+            trans = mpl.transforms.blended_transform_factory(axstk.transAxes, axstk.transAxes)
             axstk.text(1,1.01,self.opts.pklfile,transform=trans, va='bottom', ha='right',color='k')
         axpp = self.ppm.axpp
-        trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
-        font = FontProperties()
+        trans = mpl.transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
+        font = mpl.font_manager.FontProperties()
         font.set_family('monospace')
         axpp.text(1.025, 0, ' '*8+'qual= CCC/SNR/COH', transform=trans, va='center', 
             color='k', fontproperties=font)
@@ -374,22 +376,22 @@ class PickPhaseMenuMore:
         """add a button to the correct place as defined by the axes
            Also label the buttons here, as seen in the GUI
         """
-        self.bnfile = Button(self.axfile, 'File')
-        self.bnqall = Button(self.axqall, 'All')
-        self.bnqccc = Button(self.axqccc, 'CCC')
-        self.bnqsnr = Button(self.axqsnr, 'SNR')
-        self.bnqcoh = Button(self.axqcoh, 'COH')
-        self.bnhnpts = Button(self.axhnpts, 'NPTS')
-        self.bnhb = Button(self.axhb, 'B')
-        self.bnhe = Button(self.axhe, 'E')
-        self.bnhdelta = Button(self.axhdelta, 'Delta')
-        self.bnhstla = Button(self.axhstla, 'STLA')
-        self.bnhstlo = Button(self.axhstlo, 'STLO')
-        self.bnhdist = Button(self.axhdist, 'Dist')
-        self.bnhaz = Button(self.axhaz, 'AZ')
-        self.bnhbaz = Button(self.axhbaz, 'BAZ')
-        self.bnhgcarc = Button(self.axhgcarc, 'GCARC')
-        self.bnquit = Button(self.axquit, 'Waiting for User input')
+        self.bnfile = mpl.widgets.Button(self.axfile, 'File')
+        self.bnqall = mpl.widgets.Button(self.axqall, 'All')
+        self.bnqccc = mpl.widgets.Button(self.axqccc, 'CCC')
+        self.bnqsnr = mpl.widgets.Button(self.axqsnr, 'SNR')
+        self.bnqcoh = mpl.widgets.Button(self.axqcoh, 'COH')
+        self.bnhnpts = mpl.widgets.Button(self.axhnpts, 'NPTS')
+        self.bnhb = mpl.widgets.Button(self.axhb, 'B')
+        self.bnhe = mpl.widgets.Button(self.axhe, 'E')
+        self.bnhdelta = mpl.widgets.Button(self.axhdelta, 'Delta')
+        self.bnhstla = mpl.widgets.Button(self.axhstla, 'STLA')
+        self.bnhstlo = mpl.widgets.Button(self.axhstlo, 'STLO')
+        self.bnhdist = mpl.widgets.Button(self.axhdist, 'Dist')
+        self.bnhaz = mpl.widgets.Button(self.axhaz, 'AZ')
+        self.bnhbaz = mpl.widgets.Button(self.axhbaz, 'BAZ')
+        self.bnhgcarc = mpl.widgets.Button(self.axhgcarc, 'GCARC')
+        self.bnquit = mpl.widgets.Button(self.axquit, 'Waiting for User input')
 
         """ each button changes the way the seismograms are sorted """
         self.cidfile = self.bnfile.on_clicked(self.sort_file)
@@ -623,7 +625,7 @@ class PickPhaseMenuMore:
     def dismiss_sort(self, event):
         """Dismiss the sorting selection popup Window"""
         self.sort_disconnect()
-        close()
+        plt.close()
 
     # -------------------------------- SORTING ---------------------------------- #
 
@@ -642,23 +644,23 @@ class PickPhaseMenuMore:
         self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 
         # get order
-        self.bnorder = RadioButtons(self.filterAxs['ordr'], (1,2,3,4), active=1)
+        self.bnorder = mpl.widgets.RadioButtons(self.filterAxs['ordr'], (1,2,3,4), active=1)
         self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
         # get type of filter to use
-        self.bnband = RadioButtons(self.filterAxs['band'], ('bandpass','lowpass','highpass'))
+        self.bnband = mpl.widgets.RadioButtons(self.filterAxs['band'], ('bandpass','lowpass','highpass'))
         self.cidband = self.bnband.on_clicked(self.getBandtype)
 
         # get reverse pass option
-        self.bnreversepass = RadioButtons(self.filterAxs['reversepass'], ('yes', 'no'), active=1)
+        self.bnreversepass = mpl.widgets.RadioButtons(self.filterAxs['reversepass'], ('yes', 'no'), active=1)
         self.cidreversepass = self.bnreversepass.on_clicked(self.getReversePassOption)
 
         #add apply button. causes the filtered data to be applied 
-        self.bnapply = Button(self.filterAxs['apply'], 'Apply')
+        self.bnapply = mpl.widgets.Button(self.filterAxs['apply'], 'Apply')
         self.cidapply = self.bnapply.on_clicked(self.applyFilter)
 
         #add unapply button. causes the filtered data to be applied 
-        self.bnunapply = Button(self.filterAxs['unapply'], 'Unapply')
+        self.bnunapply = mpl.widgets.Button(self.filterAxs['unapply'], 'Unapply')
         self.cidunapply = self.bnunapply.on_clicked(self.unapplyFilter)
 
     def getReversePassOption(self, event):
@@ -933,14 +935,14 @@ class PickPhaseMenuMore:
         self.axplotsta = self.axs['plotsta']
 
         # name the buttons
-        self.bnccim = Button(self.axccim, 'Align')
-        self.bnccff = Button(self.axccff, 'Refine')
-        self.bnsync = Button(self.axsync, 'Sync')
-        self.bnmccc = Button(self.axmccc, 'Finalize')
-        self.bnsac2 = Button(self.axsac2, 'SAC P2')
-        self.bnsort = Button(self.axsort, 'Sort')
-        self.bnfilter = Button(self.axfilter, 'Filter')
-        self.bnplotsta = Button(self.axplotsta, 'Map of\n stations')
+        self.bnccim = mpl.widgets.Button(self.axccim, 'Align')
+        self.bnccff = mpl.widgets.Button(self.axccff, 'Refine')
+        self.bnsync = mpl.widgets.Button(self.axsync, 'Sync')
+        self.bnmccc = mpl.widgets.Button(self.axmccc, 'Finalize')
+        self.bnsac2 = mpl.widgets.Button(self.axsac2, 'SAC P2')
+        self.bnsort = mpl.widgets.Button(self.axsort, 'Sort')
+        self.bnfilter = mpl.widgets.Button(self.axfilter, 'Filter')
+        self.bnplotsta = mpl.widgets.Button(self.axplotsta, 'Map of\n stations')
 
         self.cidccim = self.bnccim.on_clicked(self.ccim)
         self.cidccff = self.bnccff.on_clicked(self.ccff)
@@ -1150,7 +1152,7 @@ class PickPhaseMenuMore:
             ax = axsacs[i]
             pph.sacp2(selist, opts, ax)
             tt = '(' + tlabs[i] + ')'
-            trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
+            trans = mpl.transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
             ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)    
 
         opts.ynorm = ynorm
