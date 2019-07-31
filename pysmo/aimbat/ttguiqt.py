@@ -520,8 +520,10 @@ class mainGUI(object):
             yy = [waveItem.sacdh.datbase-0.5, waveItem.sacdh.datbase+0.5]
             th0 = waveItem.sacdh.twindow[0] - waveItem.sacdh.reftime
             th1 = waveItem.sacdh.twindow[1] - waveItem.sacdh.reftime
-            waveItem.twinCurves[0].setData([th0,th0], yy)
-            waveItem.twinCurves[1].setData([th1,th1], yy)
+            # only update traces already plotted:
+            if len(waveItem.twinCurves) == 2:
+                waveItem.twinCurves[0].setData([th0,th0], yy)
+                waveItem.twinCurves[1].setData([th1,th1], yy)
     
     def resetWindStack(self):
         'Reset time window (LinearRegion) for stack'
@@ -537,7 +539,9 @@ class mainGUI(object):
             yy = [waveItem.sacdh.datbase-0.5, waveItem.sacdh.datbase+0.5]
             for ipick in ipicklist:
                 tpick = waveItem.sacdh.thdrs[ipick] - waveItem.sacdh.reftime
-                waveItem.tpickCurves[ipick].setData([tpick, tpick], yy)
+                # only update traces already plotted:
+                if len(waveItem.tpickCurves) > 0:
+                    waveItem.tpickCurves[ipick].setData([tpick, tpick], yy)
 
     def resetWaveCurve(self, waveItemList):
         'Reset waveCurve with new reftime and/or datbases'

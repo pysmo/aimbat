@@ -26,7 +26,7 @@ from numpy import linalg as LA
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
 from pysmo.aimbat import sacpickle as sacpkl
-
+from pysmo.aimbat import prepdata  as pdata
 
 def getOptions():
     """ Parse arguments and options. """
@@ -396,7 +396,8 @@ def main():
     # check data coverage, initialize quality factors
     checkCoverage(gsac, opts)
     qualsort.initQual(gsac.saclist, opts.ccpara.hdrsel, opts.ccpara.qheaders)
-
+    pdata.seisTimeData(gsac.saclist)
+    
     if opts.auto_on:
         autoiccs(gsac, opts)
     elif opts.auto_on_all:

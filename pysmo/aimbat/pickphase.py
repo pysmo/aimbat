@@ -39,13 +39,11 @@ Program structure:
 """
 
 import sys
+import matplotlib as mpl
+mpl.rcParams['backend'] = "TkAgg"
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.widgets import Button
-from matplotlib import transforms
-from matplotlib.font_manager import FontProperties
 from tkinter import messagebox
-
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
 from pysmo.aimbat import sacpickle as sacpkl
@@ -179,8 +177,8 @@ class PickPhase:
             sn = sacdh.gethdr(hdrsn)
             co = sacdh.gethdr(hdrco)
             slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
-        trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
-        font = FontProperties()
+        trans = mpl.transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
+        font = mpl.font_manager.FontProperties()
         font.set_family('monospace')
         self.stalabel = axpp.text(1.025, self.ybase, slab, transform=trans, va='center', 
             color=self.color, fontproperties=font)
@@ -513,7 +511,7 @@ class PickPhaseMenu():
             axpp.set_xlabel('Time - T%d [s]' % reltime)
         else:
             axpp.set_xlabel('Time [s]')
-        trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transAxes)
+        trans = mpl.transforms.blended_transform_factory(axpp.transAxes, axpp.transAxes)
         page = 'Page {0:d} of [{1:d},{2:d}]'.format(self.ipage, self.aipages[0], self.aipages[-1])
         self.pagelabel = axpp.text(1, -0.02, page, transform=trans, va='top', ha='right')
 
@@ -532,7 +530,7 @@ class PickPhaseMenu():
         """ Label selection status with transform (transAxes, transData).
         """
         axpp = self.axpp
-        trans = transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
+        trans = mpl.transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
         colsel = self.opts.pppara.colorwave
         coldel = self.opts.pppara.colorwavedel
         axpp.annotate('Selected', xy=(1.015, self.azylim[0]), xycoords=trans, xytext=(1.03, -0.17),
@@ -665,15 +663,15 @@ class PickPhaseMenu():
         self.axshod = self.axs['Shod']
         self.axquit = self.axs['Quit']
 
-        self.bnfron = Button(self.axfron, 'Front')
-        self.bnprev = Button(self.axprev, 'Prev')
-        self.bnnext = Button(self.axnext, 'Next')
-        self.bnlast = Button(self.axlast, 'Last')
-        self.bnzoba = Button(self.axzoba, 'Zoom \n Back')
-        self.bnshdo = Button(self.axshdo, 'Save')
-        self.bnshfp = Button(self.axshfp, 'Save \n Params')
-        self.bnshod = Button(self.axshod, 'Save \n Override')
-        self.bnquit = Button(self.axquit, 'Quit')
+        self.bnfron = mpl.widgets.Button(self.axfron, 'Front')
+        self.bnprev = mpl.widgets.Button(self.axprev, 'Prev')
+        self.bnnext = mpl.widgets.Button(self.axnext, 'Next')
+        self.bnlast = mpl.widgets.Button(self.axlast, 'Last')
+        self.bnzoba = mpl.widgets.Button(self.axzoba, 'Zoom \n Back')
+        self.bnshdo = mpl.widgets.Button(self.axshdo, 'Save')
+        self.bnshfp = mpl.widgets.Button(self.axshfp, 'Save \n Params')
+        self.bnshod = mpl.widgets.Button(self.axshod, 'Save \n Override')
+        self.bnquit = mpl.widgets.Button(self.axquit, 'Quit')
 
         self.cidfron = self.bnfron.on_clicked(self.fron)
         self.cidprev = self.bnprev.on_clicked(self.prev)
@@ -770,8 +768,9 @@ def getAxes(opts):
     axpp = fig.add_axes(rectseis)
     axs = {}
     axs['Seis'] = axpp
-    dx = 0.07
+    dx = -0.07
     x0 = rectseis[0] + rectseis[2] + 0.01
+    x0 = 0.01
 
     xfron = x0 - dx*1
     xprev = x0 - dx*2
