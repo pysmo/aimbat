@@ -1,6 +1,17 @@
 Changelog
 =========
 
+
+aimbat-v1.0.5
+-------------
+Aug 2019:
+
+* Code clean and restructure including src, docs, and tests. 
+* Package installation: make fortran optional, update dependencis, update travis, setup pipenv.
+* Update documentation.
+* Minor bug fixes.
+
+
 aimbat-v1.0.4
 -------------
 Dec 23, 2018:
