@@ -810,11 +810,16 @@ class mainGUI(object):
             mapper = StationMapper(self.gsac)
             mapper.start()
         else:
-            import plotutils as putil
-            lalo = np.array(self.gsac.solist_LonLat)
+            from pysmo.aimbat import plotutils as putil
+            try:
+                lalo = np.array(self.gsac.solist_LonLat)
+                dt = np.array(self.gsac.delay_times)
+            except AttributeError:
+                print('Run mccc to Finalize first...')
+                return
             lo = lalo[:,0]
             la = lalo[:,1]
-            dt = np.array(self.gsac.delay_times)
+            
             if self.opts.phase == 'P':
                 self.opts.vminmax = [-1, 1]
             else:
