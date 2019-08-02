@@ -23,11 +23,21 @@ Some components are different:
 * Still Possible to plot a subset of traces. Click button to add more traces to the plotting window.
 * `Pyqtgraph mouse events <http://www.pyqtgraph.org/documentation/mouse_interaction.html>`_: e.g., right mouse button drag to zoom in and out.
 
-In the above example, 37 selected seismograms are plotted initially. During the arrival time measurement procedure, traces sorting order is changed after time window size or sorting parameters are changed. Trace 37, 38, 39 are missing in the GUI. You can optionally click ``Plot More Traces`` Button to fill the gap.
+In the above example, 37 selected seismograms are plotted initially. During the arrival time measurement procedure, traces sorting order is changed after time window size or sorting parameters are changed. Trace 37, 38, 39 are missing in the GUI. You can optionally click ``Plot More Traces`` Button to fill the gap. You can also zoom out vertically and plot more traces.
 
 Here is an example of filtering seismograms. First choose filtering parameters in the parameter tree and test on the stack by clicking Button ``Confirm_Filt_Parameters`` and Button ``Filter on Stack/Traces``. Then applied filter to traces after parameters are finalized.
 
 .. image:: images/qttpick_gui_filter_stack.png
 
 .. image:: images/qttpick_gui_filter_trace.png
+
+
+Some QC tools are available in this Qt GUI. Click Button ``Sac P1`` and ``Sac P2`` to plot traces relative to four time picks T0, T1, T2, and T3. Click Button ``Map Delay Times`` to plot absolute delay times in a map view. 
+
+.. image:: images/qttpick_gui_p1.png
+
+.. image:: images/qttpick_gui_p2.png
+
+.. image:: images/20110915.19310408.mcp.png
+
 
