@@ -8,4 +8,3 @@ Using AIMBAT
 .. include:: usage/SACdataAccess.rst
 .. include:: usage/PickingTravelTimes.rst
 .. include:: usage/PickingTravelTimesQt.rst
-.. include:: usage/VisualizingStations.rst

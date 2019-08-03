@@ -171,10 +171,23 @@ Run ``getsta.py`` in the additional scripts (not on Github for now). It gives th
 .. image:: images/count_stations.png
 
 
-Picking Travel Times does not work
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Visualizing Stations on a map
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-If you run ``ttick.py <Event name>.bhz.pkl``, a GUI will pop up for you to manually pick the travel times by pressing the keyboard. If typing on the keyboard as directed does not allow you to pick travel times, it could be a problem with the keyboard settings, or the matplotlib backend.
+After running::
+
+	aimbat-ttpick <sac-files>
+
+Hit ``Map of Stations`` in order to get a visual respresentation of where exactly each station is. Dots represent circles used for computing delay times; black triangles represent discarded stations. Click on a dot to get the station name in the terminal.
+
+.. image:: images/basemap_stations.png
+
+
+
+Picking Travel Times does not work
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you run ``aimbat-ttick <Event name>.bhz.pkl``, a GUI will pop up for you to manually pick the travel times by pressing the keyboard. If typing on the keyboard as directed does not allow you to pick travel times, it could be a problem with the keyboard settings, or the matplotlib backend.
 
 To fix this, first look for the .matplotlib directory. It is hidden in your home directory, so do ``ls -a`` to find it.
 
