@@ -4,7 +4,8 @@ Changelog
 
 aimbat-v1.0.5
 -------------
-Aug 17, 2019:
+Aug 18, 2019
+
 Main contributor: smlloyd, xlougeo.
 
 * Lots of code clean and restructure, including src, docs, and tests. 
@@ -15,7 +16,7 @@ Main contributor: smlloyd, xlougeo.
 
 aimbat-v1.0.4
 -------------
-Dec 23, 2018:
+Dec 23, 2018
 
 * Add SAC P1 Button to the main GUI
 * Plot only a subset of traces for faster data QC and (de)selection. All labels are plotted. Add a button to plot more traces
@@ -23,21 +24,21 @@ Dec 23, 2018:
 
 aimbat-v1.0.3
 -------------
-Dec 7, 2018:
+Dec 7, 2018
 
 * Some GUI setting changes
 
 
 aimbat-v1.0.2
 -------------
-Dec 5, 2018:
+Dec 5, 2018
 
 * Add option to plot simple delay time map by matplotlib.pyplot
 
 
 aimbat-v1.0.1
 -------------
-Dec 4, 2018:
+Dec 4, 2018
 
 * Fix bugs in changing trace selection status (QC), manual phase picking, and trace label.
 * Change in GUI settings. Using right button dragging is enough and give up on QScrollArea.
@@ -46,7 +47,8 @@ Dec 4, 2018:
 
 aimbat-v1.0.0
 -------------
-Dec 3, 2018:
+Dec 3, 2018
+
 Main contributor: smlloyd:
 
 * Use new pysmo.core.sac.SacIO (pysmo-pysmo-v0.7.0) instead of pysmo.sac.sacio.SacFile
@@ -57,6 +59,7 @@ Main contributor: smlloyd:
 * Package uploaded to pypi.org for each release since this.
 
 Main contributor: xlougeo, ASankaran:
+
 * SAC plotting and aimbat-ttpick are still using Matplotlib GUI.
 * New GUI (aimbat-qttpick) using pyqtgraph for fast plotting. Similar user interactions as v0.3:
    * Key pressed event handler in pyqtgraph is redefined 
@@ -69,7 +72,8 @@ Main contributor: xlougeo, ASankaran:
 
 aimbat-v0.3-alpha1
 ------------------
-June 3, 2018:
+June 3, 2018
+
 Main contributor: xlougeo
 
 * Upgrade to python3 (May not back-compatible with python2). No change in functionalities from v0.2.
@@ -77,8 +81,9 @@ Main contributor: xlougeo
 
 aimbat-v0.2
 -----------
-Main contributor: lkloh. 
-For changes made between Dec 19, 2012 (v0.1.2) and Aug 23, 2016
+Main contributor: lkloh
+ 
+For changes made between Dec 19, 2012 (v0.1.2) and Aug 23, 2016:
 
 * Added a warning button if you hit ICCS-A or ICCS-B button, to make sure do did not hit it by accident. 
 * Hitting one of those buttons will undo all the work you did in manually picking arrival times.
@@ -90,7 +95,8 @@ For changes made between Dec 19, 2012 (v0.1.2) and Aug 23, 2016
 
 aimbat-0.1.2
 ------------
-Dec 19, 2012:
+Dec 19, 2012
+
 Main contributor: xlougeo
 
 * Change sci format for scientific notation of sacp2: from 1e-5 to 10^{-5}
@@ -100,7 +106,8 @@ Main contributor: xlougeo
 
 aimbat-0.1.1
 ------------
-Sep 27, 2012:
+Sep 27, 2012
+
 Main contributor: xlougeo
 
 * Change setup.py and package directory: modules --> src/pysmo/aimbat. 
@@ -112,6 +119,8 @@ Main contributor: xlougeo
 
 aimbat-0.1
 ----------
-Sep 19, 2012:
-First release on Northwestern website.
+Sep 19, 2012
+
 Main contributor: xlougeo
+
+First release on `Northwestern website <https://www.earth.northwestern.edu/~xlou/aimbat.html>`_
