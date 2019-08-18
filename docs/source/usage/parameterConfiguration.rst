@@ -18,15 +18,16 @@ The GUI of AIMBAT uses the following to support interactive plotting:
 #. `GUI neutral widgets <http://matplotlib.org/api/widgets_api.html>`_
 #. `GUI neutral event handling API (Application Programming Interface) <http://matplotlib.org/users/event_handling.html>`_
 
-AIMBAT uses the default toolkit ``Tk`` and backend ``TkAgg``.
-
 Visit these pages for an `explanation of the backend <http://matplotlib.org/faq/usage_faq.html#what-is-a-backend>`_ and `how to customize it <http://matplotlib.org/users/customizing.html#customizing-matplotlib>`_.
 
+AIMBAT uses the default toolkit ``Tk`` and backend ``TkAgg``.
+
+In the latest version, user does not need to setup the backend for the SAC plotting functions. 
 
 Configuration File
 ~~~~~~~~~~~~~~~~~~
 
-Other parameters for the package can be set up by a configuration file ``ttdefaults.conf``, which is interpreted by the module ConfigParser. This configuration file is searched in the following order:
+Parameters for the package can be set up by a configuration file ``ttdefaults.conf``, which is interpreted by the module ConfigParser. This configuration file is searched in the following order:
 
 #. file ``ttdefaults.conf`` in the current working directory
 #. file ``.aimbat/ttdefaults.conf`` in your ``HOME`` directory
@@ -98,7 +99,9 @@ Example of AIMBAT configuration file `ttdefaults.conf`
 | xcorr_modu = xcorrf90   | Module for calculating cross-correlation:                           |
 |                         | xcorr for Numpy or xcorrf90 for Fortran                             |
 +-------------------------+---------------------------------------------------------------------+
-| xcorr_func = xcorr_fast | Function for calculating cross-correlation                          |
+| xcorr_func = xcorr_fast | Function for calculating cross-correlation:                         |
+|                         | xcorr_full/fast/faster,          reverse polarity allowed           |
+|                         | xcorr_full/fast/faster_polarity, reverse polarity not allowed       |
 +-------------------------+---------------------------------------------------------------------+
 | shift = 10              | Sample shift for running coarse cross-correlation                   |
 +-------------------------+---------------------------------------------------------------------+
@@ -125,7 +128,9 @@ Example of AIMBAT configuration file `ttdefaults.conf`
 | xcorr_modu = xcorrf90	    | Module for calculating cross-correlation:                        |
 |                           | xcorr for Numpy or xcorrf90 for Fortran                          |
 +---------------------------+------------------------------------------------------------------+
-| xcorr_func = xcorr_faster | Function for calculating cross-correlation                       |
+| xcorr_func = xcorr_fast   | Function for calculating cross-correlation:                      |
+|                           | xcorr_full/fast/faster,          reverse polarity allowed        |
+|                           | xcorr_full/fast/faster_polarity, reverse polarity not allowed    |
 +---------------------------+------------------------------------------------------------------+
 | shift = 10                | Sample shift for running coarse cross-correlation                |
 +---------------------------+------------------------------------------------------------------+
@@ -143,10 +148,35 @@ Example of AIMBAT configuration file `ttdefaults.conf`
 | evlist = event.list       | File for event hypocenter and origin time (deprecated)           |
 +---------------------------+------------------------------------------------------------------+
 
-+---------------------+-------------+
-| signal              |             |
-+=====================+=============+
-| tapertype = hanning | Taper type  |
-+---------------------+-------------+
-| taperwidth = 0.1    | Taper width |
-+---------------------+-------------+
++--------------------------+--------------------------------------------------------+
+| signal                   |                                                        |
++==========================+========================================================+
+| tapertype    = hanning   | Taper type                                             |
++--------------------------+--------------------------------------------------------+
+| taperwidth   = 0.1       | Taper width                                            |
++--------------------------+--------------------------------------------------------+
+| fhdrBand     = kuser1    | SAC Header to store filter type                        |
++--------------------------+--------------------------------------------------------+
+| fhdrApply    = kuser1    | SAC Header to store applying filter or not             |
++--------------------------+--------------------------------------------------------+
+| fhdrRevPass  = user4     | SAC Header to store reverse pass of filter             |  
++--------------------------+--------------------------------------------------------+
+| fhdrLowFreq  = user5     | SAC Header to store low frequency of band pass filter  |
++--------------------------+--------------------------------------------------------+
+| fhdrHighFreq = user6     | SAC Header to store high frequency of band pass filter |
++--------------------------+--------------------------------------------------------+
+| fhdrOrder    = user7     | SAC Header to store order of band pass filter          |
++--------------------------+--------------------------------------------------------+
+| fvalApply    = 0         | Value of applying filter or not                        |
++--------------------------+--------------------------------------------------------+
+| fvalBand     = bandpass  | Value of filter type                                   |
++--------------------------+--------------------------------------------------------+
+| fvalRevPass  = 0         | Value of reverse pass filter                           |  
++--------------------------+--------------------------------------------------------+
+| fvalLowFreq  = 0.05      | Value of low frequency of band pass filter             |
++--------------------------+--------------------------------------------------------+
+| fvalHighFreq = 2         | Value of high frequency of band pass                   |
++--------------------------+--------------------------------------------------------+
+| fvalOrder    = 2         | Value oforder of band pass filter                      |
++--------------------------+--------------------------------------------------------+
+

@@ -7,4 +7,4 @@ Using AIMBAT
 .. include:: usage/parameterConfiguration.rst
 .. include:: usage/SACdataAccess.rst
 .. include:: usage/PickingTravelTimes.rst
-.. include:: usage/VisualizingStations.rst
+.. include:: usage/PickingTravelTimesQt.rst

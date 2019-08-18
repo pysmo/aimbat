@@ -37,7 +37,7 @@ The ICCS and MCCC algorithms are implemented in two modules ``pysmo.aimbat.algic
 Picking Travel Times
 ~~~~~~~~~~~~~~~~~~~~
 
-This section explains how to run the program :code:`ttpick.py` to get the travel times you want.
+This section explains how to run the program :code:`aimbat-ttpick` to get the travel times you want.
 
 
 Getting into the right directory
@@ -46,14 +46,14 @@ Getting into the right directory
 In the terminal, cd into the directory with all of the ``pkl`` files you want to run. You want to run either the ``BHT`` or ``BHZ`` files. ``BHT`` files are for S-waves and ``BHZ`` files are for P-waves. ``PKL`` is a bundle of ``SAC`` files. Each ``SAC`` file is a seismogram, but since there may be many seismograms from various stations for each event, we bundle them into a ``PKL`` file so we only have to import one file into AIMBAT, not a few hundred of them.
 
 
-Running ttpick.py
-^^^^^^^^^^^^^^^^^
+Running aimbat-ttpick
+^^^^^^^^^^^^^^^^^^^^^
 
-Run ``ttpick.py -p P <path-to-pkl-file>`` for ``BHZ`` files or ``ttpick.py -p S <path-to-pkl-file>`` for ``BHT`` files. A GUI should pop up if you successfully ran it. Note that if you click on the buttons, they will not work until you move your mouse off them; this is a problem we are hoping to fix.
+Run ``aimbat-ttpick -p P <path-to-pkl-file>`` for ``BHZ`` files or ``aimbat-ttpick -p S <path-to-pkl-file>`` for ``BHT`` files. A GUI should pop up if you successfully ran it. Note that if you click on the buttons, they will not work until you move your mouse off them; this is a problem we are hoping to fix.
 
 You can get some example data to test this out by downloading the Github repository `data-example <https://github.com/pysmo/data-example>`_. Now, cd into the folder `example_pkl_files`, which has several pickle files for seismic events. Type::
 
-    ttpick.py -p P 20110915.19310408.bhz.pkl
+    aimbat-ttpick -p P 20110915.19310408.bhz.pkl
 
 and a python GUI should pop up.
 
@@ -151,7 +151,7 @@ Post Processing
 Getting the output
 ^^^^^^^^^^^^^^^^^^
 
-In the same folder as the initial PKL file you ran ``ttpick.py`` on, you can find the output list with extension ``<event name>.mcp``, which contains the travel time arrivals.
+In the same folder as the initial PKL file you ran ``aimbat-ttpick`` on, you can find the output list with extension ``<event name>.mcp``, which contains the travel time arrivals.
 
 .. image:: images/output_list.png
 
@@ -171,10 +171,23 @@ Run ``getsta.py`` in the additional scripts (not on Github for now). It gives th
 .. image:: images/count_stations.png
 
 
-Picking Travel Times does not work
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Visualizing Stations on a map
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-If you run ``ttick.py <Event name>.bhz.pkl``, a GUI will pop up for you to manually pick the travel times by pressing the keyboard. If typing on the keyboard as directed does not allow you to pick travel times, it could be a problem with the keyboard settings, or the matplotlib backend.
+After running::
+
+	aimbat-ttpick <sac-files>
+
+Hit ``Map of Stations`` in order to get a visual respresentation of where exactly each station is. Dots represent circles used for computing delay times; black triangles represent discarded stations. Click on a dot to get the station name in the terminal.
+
+.. image:: images/basemap_stations.png
+
+
+
+Picking Travel Times does not work
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you run ``aimbat-ttick <Event name>.bhz.pkl``, a GUI will pop up for you to manually pick the travel times by pressing the keyboard. If typing on the keyboard as directed does not allow you to pick travel times, it could be a problem with the keyboard settings, or the matplotlib backend.
 
 To fix this, first look for the .matplotlib directory. It is hidden in your home directory, so do ``ls -a`` to find it.
 
