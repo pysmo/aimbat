@@ -14,3 +14,4 @@ src/pysmo.aimbat.egg-info/
 .pytest_cache/
 pysmo.aimbat.egg-info/
 .python-version
+.vscode/settings.json
