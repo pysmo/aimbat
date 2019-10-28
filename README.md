@@ -51,5 +51,23 @@ Running Unit Tests
 
 	python run_unit_tests.py
 
+The modification by Xin Song
+------------------
+* Colour alarm for traces with very large traveltimes
+
+When the measured relative traveltime after MCCC exceeds the traveltime thresholds, the corresponding traces will show different colours. This feature is to avoid some high risky traces that might have very large traveltimes. It can have 3 traveltime thresholds maximum.
+
+This feature is set in the `ttconfig.py` in either `aimbat/src/pysmo/aimbat/` or either local directory
+
+For example in `ttconfig.py`:
+```
+thresholds = 2 2.5 3
+colorthresholds = green magenta red
+```
+It means the colour of trace will become green, magenta, or red if the traveltime of this trace is over 2s, 2.5s, or 3s after MCCC.
+
+* Perform the MCCC without changing the polarity of traces by setting `xcorr_func` in the `ttconfig.py`:
+
+`xcorr_func = xcorr_full_polarity`
 
 
