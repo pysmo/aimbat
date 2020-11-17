@@ -6,6 +6,7 @@ verify_ssl = true
 [dev-packages]
 pytest = "*"
 pytest-mpl = "*"
+pylint = "*"
 Sphinx = "*"
 sphinx-rtd-theme = "*"
 
@@ -17,4 +18,4 @@ matplotlib = "~=3.0"
 pyqtgraph = "~=0.10"
 
 [requires]
-python_version = "3.7"
+python_version = "3.8"

@@ -23,7 +23,7 @@ before_install: |
     brew install gcc || (brew upgrade gcc && brew cleanup gcc)
   elif [ "$TRAVIS_OS_NAME" == "linux" ]; then
     sudo apt-get update -qq
-    sudo apt-get install -qq gfortran
+    sudo apt-get install -qq gfortran make
   fi
 
 install:
