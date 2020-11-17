@@ -2,17 +2,16 @@ language: python
 
 matrix:
   include:
-    - name: "Python 3.7 on Ubuntu Xenial"
+    - name: "Python 3.8 on Ubuntu Xenial"
       os: linux
-      dist: xenial
-      python: 3.7
-    - name: "Python 3.6 on Ubuntu Xenial"
-      os: linux
-      dist: xenial
-      python: 3.6
-    - name: "Python 3.7 on macOS"
+      python:
+        - 3.6
+        - 3.7
+        - 3.8
+        - 3.9
+    - name: "Python on macOS"
       os: osx
-      osx_image: xcode10.2
+      osx_image: xcode12.2
       language: shell
 
 cache: pip
