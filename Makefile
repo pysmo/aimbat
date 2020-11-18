@@ -12,7 +12,7 @@ develop: init
 	pipenv run python setup.py develop
 
 lint:
-	pipenv run pylint setup.py pysmo test
+	pipenv run pylint **/*.py
 
 test: init
 	pipenv run py.test -v tests

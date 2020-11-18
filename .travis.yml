@@ -2,14 +2,9 @@ language: python
 
 matrix:
   include:
-    - name: "Python 3.8 on Ubuntu Xenial"
-      os: linux
-      python:
-        - 3.6
-        - 3.7
-        - 3.8
-        - 3.9
-    - name: "Python on macOS"
+    - name: "Python 3.8 on Ubuntu"
+      python: 3.8
+    - name: "Python 3.9 on macOS"
       os: osx
       osx_image: xcode12.2
       language: shell
