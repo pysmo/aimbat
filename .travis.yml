@@ -2,17 +2,12 @@ language: python
 
 matrix:
   include:
-    - name: "Python 3.7 on Ubuntu Xenial"
+    - name: "Python 3.8 on Ubuntu"
       os: linux
-      dist: xenial
-      python: 3.7
-    - name: "Python 3.6 on Ubuntu Xenial"
-      os: linux
-      dist: xenial
-      python: 3.6
-    - name: "Python 3.7 on macOS"
+      python: 3.8
+    - name: "Python 3.9 on macOS"
       os: osx
-      osx_image: xcode10.2
+      osx_image: xcode12.2
       language: shell
 
 cache: pip
@@ -23,7 +18,7 @@ before_install: |
     brew install gcc || (brew upgrade gcc && brew cleanup gcc)
   elif [ "$TRAVIS_OS_NAME" == "linux" ]; then
     sudo apt-get update -qq
-    sudo apt-get install -qq gfortran
+    sudo apt-get install -qq gfortran make
   fi
 
 install:
