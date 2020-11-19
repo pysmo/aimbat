@@ -16,6 +16,7 @@ scipy = "~=1.2"
 numpy = "~=1.15"
 matplotlib = "~=3.0"
 pyqtgraph = "~=0.10"
+pyside2 = "*"
 
 [requires]
 python_version = "3.8"
