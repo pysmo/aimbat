@@ -1,4 +1,4 @@
-.PHONY: docs dist clean test develop shell lint
+.PHONY: docs dist clean tests develop shell lint init
 
 PIPENV := $(shell command -v pipenv 2> /dev/null)
 
@@ -8,16 +8,16 @@ ifndef PIPENV
 endif
 	pipenv install --dev
 
-develop: init
+develop:
 	pipenv run python setup.py develop
 
 lint:
 	pipenv run pylint **/*.py
 
-test: init
-	pipenv run py.test -v tests
+tests:
+	pipenv run pytest --cov=pysmo/aimbat -v tests
 
-shell: init
+shell:
 	pipenv shell
 
 docs: develop

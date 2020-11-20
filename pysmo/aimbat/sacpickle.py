@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: sacpickle.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2011 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 ===================
 Module sacpickle.py
@@ -13,20 +13,21 @@ Module sacpickle.py
 """
 
 
-import os, sys
+import os
+import sys
 import pickle
-from bz2  import BZ2File
+from bz2 import BZ2File
 from gzip import GzipFile
 from numpy import array, linspace, mean, ones, zeros, pi, cos, concatenate
 from scipy import signal
 from pysmo.core.sac import SacIO
 
 
-# ############################################################################### #
-#                                                                                 #
-#                         MANIPULATING PICKLE FILES                               #
-#                                                                                 #
-# ############################################################################### #
+# ########################################################################### #
+#                                                                             #
+#                       MANIPULATING PICKLE FILES                             #
+#                                                                             #
+# ########################################################################### #
 
 def zipFile(zipmode='gz'):
     """
@@ -39,6 +40,7 @@ def zipFile(zipmode='gz'):
     elif zipmode == 'gz':
         zfile = GzipFile
     return zfile
+
 
 def fileZipMode(ifilename):
     """
@@ -66,8 +68,9 @@ def writePickle(d, picklefile, zipmode=None):
             pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
     else:
         zfile = zipFile(zipmode)
-        with open(zfile(picklefile+'.'+zipmode, 'wb')) as f:
+        with zfile(picklefile+'.'+zipmode, 'wb') as f:
             pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
+
 
 def readPickle(picklefile, zipmode=None):
     """
@@ -83,18 +86,17 @@ def readPickle(picklefile, zipmode=None):
     return d
 
 
+# ########################################################################### #
+#                                                                             #
+#                       MANIPULATING PICKLE FILES                             #
+#                                                                             #
+# ########################################################################### #
 
-# ############################################################################### #
-#                                                                                 #
-#                         MANIPULATING PICKLE FILES                               #
-#                                                                                 #
-# ############################################################################### #
-
-# ############################################################################### #
-#                                                                                 #
-#                                CLASS: SacDataHdrs                               #
-#                                                                                 #
-# ############################################################################### #
+# ########################################################################### #
+#                                                                             #
+#                               CLASS: SacDataHdrs                            #
+#                                                                             #
+# ########################################################################### #
 
 class SacDataHdrs:
     """ Class for individual SAC file's data and headers.
@@ -106,9 +108,9 @@ class SacDataHdrs:
         isac = SacIO.from_file(ifile)
         nthdr = 10
         nkhdr = 3
-        thdrs = [-12345.,] * nthdr
-        users = [-12345.,] * nthdr
-        kusers = ['-1234567',] * nkhdr
+        thdrs = [-12345., ] * nthdr
+        users = [-12345., ] * nthdr
+        kusers = ['-1234567', ] * nkhdr
         for i in range(nthdr):
             thdr = getattr(isac, 't'+str(i))
             user = getattr(isac, 'user'+str(i))
@@ -117,7 +119,7 @@ class SacDataHdrs:
             if user is not None:
                 users[i] = user
         for i in range(nkhdr):
-            kuser = getattr(isac, 'kuser'+str(i))#.rstrip()
+            kuser = getattr(isac, 'kuser'+str(i))  # .rstrip()
             if kuser is not None:
                 kusers[i] = kuser
         self.thdrs = thdrs
@@ -133,17 +135,18 @@ class SacDataHdrs:
         self.staloc = [self.stla, self.stlo, self.stel]
         self.filename = ifile
         # resample data if given a different positive delta
-        self.data, self.delta = resampleSeis(array(isac.data), isac.delta, delta)
+        self.data, self.delta = resampleSeis(array(isac.data),
+                                             isac.delta, delta)
         self.npts = len(self.data)
         self.b = isac.b
         self.e = isac.e
         self.o = isac.o
-        self.kstnm = isac.kstnm.replace('\x00','')
-        self.knetwk = isac.knetwk.replace('\x00','')
+        self.kstnm = isac.kstnm.replace('\x00', '')
+        self.knetwk = isac.knetwk.replace('\x00', '')
         self.netsta = '.'.join([self.knetwk, self.kstnm])
         self.cmpaz = isac.cmpaz
         self.cmpinc = isac.cmpinc
-        self.kcmpnm = isac.kcmpnm.replace('\x00','')
+        self.kcmpnm = isac.kcmpnm.replace('\x00', '')
         del isac
 
     def resampleData(self, delta):
@@ -182,7 +185,8 @@ class SacDataHdrs:
 
     def writeHdrs(self):
         """
-        Write SAC headers (t_n, user_n, and kuser_n) in python obj to existing SAC file.
+        Write SAC headers (t_n, user_n, and kuser_n) in
+        python obj to existing SAC file.
         """
         sacobj = SacIO.from_file(self.filename)
         self.sethdrs(sacobj)
@@ -211,12 +215,13 @@ class SacDataHdrs:
         else:
             fspl = self.filename.split('/')
             if len(fspl) > 1:
-                os.system('mkdir -p '+ '/'.join(fspl[:-1]))
+                os.system('mkdir -p ' + '/'.join(fspl[:-1]))
             sacobj = SacIO()
             sacobj.stla = 0
             sacobj.stlo = 0
             sacobj.stel = 0
-        hdrs = ['o', 'b', 'delta', 'data', 'gcarc', 'az', 'baz', 'dist', 'kstnm', 'knetwk']
+        hdrs = ['o', 'b', 'delta', 'data', 'gcarc', 'az',
+                'baz', 'dist', 'kstnm', 'knetwk']
         hdrs += ['cmpaz', 'cmpinc', 'kcmpnm', 'stla', 'stlo', 'stel']
         for hdr in hdrs:
             setattr(sacobj, hdr, self.__dict__[hdr])
@@ -224,17 +229,18 @@ class SacDataHdrs:
         sacobj.write(self.filename)
         del sacobj
 
-# ############################################################################### #
-#                                                                                 #
-#                                CLASS: SacDataHdrs                               #
-#                                                                                 #
-# ############################################################################### #
+# ########################################################################### #
+#                                                                             #
+#                              CLASS: SacDataHdrs                             #
+#                                                                             #
+# ########################################################################### #
 
-# ############################################################################### #
-#                                                                                 #
-#                                  CLASS: SacGroup                                #
-#                                                                                 #
-# ############################################################################### #
+# ########################################################################### #
+#                                                                             #
+#                                CLASS: SacGroup                              #
+#                                                                             #
+# ########################################################################### #
+
 
 class SacGroup:
     """ Read a group of SAC files' headers and data to python objects in memory.
@@ -253,7 +259,9 @@ class SacGroup:
         year, jday = isac.nzyear, isac.nzjday
         mon, day = jul2date(year, jday)
         mag = isac.mag or 0.
-        self.event = [ year, mon, day, isac.nzhour, isac.nzmin, isac.nzsec+isac.nzmsec*0.001, isac.evla, isac.evlo, isac.evdp*0.001, mag ]
+        self.event = [year, mon, day, isac.nzhour, isac.nzmin,
+                      isac.nzsec+isac.nzmsec*0.001, isac.evla,
+                      isac.evlo, isac.evdp*0.001, mag]
         self.idep = isac.idep
         self.iztype = isac.iztype
         self.kevnm = isac.kevnm or 'unknown'
@@ -267,13 +275,11 @@ class SacGroup:
             sacdh.resampleData(delta)
 
 
-
-
-# ############################################################################### #
-#                                                                                 #
-#                                  CLASS: SacGroup                                #
-#                                                                                 #
-# ############################################################################### #
+# ########################################################################### #
+#                                                                             #
+#                               CLASS: SacGroup                               #
+#                                                                             #
+# ########################################################################### #
 
 def resampleSeis(data, deltaold, delta):
     """ Resample data of a seismogram if given a different positive delta """
@@ -285,11 +291,13 @@ def resampleSeis(data, deltaold, delta):
         delta = deltaold
     return data, delta
 
+
 def sac2obj(ifiles, delta=-1):
     """ Convert SAC files to python objects.
     """
     gsac = SacGroup(ifiles, delta)
     return gsac
+
 
 def sac2pkl(ifiles, pkfile='sac.pkl', delta=-1, zipmode='gz'):
     """ Convert SAC files to python pickle files.
@@ -297,12 +305,13 @@ def sac2pkl(ifiles, pkfile='sac.pkl', delta=-1, zipmode='gz'):
     gsac = SacGroup(ifiles, delta)
     writePickle(gsac, pkfile, zipmode)
 
+
 def obj2sac(gsac):
     """ Save headers in python objects to SAC files.
     """
     for sacdh in gsac.saclist:
         sacdh.savesac()
-        # save more headers 
+        # save more headers
         nzyear, mon, day, nzhour, nzmin, nzsec, evla, evlo, evdp, mag = gsac.event
         kevnm = gsac.kevnm
         idep = gsac.idep
@@ -313,17 +322,19 @@ def obj2sac(gsac):
         evdp *= 1000
         stla, stlo, stel = gsac.stadict[sacdh.netsta]
         stel *= 1000
-        hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec', 'evla', 'evlo', 'evdp', 'mag', ]
-        hdrs += ['stla', 'stlo', 'stel' ]
+        hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec',
+                'evla', 'evlo', 'evdp', 'mag', ]
+        hdrs += ['stla', 'stlo', 'stel']
         hdrs += ['kevnm', 'idep', 'iztype']
         for sacdh in gsac.saclist:
-                sacobj = SacIO.from_file(sacdh.filename)
-                for hdr in hdrs:
-                        setattr(sacobj, hdr, eval(hdr))
-                sacobj.write(sacdh.filename)
-                del sacobj
+            sacobj = SacIO.from_file(sacdh.filename)
+            for hdr in hdrs:
+                setattr(sacobj, hdr, eval(hdr))
+            sacobj.write(sacdh.filename)
+            del sacobj
     if 'stkdh' in gsac.__dict__:
         gsac.stkdh.savesac()
+
 
 def pkl2sac(pkfile, zipmode):
     """ Save headers in python pickle to SAC files.
@@ -331,14 +342,16 @@ def pkl2sac(pkfile, zipmode):
     gsac = readPickle(pkfile, zipmode)
     obj2sac(gsac)
 
+
 def _days(year):
     """ Get number of days for each month of a year."""
     idays = [31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    if year%4 == 0:
+    if year % 4 == 0:
         idays[1] = 29
     else:
         idays[1] = 28
     return idays
+
 
 def date2jul(year, mon, day):
     """ date --> julian day """
@@ -349,6 +362,7 @@ def date2jul(year, mon, day):
     jday += day
     return jday
 
+
 def jul2date(year, jday):
     """ julian day --> date """
     idays = _days(year)
@@ -358,15 +372,17 @@ def jul2date(year, jday):
         mon += 1
     return mon, jday
 
+
 def taper(data, taperwidth=0.1, tapertype='hanning'):
     """ Apply a symmetric taper to each end of data.
         http://www.iris.edu/software/sac/commands/taper.html
         Default width: 0.1/2=0.05 on each end.
     """
-    if taperwidth == 0: return data
+    if taperwidth == 0:
+        return data
     npts = len(data)
     if npts == 0:
-        print ('Zero length data. Exit')
+        print('Zero length data. Exit')
         sys.exit()
     taperlen = round(0.5*taperwidth*npts)
     taperdata = ones(npts)
@@ -387,13 +403,15 @@ def taper(data, taperwidth=0.1, tapertype='hanning'):
     taperdata *= data
     return taperdata
 
+
 def taperWindow(timewindow, taperwidth=0.1):
     """ Calculate length of taper window from time window so that:
         taperwidth = (taperwindow)/(taperwindow+timewindow)
     """
     return taperwidth/(1.0-taperwidth)*(timewindow[1]-timewindow[0])
 
-def windowIndex(saclist, reftimes, timewindow=(-5.0,5.0), taperwindow=1.0):
+
+def windowIndex(saclist, reftimes, timewindow=(-5.0, 5.0), taperwindow=1.0):
     """ Calculate indices for cutting data at a time window and taper window.
         Indices nstart and notal bound the entire window, which is sum of time window and taper window.
         Only the taper window part of data is tapered:            __-----------__
@@ -413,6 +431,7 @@ def windowIndex(saclist, reftimes, timewindow=(-5.0,5.0), taperwindow=1.0):
     ntotal = int(round((tw1-tw0+taperwindow)/delta)) + 1
     nstart = [int(round((twleft+reftimes[i]-saclist[i].b)/delta)) for i in range(len(saclist))]
     return nstart, ntotal
+
 
 def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning', datatype='data'):
     """
@@ -443,6 +462,7 @@ def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning', datatyp
         datawin.append(data)
     return array(datawin)
 
+
 def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
     """
     Cut time within a time window using given indices.
@@ -456,6 +476,7 @@ def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
         time = linspace(ta, tb, ntotal) 
         timewin.append(time)
     return array(timewin)
+
 
 def windowTimeData(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
     """
@@ -522,7 +543,8 @@ def loadData(ifiles, opts, para):
         opts.delta = gsac.saclist[0].delta
 
     # warn user if sampling rates are inconsistent
-    class BreakIt(Exception): pass
+    class BreakIt(Exception):
+        pass
     length_of_saclist = len(gsac.saclist)
     try:
         for k in range(length_of_saclist):
@@ -587,6 +609,7 @@ def getOptions():
         sys.exit()
     return opts, files
 
+
 def main():
     opts, ifiles = getOptions()
     if opts.s2p:
@@ -597,6 +620,7 @@ def main():
         filemode, zipmode = fileZipMode(ifiles[0])
         for pkfile in ifiles:
             pkl2sac(pkfile, zipmode)
+
 
 if __name__ == '__main__':
     main()

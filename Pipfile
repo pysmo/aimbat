@@ -9,6 +9,7 @@ pytest-mpl = "*"
 pylint = "*"
 Sphinx = "*"
 sphinx-rtd-theme = "*"
+pytest-cov = "*"
 
 [packages]
 pysmo = "~=0.7"
