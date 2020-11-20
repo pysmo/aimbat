@@ -7,7 +7,7 @@ import os
 import filecmp
 import bz2
 import gzip
-import shutil
+import pickle
 from glob import glob
 from pysmo.aimbat import sacpickle
 
@@ -40,19 +40,19 @@ def test_fileZipMode():
 def test_sac2pkl(tmpdir):
     """
     Convert a group of SAC files to a pickle file and compare output
-    to a reference pickle file. Gzip compressed pickle files are
-    decompressed and compared to the reference file.
+    to a reference pickle file. Direct comparrison of the binary files
+    is a bit tricky, so instead the files are unpickled again and then
+    compared.
     """
     outfile = tmpdir + '/sac2pkl.pkl'
     outfile_gz = tmpdir + '/sac2pkl.pkl.gz'
-    outfile_gz_decompressed = tmpdir + '/sac2pkl_gz_decompressed.pkl'
     outfile_bz2 = tmpdir + '/sac2pkl.pkl.bz2'
     sacpickle.sac2pkl(_sacfiles, pkfile=outfile, zipmode=None)
-    assert filecmp.cmp(outfile, _pklfile, shallow=False)
+    assert pickle.load(open(outfile, "rb")).stadict == \
+        pickle.load(open(_pklfile, "rb")).stadict
     sacpickle.sac2pkl(_sacfiles, pkfile=outfile, zipmode='gz')
-    with gzip.open(outfile_gz, 'rb') as f_in, \
-            open(outfile_gz_decompressed, 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
-    assert filecmp.cmp(outfile_gz_decompressed, _pklfile, shallow=False)
+    assert pickle.load(gzip.open(outfile_gz, "rb")).stadict == \
+        pickle.load(open(_pklfile, "rb")).stadict
     sacpickle.sac2pkl(_sacfiles, pkfile=outfile, zipmode='bz2')
-    assert filecmp.cmp(outfile_bz2, _pklfile+'.bz2', shallow=False)
+    assert pickle.load(bz2.open(outfile_bz2, "rb")).stadict == \
+        pickle.load(open(_pklfile, "rb")).stadict
