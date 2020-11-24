@@ -81,7 +81,7 @@ def readPickle(picklefile, zipmode=None):
             d = pickle.load(f)
     else:
         zfile = zipFile(zipmode)
-        with open(zfile(picklefile+'.'+zipmode, 'rb')) as f:
+        with zfile(picklefile+'.'+zipmode, 'rb') as f:
             d = pickle.load(f)
     return d
 
@@ -99,10 +99,12 @@ def readPickle(picklefile, zipmode=None):
 # ########################################################################### #
 
 class SacDataHdrs:
-    """ Class for individual SAC file's data and headers.
+    """
+    Class for individual SAC file's data and headers.
     """
     def __init__(self, ifile, delta=-1):
-        """ Read SAC file to python objects in memory.
+        """
+        Read SAC file to python objects in memory.
         """
         print('Reading SAC file: '+ifile)
         isac = SacIO.from_file(ifile)
@@ -154,7 +156,8 @@ class SacDataHdrs:
         self.npts = len(self.data)
 
     def gethdr(self, hdr):
-        """ Read a header variable (t_n, user_n, or kuser_n).
+        """
+        Read a header variable (t_n, user_n, or kuser_n).
         """
         if hdr[0] == 't':
             hdrs = self.thdrs
@@ -163,13 +166,13 @@ class SacDataHdrs:
         elif hdr[0] == 'k':
             hdrs = self.kusers
         else:
-            print('Not a t_n, user_n or kuser_n header. Exit')
-            sys.exit()
+            raise ValueError('Not a t_n, user_n or kuser_n header. Exit')
         ind = int(hdr[-1])
         return hdrs[ind]
 
     def sethdr(self, hdr, val):
-        """ Write a header variable (t_n, user_n, or kuser_n).
+        """
+        Write a header variable (t_n, user_n, or kuser_n).
         """
         if hdr[0] == 't':
             hdrs = self.thdrs
@@ -178,8 +181,7 @@ class SacDataHdrs:
         elif hdr[0] == 'k':
             hdrs = self.kusers
         else:
-            print('Not a t_n, user_n or kuser_n header. Exit')
-            sys.exit()
+            raise ValueError('Not a t_n, user_n or kuser_n header. Exit')
         ind = int(hdr[-1])
         hdrs[ind] = val
 
@@ -243,8 +245,9 @@ class SacDataHdrs:
 
 
 class SacGroup:
-    """ Read a group of SAC files' headers and data to python objects in memory.
-        Get event information.
+    """
+    Read a group of SAC files' headers and data to python objects in memory.
+    Get event information.
     """
     def __init__(self, ifiles, delta=-1):
         self.stadict = {}
@@ -270,7 +273,9 @@ class SacGroup:
             self.resampleData(delta)
 
     def resampleData(self, delta):
-        """ resample data of all sacdh """
+        """
+        resample data of all sacdh
+        """
         for sacdh in self.saclist:
             sacdh.resampleData(delta)
 
@@ -282,7 +287,9 @@ class SacGroup:
 # ########################################################################### #
 
 def resampleSeis(data, deltaold, delta):
-    """ Resample data of a seismogram if given a different positive delta """
+    """
+    Resample data of a seismogram if given a different positive delta
+    """
     nptsold = len(data)
     npts = int(round(nptsold*deltaold/delta))
     if npts > 0 and npts != nptsold:
@@ -293,21 +300,24 @@ def resampleSeis(data, deltaold, delta):
 
 
 def sac2obj(ifiles, delta=-1):
-    """ Convert SAC files to python objects.
+    """
+    Convert SAC files to python objects.
     """
     gsac = SacGroup(ifiles, delta)
     return gsac
 
 
 def sac2pkl(ifiles, pkfile='sac.pkl', delta=-1, zipmode='gz'):
-    """ Convert SAC files to python pickle files.
+    """
+    Convert SAC files to python pickle files.
     """
     gsac = SacGroup(ifiles, delta)
     writePickle(gsac, pkfile, zipmode)
 
 
 def obj2sac(gsac):
-    """ Save headers in python objects to SAC files.
+    """
+    Save headers in python objects to SAC files.
     """
     for sacdh in gsac.saclist:
         sacdh.savesac()
@@ -337,16 +347,19 @@ def obj2sac(gsac):
 
 
 def pkl2sac(pkfile, zipmode):
-    """ Save headers in python pickle to SAC files.
+    """
+    Save headers in python pickle to SAC files.
     """
     gsac = readPickle(pkfile, zipmode)
     obj2sac(gsac)
 
 
 def _days(year):
-    """ Get number of days for each month of a year."""
+    """
+    Get number of days for each month of a year.
+    """
     idays = [31, 0, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    if year % 4 == 0:
+    if year % 4 == 0 and not year % 100 == 0 or year % 400 == 0:
         idays[1] = 29
     else:
         idays[1] = 28
@@ -354,7 +367,9 @@ def _days(year):
 
 
 def date2jul(year, mon, day):
-    """ date --> julian day """
+    """
+    date --> julian day
+    """
     idays = _days(year)
     jday = 0
     for i in range(mon-1):
@@ -364,7 +379,9 @@ def date2jul(year, mon, day):
 
 
 def jul2date(year, jday):
-    """ julian day --> date """
+    """
+    julian day --> date
+    """
     idays = _days(year)
     mon = 1
     while jday > idays[mon-1]:
@@ -374,9 +391,10 @@ def jul2date(year, jday):
 
 
 def taper(data, taperwidth=0.1, tapertype='hanning'):
-    """ Apply a symmetric taper to each end of data.
-        http://www.iris.edu/software/sac/commands/taper.html
-        Default width: 0.1/2=0.05 on each end.
+    """
+    Apply a symmetric taper to each end of data.
+    http://www.iris.edu/software/sac/commands/taper.html
+    Default width: 0.1/2=0.05 on each end.
     """
     if taperwidth == 0:
         return data
@@ -405,25 +423,28 @@ def taper(data, taperwidth=0.1, tapertype='hanning'):
 
 
 def taperWindow(timewindow, taperwidth=0.1):
-    """ Calculate length of taper window from time window so that:
-        taperwidth = (taperwindow)/(taperwindow+timewindow)
+    """
+    Calculate length of taper window from time window so that:
+    taperwidth = (taperwindow)/(taperwindow+timewindow)
     """
     return taperwidth/(1.0-taperwidth)*(timewindow[1]-timewindow[0])
 
 
 def windowIndex(saclist, reftimes, timewindow=(-5.0, 5.0), taperwindow=1.0):
-    """ Calculate indices for cutting data at a time window and taper window.
-        Indices nstart and notal bound the entire window, which is sum of time window and taper window.
-        Only the taper window part of data is tapered:            __-----------__
-        The original MCCC code defines taper window differently:  ____-------____
-        Parameters
-        ----------
-        saclist:  list of sacdh 
-        reftimes: list of reference times for the time window
-        timewindow: relative time window to cut data
-        taperwindow: length of taper window
-        nstart: index of first sample point of datacut in each sacdh.data
-        ntotal: length of data within the time window
+    """
+    Calculate indices for cutting data at a time window and taper window.
+    Indices nstart and notal bound the entire window, which is sum of time
+    window and taper window.
+    Only the taper window part of data is tapered:            __-----------__
+    The original MCCC code defines taper window differently:  ____-------____
+    Parameters
+    ----------
+    saclist:  list of sacdh
+    reftimes: list of reference times for the time window
+    timewindow: relative time window to cut data
+    taperwindow: length of taper window
+    nstart: index of first sample point of datacut in each sacdh.data
+    ntotal: length of data within the time window
     """
     delta = saclist[0].delta
     tw0, tw1 = timewindow
@@ -433,7 +454,8 @@ def windowIndex(saclist, reftimes, timewindow=(-5.0, 5.0), taperwindow=1.0):
     return nstart, ntotal
 
 
-def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning', datatype='data'):
+def windowData(saclist, nstart, ntotal, taperwidth, tapertype='hanning',
+               datatype='data'):
     """
     Cut data within a time window using given indices.
     Pad dat with zero if not enough sample.
@@ -473,7 +495,7 @@ def windowTime(saclist, nstart, ntotal, taperwidth, tapertype='hanning'):
         sacdh = saclist[i]
         ta = sacdh.b + nstart[i]*delta
         tb = ta + ntotal*delta
-        time = linspace(ta, tb, ntotal) 
+        time = linspace(ta, tb, ntotal)
         timewin.append(time)
     return array(timewin)
 
@@ -504,9 +526,10 @@ def loadData(ifiles, opts, para):
     Load data either from SAC files or (gz/bz2 compressed) pickle file.
     Get sampling rate from command line option or default config file.
     Resample data if a positive sample rate is given.
-    Output file type is the same as input file (filemode and zipmode do not change).
+    Output file type is the same as input file (filemode and zipmode do
+    not change).
     If filemode == 'sac': zipmode = None
-    If filemode == 'pkl': zipmode = None/bz2/gz 
+    If filemode == 'pkl': zipmode = None/bz2/gz
     """
     if opts.srate is not None:
         srate = opts.srate
@@ -517,6 +540,7 @@ def loadData(ifiles, opts, para):
     opts.filemode = filemode
     opts.zipmode = zipmode
     if filemode == 'sac':
+        print(f"filemode is {filemode} ifile0 is {ifile0}")
         if srate <= 0:
             isac = SacIO.from_file(ifile0)
             delta = isac.delta
@@ -565,7 +589,7 @@ def saveData(gsac, opts):
     Save pickle or sac files.
     """
     if opts.filemode == 'sac':
-        for sacdh in gsac.saclist: 
+        for sacdh in gsac.saclist:
             sacdh.writeHdrs()
         if 'stkdh' in gsac.__dict__:
             gsac.stkdh.savesac()
@@ -577,7 +601,7 @@ def saveData(gsac, opts):
     print('SAC headers saved!')
 
 
-def getOptions():
+def get_arguments(args):
     """
     Parse arguments and options.
     """
@@ -600,7 +624,7 @@ def getOptions():
     parser.add_option('-z', '--zipmode', dest='zipmode', type='str',
                       help='Zip mode: bz2 or gz. Default is None.')
 
-    opts, files = parser.parse_args(sys.argv[1:])
+    opts, files = parser.parse_args(args[1:])
     opts.s2p = True
     if opts.p2s:
         opts.s2p = False
@@ -611,7 +635,7 @@ def getOptions():
 
 
 def main():
-    opts, ifiles = getOptions()
+    opts, ifiles = get_arguments(sys.argv)
     if opts.s2p:
         print('File conversion: sac --> pkl')
         sac2pkl(ifiles, opts.ofilename, opts.delta, opts.zipmode)

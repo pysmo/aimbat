@@ -10,6 +10,7 @@ pylint = "*"
 Sphinx = "*"
 sphinx-rtd-theme = "*"
 pytest-cov = "*"
+pytest-depends = "*"
 
 [packages]
 pysmo = "~=0.7"
