@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: algiccs.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 Python module for the ICCS (iterative cross-correlation and stack) algorithm.
 
@@ -26,9 +26,10 @@ from numpy import linalg as LA
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
 from pysmo.aimbat import sacpickle as sacpkl
-from pysmo.aimbat import prepdata  as pdata
+from pysmo.aimbat import prepdata as pdata
 
-def getOptions():
+
+def get_arguments(args):
     """ Parse arguments and options. """
     usage = "Usage: %prog [options] <sacfile(s) or a picklefile>"
     parser = OptionParser(usage=usage)
@@ -69,11 +70,12 @@ def getOptions():
     parser.add_option('-n', '--minnsel', dest='minnsel', type='int',
                       help='Minimum number of selected seismograms for auto selection. '
                       'Default is {:d}.'.format(minnsel))
-    opts, files = parser.parse_args(sys.argv[1:])
+    opts, files = parser.parse_args(args[1:])
     if not files:
         print(parser.usage)
         sys.exit()
     return opts, files
+
 
 def corrmax(datai, dataj, delta, xcorr, shift):
     """ Calculate time lag at maximum cross correlation between two time series.
@@ -81,12 +83,14 @@ def corrmax(datai, dataj, delta, xcorr, shift):
     delay, ccmax, ccpol = xcorr(datai, dataj, shift)
     return delay*delta, ccmax, ccpol
 
+
 def meanStack(data, taperwidth, tapertype):
     """ Calculate array stack by averaging without weighting.
     """
     sdata = mean(data, 0)
     sdata = sacpkl.taper(sdata, taperwidth, tapertype)
     return sdata
+
 
 def weightStack(data, wgts, taperwidth, tapertype):
     """ Calculate array stack by averaging with weighting.
@@ -99,10 +103,11 @@ def weightStack(data, wgts, taperwidth, tapertype):
 def normWeightStack(data, wgts, taperwidth, tapertype):
     """ Calculate array stack by averaging with weighting and normalization.
     """
-    mdata = [d/max(d)  for d in data]
+    mdata = [d/max(d) for d in data]
     sdata = mean(transpose(mdata) * wgts, 1)
     sdata = sacpkl.taper(sdata, taperwidth, tapertype)
     return sdata
+
 
 def ccWeightStack(saclist, opts):
     """
@@ -140,7 +145,7 @@ def ccWeightStack(saclist, opts):
     else:
         print('Unknown convergence criterion: {:s}. Exit.'.format(convtype))
         sys.exit()
-   
+
     out = '\n--> Run ICCS at window [{0:5.1f}, {1:5.1f}] wrt {2:s}. Write to header: {3:s}'
     print(out.format(twcorr[0], twcorr[1], cchdr0, cchdr1))
     print('    Convergence criterion: {:s}'.format(convtype))
@@ -195,7 +200,7 @@ def ccWeightStack(saclist, opts):
     for i in range(nseis):
         sacdh = saclist[i]
         b = sacdh.b - tfins[i]
-        e = b + (sacdh.npts-1)* delta
+        e = b + (sacdh.npts-1) * delta
         bb.append(b+delta)
         ee.append(e-delta)
     b = max(bb)
@@ -215,9 +220,9 @@ def ccWeightStack(saclist, opts):
     tinimean = mean(tinis)
     tfinmean = mean(tfins)
     stkdh = copy.copy(saclist[0])
-    stkdh.thdrs = [-12345.,] * 10
-    stkdh.users = [-12345.,] * 10
-    stkdh.kusers = ['-1234567',] * 3
+    stkdh.thdrs = [-12345., ] * 10
+    stkdh.users = [-12345., ] * 10
+    stkdh.kusers = ['-1234567', ] * 3
     stkdh.b = twplot[0] - taperwindow*0.5 + tfinmean
     stkdh.npts = len(sdata)
     stkdh.data = sdata
@@ -252,6 +257,7 @@ def ccWeightStack(saclist, opts):
     quas = array([ccc, snr, coh])
     return stkdh, stkdata, quas
 
+
 def coConverg(stack0, stack1):
     """
     Calcuate criterion of convergence by correlation coefficient.
@@ -259,12 +265,14 @@ def coConverg(stack0, stack1):
     """
     return 1 - corrcoef(stack0, stack1)[0][1]
 
+
 def reConverg(stack0, stack1):
     """
     Calcuate criterion of convergence by change of stack.
     stack0 and stack1 are current stack and stack from last iteration.
     """
     return LA.norm(stack0-stack1, 1)/LA.norm(stack0, 2)/len(stack0)
+
 
 def snratio(data, delta, timewindow):
     """
@@ -287,6 +295,7 @@ def snratio(data, delta, timewindow):
     #rw = sqrt(sum(square(yw))/sum(square(yn))*nn/nw)
     return rr
 
+
 def coherence(datai, datas):
     """
     Calculate time domain coherence.
@@ -305,6 +314,7 @@ def plotiter(stkdata):
         plt.plot(stkdata[i], label='iter'+str(i))
     plt.legend()
     plt.show()
+
 
 def autoiccs(gsac, opts):
     """ Run ICCS and delete low quality seismograms automatically.
@@ -344,7 +354,8 @@ def autoiccs(gsac, opts):
     save = input('Save to file? [y/n] \n')
     if save[0].lower() == 'y':
         if opts.filemode == 'sac':
-            for sacdh in saclist: sacdh.writeHdrs()
+            for sacdh in saclist:
+                sacdh.writeHdrs()
             gsac.stkdh.savesac()
         elif opts.filemode == 'pkl':
             print(' Saving gsac to pickle file...')
@@ -358,9 +369,9 @@ def autoiccs(gsac, opts):
                 print('  Less than {:d} seismograms selected. Remove pkl.'.format(minnsel))
 
 
-
 def checkCoverage(gsac, opts, textra=0.0):
-    """ Check if each seismogram has enough samples around the time window relative to ipick.
+    """
+    Check if each seismogram has enough samples around the time window relative to ipick.
     """
     ipick = opts.ipick
     tw0, tw1 = opts.twcorr
@@ -387,7 +398,7 @@ def checkCoverage(gsac, opts, textra=0.0):
 
 
 def main():
-    opts, ifiles = getOptions()
+    opts, ifiles = get_arguments(sys.argv)
     ccpara = ttconfig.CCConfig()
     gsac = sacpkl.loadData(ifiles, opts, ccpara)
     opts.ccpara = ccpara
@@ -397,7 +408,7 @@ def main():
     checkCoverage(gsac, opts)
     qualsort.initQual(gsac.saclist, opts.ccpara.hdrsel, opts.ccpara.qheaders)
     pdata.seisTimeData(gsac.saclist)
-    
+
     if opts.auto_on:
         autoiccs(gsac, opts)
     elif opts.auto_on_all:
@@ -413,6 +424,7 @@ def main():
         sacpkl.saveData(gsac, opts)
     if opts.plotiter:
         plotiter(stkdata)
+
 
 if __name__ == "__main__":
     main()

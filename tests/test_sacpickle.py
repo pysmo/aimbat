@@ -235,7 +235,7 @@ def test_sac2obj(sacfiles):
 
 
 @pytest.mark.depends(on=["test_SacGroup", "test_writePickle"])
-def test_sac2pkl(tmpdir, pklfile):
+def test_sac2pkl(tmpdir, pklfile, sacfiles):
     """
     Convert a group of SAC files to a pickle file and compare output
     to a reference pickle file. Direct comparison of the binary files
@@ -245,13 +245,13 @@ def test_sac2pkl(tmpdir, pklfile):
     outfile = tmpdir + '/sac2pkl.pkl'
     outfile_gz = tmpdir + '/sac2pkl.pkl.gz'
     outfile_bz2 = tmpdir + '/sac2pkl.pkl.bz2'
-    sacpickle.sac2pkl(_sacfiles, pkfile=outfile, zipmode=None)
+    sacpickle.sac2pkl(sacfiles, pkfile=outfile, zipmode=None)
     assert pickle.load(open(outfile, "rb")).stadict == \
         pickle.load(open(pklfile, "rb")).stadict
-    sacpickle.sac2pkl(_sacfiles, pkfile=outfile, zipmode='gz')
+    sacpickle.sac2pkl(sacfiles, pkfile=outfile, zipmode='gz')
     assert pickle.load(gzip.open(outfile_gz, "rb")).stadict == \
         pickle.load(open(pklfile, "rb")).stadict
-    sacpickle.sac2pkl(_sacfiles, pkfile=outfile, zipmode='bz2')
+    sacpickle.sac2pkl(sacfiles, pkfile=outfile, zipmode='bz2')
     assert pickle.load(bz2.open(outfile_bz2, "rb")).stadict == \
         pickle.load(open(pklfile, "rb")).stadict
 
