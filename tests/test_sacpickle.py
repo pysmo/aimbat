@@ -36,6 +36,7 @@ def sacfiles(tmpdir):
         new_filename = f"{tmpdir}/{os.path.basename(sacfile)}"
         shutil.copy(sacfile, new_filename)
         filenames.append(new_filename)
+    filenames.sort()
     return(filenames)
 
 
