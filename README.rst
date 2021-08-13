@@ -46,7 +46,7 @@ Authors' Contacts
 
 * `Xiaoting Lou <http://geophysics.earth.northwestern.edu/people/xlou/aimbat.html>`_ Email: xlou at u.northwestern.edu
 
-* `Suzan van der Lee <http://geophysics.earth.northwestern.edu/seismology/suzan/>`_ Email: suzan at earth.northwestern.edu
+* `Suzan van der Lee <http://geophysics.earth.northwestern.edu/seismology/suzan/>`_ Email: suzan at northwestern.edu
 
 * `Simon Lloyd <https://www.slloyd.net/>`_ Email: simon at slloyd.net
 
