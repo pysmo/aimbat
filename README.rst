@@ -43,13 +43,16 @@ AIMBAT: A Python/Matplotlib Tool for Measuring Teleseismic Arrival Times. Xiaoti
 Authors' Contacts
 -----------------
 
-* `Lay Kuan Loh <http://lkloh2410.wordpress.com/>`_ Email: lloh at ece.cmu.edu
 
-* `Xiaoting Lou <http://www.earth.northwestern.edu/~xlou/Welcome.html>`_ Email: xlou at u.northwestern.edu
+* `Xiaoting Lou <http://geophysics.earth.northwestern.edu/people/xlou/aimbat.html>`_ Email: xlou at u.northwestern.edu
 
-* `Suzan van der Lee <http://www.earth.northwestern.edu/research/suzan/>`_ Email: suzan at earth.northwestern.edu
+* `Suzan van der Lee <http://geophysics.earth.northwestern.edu/seismology/suzan/>`_ Email: suzan at earth.northwestern.edu
 
 * `Simon Lloyd <https://www.slloyd.net/>`_ Email: simon at slloyd.net
+
+Contributors
+------------
+* Lay Kuan Loh
 
 Licence
 -------
