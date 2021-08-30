@@ -1,31 +1,42 @@
-.PHONY: docs dist clean test develop shell lint
+.PHONY: docs dist clean tests develop shell lint init help
 
-PIPENV := $(shell command -v pipenv 2> /dev/null)
+PIPENV_VERSION := $(shell command pipenv --version 2> /dev/null)
 
-init:
-ifndef PIPENV
+help: ## List all commands.
+	@echo -e "\nThis makefile executes mostly pipenv commands. To view all pipenv commands availabile run 'pipenv --help'."
+	@echo -e "\n\033[1mAVAILABLE COMMANDS\033[0m"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9 -]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 | "sort"}' $(MAKEFILE_LIST)
+
+
+check-pipenv: ## Check if Pipenv is installed. If not it is installed with pip.
+ifndef PIPENV_VERSION
+	@echo "Installing pipenv with pip"
 	pip install pipenv
+else
+	@echo "Found ${PIPENV_VERSION}";
 endif
+
+install: check-pipenv ## Install this project's dependencies in a virtual environment.
 	pipenv install --dev
 
-develop: init
+develop: install ## Install this project in a virtual environment.
 	pipenv run python setup.py develop
 
-lint:
+lint: check-pipenv ## Run pylint to check code quality.
 	pipenv run pylint **/*.py
 
-test: init
-	pipenv run py.test -v tests
+tests: check-pipenv ## Run unit tests.
+	pipenv run pytest --cov=pysmo/aimbat --cov-report=xml --mpl -v tests
 
-shell: init
+shell: check-pipenv ## Start a shell in the project virtual environment.
 	pipenv shell
 
-docs: develop
+docs: develop ## Build html docs.
 	cd docs && pipenv run make html
 
-dist: clean
+dist: clean ## Build distribution.
 	pipenv run python setup.py sdist bdist_wheel
 
-clean:
+clean: check-pipenv ## Remove existing builds.
 	pipenv clean
 	rm -rf build dist .egg pysmo.aimbat.egg-info docs/build
