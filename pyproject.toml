@@ -17,9 +17,10 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = "^3.7"
 click = "^8.0.1"
 pysmo = {git = "https://github.com/pysmo/pysmo"}
+prettytable = "^2.2.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.1.2"
@@ -29,6 +30,7 @@ pytest-mpl = "^0.12"
 pytest-cov = "^2.10.1"
 pytest-depends = "^1.0.1"
 flake8 = "^3.9.2"
+pudb = "^2021.1"
 
 [tool.poetry.scripts]
 aimbat = 'pysmo.aimbat.cli:cli'

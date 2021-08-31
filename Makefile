@@ -40,7 +40,7 @@ publish: check-poetry build ## Publish package to PyPI (you will be asked for Py
 	poetry publish
 
 clean: ## Remove existing builds.
-	rm -rf build dist .egg pysmo.egg-info docs/build
+	rm -rf build dist .egg pysmo.aimbat.egg-info docs/build
 
 shell: check-poetry ## Start a shell in the project virtual environment.
 	poetry shell

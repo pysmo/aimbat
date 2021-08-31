@@ -1,0 +1,12 @@
+---
+delta_tolerance:
+  value: 9
+  allowed_types:
+    - int
+  description: "Round delta to N decimals when checking for different sampling rates in SAC files"
+
+initial_pick_header:
+  value: t0
+  allowed_types:
+    - str
+  description: "SAC header field where initial pick is stored"
