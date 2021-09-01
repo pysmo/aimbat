@@ -18,7 +18,7 @@ _GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(pysmo.aimbat.__file__), 'li
 class AimbatDefaultItem:
     local_value: Any
     global_value: Any
-    allowed_types: list[Any]
+    allowed_types: list
     description: str
 
     @property
@@ -42,7 +42,7 @@ class AimbatDefaults:
     global_defaults_file: str = _GLOBAL_DEFAULTS_FILE
     local_defaults_file: str = _LOCAL_DEFAULTS_FILE
     global_only: bool = False
-    items: list[str] = field(default_factory=list)
+    items: list = field(default_factory=list)
 
     def __post_init__(self):
         with open(self.global_defaults_file, 'r') as stream:
