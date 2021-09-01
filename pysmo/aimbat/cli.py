@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pysmo.aimbat.commands import defaults
+from pysmo.aimbat.commands import defaults, sampledata
 import click
 try:
     from importlib import metadata
@@ -25,6 +25,7 @@ def cli():
 
 
 cli.add_command(defaults.cli)
+cli.add_command(sampledata.cli)
 
 
 if __name__ == "__main__":

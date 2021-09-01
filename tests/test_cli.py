@@ -1,5 +1,9 @@
+import os
 from click.testing import CliRunner
 from pysmo.aimbat import cli
+from pysmo.aimbat.lib.defaults import AimbatDefaults
+
+_DEFAULTS = AimbatDefaults()
 
 
 def test_aimbat_cli():
@@ -26,3 +30,21 @@ def test_aimbat_defaults_cli():
     result = runner.invoke(cli.cli, ['defaults', '--yaml'])
     assert result.exit_code == 0
     assert '---' in result.output
+
+
+def test_aimbat_sampledata_cli(sampledata_dir=_DEFAULTS.sampledata_dir.value):
+    """
+    Test aimbat cli with defaults subcommand.
+    """
+    runner = CliRunner()
+    # force download sample data
+    result = runner.invoke(cli.cli, ['sampledata', '-f'])
+    assert result.exit_code == 0
+    assert os.path.isdir(sampledata_dir)
+    # try downloading again...
+    result = runner.invoke(cli.cli, 'sampledata')
+    assert result.exit_code == 1
+    # remove directory
+    result = runner.invoke(cli.cli, ['sampledata', '-r'])
+    assert result.exit_code == 0
+    assert os.path.isdir(sampledata_dir) is not True

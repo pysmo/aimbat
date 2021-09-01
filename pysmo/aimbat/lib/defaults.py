@@ -45,28 +45,33 @@ class AimbatDefaults:
     items: list = field(default_factory=list)
 
     def __post_init__(self):
+        # Read builtin configuration
         with open(self.global_defaults_file, 'r') as stream:
             defaults_dict = yaml.safe_load(stream)
             for name in defaults_dict:
-                # rename the the 'value' key to 'global_value'
+                # Rename the the 'value' key to 'global_value'
                 defaults_dict[name]['global_value'] = defaults_dict[name].pop('value')
                 defaults_dict[name]['local_value'] = None
                 defaults_dict[name]['allowed_types'] = tuple(eval(a) for a in defaults_dict[name]['allowed_types'])
+
+        # Read user defined configuration
         if os.path.isfile(self.local_defaults_file) and self.global_only is False:
             with open(self.local_defaults_file, 'r') as stream:
                 local_defaults_dict = yaml.safe_load(stream)
                 for name, value in local_defaults_dict.items():
                     # Only allow keys that already exist in the global defaults file.
                     if name not in defaults_dict.keys():
-                        raise AimbatConfigError(name=name, value=value, local_default_file=self.local_default_file,
+                        raise AimbatConfigError(name=name, value=value, local_defaults_file=self.local_defaults_file,
                                                 message=f"{name} is not a valid Aimbat configuration key.")
                     # Check for correct type (as defined in the global defaults file)
                     allowed_types = defaults_dict[name]['allowed_types']
                     if not isinstance(value, allowed_types):
-                        raise AimbatConfigError(name=name, value=value, local_default_file=self.local_default_file,
+                        raise AimbatConfigError(name=name, value=value, local_defaults_file=self.local_defaults_file,
                                                 message=(f"{name} is of type {type(value)}, but needs to be of "
                                                          f"type {allowed_types}"))
                     defaults_dict[name]['local_value'] = value
+
+        # Populate attributes
         for name, pars in defaults_dict.items():
             setattr(self, name, AimbatDefaultItem(**pars))
             self.items.append(name)
@@ -108,8 +113,8 @@ class AimbatConfigError(Exception):
     name: str
     value: Any
     message: str
-    local_default_file: str
+    local_defaults_file: str
 
     def __post_init__(self):
-        self.message += f" Please check your {self.local_default_file} for errors."
+        self.message += f" Please check your {self.local_defaults_file} for errors."
         super().__init__(self.message)

@@ -1,4 +1,16 @@
 ---
+sampledata_dir:
+  value: aimbat-sample-data
+  allowed_types:
+    - str
+  description: "Directory to store downloaded sample data"
+
+sampledata_src:
+  value: "https://github.com/pysmo/data-example/archive/refs/heads/master.zip"
+  allowed_types:
+    - str
+  description: "URL where sample data is downloaded"
+
 delta_tolerance:
   value: 9
   allowed_types:
