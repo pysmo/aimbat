@@ -18,3 +18,4 @@ pysmo.aimbat.egg-info/
 coverage.xml
 old
 aimbat.yml
+.coverage

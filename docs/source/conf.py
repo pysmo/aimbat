@@ -15,24 +15,22 @@
 import os
 import sys
 from importlib import reload
+import pkg_resources
+pkg_resources = reload(pkg_resources)   # This seems to be required to pick up the path defined above...
 sys.path.insert(0, os.path.abspath('../..'))
 
 
 # -- Project information -----------------------------------------------------
 
-import pkg_resources
-pkg_resources = reload(pkg_resources)   # This seems to be required to pick up the path defined above...
 
 project = u'Pysmo'
 copyright = u'2019, Pysmo Project'
 author = u'Pysmo Project'
 
 # The full version, including alpha/beta/rc tags
-#release = u''
 release = pkg_resources.get_distribution('pysmo.aimbat').version
 
 # The short X.Y version
-#version = u''
 version = '.'.join(release.split('.')[:2])
 
 # -- General configuration ---------------------------------------------------
@@ -87,7 +85,6 @@ pygments_style = 'sphinx'
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-#html_theme = 'alabaster'
 html_theme = 'sphinx_rtd_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -144,7 +141,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
   ('index', 'AIMBAT.tex', u'AIMBAT Documentation',
-   u'Lay Kuan Loh, Xiaoting Lou, \& Suzan van der Lee', 'manual'),
+   u'Lay Kuan Loh, Xiaoting Lou, & Suzan van der Lee', 'manual'),
 ]
 
 
@@ -165,7 +162,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'AIMBAT', u'AIMBAT Documentation',
-   u'Lay Kuan Loh, Xiaoting Lou, \& Suzan van der Lee', 'AIMBAT', 'Automating selection of travel wave arrival times',
+   u'Lay Kuan Loh, Xiaoting Lou, & Suzan van der Lee', 'AIMBAT', 'Automating selection of travel wave arrival times',
    'Miscellaneous'),
 ]
 

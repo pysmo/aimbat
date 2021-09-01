@@ -10,7 +10,7 @@ except Exception:
     __version__ = "unknown"
 
 
-@click.group()
+@click.group('aimbat')
 @click.version_option(version=__version__)
 def cli():
     """

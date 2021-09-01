@@ -22,7 +22,7 @@ update: check-poetry ## Update dependencies to their latest versions.
 	poetry update
 
 lint: check-poetry ## Lint code with flake8
-	poetry run flake8 --statistics --max-line-length=120
+	poetry run flake8 --statistics --max-line-length=120 --extend-exclude=old
 
 test-figs: check-poetry ## Generate baseline figures for testing. Only run this if you know what you are doing!
 	poetry run py.test --mpl-generate-path=tests/baseline
