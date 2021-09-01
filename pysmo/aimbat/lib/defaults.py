@@ -2,16 +2,16 @@
 
 import os
 import yaml
-import click
 import pysmo.aimbat
 from dataclasses import dataclass, field
 from typing import Any
 from prettytable import PrettyTable
 
+
 # Default name of the local overrides in the working directory.
 _LOCAL_DEFAULTS_FILE = 'aimbat.yml'
 # Defaults shipped with Aimbat
-_GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(pysmo.aimbat.__file__), 'defaults.yml')
+_GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(pysmo.aimbat.__file__), 'lib/defaults.yml')
 
 
 @dataclass(frozen=True)
@@ -113,25 +113,3 @@ class AimbatConfigError(Exception):
     def __post_init__(self):
         self.message += f" Please check your {self.local_default_file} for errors."
         super().__init__(self.message)
-
-
-@click.command('defaults')
-@click.option('-f', '--file', 'local_defaults_file', default=_LOCAL_DEFAULTS_FILE, show_default=True,
-              help="Name of optional local configuration file to override builtin defaults (must be in yaml format).")
-@click.option('-g', '--global', 'global_only', is_flag=True,
-              help="Ignore local configuration file and only show global defaults.")
-@click.option('-y', '--yaml', 'print_yaml', is_flag=True,
-              help="Output yaml instead of a table (to help with the creation of a local configuration file).")
-def cli(local_defaults_file, global_only, print_yaml):
-    """
-    Lists default values for options that controll Aimbat behaviour.
-    """
-    defaults = AimbatDefaults(local_defaults_file=local_defaults_file, global_only=global_only)
-    if print_yaml:
-        defaults.print_yaml()
-    else:
-        defaults.print_table()
-
-
-if __name__ == "__main__":
-    cli()

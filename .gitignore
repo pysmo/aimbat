@@ -16,3 +16,5 @@ pysmo.aimbat.egg-info/
 .python-version
 .vscode/settings.json
 coverage.xml
+old
+aimbat.yml

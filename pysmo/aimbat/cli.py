@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pysmo.aimbat import defaults
+from pysmo.aimbat.commands import defaults
 from importlib import metadata
 import click
 
@@ -13,6 +13,11 @@ except Exception:
 @click.group()
 @click.version_option(version=__version__)
 def cli():
+    """
+    This is the main command line interface for aimbat. It must be run with a
+    command (as specified below) to actually do anything. Help for individual
+    commands is available by typing aimbat COMMAND --help.
+    """
     pass
 
 
