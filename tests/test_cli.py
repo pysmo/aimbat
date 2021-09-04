@@ -32,7 +32,7 @@ def test_aimbat_defaults_cli():
     assert '---' in result.output
 
 
-def test_aimbat_sampledata_cli(sampledata_dir=_DEFAULTS.sampledata_dir.value):
+def test_aimbat_sampledata_cli(sampledata_dir=_DEFAULTS.sampledata_dir):
     """
     Test aimbat cli with defaults subcommand.
     """
