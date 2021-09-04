@@ -1,50 +1,69 @@
 import pytest
-import dataclasses
-from pysmo.aimbat.lib.defaults import AimbatDefaults, AimbatDefaultItem, AimbatConfigError
+import yaml
+from pysmo.aimbat.lib.defaults import AimbatDefaults
 
 
 @pytest.fixture()
-def defaults():
+def local_key_dict():
+    """
+    A small dictionary to create a local yaml file for testing
+    """
+    return {'delta_tolerance': 4, 'sampledata_dir': 'test_dir'}
+
+
+@pytest.fixture()
+def aimbat_yml_file(tmpdir_factory, local_key_dict):
+    filename = tmpdir_factory.mktemp("data").join("aimbat.yml")
+    with open(filename, 'w+') as fh:
+        yaml.dump(local_key_dict, fh)
+    return str(filename)
+
+
+@pytest.fixture()
+def defaults(aimbat_yml_file):
     """
     Create an instance of the AimbatDefaults object
     """
-    return AimbatDefaults()
+    global_only_defaults = AimbatDefaults(global_only=True)
+    defaults_without_locals = AimbatDefaults(local_defaults_file="")
+    defaults_with_locals = AimbatDefaults(local_defaults_file=aimbat_yml_file)
+    return global_only_defaults, defaults_without_locals, defaults_with_locals
 
 
-@pytest.fixture()
-def default_item():
-    """
-    Create an instance of the AimbatDefaultItem object
-    """
-    return AimbatDefaultItem('abc', 123, [str, int], 'description')
-
-
-def test_AimbatDefaults(defaults):
+def test_AimbatDefaults_isinstance(defaults):
     """
     Test AimbatDefaults class
     """
-    assert isinstance(defaults, AimbatDefaults)
-    assert isinstance(defaults.simple_dict, dict)
-    assert isinstance(defaults.items, list)
-    assert isinstance(defaults.global_only, bool)
-    assert isinstance(defaults.global_defaults_file, str)
-    assert isinstance(defaults.local_defaults_file, str)
-
-    for item in defaults.items:
-        assert isinstance(getattr(defaults, item), AimbatDefaultItem)
+    global_only, without_locals, with_locals = defaults
+    for d in defaults:
+        assert isinstance(d, AimbatDefaults)
+        assert isinstance(d.simple_dict, dict)
+        assert isinstance(d.global_only, bool)
+        assert isinstance(d.global_defaults_file, str)
+        assert isinstance(d.local_defaults_file, str)
 
 
-def test_AimbatDefaultItemImmutable(default_item):
-    """
-    Test AimbatDefaultItem class immutability.
-    """
-    assert isinstance(default_item, AimbatDefaultItem)
-    assert default_item.value == default_item.local_value
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        default_item.global_value = 456
+def test_global_is_readonly(defaults):
+    global_defaults, *_ = defaults
+    with pytest.raises(RuntimeError):
+        global_defaults.delta_tolerance = 3
 
 
-def test_AimbatConfigError(defaults):
-    with pytest.raises(AimbatConfigError):
-        raise AimbatConfigError(name='name', value='some value', local_defaults_file=defaults.local_defaults_file,
-                                message="test message")
+def test_change_data(defaults):
+    _, defaults, *_ = defaults
+    org = defaults.delta_tolerance
+    defaults.delta_tolerance = org+1
+    assert defaults.delta_tolerance == org+1
+
+
+@pytest.mark.depends(on=['test_change_data'])
+def test_bad_type(defaults):
+    _, defaults, *_ = defaults
+    with pytest.raises(ValueError):
+        defaults.delta_tolerance = "invalid"
+
+
+def test_local_changes(defaults):
+    *_, with_local_defaults = defaults
+    assert with_local_defaults.delta_tolerance == 4
+    assert with_local_defaults.sampledata_dir == "test_dir"

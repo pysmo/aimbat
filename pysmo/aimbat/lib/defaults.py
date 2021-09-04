@@ -3,8 +3,7 @@
 import os
 import yaml
 import pysmo.aimbat
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 from prettytable import PrettyTable
 
 
@@ -13,68 +12,60 @@ _LOCAL_DEFAULTS_FILE = 'aimbat.yml'
 # Defaults shipped with Aimbat
 _GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(pysmo.aimbat.__file__), 'lib/defaults.yml')
 
+with open(_GLOBAL_DEFAULTS_FILE, 'r') as stream:
+    _GLOBAL_DEFAULTS_DICT = yaml.safe_load(stream)
+    for name in _GLOBAL_DEFAULTS_DICT:
+        # Rename the the 'value' key to 'global_value'
+        _GLOBAL_DEFAULTS_DICT[name]['global_value'] = _GLOBAL_DEFAULTS_DICT[name].pop('value')
+        # get the actual types from the str expressions.
+        _GLOBAL_DEFAULTS_DICT[name]['allowed_types'] = tuple(eval(item) for item in
+                                                             _GLOBAL_DEFAULTS_DICT[name]['allowed_types'])
 
-@dataclass(frozen=True)
-class AimbatDefaultItem:
-    local_value: Any
-    global_value: Any
-    allowed_types: list
-    description: str
 
-    @property
-    def value(self):
-        if self.local_value is None:
+class AimbatDefaultItem():
+    def __set_name__(self, owner, name):
+        self.private_name = '_' + name
+
+    def __init__(self, global_value, allowed_types, description):
+        self.global_value = global_value
+        self.allowed_types = allowed_types
+
+    def __get__(self, obj, objtype=None):
+        try:
+            return getattr(obj, self.private_name)
+        except AttributeError:
             return self.global_value
-        return self.local_value
 
-    @property
-    def source(self) -> str:
-        if self.local_value is None:
-            return "global"
-        return "local"
+    def __set__(self, obj, value):
+        self.validate(obj, value)
+        setattr(obj, self.private_name, value)
+
+    def validate(self, obj, value):
+        if obj.global_only is True:
+            raise RuntimeError("global_only flag is set to True - updating defaults is not allowed.")
+        if not isinstance(value, self.allowed_types):
+            raise ValueError(f"Expected {value} to be of type {self.allowed_types} - found {type(value)}.")
 
 
 @dataclass
-class AimbatDefaults:
+class AimbatDefaults():
     """
     Class to store and access Aimbat defaults.
     """
     global_defaults_file: str = _GLOBAL_DEFAULTS_FILE
     local_defaults_file: str = _LOCAL_DEFAULTS_FILE
     global_only: bool = False
-    items: list = field(default_factory=list)
+    _keys = _GLOBAL_DEFAULTS_DICT.keys()
+    # Pupulate class with descriptors for each default item
+    for key in _keys:
+        locals()[key] = AimbatDefaultItem(**_GLOBAL_DEFAULTS_DICT[key])
 
     def __post_init__(self):
-        # Read builtin configuration
-        with open(self.global_defaults_file, 'r') as stream:
-            defaults_dict = yaml.safe_load(stream)
-            for name in defaults_dict:
-                # Rename the the 'value' key to 'global_value'
-                defaults_dict[name]['global_value'] = defaults_dict[name].pop('value')
-                defaults_dict[name]['local_value'] = None
-                defaults_dict[name]['allowed_types'] = tuple(eval(a) for a in defaults_dict[name]['allowed_types'])
-
-        # Read user defined configuration
+        # Read user defined configuration and update variables
         if os.path.isfile(self.local_defaults_file) and self.global_only is False:
             with open(self.local_defaults_file, 'r') as stream:
-                local_defaults_dict = yaml.safe_load(stream)
-                for name, value in local_defaults_dict.items():
-                    # Only allow keys that already exist in the global defaults file.
-                    if name not in defaults_dict.keys():
-                        raise AimbatConfigError(name=name, value=value, local_defaults_file=self.local_defaults_file,
-                                                message=f"{name} is not a valid Aimbat configuration key.")
-                    # Check for correct type (as defined in the global defaults file)
-                    allowed_types = defaults_dict[name]['allowed_types']
-                    if not isinstance(value, allowed_types):
-                        raise AimbatConfigError(name=name, value=value, local_defaults_file=self.local_defaults_file,
-                                                message=(f"{name} is of type {type(value)}, but needs to be of "
-                                                         f"type {allowed_types}"))
-                    defaults_dict[name]['local_value'] = value
-
-        # Populate attributes
-        for name, pars in defaults_dict.items():
-            setattr(self, name, AimbatDefaultItem(**pars))
-            self.items.append(name)
+                for name, value in yaml.safe_load(stream).items():
+                    setattr(self, name, value)
 
     @property
     def simple_dict(self) -> dict:
@@ -82,7 +73,7 @@ class AimbatDefaults:
         Returns a simplified dictionary of Aimbat configuration options (i.e. without description,
         allowed types, etc).
         """
-        return {item: getattr(self, item).value for item in self.items}
+        return {item: getattr(self, item) for item in self._keys}
 
     def print_yaml(self) -> None:
         """
@@ -96,25 +87,10 @@ class AimbatDefaults:
         """
         table = PrettyTable()
         table.field_names = ["Name", "Value", "Source", "Description"]
-        for item in self.items:
-            table.add_row([item,
-                           getattr(self, item).value,
-                           getattr(self, item).source,
-                           getattr(self, item).description,
-                           ])
+        for item in self._keys:
+            if getattr(self, item) == _GLOBAL_DEFAULTS_DICT[item]['global_value']:
+                source = "global"
+            else:
+                source = "local"
+            table.add_row([item, getattr(self, item), source, _GLOBAL_DEFAULTS_DICT[item]['description']])
         print(table)
-
-
-@dataclass
-class AimbatConfigError(Exception):
-    """
-    Custom error that is raised when there are incorrect entries Aimbat configuration files.
-    """
-    name: str
-    value: Any
-    message: str
-    local_defaults_file: str
-
-    def __post_init__(self):
-        self.message += f" Please check your {self.local_defaults_file} for errors."
-        super().__init__(self.message)

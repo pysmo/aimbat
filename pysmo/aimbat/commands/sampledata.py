@@ -9,8 +9,8 @@ from zipfile import ZipFile
 from pysmo.aimbat.lib.defaults import AimbatDefaults
 
 _DEFAULTS = AimbatDefaults()
-_SAMPLEDATA_DIRECTORY = _DEFAULTS.sampledata_dir.value
-_SAMPLEDATA_SOURCE = _DEFAULTS.sampledata_src.value
+_SAMPLEDATA_DIRECTORY = _DEFAULTS.sampledata_dir
+_SAMPLEDATA_SOURCE = _DEFAULTS.sampledata_src
 
 
 @click.command('sampledata')
