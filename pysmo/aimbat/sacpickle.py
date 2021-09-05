@@ -316,12 +316,11 @@ def obj2sac(gsac):
         hdrs = ['nzyear', 'nzjday', 'nzhour', 'nzmin', 'nzsec', 'nzmsec', 'evla', 'evlo', 'evdp', 'mag', ]
         hdrs += ['stla', 'stlo', 'stel' ]
         hdrs += ['kevnm', 'idep', 'iztype']
-        for sacdh in gsac.saclist:
-                sacobj = SacIO.from_file(sacdh.filename)
-                for hdr in hdrs:
-                        setattr(sacobj, hdr, eval(hdr))
-                sacobj.write(sacdh.filename)
-                del sacobj
+        sacobj = SacIO.from_file(sacdh.filename)
+        for hdr in hdrs:
+            setattr(sacobj, hdr, eval(hdr))
+        sacobj.write(sacdh.filename)
+        del sacobj
     if 'stkdh' in gsac.__dict__:
         gsac.stkdh.savesac()
 
