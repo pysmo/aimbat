@@ -15,7 +15,7 @@ et al., 2003) plotting and phase picking functionalities are replicated
 and enhanced.
 """
 
-from setuptools import find_packages
+import setuptools
 from numpy.distutils.core import setup, Extension
 
 doclines = __doc__.split("\n")
@@ -44,11 +44,7 @@ def run_setup(with_fortran=True):
         author_email='xlou@u.northwestern.edu',
         license='GNU General Public License, Version 3 (GPLv3)',
         url='http://www.earth.northwestern.edu/~xlou/aimbat.html',
-        package_data={'pysmo.aimbat': ['ttdefaults.conf', 'Readme.txt',
-                                       'Version.txt', 'License.txt',
-                                       'Changelog.txt']},
-        packages=find_packages(where='.', exclude=["*.tests", "*.tests.*",
-                                                   "tests.*", "tests"]),
+        packages=['pysmo.aimbat'],
         ext_package='pysmo.aimbat',
         zip_safe=False,
         platforms=['Mac OS X', 'Linux/Unix', 'Windows'],
@@ -57,7 +53,7 @@ def run_setup(with_fortran=True):
             'numpy',
             'matplotlib',
             'pyqtgraph',
-            'pysmo'
+            'pysmo',
         ],
 
         entry_points={
