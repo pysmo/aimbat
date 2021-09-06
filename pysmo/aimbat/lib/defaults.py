@@ -7,23 +7,32 @@ from dataclasses import dataclass
 from prettytable import PrettyTable
 
 
-# Default name of the local overrides in the working directory.
-_LOCAL_DEFAULTS_FILE = 'aimbat.yml'
 # Defaults shipped with Aimbat
-_GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(pysmo.aimbat.__file__), 'lib/defaults.yml')
+GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(pysmo.aimbat.__file__), 'lib/defaults.yml')
+# Default name of the local overrides in the working directory.
+LOCAL_DEFAULTS_FILE = 'aimbat.yml'
 
-with open(_GLOBAL_DEFAULTS_FILE, 'r') as stream:
-    _GLOBAL_DEFAULTS_DICT = yaml.safe_load(stream)
-    for name in _GLOBAL_DEFAULTS_DICT:
+# Create python dictionary from yaml file
+with open(GLOBAL_DEFAULTS_FILE, 'r') as stream:
+    GLOBAL_DEFAULTS_DICT = yaml.safe_load(stream)
+    for name in GLOBAL_DEFAULTS_DICT:
         # Rename the the 'value' key to 'global_value'
-        _GLOBAL_DEFAULTS_DICT[name]['global_value'] = _GLOBAL_DEFAULTS_DICT[name].pop('value')
+        GLOBAL_DEFAULTS_DICT[name]['global_value'] = GLOBAL_DEFAULTS_DICT[name].pop('value')
         # get the actual types from the str expressions.
-        _GLOBAL_DEFAULTS_DICT[name]['allowed_types'] = tuple(eval(item) for item in
-                                                             _GLOBAL_DEFAULTS_DICT[name]['allowed_types'])
+        GLOBAL_DEFAULTS_DICT[name]['allowed_types'] = tuple(eval(item) for item in
+                                                            GLOBAL_DEFAULTS_DICT[name]['allowed_types'])
 
 
 class AimbatDefaultItem():
+    """
+    Descriptor class to store and validate aimbat default items.
+    """
+    @property
+    def __doc__(self):
+        return GLOBAL_DEFAULTS_DICT[self.public_name]['description']
+
     def __set_name__(self, owner, name):
+        self.public_name = name
         self.private_name = '_' + name
 
     def __init__(self, global_value, allowed_types, description):
@@ -31,8 +40,14 @@ class AimbatDefaultItem():
         self.allowed_types = allowed_types
 
     def __get__(self, obj, objtype=None):
+        # Instance attribute accessed on class, return self
+        if obj is None:
+            return self
+
+        # Try returning the local value stored in the instance
         try:
             return getattr(obj, self.private_name)
+        # Assume global value otherwise
         except AttributeError:
             return self.global_value
 
@@ -52,13 +67,12 @@ class AimbatDefaults():
     """
     Class to store and access Aimbat defaults.
     """
-    global_defaults_file: str = _GLOBAL_DEFAULTS_FILE
-    local_defaults_file: str = _LOCAL_DEFAULTS_FILE
+    local_defaults_file: str = LOCAL_DEFAULTS_FILE
     global_only: bool = False
-    _keys = _GLOBAL_DEFAULTS_DICT.keys()
-    # Pupulate class with descriptors for each default item
-    for key in _keys:
-        locals()[key] = AimbatDefaultItem(**_GLOBAL_DEFAULTS_DICT[key])
+
+    # Populate class with descriptors for each default item
+    for key in GLOBAL_DEFAULTS_DICT.keys():
+        locals()[key] = AimbatDefaultItem(**GLOBAL_DEFAULTS_DICT[key])
 
     def __post_init__(self):
         # Read user defined configuration and update variables
@@ -67,13 +81,31 @@ class AimbatDefaults():
                 for name, value in yaml.safe_load(stream).items():
                     setattr(self, name, value)
 
+    def source(self, key: str) -> str:
+        """
+        Returns "global" if there is no local value for a key, or if the local value
+        is equal to the global value. Returns "local" otherwise.
+        """
+        if getattr(self, key) == GLOBAL_DEFAULTS_DICT[key]['global_value']:
+            return "global"
+        else:
+            return "local"
+
+    def description(self, key: str) -> str:
+        """
+        Returns a string that describes the aimbat default.
+        """
+        descriptor_instance = getattr(type(self), key)
+        # Return line 1 of the descriptor docstring.
+        return descriptor_instance.__doc__.partition('\n')[0]
+
     @property
     def simple_dict(self) -> dict:
         """
         Returns a simplified dictionary of Aimbat configuration options (i.e. without description,
         allowed types, etc).
         """
-        return {item: getattr(self, item) for item in self._keys}
+        return {item: getattr(self, item) for item in GLOBAL_DEFAULTS_DICT.keys()}
 
     def print_yaml(self) -> None:
         """
@@ -87,10 +119,6 @@ class AimbatDefaults():
         """
         table = PrettyTable()
         table.field_names = ["Name", "Value", "Source", "Description"]
-        for item in self._keys:
-            if getattr(self, item) == _GLOBAL_DEFAULTS_DICT[item]['global_value']:
-                source = "global"
-            else:
-                source = "local"
-            table.add_row([item, getattr(self, item), source, _GLOBAL_DEFAULTS_DICT[item]['description']])
+        for key in GLOBAL_DEFAULTS_DICT.keys():
+            table.add_row([key, getattr(self, key), self.source(key), self.description(key)])
         print(table)

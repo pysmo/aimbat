@@ -39,7 +39,6 @@ def test_AimbatDefaults_isinstance(defaults):
         assert isinstance(d, AimbatDefaults)
         assert isinstance(d.simple_dict, dict)
         assert isinstance(d.global_only, bool)
-        assert isinstance(d.global_defaults_file, str)
         assert isinstance(d.local_defaults_file, str)
 
 
