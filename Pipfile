@@ -14,7 +14,7 @@ pytest-cov = "*"
 [packages]
 pysmo = "~=0.7"
 scipy = "~=1.2"
-numpy = "~=1.15"
+numpy = "~=1.22"
 matplotlib = "~=3.0"
 pyqtgraph = "~=0.10"
 pyside2 = "*"
