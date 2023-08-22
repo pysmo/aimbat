@@ -12,7 +12,7 @@ sphinx-rtd-theme = "*"
 pytest-cov = "*"
 
 [packages]
-pysmo = "~=0.7"
+pysmo = "~=0.8"
 scipy = "~=1.2"
 numpy = "~=1.15"
 matplotlib = "~=3.0"
