@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""
-AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times.
+"""AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times.
 
 AIMBAT is an open-source software package for efficiently measuring teleseismic
 body wave arrival times for large seismic arrays (Lou et al., 2013). It is
@@ -40,6 +39,7 @@ def run_setup(with_fortran=True):
         setup_requires=['setuptools_scm'],
         description=doclines[0],
         long_description="\n".join(doclines[2:]),
+        long_description_content_type="text/x-rst",
         author='Xiaoting Lou',
         author_email='xlou@u.northwestern.edu',
         license='GNU General Public License, Version 3 (GPLv3)',
