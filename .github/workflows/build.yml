@@ -1,0 +1,68 @@
+name: build
+
+on:
+  workflow_run:
+    workflows:
+      - 'unit tests'
+    branches:
+      - master
+    types:
+      - completed
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - 3.7
+          - 3.8
+          - 3.9
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+      - name: Set up environment with poetry
+        run: |
+          poetry install
+      - name: Build sdist and wheel
+        run: |
+          make build
+      - name: Upload build artifacts
+        if: ${{ matrix.python-version == 3.9 &&
+                github.event.workflow_run.conclusion == 'success'}}
+        uses: actions/upload-artifact@v2
+        with:
+          name: packages
+          path: dist
+
+  publish:
+
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: packages
+          path: dist
+      - name: Publish distribution 📦 to Test PyPI
+        if: startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
+      - name: Publish distribution 📦 to PyPI
+        if: startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

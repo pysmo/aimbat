@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "pysmo.aimbat"
+version = "2.0.0-dev0"
+description = "AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times."
+readme = "README.rst"
+authors = ["Xiaoting Lou <xlou@u.northwestern.edu>", "Simon M. Lloyd <simon@slloyd.net>"]
+license = "GPL-3.0-or-later"
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
+packages = [
+  { include = "pysmo/aimbat" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+click = "^8.0.1"
+pysmo = {git = "https://github.com/pysmo/pysmo"}
+prettytable = "^2.2.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.1.2"
+Sphinx = "^3.3.1"
+sphinx-rtd-theme = "^0.5.0"
+pytest-mpl = "^0.12"
+pytest-cov = "^2.10.1"
+pytest-depends = "^1.0.1"
+flake8 = "^3.9.2"
+pudb = "^2021.1"
+
+[tool.poetry.scripts]
+aimbat = 'pysmo.aimbat.cli:cli'
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

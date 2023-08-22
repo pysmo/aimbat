@@ -1,42 +1,46 @@
-.PHONY: docs dist clean tests develop shell lint init help
+.PHONY: init install test-figs tests docs build clean shell help
 
-PIPENV_VERSION := $(shell command pipenv --version 2> /dev/null)
+POETRY_VERSION := $(shell command poetry --version 2> /dev/null)
 
 help: ## List all commands.
-	@echo -e "\nThis makefile executes mostly pipenv commands. To view all pipenv commands availabile run 'pipenv --help'."
+	@echo -e "\nThis makefile executes mostly poetry commands. To view all poetry commands availabile run 'poetry help'."
 	@echo -e "\n\033[1mAVAILABLE COMMANDS\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9 -]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 | "sort"}' $(MAKEFILE_LIST)
 
-
-check-pipenv: ## Check if Pipenv is installed. If not it is installed with pip.
-ifndef PIPENV_VERSION
-	@echo "Installing pipenv with pip"
-	pip install pipenv
+check-poetry: ## Check if Poetry is installed.
+ifndef POETRY_VERSION
+	@echo "Please install Poetry first. See https://python-poetry.org for instructions."
+	@exit 1
 else
-	@echo "Found ${PIPENV_VERSION}";
+	@echo "Found ${POETRY_VERSION}";
 endif
 
-install: check-pipenv ## Install this project's dependencies in a virtual environment.
-	pipenv install --dev
+install: check-poetry ## Install this project and its dependencies in a virtual environment.
+	poetry install
 
-develop: install ## Install this project in a virtual environment.
-	pipenv run python setup.py develop
+update: check-poetry ## Update dependencies to their latest versions.
+	poetry update
 
-lint: check-pipenv ## Run pylint to check code quality.
-	pipenv run pylint **/*.py
+lint: check-poetry ## Lint code with flake8
+	poetry run flake8 --statistics --max-line-length=120 --extend-exclude=old
 
-tests: check-pipenv ## Run unit tests.
-	pipenv run pytest --cov=pysmo/aimbat --cov-report=xml --mpl -v tests
+test-figs: check-poetry ## Generate baseline figures for testing. Only run this if you know what you are doing!
+	poetry run py.test --mpl-generate-path=tests/baseline
 
-shell: check-pipenv ## Start a shell in the project virtual environment.
-	pipenv shell
+tests: check-poetry ## Run tests with pytest.
+	poetry run py.test --cov=pysmo/aimbat --cov-report=xml --mpl -v tests
 
-docs: develop ## Build html docs.
-	cd docs && pipenv run make html
+docs: install check-poetry ## Build html docs.
+	poetry run make -C docs html
 
-dist: clean ## Build distribution.
-	pipenv run python setup.py sdist bdist_wheel
+build: clean check-poetry ## Build distribution.
+	poetry build
 
-clean: check-pipenv ## Remove existing builds.
-	pipenv clean
+publish: check-poetry build ## Publish package to PyPI (you will be asked for PyPI username and password).
+	poetry publish
+
+clean: ## Remove existing builds.
 	rm -rf build dist .egg pysmo.aimbat.egg-info docs/build
+
+shell: check-poetry ## Start a shell in the project virtual environment.
+	poetry shell
