@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# ------------------------------------------------
 # Filename: algiccs.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou
-#------------------------------------------------
+# ------------------------------------------------
 """
 Python module for the ICCS (iterative cross-correlation and stack) algorithm.
 
@@ -26,7 +26,8 @@ from numpy import linalg as LA
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
 from pysmo.aimbat import sacpickle as sacpkl
-from pysmo.aimbat import prepdata  as pdata
+from pysmo.aimbat import prepdata as pdata
+
 
 def getOptions():
     """ Parse arguments and options. """
@@ -75,11 +76,13 @@ def getOptions():
         sys.exit()
     return opts, files
 
+
 def corrmax(datai, dataj, delta, xcorr, shift):
     """ Calculate time lag at maximum cross correlation between two time series.
     """
     delay, ccmax, ccpol = xcorr(datai, dataj, shift)
     return delay*delta, ccmax, ccpol
+
 
 def meanStack(data, taperwidth, tapertype):
     """ Calculate array stack by averaging without weighting.
@@ -87,6 +90,7 @@ def meanStack(data, taperwidth, tapertype):
     sdata = mean(data, 0)
     sdata = sacpkl.taper(sdata, taperwidth, tapertype)
     return sdata
+
 
 def weightStack(data, wgts, taperwidth, tapertype):
     """ Calculate array stack by averaging with weighting.
@@ -99,10 +103,11 @@ def weightStack(data, wgts, taperwidth, tapertype):
 def normWeightStack(data, wgts, taperwidth, tapertype):
     """ Calculate array stack by averaging with weighting and normalization.
     """
-    mdata = [d/max(d)  for d in data]
+    mdata = [d/max(d) for d in data]
     sdata = mean(transpose(mdata) * wgts, 1)
     sdata = sacpkl.taper(sdata, taperwidth, tapertype)
     return sdata
+
 
 def ccWeightStack(saclist, opts):
     """
@@ -140,7 +145,7 @@ def ccWeightStack(saclist, opts):
     else:
         print('Unknown convergence criterion: {:s}. Exit.'.format(convtype))
         sys.exit()
-   
+
     out = '\n--> Run ICCS at window [{0:5.1f}, {1:5.1f}] wrt {2:s}. Write to header: {3:s}'
     print(out.format(twcorr[0], twcorr[1], cchdr0, cchdr1))
     print('    Convergence criterion: {:s}'.format(convtype))
@@ -195,7 +200,7 @@ def ccWeightStack(saclist, opts):
     for i in range(nseis):
         sacdh = saclist[i]
         b = sacdh.b - tfins[i]
-        e = b + (sacdh.npts-1)* delta
+        e = b + (sacdh.npts-1) * delta
         bb.append(b+delta)
         ee.append(e-delta)
     b = max(bb)
@@ -252,6 +257,7 @@ def ccWeightStack(saclist, opts):
     quas = array([ccc, snr, coh])
     return stkdh, stkdata, quas
 
+
 def coConverg(stack0, stack1):
     """
     Calcuate criterion of convergence by correlation coefficient.
@@ -259,12 +265,14 @@ def coConverg(stack0, stack1):
     """
     return 1 - corrcoef(stack0, stack1)[0][1]
 
+
 def reConverg(stack0, stack1):
     """
     Calcuate criterion of convergence by change of stack.
     stack0 and stack1 are current stack and stack from last iteration.
     """
     return LA.norm(stack0-stack1, 1)/LA.norm(stack0, 2)/len(stack0)
+
 
 def snratio(data, delta, timewindow):
     """
@@ -279,13 +287,14 @@ def snratio(data, delta, timewindow):
     rr = LA.norm(ys)/LA.norm(yn)*sqrt(nn)/sqrt(ns)
     if LA.norm(yn) == 0:
         print('snr', LA.norm(yn))
-    ### the same as:
-    #rr = sqrt(sum(square(ys))/sum(square(yn))*nn/ns)
+    # the same as:
+    # rr = sqrt(sum(square(ys))/sum(square(yn))*nn/ns)
     # shoud signal be the whole time seris?
-    #yw = data[:]
-    #nw = len(yw)
-    #rw = sqrt(sum(square(yw))/sum(square(yn))*nn/nw)
+    # yw = data[:]
+    # nw = len(yw)
+    # rw = sqrt(sum(square(yw))/sum(square(yn))*nn/nw)
     return rr
+
 
 def coherence(datai, datas):
     """
@@ -306,6 +315,7 @@ def plotiter(stkdata):
     plt.legend()
     plt.show()
 
+
 def autoiccs(gsac, opts):
     """ Run ICCS and delete low quality seismograms automatically.
     """
@@ -315,11 +325,11 @@ def autoiccs(gsac, opts):
     minnsel = opts.minnsel
     minccc, minsnr, mincoh = minqual
 
-    selist, delist = qualsort.seleSeis(saclist)
+    selist, _ = qualsort.seleSeis(saclist)
     print('\n*** Run ICCS until all low quality seismograms removed: Min_ccc={0:.2f} Min_snr={1:.1f} Min_coh={2:.2f} *** '.format(minccc, minsnr, mincoh))
     rerun = True
     while rerun and len(selist) >= minnsel:
-        stkdh, stkdata, quas = ccWeightStack(selist, opts)
+        stkdh, _, quas = ccWeightStack(selist, opts)
         tquas = transpose(quas)
         indsel, inddel = [], []
         for i in range(len(selist)):
@@ -344,7 +354,8 @@ def autoiccs(gsac, opts):
     save = input('Save to file? [y/n] \n')
     if save[0].lower() == 'y':
         if opts.filemode == 'sac':
-            for sacdh in saclist: sacdh.writeHdrs()
+            for sacdh in saclist:
+                sacdh.writeHdrs()
             gsac.stkdh.savesac()
         elif opts.filemode == 'pkl':
             print(' Saving gsac to pickle file...')
@@ -356,7 +367,6 @@ def autoiccs(gsac, opts):
             if nsel < minnsel:
                 os.rename(pklfile, 'deleted.'+pklfile)
                 print('  Less than {:d} seismograms selected. Remove pkl.'.format(minnsel))
-
 
 
 def checkCoverage(gsac, opts, textra=0.0):
@@ -382,8 +392,8 @@ def checkCoverage(gsac, opts, textra=0.0):
             indsel.append(i)
     if inddel != []:
         gsac.saclist = [saclist[i] for i in indsel]
-        #print ('Updating gsac pickle file..')
-        #writePickle(gsac, opts.pklfile, opts.zipmode)
+        # print ('Updating gsac pickle file..')
+        # writePickle(gsac, opts.pklfile, opts.zipmode)
 
 
 def main():
@@ -397,7 +407,7 @@ def main():
     checkCoverage(gsac, opts)
     qualsort.initQual(gsac.saclist, opts.ccpara.hdrsel, opts.ccpara.qheaders)
     pdata.seisTimeData(gsac.saclist)
-    
+
     if opts.auto_on:
         autoiccs(gsac, opts)
     elif opts.auto_on_all:
@@ -408,11 +418,12 @@ def main():
             sacdh.sethdr(hdrsel, 'True')
         autoiccs(gsac, opts)
     else:
-        stkdh, stkdata, quas = ccWeightStack(gsac.saclist, opts)
+        stkdh, stkdata, _ = ccWeightStack(gsac.saclist, opts)
         gsac.stkdh = stkdh
         sacpkl.saveData(gsac, opts)
     if opts.plotiter:
         plotiter(stkdata)
+
 
 if __name__ == "__main__":
     main()

@@ -1,20 +1,20 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: plotphase.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
-Python module for plotting multiple seismograms in one axes. 
+Python module for plotting multiple seismograms in one axes.
     Plot only: no data/attributes of SAC files are changed.
 
 Keyboard and mouse actions:
     Click mouse to select a span to zoom in seismograms.
     Press the 'z' key to go back to last window span.
 
-Requried options: 
+Requried options:
     One of azim_on, bazim_on, dist_on, index_on, zero_on must be chosen. Default is index_on.
     Correspong to:  paz, pbaz, prs, p1 and p2. Default: p1
 These functions can be acheived by scripts created for each mode.
@@ -24,7 +24,7 @@ Optional options:
 
 Program structure:
     SingleSeisGather
-        ||                 
+        ||
     SingleSeis       + baseIndex + baseZero + baseDist + baseAzim + baseBAzim
                           |           |          |           |          |
                           V           V          V           V          V
@@ -34,50 +34,51 @@ Program structure:
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
 
-
-import sys, copy
-import matplotlib as mpl
-mpl.rcParams['backend'] = "TkAgg"
-import matplotlib.pyplot as plt
-import numpy as np
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat import plotutils as putil
+import matplotlib.pyplot as plt
+import sys
+import copy
+import matplotlib as mpl
+import numpy as np
+mpl.rcParams['backend'] = "TkAgg"
 
 
 def getOptions():
     """ Parse arguments and options. """
     parser = ttconfig.getParser()
     parser.add_option('-a', '--azim', action="store_true", dest='azim_on',
-        help='Set baseline of seismograms as azimuth.')
+                      help='Set baseline of seismograms as azimuth.')
     parser.add_option('-b', '--bazim', action="store_true", dest='bazim_on',
-        help='Set baseline of seismograms as backazimuth.')
+                      help='Set baseline of seismograms as backazimuth.')
     parser.add_option('-d', '--dist', action="store_true", dest='dist_on',
-        help='Set baseline of seismograms as epicentral distance in degree.')
+                      help='Set baseline of seismograms as epicentral distance in degree.')
     parser.add_option('-D', '--distkm', action="store_true", dest='distkm_on',
-        help='Set baseline of seismograms as epicentral distance in km.')
+                      help='Set baseline of seismograms as epicentral distance in km.')
     parser.add_option('-i', '--index', action="store_true", dest='index_on',
-        help='Set baseline of seismograms as file indices (SAC P1 style).')
+                      help='Set baseline of seismograms as file indices (SAC P1 style).')
     parser.add_option('-z', '--zero', action="store_true", dest='zero_on',
-        help='Set baseline of seismograms as zeros (SAC P2 style).')
+                      help='Set baseline of seismograms as zeros (SAC P2 style).')
     parser.add_option('-m', '--stack_mean', action="store_true", dest='stack_on',
-        help='Plot mean stack of seismograms.')
+                      help='Plot mean stack of seismograms.')
     parser.add_option('-s', '--stack_std', action="store_true", dest='std_on',
-        help='Plot std of mean stack of seismograms with color fill.')
+                      help='Plot std of mean stack of seismograms with color fill.')
     parser.add_option('-C', '--color', action="store_true", dest='color_on',
-        help='Use random colors.')
+                      help='Use random colors.')
     opts, files = parser.parse_args(sys.argv[1:])
     if len(files) == 0:
         print(parser.usage)
         sys.exit()
     return opts, files
 
+
 class SingleSeis:
-    """ 
+    """
     Plot a single seismogram with given attributes.
     """
     def __init__(self, sacdh, opts, axss, ybase, color='b', linew=1, alpha=1):
@@ -93,7 +94,7 @@ class SingleSeis:
         self.connect()
 
     def makeTime(self):
-        """ 
+        """
         Create array x as time series and get reference time.
         """
         sacdh = self.sacdh
@@ -110,7 +111,7 @@ class SingleSeis:
                 sacdh.reftime = reftime
         else:
             sacdh.reftime = 0.
-            
+
     def plotWave(self):
         """
         Plot wiggled or filled waveform, which is normalized (if not stacking) and shifted to ybase.
@@ -152,12 +153,14 @@ class SingleSeis:
             self.wvfills = [wvfillplus, wvfillnega]
 
     def onpick(self, event):
-        if not len(event.ind): return True
+        if not len(event.ind):
+            return True
         pick = False
         for line in self.lines:
             if event.artist == line:
                 pick = True
-        if not pick: return True
+        if not pick:
+            return True
         try:
             print('Seismogram picked: {:s} '.format(self.sacdh.filename))
         except AttributeError:
@@ -170,7 +173,7 @@ class SingleSeis:
         self.axss.figure.canvas.mpl_disconnect(self.cidpick)
 
     def plotPicks(self):
-        """ 
+        """
         Plot time picks. Not called by default.
         Only works for baseIndex mode because axvline is not used to plot time picks.
         """
@@ -185,18 +188,18 @@ class SingleSeis:
         timepicks = [None]*npick
         for i in range(npick):
             tpk = thdrs[i]
-            ia = i%ncol
-            ib = i/ncol
+            ia = i % ncol
+            ib = i / ncol
             col = cols[ia]
             ls = lss[ib]
             xx = [tpk, tpk]
             yy = [self.ybase-.5, self.ybase+.5]
-            timepicks[i] = axss.plot(xx, yy, color=col,ls=ls,lw=1.5)
+            timepicks[i] = axss.plot(xx, yy, color=col, ls=ls, lw=1.5)
         self.timepicks = timepicks
 
 
 class SingleSeisGather():
-    """ 
+    """
     Plot a group of seismograms.
     """
     def __init__(self, saclist, opts, axss):
@@ -232,7 +235,7 @@ class SingleSeisGather():
         self.connect()
 
     def baseIndex(self):
-        """ 
+        """
         Set baseline of seismograms as file indices.
         """
         self.getIndex()
@@ -240,13 +243,13 @@ class SingleSeisGather():
             self.yzoom = [-self.nseis-1, 1]
         self.labelStation()
         yticks = self.ybases
-        ylabs = list(range(1 , self.nseis+1))
+        ylabs = list(range(1, self.nseis+1))
         self.axss.set_yticks(yticks)
         self.axss.set_yticklabels(ylabs)
         self.axss.set_ylabel('Trace Number')
 
     def baseZero(self):
-        """ 
+        """
         Set baseline of seismograms as zeros (stack all).
         Do not normalize seismogram by setting opts.ynorm<0.
         """
@@ -254,21 +257,21 @@ class SingleSeisGather():
         anorm = 1./np.clip(self.nseis/50, 2, 10)
         self.alphas *= anorm
         self.opts.ynorm = -1
-        #self.axss.ticklabel_format(style='sci', scilimits=(0,0), axis='y')
+        # self.axss.ticklabel_format(style='sci', scilimits=(0,0), axis='y')
         formatter = plt.ScalarFormatter(useMathText=True)
         formatter.set_powerlimits((0, 0))
         self.axss.yaxis.set_major_formatter(formatter)
 
     def baseDist(self):
-        """ 
+        """
         Set baseline of seismograms as epicentral distance in degree.
         """
         self.getDist(True)
         self.labelStation()
-        self.axss.set_ylabel('Distance ['+ r'$\degree$' + ']')
+        self.axss.set_ylabel('Distance [' + r'$\degree$' + ']')
 
     def baseDistkm(self):
-        """ 
+        """
         Set baseline of seismograms as epicentral distance in km.
         """
         self.getDist(False)
@@ -276,23 +279,23 @@ class SingleSeisGather():
         self.axss.set_ylabel('Distance [km]')
 
     def baseAzim(self):
-        """ 
+        """
         Set baseline of seismograms as azimuth.
         """
         self.getAzim()
         self.labelStation()
-        self.axss.set_ylabel('Azimuth ['+ r'$\degree$' + ']')
+        self.axss.set_ylabel('Azimuth [' + r'$\degree$' + ']')
 
     def baseBAzim(self):
-        """ 
+        """
         Set baseline of seismograms as back azimuth.
         """
         self.getBAzim()
         self.labelStation()
-        self.axss.set_ylabel('Backazimuth ['+ r'$\degree$' + ']')
+        self.axss.set_ylabel('Backazimuth [' + r'$\degree$' + ']')
 
     def plotSeis(self):
-        """ 
+        """
         Plot wiggles or filled waveforms.
         """
         opts = self.opts
@@ -314,7 +317,7 @@ class SingleSeisGather():
             axss.set_xlabel('Time [s]')
         # plot time zero lines and set axis limit
         axss.axvline(x=0, color='k', ls=':')
-        if not self.opts.xlimit is None:
+        if self.opts.xlimit is not None:
             axss.set_xlim(self.opts.xlimit)
 
     def labelStation(self):
@@ -323,21 +326,20 @@ class SingleSeisGather():
         The xcoords of the transform are axes, and the yscoords are data.
         """
         axss = self.axss
-        stations = [ sacdh.netsta for sacdh in self.saclist ]
+        stations = [sacdh.netsta for sacdh in self.saclist]
         trans = mpl.transforms.blended_transform_factory(axss.transAxes, axss.transData)
         font = mpl.font_manager.FontProperties()
         font.set_family('monospace')
         for i in range(self.nseis):
-            axss.text(1.02, self.ybases[i], stations[i], transform=trans, va='center', 
-                color=self.colors[i], fontproperties=font)
+            axss.text(1.02, self.ybases[i], stations[i], transform=trans, va='center',
+                      color=self.colors[i], fontproperties=font)
         if self.opts.stack_on:
             axss.text(1.02, self.stackbase, 'Stack', transform=trans, va='center',
-                color=self.stackcolor, fontproperties=font)
-
+                      color=self.stackcolor, fontproperties=font)
 
     def plotStack(self):
-        """ 
-        Calculate mean stack from all traces and plot it. 
+        """
+        Calculate mean stack from all traces and plot it.
         No taper window is added in.
         """
         saclist = self.saclist
@@ -345,7 +347,7 @@ class SingleSeisGather():
         twplot = putil.axLimit(mm, -0.01)
         twp = twplot[1] - twplot[0]
         taperwindow = 0
-        reftimes = [ sacdh.reftime for sacdh in saclist ]
+        reftimes = [sacdh.reftime for sacdh in saclist]
         nstart, ntotal = putil.windowIndex(saclist, reftimes, twplot, taperwindow)
         datacut = putil.windowData(saclist, nstart, ntotal, taperwindow/twp)
         datamean = np.mean(datacut, 0)
@@ -375,11 +377,11 @@ class SingleSeisGather():
     def getXLimit(self):
         """ Get x limit (relative to reference time) """
         sss = self.sss
-        b = [ ss.time[0]  - ss.sacdh.reftime for ss in sss ]
-        e = [ ss.time[-1] - ss.sacdh.reftime for ss in sss ]
-        self.bmin = min(b) 
+        b = [ss.time[0] - ss.sacdh.reftime for ss in sss]
+        e = [ss.time[-1] - ss.sacdh.reftime for ss in sss]
+        self.bmin = min(b)
         self.bmax = max(b)
-        self.emin = min(e) 
+        self.emin = min(e)
         self.emax = max(e)
         mm = self.bmin, self.emax
         xxlim = putil.axLimit(mm)
@@ -388,10 +390,10 @@ class SingleSeisGather():
     def getYLimit(self):
         """ Get y limit    """
         saclist = self.saclist
-        #delta = saclist[0].delta
-        data = np.array([ [min(sacdh.data), max(sacdh.data) ] for sacdh in saclist ])
-        self.dmin = data[:,0].min()
-        self.dmax = data[:,1].max() 
+        # delta = saclist[0].delta
+        data = np.array([[min(sacdh.data), max(sacdh.data)] for sacdh in saclist])
+        self.dmin = data[:, 0].min()
+        self.dmax = data[:, 1].max()
 
     def getPlot(self):
         """ Get plotting attributes """
@@ -416,19 +418,19 @@ class SingleSeisGather():
     def getDist(self, degree=True):
         """ Get epicentral distances in degree/km as ybases for waveforms. """
         if degree:
-            dists = [ sacdh.gcarc for sacdh in self.saclist ]
+            dists = [sacdh.gcarc for sacdh in self.saclist]
         else:
-            dists = [ sacdh.dist  for sacdh in self.saclist ]
+            dists = [sacdh.dist for sacdh in self.saclist]
         self.ybases = dists
         mm = min(dists), max(dists)
         self.yzoom = putil.axLimit(mm, 0.1)
         if self.opts.stack_on:
-            self.stackbase = (mm[1]+self.yzoom[1])/2
-            self.yzoom[1] += (self.yzoom[1]-mm[1])/2
+            self.stackbase = (mm[1] + self.yzoom[1])/2
+            self.yzoom[1] += (self.yzoom[1] - mm[1])/2
 
     def getAzim(self):
         """ Get azimuth as ybases for waveforms. """
-        azims = [ sacdh.az for sacdh in self.saclist ]
+        azims = [sacdh.az for sacdh in self.saclist]
         self.ybases = azims
         mm = min(azims), max(azims)
         self.yzoom = putil.axLimit(mm, 0.1)
@@ -438,7 +440,7 @@ class SingleSeisGather():
 
     def getBAzim(self):
         """ Get back azimuth as ybases for waveforms. """
-        bazims = [ sacdh.baz for sacdh in self.saclist ]
+        bazims = [sacdh.baz for sacdh in self.saclist]
         self.ybases = bazims
         mm = min(bazims), max(bazims)
         self.yzoom = putil.axLimit(mm, 0.1)
@@ -449,9 +451,10 @@ class SingleSeisGather():
     def plotSpan(self):
         """ Create a SpanSelector on axss. """
         axss = self.axss
+
         def on_select(xmin, xmax):
             'Mouse event: select span.'
-            print ('span selected: {0:6.1f} {1:6.1f}'.format(xmin, xmax))
+            print('span selected: {0:6.1f} {1:6.1f}'.format(xmin, xmax))
             xxlim = (xmin, xmax)
             axss.set_xlim(xxlim)
             self.xzoom.append(xxlim)
@@ -460,18 +463,19 @@ class SingleSeisGather():
         a, col = pppara.alphatwsele, pppara.colortwsele
         mspan = pppara.minspan * self.opts.delta
         self.span = putil.TimeSelector(axss, on_select, 'horizontal', minspan=mspan, useblit=False,
-            rectprops=dict(alpha=a, facecolor=col))
+                                       rectprops=dict(alpha=a, facecolor=col))
 
     def on_zoom(self, event):
         """ Zoom back to previous xlim when event is in event.inaxes. """
         evkey = event.key
         axss = self.axss
-        if not axss.contains(event)[0] or evkey is None: return
+        if not axss.contains(event)[0] or evkey is None:
+            return
         xzoom = self.xzoom
         if evkey.lower() == 'z' and len(xzoom) > 1:
             del xzoom[-1]
             axss.set_xlim(xzoom[-1])
-            print('Zoom back to: {:6.1f} {:6.1f}'.format(*xzoom[-1]) )
+            print('Zoom back to: {:6.1f} {:6.1f}'.format(*xzoom[-1]))
             axss.figure.canvas.draw()
 
     def connect(self):
@@ -491,7 +495,7 @@ class SingleSeisGather():
 def dopts(opts):
     ' Default options '
     for key in ['pick_on', 'stack_on', 'std_on', 'color_on']:
-        if not key in opts.__dict__.keys():
+        if key not in opts.__dict__.keys():
             opts.__dict__[key] = False
     return opts
 
@@ -505,7 +509,8 @@ def sacp1(saclist, opts, axss):
     opts.azim_on = False
     ssg = SingleSeisGather(saclist, opts, axss)
     return ssg
-    
+
+
 def sacp2(saclist, opts, axss):
     ' SAC P2 style of plotting. '
     opts = dopts(opts)
@@ -518,12 +523,13 @@ def sacp2(saclist, opts, axss):
     ssg = SingleSeisGather(saclist, opts, axss)
     return ssg
 
+
 def sacprs(saclist, opts, axss):
     ' SAC PRS style of plotting: record section. '
     opts = dopts(opts)
     opts.index_on = False
     opts.zero_on = False
-    if opts.distkm_on: 
+    if opts.distkm_on:
         opts.dist_on = False
     else:
         opts.dist_on = True
@@ -531,6 +537,7 @@ def sacprs(saclist, opts, axss):
     opts.bazim_on = False
     ssg = SingleSeisGather(saclist, opts, axss)
     return ssg
+
 
 def sacpaz(saclist, opts, axss):
     ' SAC plotting along azimuth.    '
@@ -543,6 +550,7 @@ def sacpaz(saclist, opts, axss):
     ssg = SingleSeisGather(saclist, opts, axss)
     return ssg
 
+
 def sacpbaz(saclist, opts, axss):
     ' SAC plotting along backazimuth.    '
     opts = dopts(opts)
@@ -553,20 +561,22 @@ def sacpbaz(saclist, opts, axss):
     ssg = SingleSeisGather(saclist, opts, axss)
     return ssg
 
-def splitAxesH(fig, rect=[0.1,0.1,0.6,0.6], n=2, hspace=0, axshare=False):
-    """ 
-    Split an axes to multiple (n,1,i) horizontal axes.    
+
+def splitAxesH(fig, rect=[0.1, 0.1, 0.6, 0.6], n=2, hspace=0, axshare=False):
+    """
+    Split an axes to multiple (n,1,i) horizontal axes.
     Share x-axis if axshare is True.
     """
     x0, y0, dx, dy = rect
     dyi = dy/n
     if axshare:
         i = 0
-        ax0 = fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)])
-        axs = [ax0] + [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)], sharex=ax0) for i in range(1,n) ]
+        ax0 = fig.add_axes([x0, y0+dy-(i+1)*dyi, dx, dyi*(1-hspace)])
+        axs = [ax0] + [fig.add_axes([x0, y0+dy-(i+1)*dyi, dx, dyi*(1-hspace)], sharex=ax0) for i in range(1, n)]
     else:
-        axs = [ fig.add_axes([x0,y0+dy-(i+1)*dyi,dx,dyi*(1-hspace)]) for i in range(n) ]
+        axs = [fig.add_axes([x0, y0+dy-(i+1)*dyi, dx, dyi*(1-hspace)]) for i in range(n)]
     return axs
+
 
 def getAxes(opts):
     'Get axes for plotting'
@@ -574,6 +584,7 @@ def getAxes(opts):
     plt.rcParams['legend.fontsize'] = 11
     axss = fig.add_axes(opts.pppara.rectseis)
     return axss
+
 
 def getDataOpts():
     'Get SAC Data and Options'
@@ -583,11 +594,13 @@ def getDataOpts():
     opts.pppara = pppara
     return gsac, opts
 
+
 def sacp1_standalone():
     gsac, opts = getDataOpts()
     axss = getAxes(opts)
     ssg = sacp1(gsac.saclist, opts, axss)
     plt.show()
+
 
 def sacp2_standalone():
     gsac, opts = getDataOpts()
@@ -595,11 +608,13 @@ def sacp2_standalone():
     ssg = sacp2(gsac.saclist, opts, axss)
     plt.show()
 
+
 def sacpaz_standalone():
     gsac, opts = getDataOpts()
     axss = getAxes(opts)
     ssg = sacpaz(gsac.saclist, opts, axss)
     plt.show()
+
 
 def sacpbaz_standalone():
     gsac, opts = getDataOpts()
@@ -607,11 +622,13 @@ def sacpbaz_standalone():
     ssg = sacpbaz(gsac.saclist, opts, axss)
     plt.show()
 
+
 def sacplot_standalone():
     gsac, opts = getDataOpts()
     axss = getAxes(opts)
     ssg = SingleSeisGather(gsac.saclist, opts, axss)
     plt.show()
+
 
 def sacprs_standalone():
     gsac, opts = getDataOpts()

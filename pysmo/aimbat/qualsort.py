@@ -1,28 +1,29 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: qualsort.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 
 Python module for selecting and sorting seismograms by quality factors and other header variables.
- 
+
 :copyright:
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
 
 from numpy import array, argsort, mean, sum
 import sys
 
+
 def initQual(saclist, hdrsel, qheaders):
-    """ 
+    """
     Set initial values for selection status and quality factors.
     """
     for sacdh in saclist:
@@ -36,11 +37,12 @@ def initQual(saclist, hdrsel, qheaders):
             sacdh.selected = False
         for hdr in qheaders:
             if sacdh.gethdr(hdr) == -12345.0:
-                sacdh.sethdr(hdr, 0.0) 
+                sacdh.sethdr(hdr, 0.0)
     return
 
+
 def sortQual(saclist, qheaders, qweights, increase=True):
-    """ 
+    """
     Sort quality factors by weighted averaging.
     Return sorted sacdh list and means of quality factors.
     """
@@ -56,14 +58,15 @@ def sortQual(saclist, qheaders, qweights, increase=True):
     if not increase:
         indsort = indsort[::-1]
         qmeans = qmeans[::-1]
-    sortlist = [ saclist[i] for i in indsort ]
+    sortlist = [saclist[i] for i in indsort]
     return sortlist, qmeans
 
+
 def seleSeis(saclist):
-    """ 
-    Select seismograms. 
+    """
+    Select seismograms.
     Return sacdh lists of selected and deleted seismograms.
-    
+
     selelist: selected seismograms
     delelist: deleted seismograms, user doe snot want them
     """
@@ -75,17 +78,18 @@ def seleSeis(saclist):
             indsele.append(i)
         else:
             inddele.append(i)
-    selelist = [ saclist[i] for i in indsele ]
-    delelist = [ saclist[i] for i in inddele ]
+    selelist = [saclist[i] for i in indsele]
+    delelist = [saclist[i] for i in inddele]
     return selelist, delelist
 
+
 def sortSeisQual(saclist, qheaders, qweights, qfactors, increase=True):
-    """ 
-    Select and sort seismograms by quality factors. 
+    """
+    Select and sort seismograms by quality factors.
     """
     selelist, delelist = seleSeis(saclist)
     if len(delelist) > 1:
-        sordelist, qmeand = sortQual(delelist, qheaders, qweights, increase)
+        sordelist, _ = sortQual(delelist, qheaders, qweights, increase)
     else:
         sordelist = delelist
     if len(selelist) > 0:
@@ -97,7 +101,7 @@ def sortSeisQual(saclist, qheaders, qweights, qfactors, increase=True):
     out2 = '  Weighted average quality: '
     for i in range(len(qweights)):
         qf = qfactors[i]
-        #qw = qweights[i]
+        # qw = qweights[i]
         qm = qmeans[i]
         out1 += '%s=%.2f, ' % (qf, qm)
         out2 += '%s*1/3+' % qf
@@ -109,7 +113,7 @@ def sortSeisQual(saclist, qheaders, qweights, qfactors, increase=True):
 
 
 def sortSeisHeaderDiff(saclist, hdr0, hdr1, increase=True):
-    """ 
+    """
     Sort saclist by header value difference (hdr1-hdr0) in increase/decrease order.
     Limited to t_n, user_n and kuser_n headers.
     """
@@ -121,12 +125,12 @@ def sortSeisHeaderDiff(saclist, hdr0, hdr1, increase=True):
     sortlist = []
     for slist in selelist, delelist:
         if len(slist) > 1:
-            val = [ sacdh.gethdr(hdr1)-sacdh.gethdr(hdr0) for sacdh in slist ]
+            val = [sacdh.gethdr(hdr1)-sacdh.gethdr(hdr0) for sacdh in slist]
             if increase:
                 indsort = argsort(val)
             else:
                 indsort = argsort(val)[::-1]
-            sorlist = [ slist[i] for i in indsort ]
+            sorlist = [slist[i] for i in indsort]
         else:
             sorlist = []
         sortlist.append(sorlist)
@@ -143,7 +147,7 @@ def hdrtype(sacdh, hdr):
         print('{:s} is not a valid header for {:s}. Exit..'.format(hdr, sacdh.filename))
         sys.exit()
     return htype
-        
+
 
 def sortSeisHeader(saclist, hdr, increase=True):
     """ Sort saclist by a header value. """
@@ -157,14 +161,14 @@ def sortSeisHeader(saclist, hdr, increase=True):
     for slist in selelist, delelist:
         if len(slist) > 1:
             if htype == 'array':
-                val = [ sacdh.gethdr(hdr) for sacdh in slist ]   # for t_n/user_n
-            else: 
-                val = [ sacdh.__dict__[hdr] for sacdh in slist ] # for az/baz/dist...
+                val = [sacdh.gethdr(hdr) for sacdh in slist]  # for t_n/user_n
+            else:
+                val = [sacdh.__dict__[hdr] for sacdh in slist]  # for az/baz/dist...
             if increase:
                 indsort = argsort(val)
             else:
                 indsort = argsort(val)[::-1]
-            sorlist = [ slist[i] for i in indsort ]
+            sorlist = [slist[i] for i in indsort]
         else:
             sorlist = []
         sortlist.append(sorlist)
@@ -195,4 +199,3 @@ if __name__ == '__main__':
     gsac = loadData(ifiles, opts, qcpara)
     initQual(gsac.saclist, hdrsel, qheaders)
     sorselist, sordelist = sortSeisQual(gsac.saclist, qheaders, qweights, qfactors)
-

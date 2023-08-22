@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from pysmo.aimbat.filtering import filtering_time_freq, get_filter_params, filtering_time_signal, time_to_freq
+from pysmo.aimbat.filtering import filtering_time_freq, get_filter_params, time_to_freq
 
 """set the parameters for filtering"""
 delta_time = 0.25
@@ -24,7 +24,7 @@ class filteringModel(unittest.TestCase):
     def atest__time_to_freq(self):
         originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta_time)
         amplitudeSignalFreq = np.abs(originalSignalFreq)
-        for i in xrange(len(amplitudeSignalFreq)):
+        for i in range(len(amplitudeSignalFreq)):
             if amplitudeSignalFreq[i] > 1000:  #spike detected
                 # check 1st signal
                 print('\nChecking 1st freq: %f' % f1)
@@ -48,7 +48,6 @@ class filteringModel(unittest.TestCase):
                     self.assertTrue(originalFreq[i] < (f3+5*delta_freq))
 
     def test__get_filter_params(self):
-        MULTIPLE = 3000
 
         lowFreq = 1.0
         highFreq = 1.5
@@ -56,15 +55,15 @@ class filteringModel(unittest.TestCase):
 
         #     -------
         #    /        \
-        #   /          \     
+        #   /          \
         #  /  BANDPASS  \
         # /              \
         # ----------------
         # signal high between lowFreq and highFreq
         filterType = 'bandpass'
-        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
+        _, _, _, _, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
 
-        for i in xrange(len(w)):
+        for i in range(len(w)):
             if h[i] > 1000 and w[i] > 0: #broad spike
                 self.assertFalse(w[i] < 0.5*lowFreq)
                 self.assertFalse(w[i] > 1.5*highFreq)
@@ -77,9 +76,9 @@ class filteringModel(unittest.TestCase):
         # ------------
         # signal drops sharply after lowFreq
         filterType = 'lowpass'
-        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
+        _, _, _, _, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
 
-        for i in xrange(len(w)):
+        for i in range(len(w)):
             if h[i] > 1000 and w[i] > 0:    #broad spike
                 self.assertFalse(w[i] > 1.5*lowFreq)    #not allowed to spike pas lowFreq
 
@@ -92,9 +91,9 @@ class filteringModel(unittest.TestCase):
         #   -------------
         #signal is low before highFreq
         filterType = 'highpass'
-        NYQ, Wn, B, A, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
+        _, _, _, _, w, h = get_filter_params(delta_time, lowFreq, highFreq, filterType, order)
 
-        for i in xrange(len(w)):
+        for i in range(len(w)):
             if h[i] > 1000 and w[i] > 0:    #broad spike
                 self.assertFalse(w[i] < highFreq/2)
 
@@ -105,13 +104,13 @@ class filteringModel(unittest.TestCase):
         highFreq = 1.5
         order = 2
 
-        originalFreq, originalSignalFreq = time_to_freq(originalTime, originalSignalTime, delta_time)
+        originalFreq, _ = time_to_freq(originalTime, originalSignalTime, delta_time)
 
-        filteredSignalTime, filteredSignalFreq, adjusted_w, adjusted_h = filtering_time_freq(originalTime, originalSignalTime, delta_time, filterType, highFreq, lowFreq, order)
+        _, filteredSignalFreq, _, _ = filtering_time_freq(originalTime, originalSignalTime, delta_time, filterType, highFreq, lowFreq, order)
 
         filteredAmplitudeFreq = np.abs(filteredSignalFreq)
 
-        for i in xrange(len(filteredAmplitudeFreq)):
+        for i in range(len(filteredAmplitudeFreq)):
             if filteredAmplitudeFreq[i] > 1000: #spike detected
                 if 0 < originalFreq[i]:
                     print('LOL %r' % originalFreq[i])

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: algmccc.py
 #   Author: Xiaoting Lou, John VanDecar
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou, John VanDecar
-#------------------------------------------------
+# -----------------------------------------------
 """
 Python module for the MCCC (Multi-Channel Cross-Correlation) algorithm (VanDecar and Cross, 1990).
 Code transcribed from the original MCCC 3.0 fortran version using the same function names:
@@ -20,16 +20,15 @@ Code transcribed from the original MCCC 3.0 fortran version using the same funct
     http://www.gnu.org/licenses/gpl.html
 """
 
-
+from pysmo.aimbat import ttconfig
+from pysmo.aimbat import qualsort
+from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat.prepdata import findPhase
 import os
 import sys
 from time import strftime, tzname
 from optparse import OptionParser
 from numpy import array, mean, dot, zeros, log, transpose, concatenate, exp, sum, std, shape, sqrt, argsort, identity
-from pysmo.aimbat import ttconfig
-from pysmo.aimbat import qualsort
-from pysmo.aimbat import sacpickle as sacpkl
-from pysmo.aimbat.prepdata import findPhase
 
 
 def getOptions():
@@ -70,6 +69,7 @@ def getOptions():
         sys.exit()
     return opts, files
 
+
 def rcdef():
     """ Default values for the inherited .mcccrc file of MCCC 3.0 """
     ls = os.linesep
@@ -91,6 +91,7 @@ def rcdef():
     lines.append('2         % number of poles for filter use (2)    * used ONLY with -f option' + ls)
     return lines
 
+
 def rcread(rcfile='.mcccrc'):
     """ Read .mcccrc file and return ipick, time window and taper window.
     """
@@ -99,13 +100,14 @@ def rcread(rcfile='.mcccrc'):
     win = float(lines[4].split()[0])
     ins = float(lines[5].split()[0])
     tap = float(lines[6].split()[0])
-    sh0 = float(lines[7].split()[0])
-    sh1 = float(lines[8].split()[0])
-    sh2 = float(lines[9].split()[0])
-    #sh = sh0+sh1+sh2
-    #tw0 = -(ins + tap/2)
-    #tw1 = win - ins + tap/2
+    # sh0 = float(lines[7].split()[0])
+    # sh1 = float(lines[8].split()[0])
+    # sh2 = float(lines[9].split()[0])
+    # sh = sh0+sh1+sh2
+    # tw0 = -(ins + tap/2)
+    # tw1 = win - ins + tap/2
     return ipick, [-ins, win-ins], tap
+
 
 def rcwrite(ipick, timewindow, taperwindow, rcfile='.mcccrc'):
     """ Write to .mcccrc file. Convert timewindow --> window, inset, taper.
@@ -116,7 +118,7 @@ def rcwrite(ipick, timewindow, taperwindow, rcfile='.mcccrc'):
     ins = -tw0
     out = 'Write to {:s}: ipick={:s}, timewindow={:.2f} s , taperwindow={:.2f} s'
     print(out.format(rcfile, ipick, win, tap))
-    #ls = os.linesep
+    # ls = os.linesep
     if os.path.isfile(rcfile):
         lines = open(rcfile).readlines()
     else:
@@ -139,10 +141,11 @@ def corread(saclist, ipick, timewindow, taperwindow, tapertype):
     if -12345.0 in reftimes:
         print('Not all seismograms has ipick={:s} set. Exit.'.format(ipick))
         sys.exit()
-        #return
+        # return
     nstart, ntotal = sacpkl.windowIndex(saclist, reftimes, timewindow, taperwindow)
     windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype)
     return windata, reftimes
+
 
 def corrmax(datai, timei, dataj, timej, mcpara):
     """
@@ -154,8 +157,9 @@ def corrmax(datai, timei, dataj, timej, mcpara):
     shift = mcpara.shift
     delta = mcpara.delta
     xcorr = mcpara.xcorr
-    delay, ccmax, ccpol = xcorr(datai, dataj, shift)
-    return timei - timej - delay*delta, ccmax
+    delay, ccmax, _ = xcorr(datai, dataj, shift)
+    return timei - timej - delay * delta, ccmax
+
 
 def corrcff_fish(ccmatrix):
     """
@@ -178,9 +182,9 @@ def corrcff_fish(ccmatrix):
         ccstd[i] = std(z, ddof=1)
     return ccmean, ccstd
 
+
 def corrcff(ccmatrix):
-    """ Calculate mean and standard deviation of correlation coefficients.
-    """
+    """Calculate mean and standard deviation of correlation coefficients."""
     fish = ccmatrix + transpose(ccmatrix)
     nsta = len(ccmatrix)
     ccmean, ccstd = zeros(nsta), zeros(nsta)
@@ -189,6 +193,7 @@ def corrcff(ccmatrix):
         ccmean[i] = mean(z)
         ccstd[i] = std(z, ddof=1)
     return ccmean, ccstd
+
 
 def correrr(dtmatrix, invmodel):
     """
@@ -204,6 +209,7 @@ def correrr(dtmatrix, invmodel):
     resmatrix -= transpose(resmatrix)
     rms = sqrt(sum(resmatrix**2, 0)/(nsta-2))
     return rms, resmatrix
+
 
 def corrmat(windata, reftimes, mcpara):
     """
@@ -235,6 +241,7 @@ def corrmat(windata, reftimes, mcpara):
     invdata[k] = 0
     return invmatrix, invdata, ccmatrix, dtmatrix
 
+
 def corrnow(invmatrix, invdata):
     """
     Solve A * t = dt by lease-squares without weighting:
@@ -244,6 +251,7 @@ def corrnow(invmatrix, invdata):
     invmodel = dot(transpose(invmatrix), invdata)
     invmodel /= nsta
     return invmodel
+
 
 def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', exwt=1000.0):
     """
@@ -264,8 +272,9 @@ def corrwgt(invmatrix, invdata, ccmatrix, resmatrix, wgtscheme='correlation', ex
     atw = dot(transpose(invmatrix), wgt)
     atwa = dot(atw, invmatrix)
     atwt = dot(atw, invdata)
-    c, x, info = dposv(atwa, atwt)
+    _, x, _ = dposv(atwa, atwt)
     return x
+
 
 def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_times, itmean):
     ofilename = mcpara.mcname
@@ -314,6 +323,7 @@ def WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_
 
     return selist_LonLat, delay_times
 
+
 def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
     ofilename = "original"+mcpara.mcname
     kevnm = mcpara.kevnm
@@ -359,6 +369,7 @@ def WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean):
     ofile.write(mcpara.evline + '\n')
     ofile.close()
 
+
 def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
     """ Write output file, set output time picks.
     """
@@ -375,6 +386,7 @@ def corrite(solist, mcpara, reftimes, solution, outvar, outcc):
     selist_LonLat, delay_times = WriteFileWithDelay(mcpara, solist, solution, outvar, outcc, t0_times, delay_times, itmean)
     WriteFileOriginal(mcpara, solist, solution, outvar, outcc, itmean)
     return selist_LonLat, delay_times
+
 
 def mccc(gsac, mcpara):
     """ Run MCCC.
@@ -440,9 +452,9 @@ def eventListName(evlist='event.list', phase='S', isol='PDE'):
     fnamefmt = '{0!s:0>4}{1!s:0>2}{2!s:0>2}.{3!s:0>2}{4!s:0>2}{5!s:0>4}.mc{6:s}'
     if type(evlist) == type(''):
         evhypo = open(evlist).readline().split()
-        elat, elon, dum, edep = [float(v) for v in evhypo[:4]]
+        elat, elon, _, edep = [float(v) for v in evhypo[:4]]
         sec, mb, mw = [float(v) for v in evhypo[8:11]]
-        iyr, jday, ihr, imin = [int(v) for v in evhypo[4:8]]
+        iyr, _, ihr, imin = [int(v) for v in evhypo[4:8]]
         imon, iday = [int(v) for v in evhypo[13:15]]
     else:
         iyr, imon, iday, ihr, imin, sec, elat, elon, edep, mw = evlist
@@ -451,6 +463,7 @@ def eventListName(evlist='event.list', phase='S', isol='PDE'):
     evline = eventfmt.format(isol, iyr, imon, iday, ihr, imin, sec, elat, elon, edep, mb, mw)
     mcname = fnamefmt.format(iyr, imon, iday, ihr, imin, isec, phase.lower())
     return evline, mcname
+
 
 def getWindow(stkdh, ipick, twhdrs, taperwidth=0.1):
     """ Get timewindow and taperwindow from gsac.stkdh """
@@ -461,6 +474,7 @@ def getWindow(stkdh, ipick, twhdrs, taperwidth=0.1):
     timewindow = [th0, th1]
     taperwindow = sacpkl.taperWindow(timewindow, taperwidth)
     return timewindow, taperwindow
+
 
 def getParams(gsac, mcpara, opts=None):
     """ Get parameters for running MCCC.
@@ -526,6 +540,7 @@ def getParams(gsac, mcpara, opts=None):
         mcpara.mcname = mcpara.ofilename
     gsac.mcname = mcpara.mcname
 
+
 def main():
     opts, ifiles = getOptions()
     mcpara = ttconfig.MCConfig()
@@ -543,14 +558,13 @@ def main():
 
     getParams(gsac, mcpara, opts)
     if opts.allseis_on:
-        solution = mccc(gsac, mcpara)
+        _ = mccc(gsac, mcpara)
         gsac.selist, gsac.delist = gsac.saclist, []
     else:
         qualsort.initQual(gsac.saclist, mcpara.hdrsel, [])
         gsac.selist, gsac.delist = qualsort.seleSeis(gsac.saclist)
-        solution = mccc(gsac, mcpara)
+        _ = mccc(gsac, mcpara)
     sacpkl.saveData(gsac, opts)
-
 
 
 if __name__ == '__main__':

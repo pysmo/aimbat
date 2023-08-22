@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: plotutils.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 Python module for plotting seismograms:
     functions for axes and legend control, SpanSelector, and multiple-page navigation.
@@ -14,19 +14,19 @@ Python module for plotting seismograms:
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
 
-from numpy import sign
 import matplotlib.pyplot as plt
 from matplotlib.widgets import SpanSelector
 from matplotlib._pylab_helpers import Gcf
+from numpy import sign
 import os
 
 
 def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
-    """ 
+    """
     Plot only legend box for time picks.
     """
     tpk = ax.get_xlim()[0] - 12345
@@ -35,11 +35,11 @@ def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
     ncol = len(cols)
     for i in range(npick):
         ipk = 't' + str(i)
-        ia = int(i%ncol)
-        ib = int(i/ncol)
+        ia = int(i % ncol)
+        ib = int(i / ncol)
         col = cols[ia]
         ls = lss[ib]
-        ax.axvline(x=tpk,color=col,ls=ls,lw=1.5,label=ipk.upper())
+        ax.axvline(x=tpk, color=col, ls=ls, lw=1.5, label=ipk.upper())
     if left:
         ax.legend(bbox_to_anchor=(-.027, 1), loc=1, borderaxespad=0., shadow=True, fancybox=True, handlelength=3)
     else:
@@ -47,7 +47,7 @@ def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
 
 
 class TimeSelector(SpanSelector):
-    """ 
+    """
     To disable SpanSelector when pan, zoom or other interactive/navigation modes are active.
     Also disable it when event is out of axes, which is needed to avoid error interfering with pick_event.
     """
@@ -60,8 +60,9 @@ class TimeSelector(SpanSelector):
             return True
         return False
 
+
 def dataNorm(d, w=0.05):
-    """ 
+    """
     Calculate normalization factor for d, which can be multi-dimensional arrays.
     Extra white space is added.
     """
@@ -69,8 +70,9 @@ def dataNorm(d, w=0.05):
     dnorm = max(-dmin, dmax) * (1+w)
     return dnorm
 
+
 def axLimit(minmax, w=0.05):
-    """ 
+    """
     Calculate axis limit with white space (default 5%) from given min/max values.
     """
     ymin, ymax = minmax
@@ -78,8 +80,9 @@ def axLimit(minmax, w=0.05):
     ylim = [ymin-w*dy, ymax+w*dy]
     return ylim
 
+
 def indexBaseTick(na, nb, pagesize, pna):
-    """ 
+    """
     Indexing for page navigation with two lists of length na and nb.
 
     Example:
@@ -87,8 +90,8 @@ def indexBaseTick(na, nb, pagesize, pna):
         [ 0, 1, 2, 3, 4] [0,  1, 2, 3, 4, 5, 6, 7, 8,  9, 10] <-- yindex
         [ 5, 4, 3, 2, 1] [-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11] <-- ybases
         [-5,-4,-3,-2,-1] [1,  2, 3, 4, 5, 6, 7, 8, 9, 10, 11] <-- yticks
-       --page -1] [----page 0----] [---page 1---] [---page 2--- 
-                 [pnb=2] [pna=3 ]               
+       --page -1] [----page 0----] [---page 1---] [---page 2---
+                 [pnb=2] [pna=3 ]
 
         yindex for na and nb:
         {-1: [[], [0, 1, 2]],
@@ -108,17 +111,19 @@ def indexBaseTick(na, nb, pagesize, pna):
          1: [[4, 5, 6, 7, 8], []],
          2: [[9, 10, 11, 12, 13], []]}
     """
-    #indlista = list(range(na))
-    #indlistb = list(range(nb))
+    # indlista = list(range(na))
+    # indlistb = list(range(nb))
     pnb = pagesize - pna
     # number of pages for list a and b
     ma = na - pna
     mb = nb - pnb
     npagea, npageb = 0, 0
-    if ma > 0: npagea = ma//pagesize + sign(ma%pagesize)
-    if mb > 0: npageb = mb//pagesize + sign(mb%pagesize)
+    if ma > 0:
+        npagea = ma//pagesize + sign(ma % pagesize)
+    if mb > 0:
+        npageb = mb//pagesize + sign(mb % pagesize)
     ipages = list(range(-npageb, npagea+1))
-    ### yindex for page 0:
+    # yindex for page 0:
     yindex = {}
     ybases = {}
     yticks = {}
@@ -140,19 +145,17 @@ def indexBaseTick(na, nb, pagesize, pna):
         indb = list(range(i0, i1))
         yindex[ipage] = [[], indb]
     for ipage in range(-npageb, npagea+1):
-        #print 'page ', ipage, yindex[ipage]
-        ybases[ipage] = [ [], [] ]
-        yticks[ipage] = [ [], [] ]
-    ### ybases and yticks
+        # print 'page ', ipage, yindex[ipage]
+        ybases[ipage] = [[], []]
+        yticks[ipage] = [[], []]
+    # ybases and yticks
     for ipage in range(0, npagea+1):
-        ybases[ipage][0] = [ -1-ind for ind in yindex[ipage][0] ]
-        yticks[ipage][0] = [  1+ind for ind in yindex[ipage][0] ]
+        ybases[ipage][0] = [-1-ind for ind in yindex[ipage][0]]
+        yticks[ipage][0] = [1+ind for ind in yindex[ipage][0]]
     for ipage in range(-npageb, 1):
-        ybases[ipage][1] = [ nb-ind for ind in yindex[ipage][1] ]
-        yticks[ipage][1] = [ ind-nb for ind in yindex[ipage][1] ]
+        ybases[ipage][1] = [nb-ind for ind in yindex[ipage][1]]
+        yticks[ipage][1] = [ind-nb for ind in yindex[ipage][1]]
     return ipages, yindex, ybases, yticks
-
-
 
 
 def getAxes(opts):

@@ -2,16 +2,17 @@
 """
 """
 
+import matplotlib.pyplot as plt
 import math
 import matplotlib
-matplotlib.rcParams['backend'] = "TkAgg"
-import matplotlib.pyplot as plt
 import numpy as np
+matplotlib.rcParams['backend'] = "TkAgg"
 try:
     from mpl_toolkits.basemap import Basemap
     basemapthere = True
-except:
+except Exception:
     basemapthere = False
+
 
 class PlotStations:
 
@@ -34,14 +35,14 @@ class PlotStations:
         centerLat = 0.5 * (minLat + maxLat)
         centerLon = 0.5 * (minLon + maxLon)
 
-        qLat = min(abs(minLat),abs(maxLat))
+        qLat = min(abs(minLat), abs(maxLat))
         h = 1.2*6370997.*np.radians(maxLat-minLat)
         w = 1.1*6370997.*np.radians(maxLon-minLon)*np.cos(np.radians(qLat))
 
-        #make the basemap
+        # make the basemap
         if basemapthere:
-        #ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat,
-        #            urcrnrlon=maxLon, urcrnrlat= maxLat,
+            # ax = Basemap(llcrnrlon=minLon, llcrnrlat=minLat,
+            #              urcrnrlon=maxLon, urcrnrlat= maxLat,
             ax = Basemap(width=w,
                          height=h,
                          resolution='i',
@@ -77,7 +78,6 @@ class PlotStations:
         self.ax = ax
 
         plt.show()
-
 
     def show_station_name(self, event):
         nearest = 1000000000
@@ -120,7 +120,7 @@ class PlotStations:
                                 c='r', picker=True)
 
     def plot_selected_stations_color_delay_times(self, axes_handle, delay_times):
-        selected_lon = [] 
+        selected_lon = []
         selected_lat = []
         for sacdh in self.selist:
             selected_lon.append(sacdh.stlo)

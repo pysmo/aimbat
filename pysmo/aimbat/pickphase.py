@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# ------------------------------------------------
 # Filename: pickphase.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou
-#------------------------------------------------
+# ------------------------------------------------
 """
 
 Python module for plot and pick phase (SAC PPK) on seismograms in one axes.
@@ -13,7 +13,7 @@ Python module for plot and pick phase (SAC PPK) on seismograms in one axes.
 Differences from plotphase.py:
   * User interaction: set time picks and time window
   * Plot: always plot time picks
-  * Plot: always use integer numbers (plot within +/-0.5) as ybases, 
+  * Plot: always use integer numbers (plot within +/-0.5) as ybases,
         but not dist/az/baz (even when sorted by d/a/b)
   * Plot: can plot seismograms in multiple pages (page navigation).
   * Normalization: can normalize within time window
@@ -34,26 +34,25 @@ Program structure:
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
-
-import sys
-import matplotlib as mpl
-mpl.rcParams['backend'] = "TkAgg"
-import matplotlib.pyplot as plt
-import numpy as np
-from tkinter import messagebox
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
 from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat import plotutils as putil
-from pysmo.aimbat import prepdata  as pdata
+from pysmo.aimbat import prepdata as pdata
 from pysmo.aimbat import filtering as ftr
+import matplotlib.pyplot as plt
+import sys
+import numpy as np
+from tkinter import messagebox
+import matplotlib as mpl
+mpl.rcParams['backend'] = "TkAgg"
 
 
 def getOptions():
-    """ Parse arguments and options. """
+    """Parse arguments and options."""
     parser = ttconfig.getParser()
     maxsel = 25
     maxdel = 5
@@ -62,27 +61,27 @@ def getOptions():
     parser.set_defaults(maxnum=maxnum)
     parser.set_defaults(sortby=sortby)
     parser.add_option('-b', '--boundlines', action="store_true", dest='boundlines_on',
-        help='Plot bounding lines to separate seismograms.')
+                      help='Plot bounding lines to separate seismograms.')
     parser.add_option('-n', '--netsta', action="store_true", dest='nlab_on',
-        help='Label seismogram by net.sta code instead of SAC file name.')
+                      help='Label seismogram by net.sta code instead of SAC file name.')
     parser.add_option('-m', '--maxnum',  dest='maxnum', type='int', nargs=2,
-        help='Maximum number of selected and deleted seismograms to plot. Defaults: {0:d} and {1:d}.'.format(maxsel, maxdel))
+                      help='Maximum number of selected and deleted seismograms to plot. Defaults: {0:d} and {1:d}.'.format(maxsel, maxdel))
     parser.add_option('-s', '--sortby', type='str', dest='sortby',
-        help='Sort seismograms by i (file indices), or 0/1/2/3 (quality factor all/ccc/snr/coh), or a given header (az/baz/dist..). Append - for decrease order, otherwise increase. Default is {:s}.'.format(sortby))
+                      help='Sort seismograms by i (file indices), or 0/1/2/3 (quality factor all/ccc/snr/coh), or a given header (az/baz/dist..). Append - for decrease order, otherwise increase. Default is {:s}.'.format(sortby))
     opts, files = parser.parse_args(sys.argv[1:])
     if len(files) == 0:
         print(parser.usage)
         sys.exit()
     return opts, files
 
+
 # ############################################################################### #
 #                                                                                 #
 #                                  CLASS: PickPhase                               #
 #                                                                                 #
 # ############################################################################### #
-
 class PickPhase:
-    """ 
+    """
     Plot one single seismogram with given attributes.
     See self.on_press for options on setting time picks and time window.
     """
@@ -101,7 +100,7 @@ class PickPhase:
         self.connect()
 
     def makeTime(self):
-        """ 
+        """
         Create array x as time series and get reference time.
         """
         sacdh = self.sacdh
@@ -117,7 +116,7 @@ class PickPhase:
                 sacdh.reftime = reftime
         else:
             sacdh.reftime = 0.
-            
+
     def plotWave(self):
         """
         Plot wiggled or filled waveform, which is normalized (if not stacking) and shifted to ybase.
@@ -136,8 +135,8 @@ class PickPhase:
         else:
             dnorm = pdata.dataNorm(d)
         dnorm = 1/dnorm * opts.ynorm/2
-        
-        yori = dnorm * d 
+
+        yori = dnorm * d
         ymem = dnorm * self.sacdh.datamem
         # plot
         self.ynorm = [dnorm,]
@@ -163,8 +162,7 @@ class PickPhase:
         self.labelStation()
 
     def labelStation(self):
-        """ label the seismogram with file name or net.sta 
-        """
+        """Label the seismogram with file name or net.sta"""
         axpp = self.axpp
         sacdh = self.sacdh
         if self.opts.nlab_on:
@@ -180,18 +178,19 @@ class PickPhase:
         trans = mpl.transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
         font = mpl.font_manager.FontProperties()
         font.set_family('monospace')
-        self.stalabel = axpp.text(1.025, self.ybase, slab, transform=trans, va='center', 
-            color=self.color, fontproperties=font)
-    
+        self.stalabel = axpp.text(1.025, self.ybase, slab, transform=trans, va='center',
+                                  color=self.color, fontproperties=font)
+
     def on_pick(self, event):
-        """ Click a seismogram to show file name.
-        """
-        if not len(event.ind): return True
+        """Click a seismogram to show file name."""
+        if not len(event.ind):
+            return True
         pick = False
         for line in self.lines:
             if event.artist == line:
                 pick = True
-        if not pick: return True
+        if not pick:
+            return True
         try:
             print('Seismogram picked: {:s} '.format(self.sacdh.filename))
         except AttributeError:
@@ -205,8 +204,7 @@ class PickPhase:
         self.changeColor()
 
     def changeColor(self):
-        """ Change color of a seismogram based on selection status. 
-        """
+        """Change color of a seismogram based on selection status."""
         if self.sacdh.selected:
             col = self.opts.pppara.colorwave
         else:
@@ -219,42 +217,39 @@ class PickPhase:
         self.axpp.figure.canvas.draw()
 
     def changeBase(self, newbase):
-        """ Change ybase of a seismogram.
-        """
+        """Change ybase of a seismogram."""
         plt.setp(self.lines[0], ydata=newbase)
 
     def plotWindow(self):
-        """ Plot time window (xmin,xmax) with color fill. 
-        """
+        """Plot time window (xmin,xmax) with color fill."""
         axpp = self.axpp
         sacdh = self.sacdh
         twh0, twh1 = self.opts.pppara.twhdrs
         self.twhdrs = twh0, twh1
         tw0 = sacdh.gethdr(twh0)
-        tw1 = sacdh.gethdr(twh1)    
+        tw1 = sacdh.gethdr(twh1)
         if tw0 == -12345.0:
             tw0 = self.x[0]
         if tw1 == -12345.0:
             tw1 = self.x[-1]
         self.twindow = [tw0, tw1]
-        tw0 -= sacdh.reftime 
+        tw0 -= sacdh.reftime
         tw1 -= sacdh.reftime
-        #ymin, ymax = axpp.get_ylim()
+        # ymin, ymax = axpp.get_ylim()
         ymin, ymax = self.ybase-0.5, self.ybase+0.5
         pppara = self.opts.pppara
         a, col = pppara.alphatwfill, pppara.colortwfill
-        self.twfill, = axpp.fill([tw0,tw1,tw1,tw0], 
-            [ymin,ymin,ymax,ymax], col, alpha=a, edgecolor=col)
+        self.twfill, = axpp.fill([tw0, tw1, tw1, tw0], [ymin, ymin, ymax, ymax],
+                                 col, alpha=a, edgecolor=col)
 
     def resetWindow(self):
-        """ Reset time window when a span is selected.
-        """
+        """Reset time window when a span is selected."""
         tw, reftime = self.twindow, self.sacdh.reftime
         tw0 = tw[0] - reftime
         tw1 = tw[1] - reftime
         xypoly = self.twfill.get_xy()
-        xypoly[0:5,0] = np.ones(5)*tw0
-        xypoly[1:3,0] = np.ones(2)*tw1
+        xypoly[0:5, 0] = np.ones(5) * tw0
+        xypoly[1:3, 0] = np.ones(2) * tw1
         self.twfill.set_xy(xypoly)
 
     def plotPicks(self):
@@ -271,18 +266,18 @@ class PickPhase:
         timepicks = [None]*npick
         for i in range(npick):
             tpk = thdrs[i]
-            ia = int(i%ncol)
-            ib = int(i/ncol)
+            ia = int(i % ncol)
+            ib = int(i / ncol)
             col = cols[ia]
             ls = lss[ib]
             xx = [tpk, tpk]
-            yy = [self.ybase-.5, self.ybase+.5]
-            timepicks[i], = axpp.plot(xx, yy, color=col,ls=ls,lw=1.5)
+            yy = [self.ybase - .5, self.ybase + .5]
+            timepicks[i], = axpp.plot(xx, yy, color=col, ls=ls, lw=1.5)
         self.timepicks = timepicks
 
     def on_press(self, event):
-        """ 
-        Key press event. Valid only if axpp contains event (within 0.5 from ybase).
+        """Key press event. Valid only if axpp contains event (within 0.5 from ybase).
+
         Options:
         --------
         (1) t + digits 0-9: set a time pick in SAC header.
@@ -290,9 +285,11 @@ class PickPhase:
         """
         evkey = event.key
         axpp = self.axpp
-        contains, attr = axpp.contains(event)
-        if not contains or evkey is None: return
-        if abs(event.ydata-self.ybase) > 0.5: return
+        contains, _ = axpp.contains(event)
+        if not contains or evkey is None:
+            return
+        if abs(event.ydata-self.ybase) > 0.5:
+            return
         opts = self.opts
         sacdh = self.sacdh
         twin_on = opts.twin_on
@@ -351,15 +348,15 @@ class PickPhase:
 #                                                                                 #
 # ############################################################################### #
 
+
 # ############################################################################### #
 #                                                                                 #
 #                               CLASS: PickPhaseMenu                              #
 #                                                                                 #
 # ############################################################################### #
-
 class PickPhaseMenu():
-    """ 
-    Plot a group of seismogram gathers. 
+    """
+    Plot a group of seismogram gathers.
     Set up axes attributes.
     Create Button Save to save SAC headers to files.
     """
@@ -374,8 +371,8 @@ class PickPhaseMenu():
         self.connect()
         pppara = opts.pppara
         putil.pickLegend(self.axpp, pppara.npick, pppara.pickcolors, pppara.pickstyles)
-    
-    def plotSeis(self):    
+
+    def plotSeis(self):
         self.plotWave()
         self.setLimits()
         self.setLabels()
@@ -384,10 +381,9 @@ class PickPhaseMenu():
         self.labelSelection()
 
     def initIndex(self):
-        """ Initialize indices for page navigation. 
-        """
+        """Initialize indices for page navigation."""
         opts = self.opts
-        #axs = self.axs
+        # axs = self.axs
         selist = self.gsac.selist
         delist = self.gsac.delist
         nsel = len(selist)
@@ -403,23 +399,22 @@ class PickPhaseMenu():
         self.ipage = 0
 
     def plotWave(self):
-        """ Plot waveforms for this page. 
-        """
+        """Plot waveforms for this page."""
         opts = self.opts
         axpp = self.axpp
         ipage = self.ipage
         ayindex, aybases, ayticks = self.ayindex, self.aybases, self.ayticks
         sedelist = self.sedelist
-        plists = [ [ sedelist[j][k] for k in ayindex[ipage][j] ] for j in range(2) ]
-        pbases = [ [ k              for k in aybases[ipage][j] ] for j in range(2) ]
-        pticks = [ [ k              for k in ayticks[ipage][j] ] for j in range(2) ]
+        plists = [[sedelist[j][k] for k in ayindex[ipage][j]] for j in range(2)]
+        pbases = [[k for k in aybases[ipage][j]] for j in range(2)]
+        pticks = [[k for k in ayticks[ipage][j]] for j in range(2)]
         npsel = len(pbases[0])
         npdel = len(pbases[1])
         nsede = [npsel, npdel]
         # get colors from sacdh.selected
         colsel = opts.pppara.colorwave
         coldel = opts.pppara.colorwavedel
-        colors = [[None,] * npsel , [None,] * npdel]
+        colors = [[None,] * npsel, [None,] * npdel]
         for j in range(2):
             for k in range(nsede[j]):
                 if plists[j][k].selected:
@@ -431,8 +426,8 @@ class PickPhaseMenu():
         for j in range(2):
             nsd = nsede[j]
             for k in range(nsd):
-                #linews = np.ones(nsd)
-                #alphas = np.ones(nsd)
+                # linews = np.ones(nsd)
+                # alphas = np.ones(nsd)
                 pp = PickPhase(plists[j][k], opts, axpp, pbases[j][k], colors[j][k])
                 pps.append(pp)
         self.pps = pps
@@ -442,11 +437,10 @@ class PickPhaseMenu():
         self.azylim = abases[-1]-1, abases[0]+1
 
     def replot(self, ipage):
-        """    Finish plotting of current page and move to prev/next.
-        """
+        """Finish plotting of current page and move to prev/next."""
         self.ipage = ipage
-        if not self.ipage in self.aipages:
-            print ('End of page.')
+        if self.ipage not in self.aipages:
+            print('End of page.')
             return
         self.finish()
         self.plotSeis()
@@ -459,26 +453,26 @@ class PickPhaseMenu():
             self.axpp.set_xlim(xxlim)
             self.xzoom.append(xxlim)
             if self.opts.upylim_on:
-                print ('upylim')
-                for pp in self.pps: pp.updateY(xxlim)
+                print('upylim')
+                for pp in self.pps:
+                    pp.updateY(xxlim)
             self.axpp.figure.canvas.draw()
 
     # change window size in seismograms plot here
     def plotSpan(self):
-        """ Create a SpanSelector for zoom in and zoom out.
-        """
+        """Create a SpanSelector for zoom in and zoom out."""
         pppara = self.opts.pppara
         a, col = pppara.alphatwsele, pppara.colortwsele
         mspan = pppara.minspan * self.opts.delta
-        self.span = putil.TimeSelector(self.axpp, self.on_select, 'horizontal', minspan=mspan, useblit=False,
-            rectprops=dict(alpha=a, facecolor=col))
+        self.span = putil.TimeSelector(self.axpp, self.on_select, 'horizontal', minspan=mspan,
+                                       useblit=False, rectprops=dict(alpha=a, facecolor=col))
 
     def on_zoom(self, event):
-        """ Zoom back to previous xlim when event is in event.inaxes.
-        """
+        """Zoom back to previous xlim when event is in event.inaxes."""
         evkey = event.key
         axpp = self.axpp
-        if not axpp.contains(event)[0] or evkey is None: return
+        if not axpp.contains(event)[0] or evkey is None:
+            return
         xzoom = self.xzoom
         if evkey.lower() == 'z' and len(xzoom) > 1:
             del xzoom[-1]
@@ -494,10 +488,10 @@ class PickPhaseMenu():
     def plotPicks(self):
         for pp in self.pps:
             pp.plotPicks()
-        #pppara = self.opts.pppara
+        # pppara = self.opts.pppara
 
     def setLabels(self):
-        """ Set axes labels and page label"""
+        """Set axes labels and page label"""
         axpp = self.axpp
         axpp.set_yticks(self.ybases)
         axpp.set_yticklabels(self.yticks)
@@ -523,34 +517,31 @@ class PickPhaseMenu():
         axpp.set_ylim(self.azylim)
         # plot time zero lines and set axis limit
         axpp.axvline(x=0, color='k', ls=':')
-        if not self.opts.xlimit is None:
+        if self.opts.xlimit is not None:
             axpp.set_xlim(self.opts.xlimit)
 
     def labelSelection(self):
-        """ Label selection status with transform (transAxes, transData).
-        """
+        """Label selection status with transform (transAxes, transData)."""
         axpp = self.axpp
         trans = mpl.transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
         colsel = self.opts.pppara.colorwave
         coldel = self.opts.pppara.colorwavedel
-        axpp.annotate('Selected', xy=(1.015, self.azylim[0]), xycoords=trans, xytext=(1.03, -0.17),
-            size=10, va='top', color=colsel,
-            bbox=dict(boxstyle="round,pad=.2", fc='w', ec=(1,.5,.5)),  
-            arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=-90,rad=20",color=colsel, lw=2),)
-        axpp.annotate('Deselected', xy=(1.015, self.azylim[1]), xycoords=trans, xytext=(1.03, 0.17),
-            size=10, va='bottom', color=coldel,
-            bbox=dict(boxstyle="round,pad=.2", fc='w', ec=(1,.5,.5)),  
-            arrowprops=dict(arrowstyle="->",connectionstyle="angle,angleA=0,angleB=-90,rad=20",color=coldel, lw=2),)
+        axpp.annotate('Selected', xy=(1.015, self.azylim[0]), xycoords=trans, xytext=(1.03, -0.17), size=10,
+                      va='top', color=colsel, bbox=dict(boxstyle="round,pad=.2", fc='w', ec=(1, .5, .5)),
+                      arrowprops=dict(arrowstyle="->", connectionstyle="angle,angleA=0,angleB=-90,rad=20", color=colsel, lw=2),)
+        axpp.annotate('Deselected', xy=(1.015, self.azylim[1]), xycoords=trans, xytext=(1.03, 0.17), size=10,
+                      va='bottom', color=coldel, bbox=dict(boxstyle="round,pad=.2", fc='w', ec=(1, .5, .5)),
+                      arrowprops=dict(arrowstyle="->", connectionstyle="angle,angleA=0,angleB=-90,rad=20", color=coldel, lw=2),)
 
     def getXLimit(self):
         """ Get x limit (relative to reference time) """
         pps = self.pps
-        b = [ pp.time[0]  - pp.sacdh.reftime for pp in pps ]
-        e = [ pp.time[-1] - pp.sacdh.reftime for pp in pps ]
-        #npts = [ len(pp.time) for pp in pps ]
-        self.bmin = min(b) 
+        b = [pp.time[0] - pp.sacdh.reftime for pp in pps]
+        e = [pp.time[-1] - pp.sacdh.reftime for pp in pps]
+        # npts = [len(pp.time) for pp in pps]
+        self.bmin = min(b)
         self.bmax = max(b)
-        self.emin = min(e) 
+        self.emin = min(e)
         self.emax = max(e)
         mm = self.bmin, self.emax
         xxlim = putil.axLimit(mm)
@@ -559,10 +550,10 @@ class PickPhaseMenu():
     def getYLimit(self):
         """ Get y limit """
         saclist = self.gsac.saclist
-        #delta = saclist[0].delta
-        data = np.array([ [min(sacdh.data), max(sacdh.data) ] for sacdh in saclist ])
-        self.dmin = data[:,0].min()
-        self.dmax = data[:,1].max() 
+        # delta = saclist[0].delta
+        data = np.array([[min(sacdh.data), max(sacdh.data)] for sacdh in saclist])
+        self.dmin = data[:, 0].min()
+        self.dmax = data[:, 1].max()
 
     def fron(self, event):
         self.bnfron.label.set_text('Wait...')
@@ -578,7 +569,7 @@ class PickPhaseMenu():
         self.axpp.get_figure().canvas.draw()
 
         self.replot(self.ipage)
-        
+
         self.bnzoba.label.set_text('Zoom\nBack')
         self.axpp.get_figure().canvas.draw()
 
@@ -620,7 +611,7 @@ class PickPhaseMenu():
     """
     def shfp(self, event):
         # write params to file
-        for sacdh in self.gsac.saclist: 
+        for sacdh in self.gsac.saclist:
             sacdh.user6 = self.opts.filterParameters['lowFreq']
             sacdh.user7 = self.opts.filterParameters['highFreq']
             sacdh.kuser1 = self.opts.filterParameters['band']
@@ -636,17 +627,21 @@ class PickPhaseMenu():
 
     """save headers and override"""
     def shod(self, event):
-        shouldRun = messagebox.askokcancel("Will Override Files!","This will override the data in your files with the filtered data. \nAre you sure?")
-        if shouldRun: 
-            for sacdh in self.gsac.saclist: 
-                sacdh.data = ftr.filtering_time_signal(sacdh.data, self.opts.delta, self.opts.filterParameters['lowFreq'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['band'], self.opts.filterParameters['order'])
+        shouldRun = messagebox.askokcancel("Will Override Files!", "This will override the data in your files with the filtered data. \nAre you sure?")
+        if shouldRun:
+            for sacdh in self.gsac.saclist:
+                sacdh.data = ftr.filtering_time_signal(sacdh.data, self.opts.delta, self.opts.filterParameters['lowFreq'],
+                                                       self.opts.filterParameters['highFreq'], self.opts.filterParameters['band'],
+                                                       self.opts.filterParameters['order'])
             if 'stkdh' in self.gsac.__dict__:
-                self.gsac.stkdh.data = ftr.filtering_time_signal(self.gsac.stkdh.data, self.opts.delta, self.opts.filterParameters['lowFreq'], self.opts.filterParameters['highFreq'], self.opts.filterParameters['band'], self.opts.filterParameters['order'])
+                self.gsac.stkdh.data = ftr.filtering_time_signal(self.gsac.stkdh.data, self.opts.delta,
+                                                                 self.opts.filterParameters['lowFreq'],
+                                                                 self.opts.filterParameters['highFreq'],
+                                                                 self.opts.filterParameters['band'],
+                                                                 self.opts.filterParameters['order'])
             sacpkl.saveData(self.gsac, self.opts)
 
-
     # ---------------------------- SAVE HEADERS FILES ------------------------------- #
-
     def quit(self, event):
         self.finish()
         self.disconnect(event.canvas)
@@ -709,7 +704,7 @@ class PickPhaseMenu():
         self.span.visible = False
 
     def finish(self):
-        for pp in self.pps:    
+        for pp in self.pps:
             pp.disconnect()
         self.axpp.cla()
 
@@ -725,6 +720,7 @@ class PickPhaseMenu():
 #                                                                                 #
 # ############################################################################### #
 
+
 def sortSeis(gsac, opts):
     'Sort seismograms by file indices, quality factors, or a given header'
     sortby = opts.sortby
@@ -735,10 +731,10 @@ def sortSeis(gsac, opts):
     else:
         sortincrease = True
     opts.labelqual = False
-    # sort 
+    # sort
     if sortby == 'i':  # by file indices
         gsac.selist, gsac.delist = qualsort.seleSeis(gsac.saclist)
-    elif sortby.isdigit() or sortby in opts.qheaders + ['all',]: # by quality factors
+    elif sortby.isdigit() or sortby in opts.qheaders + ['all',]:  # by quality factors
         opts.labelqual = True
         if sortby == '1' or sortby == 'ccc':
             opts.qweights = [1, 0, 0]
@@ -756,6 +752,7 @@ def sortSeis(gsac, opts):
 #                                    SortSeis                                     #
 #                                                                                 #
 # ############################################################################### #
+
 
 def getAxes(opts):
     'Get axes for plotting'
@@ -805,7 +802,6 @@ def getAxes(opts):
     return axs
 
 
-            
 def getDataOpts():
     'Get SAC Data and Options'
     opts, ifiles = getOptions()
@@ -822,10 +818,11 @@ def getDataOpts():
     sortSeis(gsac, opts)
     return gsac, opts
 
+
 def sacppk_standalone():
     gsac, opts = getDataOpts()
     axs = getAxes(opts)
-    ppm = PickPhaseMenu(gsac, opts, axs)
+    PickPhaseMenu(gsac, opts, axs)
     plt.show()
 
 
@@ -833,9 +830,6 @@ def main():
     gsac, opts = getDataOpts()
     axs = getAxes(opts)
     PickPhaseMenu(gsac, opts, axs)
-
-
-
 
 
 if __name__ == "__main__":

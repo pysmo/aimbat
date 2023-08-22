@@ -1,7 +1,8 @@
 import unittest
-import sys, os, matplotlib
-import matplotlib.pyplot as py
-from pysmo.aimbat.sacpickle import readPickle, zipFile, pkl2sac
+import sys
+import os
+import matplotlib
+import matplotlib.pyplot as plt
 from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
 
 test_filename = '20120109.04071467.bhz.pkl'
@@ -21,35 +22,35 @@ class qualctrlModel(unittest.TestCase):
 
     def test_getDataOpts(self):
         sys.argv[1:] = [test_filename]
-        gsac, opts = getDataOpts()
+        gsac, _ = getDataOpts()
         self.assertEqual(len(gsac.delist),7)
         self.assertEqual(len(gsac.selist),117)
         self.assertEqual(len(gsac.delist)+len(gsac.selist),len(gsac.saclist))
 
     def test_readSACfilesRight(self):
         sys.argv[1:] = [test_filename]
-        gsac, opts = getDataOpts()
+        gsac, _ = getDataOpts()
 
         # event year correct
-        self.assertEqual(gsac.event[0], 2012) 
+        self.assertEqual(gsac.event[0], 2012)
 
         # event month correct
-        self.assertEqual(gsac.event[1], 1) 
+        self.assertEqual(gsac.event[1], 1)
 
         # event day correct
-        self.assertEqual(gsac.event[2], 9) 
+        self.assertEqual(gsac.event[2], 9)
 
         # event lat correct
-        self.assertEqual(gsac.event[6], -10.616999626159668) 
+        self.assertEqual(gsac.event[6], -10.616999626159668)
 
         # event lon correct
-        self.assertEqual(gsac.event[7], 165.16000366210938) 
+        self.assertEqual(gsac.event[7], 165.16000366210938)
 
         # event depth correct
-        self.assertEqual(gsac.event[8], 28.0) 
+        self.assertEqual(gsac.event[8], 28.0)
 
         # event magnitude correct
-        self.assertEqual(gsac.event[9], 6.400000095367432) 
+        self.assertEqual(gsac.event[9], 6.400000095367432)
 
     def test_sortSeismogramsFilename(self):
         sys.argv[1:] = [test_filename]
@@ -82,7 +83,7 @@ class qualctrlModel(unittest.TestCase):
 # ############################################################################### #
 #                                      VIEWS                                      #
 # ############################################################################### #
-        
+
 class qualctrlView():
 
     # ------------------------------ SORTING ------------------------------------ #
@@ -126,7 +127,7 @@ class qualctrlView():
             sortedFiles = []
             for sacdh in gsac.selist:
                 sortedFiles.append(sacdh.filename)
-            
+
             self.assertNotEqual(unsortedFiles, sortedFiles)
 
         def test_filter_spreadButter(self):
@@ -138,7 +139,7 @@ class qualctrlView():
             # click the filter button
             event_clickFilterBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.axstk.figure.canvas, 71,223)
             ppmm.filtering(event_clickFilterBtn)
-   
+
             # click apply filter button
             event_clickApplyFilterBtn = matplotlib.backend_bases.MouseEvent('button_press_event', ppmm.figfilter.canvas, 646,829)
             ppmm.applyFilter(event_clickApplyFilterBtn)
@@ -233,7 +234,7 @@ class qualctrlView():
             ppmm.applyFilter(fake_event)
 
             # check the figure has been closed
-            self.assertFalse(py.fignum_exists(ppmm.figfilter.number))
+            self.assertFalse(plt.fignum_exists(ppmm.figfilter.number))
 
         """unapplying the filter works"""
         def test_filter_unapplyFilter(self):
@@ -246,26 +247,10 @@ class qualctrlView():
             ppmm.unapplyFilter(event_unapply)
 
             self.assertFalse(ppmm.opts.filterParameters['apply'])
-            self.assertFalse(py.fignum_exists(ppmm.figfilter.number))
+            self.assertFalse(plt.fignum_exists(ppmm.figfilter.number))
 
     # ------------------------------- FILTERING --------------------------------- #
 
 # ############################################################################### #
 #                                      VIEWS                                      #
 # ############################################################################### #
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

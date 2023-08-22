@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: qualctrl.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009  Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 Python module for interactively measuring body wave travel times and quality control.
 Used by ttpick.py
@@ -19,19 +19,9 @@ Used by ttpick.py
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
-
-import numpy as np
-import matplotlib as mpl
-mpl.rcParams['backend'] = "TkAgg"
-import matplotlib.pyplot as plt
-import os, sys, copy
-#from matplotlib.widgets import Button, RadioButtons
-#from matplotlib import transforms
-#from matplotlib.font_manager import FontProperties
-import tkinter.messagebox
 
 from pysmo.aimbat import ttconfig
 from pysmo.aimbat import qualsort
@@ -43,12 +33,23 @@ from pysmo.aimbat import filtering as ftr
 from pysmo.aimbat import plotstations as psta
 from pysmo.aimbat import algiccs as iccs
 from pysmo.aimbat import algmccc as mccc
-from pysmo.aimbat import prepdata  as pdata
-
+from pysmo.aimbat import prepdata as pdata
+# from matplotlib.widgets import Button, RadioButtons
+# from matplotlib import transforms
+# from matplotlib.font_manager import FontProperties
+import tkinter.messagebox
+import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib as mpl
+import os
+import sys
+import copy
+mpl.rcParams['backend'] = "TkAgg"
 
 
 """print everything out in an array, DO NOT DELETE!!!"""
-# np.set_printoptions(threshold=nan) 
+# np.set_printoptions(threshold=nan)
+
 
 def getOptions():
     """ Parse arguments and options. """
@@ -68,24 +69,25 @@ def getOptions():
     parser.set_defaults(sortby=sortby)
     parser.set_defaults(fill=fill)
     parser.add_option('-b', '--boundlines', action="store_true", dest='boundlines_on',
-        help='Plot bounding lines to separate seismograms.')
+                      help='Plot bounding lines to separate seismograms.')
     parser.add_option('-n', '--netsta', action="store_true", dest='nlab_on',
-        help='Label seismogram by net.sta code instead of SAC file name.')
+                      help='Label seismogram by net.sta code instead of SAC file name.')
     parser.add_option('-m', '--maxnum',  dest='maxnum', type='int', nargs=2,
-        help='Maximum number of selected and deleted seismograms to plot. Defaults: {0:d} and {1:d}.'.format(maxsel, maxdel))
+                      help='Maximum number of selected and deleted seismograms to plot. Defaults: {0:d} and {1:d}.'.format(maxsel, maxdel))
     parser.add_option('-p', '--phase',  dest='phase', type='str',
-        help='Seismic phase name: P/S .')
+                      help='Seismic phase name: P/S .')
     parser.add_option('-s', '--sortby', type='str', dest='sortby',
-        help='Sort seismograms by i (file indices), or 0/1/2/3 (quality factor all/ccc/snr/coh), or t (time pick diff), or a given header (az/baz/dist..). Append - for decrease order, otherwise increase. Default is {:s}.'.format(sortby))
+                      help='Sort seismograms by i (file indices), or 0/1/2/3 (quality factor all/ccc/snr/coh), or t (time pick diff), or a given header (az/baz/dist..). Append - for decrease order, otherwise increase. Default is {:s}.'.format(sortby))
     parser.add_option('-t', '--twcorr', dest='twcorr', type='float', nargs=2,
-        help='Time window for cross-correlation. Default is [{:.1f}, {:.1f}] s'.format(twcorr[0],twcorr[1]))
+                      help='Time window for cross-correlation. Default is [{:.1f}, {:.1f}] s'.format(twcorr[0], twcorr[1]))
     parser.add_option('-g', '--savefig', action="store_true", dest='savefig',
-        help='Save figure instead of showing.')
+                      help='Save figure instead of showing.')
     opts, files = parser.parse_args(sys.argv[1:])
     if len(files) == 0:
         print(parser.usage)
         sys.exit()
     return opts, files
+
 
 # ############################################################################### #
 #                                                                                 #
@@ -102,7 +104,7 @@ class PickPhaseMenuMore:
         self.opts = opts
         self.axs = axs
         self.axstk = self.axs['Fstk']
-        if not 'stkdh' in gsac.__dict__:
+        if 'stkdh' not in gsac.__dict__:
             if opts.filemode == 'sac' and os.path.isfile(opts.fstack):
                 gsac.stkdh = sacpkl.SacDataHdrs(opts.fstack, opts.delta)
             else:
@@ -112,7 +114,7 @@ class PickPhaseMenuMore:
                 # check data coverage
                 opts.ipick = hdrini
                 opts.twcorr = opts.ccpara.twcorr
-                iccs.checkCoverage(gsac, opts) 
+                iccs.checkCoverage(gsac, opts)
                 gsac.selist = gsac.saclist
                 self.ccStack()
         self.initPlot()
@@ -140,13 +142,13 @@ class PickPhaseMenuMore:
         gsac = self.gsac
 
         # get required parameters
-        locationLat = round(gsac.event[6],2)
-        locationLon = round(gsac.event[7],2)
-        depth = round(gsac.event[8],2)
-        magnitude = round(gsac.event[9],2)
+        locationLat = round(gsac.event[6], 2)
+        locationLon = round(gsac.event[7], 2)
+        depth = round(gsac.event[8], 2)
+        magnitude = round(gsac.event[9], 2)
         all_gcarc = []
-        [all_gcarc.append(hdr.gcarc) for hdr in gsac.selist ]
-        avg_gcarc = round(np.mean(all_gcarc),2)
+        [all_gcarc.append(hdr.gcarc) for hdr in gsac.selist]
+        avg_gcarc = round(np.mean(all_gcarc), 2)
 
         infoaxis = self.axs['Info']
 
@@ -155,11 +157,11 @@ class PickPhaseMenuMore:
         infoaxis.axes.get_yaxis().set_visible(False)
 
         # write the info into the axis plot
-        infoaxis.text(0.1,0.85,'Magnitude: '+str(magnitude))
-        infoaxis.text(0.1,0.65,'Lat: '+str(locationLat))
-        infoaxis.text(0.1,0.45,'Lon: '+str(locationLon))
-        infoaxis.text(0.1,0.25,'Depth: '+str(depth))
-        infoaxis.text(0.1,0.05,'Gcarc: '+str(avg_gcarc))
+        infoaxis.text(0.1, 0.85, 'Magnitude: ' + str(magnitude))
+        infoaxis.text(0.1, 0.65, 'Lat: ' + str(locationLat))
+        infoaxis.text(0.1, 0.45, 'Lon: ' + str(locationLon))
+        infoaxis.text(0.1, 0.25, 'Depth: ' + str(depth))
+        infoaxis.text(0.1, 0.05, 'Gcarc: ' + str(avg_gcarc))
 
     def setLabels(self):
         """ Set plot attributes """
@@ -167,20 +169,19 @@ class PickPhaseMenuMore:
         if self.opts.filemode == 'pkl':
             axstk = self.axstk
             trans = mpl.transforms.blended_transform_factory(axstk.transAxes, axstk.transAxes)
-            axstk.text(1,1.01,self.opts.pklfile,transform=trans, va='bottom', ha='right',color='k')
+            axstk.text(1, 1.01, self.opts.pklfile, transform=trans, va='bottom', ha='right', color='k')
         axpp = self.ppm.axpp
         trans = mpl.transforms.blended_transform_factory(axpp.transAxes, axpp.transData)
         font = mpl.font_manager.FontProperties()
         font.set_family('monospace')
-        axpp.text(1.025, 0, ' '*8+'qual= CCC/SNR/COH', transform=trans, va='center', 
-            color='k', fontproperties=font)
+        axpp.text(1.025, 0, ' '*8+'qual= CCC/SNR/COH', transform=trans, va='center', color='k', fontproperties=font)
 
     def plotStack(self):
         """ Plot array stack and span """
         colorwave = self.opts.pppara.colorwave
         stkybase = 0
 
-        ppstk = ppk.PickPhase(self.gsac.stkdh, self.opts, self.axstk, stkybase, colorwave, 1) 
+        ppstk = ppk.PickPhase(self.gsac.stkdh, self.opts, self.axstk, stkybase, colorwave, 1)
 
         ppstk.plotPicks()
         ppstk.disconnectPick()
@@ -201,6 +202,7 @@ class PickPhaseMenuMore:
         """ Span for array stack """
         axstk = self.axstk
         self.xzoom = [axstk.get_xlim(),]
+
         def on_select(xmin, xmax):
             """ Mouse event: select span. """
             if self.span.visible:
@@ -209,21 +211,21 @@ class PickPhaseMenuMore:
                 axstk.set_xlim(xxlim)
                 self.xzoom.append(xxlim)
                 if self.opts.upylim_on:
-                    print ('upylim')
-                    self.ppstk.updateY(xxlim) ##
+                    print('upylim')
+                    self.ppstk.updateY(xxlim)
                 axstk.figure.canvas.draw()
         pppara = self.opts.pppara
         a, col = pppara.alphatwsele, pppara.colortwsele
         mspan = pppara.minspan * self.opts.delta
         self.span = putil.TimeSelector(axstk, on_select, 'horizontal', minspan=mspan, useblit=False,
-            rectprops=dict(alpha=a, facecolor=col))
+                                       rectprops=dict(alpha=a, facecolor=col))
 
-        #self.replot()
-        #self.ppm.axpp.figure.canvas.draw()
+        # self.replot()
+        # self.ppm.axpp.figure.canvas.draw()
 
     # -------------------------------- SORTING ---------------------------------- #
 
-    # Sort seismograms by 
+    # Sort seismograms by
     #    --------------
     # * | file indices |
     #    --------------
@@ -233,21 +235,21 @@ class PickPhaseMenuMore:
     #                 ---- ----- ------
     # * given header | az | baz | dist | ...
     #                 ---- ----- ------
-    
+
     def sorting(self, event):
         """ Sort the seismograms in particular order """
         self.getSortAxes()
         self.summarize_sort()
         self.sort_connect()
-        plt.show()        
+        plt.show()
 
     def getSortAxes(self):
-        figsort = plt.figure('SortSeismograms',figsize=(15, 12))
+        figsort = plt.figure('SortSeismograms', figsize=(15, 12))
 
         x0 = 0.05
         xx = 0.10
         yy = 0.04
-        #xm = 0.02
+        # xm = 0.02
         dy = 0.15
         dx = 0.12
         y0 = 0.90
@@ -276,14 +278,14 @@ class PickPhaseMenuMore:
 
         """writing buttons to axis"""
         sortAxs = {}
-        figsort.text(0.1,y0-dy*0.5,'Sort by file Index Name: ')
+        figsort.text(0.1, y0-dy*0.5, 'Sort by file Index Name: ')
         sortAxs['file'] = figsort.add_axes(rectfile)
-        figsort.text(0.1,y0-dy*1.5,'Sort by Quality: ')
+        figsort.text(0.1, y0-dy*1.5, 'Sort by Quality: ')
         sortAxs['qall'] = figsort.add_axes(rectqall)
         sortAxs['qccc'] = figsort.add_axes(rectqccc)
         sortAxs['qsnr'] = figsort.add_axes(rectqsnr)
         sortAxs['qcoh'] = figsort.add_axes(rectqcoh)
-        figsort.text(0.1,y0-dy*2.5,'Sort by Header: ')
+        figsort.text(0.1, y0-dy*2.5, 'Sort by Header: ')
         sortAxs['hnpts'] = figsort.add_axes(recthnpts)
         sortAxs['hb'] = figsort.add_axes(recthb)
         sortAxs['he'] = figsort.add_axes(recthe)
@@ -316,41 +318,41 @@ class PickPhaseMenuMore:
         dy = 0.03
 
         # explain what the summaries are
-        sortAxs['summary'].text(x0,y0-dy*0,'FILENAMES')
-        sortAxs['summary'].text(x0,y0-dy*1,'File: ')
-        sortAxs['summary'].text(x1,y0-dy*1,'Sort in alphabetical order by filename')
+        sortAxs['summary'].text(x0, y0-dy*0, 'FILENAMES')
+        sortAxs['summary'].text(x0, y0-dy*1, 'File: ')
+        sortAxs['summary'].text(x1, y0-dy*1, 'Sort in alphabetical order by filename')
 
-        sortAxs['summary'].text(x0,y0-dy*3,'QUALITY:')
-        sortAxs['summary'].text(x0,y0-dy*4,'All: ')
-        sortAxs['summary'].text(x1,y0-dy*4,'Weighted Ratio of all quality measures')
-        sortAxs['summary'].text(x0,y0-dy*5,'CCC: ')
-        sortAxs['summary'].text(x1,y0-dy*5,'Cross-coefficient Coefficient')
-        sortAxs['summary'].text(x0,y0-dy*6,'SNR: ')
-        sortAxs['summary'].text(x1,y0-dy*6,'Signal-to-noise Ratio')
-        sortAxs['summary'].text(x0,y0-dy*7,'COH: ')
-        sortAxs['summary'].text(x1,y0-dy*7,'time domain coherence')
+        sortAxs['summary'].text(x0, y0-dy*3, 'QUALITY:')
+        sortAxs['summary'].text(x0, y0-dy*4, 'All: ')
+        sortAxs['summary'].text(x1, y0-dy*4, 'Weighted Ratio of all quality measures')
+        sortAxs['summary'].text(x0, y0-dy*5, 'CCC: ')
+        sortAxs['summary'].text(x1, y0-dy*5, 'Cross-coefficient Coefficient')
+        sortAxs['summary'].text(x0, y0-dy*6, 'SNR: ')
+        sortAxs['summary'].text(x1, y0-dy*6, 'Signal-to-noise Ratio')
+        sortAxs['summary'].text(x0, y0-dy*7, 'COH: ')
+        sortAxs['summary'].text(x1, y0-dy*7, 'time domain coherence')
 
-        sortAxs['summary'].text(x0,y0-dy*9,'OTHER HEADERS:')
-        sortAxs['summary'].text(x0,y0-dy*10,'NPTS: ')
-        sortAxs['summary'].text(x1,y0-dy*10,'Number of points per data component')
-        sortAxs['summary'].text(x0,y0-dy*11,'B: ')
-        sortAxs['summary'].text(x1,y0-dy*11,'Beginning value of the independent variable')
-        sortAxs['summary'].text(x0,y0-dy*12,'E: ')
-        sortAxs['summary'].text(x1,y0-dy*12,'Ending value of the independent variable')
-        sortAxs['summary'].text(x0,y0-dy*13,'Delta: ')
-        sortAxs['summary'].text(x1,y0-dy*13,'Increment between evenly spaced samples')
-        sortAxs['summary'].text(x0,y0-dy*14,'STLA: ')
-        sortAxs['summary'].text(x1,y0-dy*14,'Station latitude (deg, north positive)')
-        sortAxs['summary'].text(x0,y0-dy*15,'STLO: ')
-        sortAxs['summary'].text(x1,y0-dy*15,'Station longitude (deg, east positive)')
-        sortAxs['summary'].text(x0,y0-dy*16,'DIST: ')
-        sortAxs['summary'].text(x1,y0-dy*16,'Station to event distance (km)')
-        sortAxs['summary'].text(x0,y0-dy*17,'AZ: ')
-        sortAxs['summary'].text(x1,y0-dy*17,'Event to station azimuth (deg)')
-        sortAxs['summary'].text(x0,y0-dy*18,'BAZ: ')
-        sortAxs['summary'].text(x1,y0-dy*18,'Station to event azimuth (deg)')
-        sortAxs['summary'].text(x0,y0-dy*19,'GCARC: ')
-        sortAxs['summary'].text(x1,y0-dy*19,'Station to event great circle arc length (deg)')
+        sortAxs['summary'].text(x0, y0-dy*9, 'OTHER HEADERS:')
+        sortAxs['summary'].text(x0, y0-dy*10, 'NPTS: ')
+        sortAxs['summary'].text(x1, y0-dy*10, 'Number of points per data component')
+        sortAxs['summary'].text(x0, y0-dy*11, 'B: ')
+        sortAxs['summary'].text(x1, y0-dy*11, 'Beginning value of the independent variable')
+        sortAxs['summary'].text(x0, y0-dy*12, 'E: ')
+        sortAxs['summary'].text(x1, y0-dy*12, 'Ending value of the independent variable')
+        sortAxs['summary'].text(x0, y0-dy*13, 'Delta: ')
+        sortAxs['summary'].text(x1, y0-dy*13, 'Increment between evenly spaced samples')
+        sortAxs['summary'].text(x0, y0-dy*14, 'STLA: ')
+        sortAxs['summary'].text(x1, y0-dy*14, 'Station latitude (deg, north positive)')
+        sortAxs['summary'].text(x0, y0-dy*15, 'STLO: ')
+        sortAxs['summary'].text(x1, y0-dy*15, 'Station longitude (deg, east positive)')
+        sortAxs['summary'].text(x0, y0-dy*16, 'DIST: ')
+        sortAxs['summary'].text(x1, y0-dy*16, 'Station to event distance (km)')
+        sortAxs['summary'].text(x0, y0-dy*17, 'AZ: ')
+        sortAxs['summary'].text(x1, y0-dy*17, 'Event to station azimuth (deg)')
+        sortAxs['summary'].text(x0, y0-dy*18, 'BAZ: ')
+        sortAxs['summary'].text(x1, y0-dy*18, 'Station to event azimuth (deg)')
+        sortAxs['summary'].text(x0, y0-dy*19, 'GCARC: ')
+        sortAxs['summary'].text(x1, y0-dy*19, 'Station to event great circle arc length (deg)')
 
     """ Connect button events. """
     def sort_connect(self):
@@ -434,7 +436,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'i';
+        self.opts.sortby = 'i'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -446,7 +448,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'all';
+        self.opts.sortby = 'all'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -458,7 +460,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = '1';
+        self.opts.sortby = '1'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -470,7 +472,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = '2';
+        self.opts.sortby = '2'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -482,7 +484,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = '3';
+        self.opts.sortby = '3'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -494,7 +496,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'npts';
+        self.opts.sortby = 'npts'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -506,7 +508,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'b';
+        self.opts.sortby = 'b'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -518,7 +520,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'e';
+        self.opts.sortby = 'e'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -530,7 +532,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'delta';
+        self.opts.sortby = 'delta'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -542,7 +544,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'kstnm';
+        self.opts.sortby = 'kstnm'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -554,7 +556,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'stla';
+        self.opts.sortby = 'stla'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -566,7 +568,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'stlo';
+        self.opts.sortby = 'stlo'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -578,7 +580,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'dist';
+        self.opts.sortby = 'dist'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -589,7 +591,6 @@ class PickPhaseMenuMore:
     def sort_haz(self, event):
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
-
 
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
@@ -602,7 +603,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'baz';
+        self.opts.sortby = 'baz'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -614,7 +615,7 @@ class PickPhaseMenuMore:
         self.bnquit.label.set_text('Processing...')
         event.canvas.draw()
 
-        self.opts.sortby = 'gcarc';
+        self.opts.sortby = 'gcarc'
         self.replot_seismograms()
         self.ppm.axpp.figure.canvas.draw()
 
@@ -633,33 +634,33 @@ class PickPhaseMenuMore:
     # Implement Butterworth filter
     #
 
-    def filtering(self,event):
+    def filtering(self, event):
         self.getFilterAxes()
         self.spreadButter()
         self.filter_connect()
-        plt.show()        
+        plt.show()
 
     def filter_connect(self):
         # user to change default parameters
         self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
 
         # get order
-        self.bnorder = mpl.widgets.RadioButtons(self.filterAxs['ordr'], (1,2,3,4), active=1)
+        self.bnorder = mpl.widgets.RadioButtons(self.filterAxs['ordr'], (1, 2, 3, 4), active=1)
         self.cidorder = self.bnorder.on_clicked(self.getButterOrder)
 
         # get type of filter to use
-        self.bnband = mpl.widgets.RadioButtons(self.filterAxs['band'], ('bandpass','lowpass','highpass'))
+        self.bnband = mpl.widgets.RadioButtons(self.filterAxs['band'], ('bandpass', 'lowpass', 'highpass'))
         self.cidband = self.bnband.on_clicked(self.getBandtype)
 
         # get reverse pass option
         self.bnreversepass = mpl.widgets.RadioButtons(self.filterAxs['reversepass'], ('yes', 'no'), active=1)
         self.cidreversepass = self.bnreversepass.on_clicked(self.getReversePassOption)
 
-        #add apply button. causes the filtered data to be applied 
+        # add apply button. causes the filtered data to be applied
         self.bnapply = mpl.widgets.Button(self.filterAxs['apply'], 'Apply')
         self.cidapply = self.bnapply.on_clicked(self.applyFilter)
 
-        #add unapply button. causes the filtered data to be applied 
+        # add unapply button. causes the filtered data to be applied
         self.bnunapply = mpl.widgets.Button(self.filterAxs['unapply'], 'Unapply')
         self.cidunapply = self.bnunapply.on_clicked(self.unapplyFilter)
 
@@ -672,32 +673,32 @@ class PickPhaseMenuMore:
 
     def getBandtype(self, event):
         self.opts.filterParameters['band'] = event
-        if event=='bandpass':
+        if event == 'bandpass':
             self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
             # set defaults
             self.opts.filterParameters['lowFreq'] = 0.05
             self.opts.filterParameters['highFreq'] = 0.25
             self.opts.filterParameters['advance'] = False
             self.spreadButter()
-            #execute
+            # execute
             self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getBandpassFreq)
-        elif event=='lowpass':
+        elif event == 'lowpass':
             self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
             # set defaults
             self.opts.filterParameters['lowFreq'] = 0.05
             self.opts.filterParameters['highFreq'] = np.nan
             self.opts.filterParameters['advance'] = False
             self.spreadButter()
-            #execute
+            # execute
             self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getLowFreq)
-        elif event=='highpass':
+        elif event == 'highpass':
             self.filterAxs['amVfreq'].figure.canvas.mpl_disconnect(self.cidSelectFreq)
             # set defaults
             self.opts.filterParameters['lowFreq'] = np.nan
             self.opts.filterParameters['highFreq'] = 0.25
             self.opts.filterParameters['advance'] = False
             self.spreadButter()
-            #execute
+            # execute
             self.cidSelectFreq = self.filterAxs['amVfreq'].get_figure().canvas.mpl_connect('button_press_event', self.getHighFreq)
 
     def getLowFreq(self, event):
@@ -714,11 +715,11 @@ class PickPhaseMenuMore:
         self.opts.filterParameters['order'] = int(event)
         self.spreadButter()
 
-    def getBandpassFreq(self,event):
+    def getBandpassFreq(self, event):
         if event.inaxes == self.filterAxs['amVfreq']:
-            if self.opts.filterParameters['advance']: # low and high frequencies recorded
+            if self.opts.filterParameters['advance']:  # low and high frequencies recorded
                 self.opts.filterParameters['highFreq'] = event.xdata
-                if self.opts.filterParameters['lowFreq']<self.opts.filterParameters['highFreq']:
+                if self.opts.filterParameters['lowFreq'] < self.opts.filterParameters['highFreq']:
                     self.opts.filterParameters['advance'] = False
                     self.spreadButter()
                 else:
@@ -729,9 +730,9 @@ class PickPhaseMenuMore:
 
     def modifyFilterTextLabels(self):
         self.filterAxs['Info'].clear()
-        self.filterAxs['Info'].text(0.1,0.7,'Low Freq: '+str(self.opts.filterParameters['lowFreq']))
-        self.filterAxs['Info'].text(0.1,0.4,'High Freq: '+str(self.opts.filterParameters['highFreq']))
-        self.filterAxs['Info'].text(0.1,0.1,'Order: '+str(self.opts.filterParameters['order']))
+        self.filterAxs['Info'].text(0.1, 0.7, 'Low Freq: ' + str(self.opts.filterParameters['lowFreq']))
+        self.filterAxs['Info'].text(0.1, 0.4, 'High Freq: ' + str(self.opts.filterParameters['highFreq']))
+        self.filterAxs['Info'].text(0.1, 0.1, 'Order: ' + str(self.opts.filterParameters['order']))
 
     """Apply the butterworth filter to the data """
     def spreadButter(self):
@@ -739,9 +740,9 @@ class PickPhaseMenuMore:
         self.filterAxs['amVtime'].clear()
         self.filterAxs['amVfreq'].clear()
 
-        #set axes limit
-        self.filterAxs['amVtime'].set_xlim(-30,30)
-        self.filterAxs['amVfreq'].set_xlim(0,1.50)
+        # set axes limit
+        self.filterAxs['amVtime'].set_xlim(-30, 30)
+        self.filterAxs['amVfreq'].set_xlim(0, 1.50)
 
         self.modifyFilterTextLabels()
 
@@ -756,8 +757,8 @@ class PickPhaseMenuMore:
         self.filterAxs['amVtime'].plot(originalTime, filteredSignalTime, label='Filtered')
         self.filterAxs['amVtime'].legend(loc="upper right")
         self.filterAxs['amVtime'].set_title('Signal vs Time')
-        self.filterAxs['amVtime'].set_xlabel('Time (s)', fontsize = 12)
-        self.filterAxs['amVtime'].set_ylabel('Signal', fontsize = 12)
+        self.filterAxs['amVtime'].set_xlabel('Time (s)', fontsize=12)
+        self.filterAxs['amVtime'].set_ylabel('Signal', fontsize=12)
 
         # PLOT FREQUENCY
         self.filterAxs['amVfreq'].plot(originalFreq, np.abs(originalSignalFreq), label='Original')
@@ -765,14 +766,14 @@ class PickPhaseMenuMore:
         self.filterAxs['amVfreq'].plot(adjusted_w, adjusted_h, label='Butterworth Filter')
         self.filterAxs['amVfreq'].legend(loc="upper right")
         self.filterAxs['amVfreq'].set_title('Amplitude vs frequency')
-        self.filterAxs['amVfreq'].set_xlabel('Frequency (Hz)', fontsize = 12)
-        self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize = 12)
+        self.filterAxs['amVfreq'].set_xlabel('Frequency (Hz)', fontsize=12)
+        self.filterAxs['amVfreq'].set_ylabel('Amplitude Signal', fontsize=12)
 
         # redraw the plots on the popup window
         self.figfilter.canvas.draw()
 
     def applyFilter(self, event):
-        #should we write filtered data for individual seismograms
+        # should we write filtered data for individual seismograms
         self.opts.filterParameters['apply'] = True
 
         # replot filtered stuff
@@ -811,7 +812,7 @@ class PickPhaseMenuMore:
         # do not write filtered data for individual seismograms
         self.opts.filterParameters['apply'] = False
 
-        #reset back to original defaults
+        # reset back to original defaults
         self.opts.filterParameters['band'] = 'bandpass'
         self.opts.filterParameters['lowFreq'] = 0.05
         self.opts.filterParameters['highFreq'] = 0.25
@@ -858,9 +859,9 @@ class PickPhaseMenuMore:
         rectreversepass = [0.72, 0.86, 0.07, 0.10]
 
         filterAxs = {}
-        self.figfilter.text(0.03,0.95,'Butterworth Filter', {'weight':'bold', 'size':21})
-        filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime) 
-        filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq) 
+        self.figfilter.text(0.03, 0.95, 'Butterworth Filter', {'weight': 'bold', 'size': 21})
+        filterAxs['amVtime'] = figfilter.add_axes(rect_amVtime)
+        filterAxs['amVfreq'] = figfilter.add_axes(rect_amVfreq)
         filterAxs['ordr'] = figfilter.add_axes(rectordr)
         filterAxs['unapply'] = figfilter.add_axes(rectunapply)
         filterAxs['apply'] = figfilter.add_axes(rectapply)
@@ -891,7 +892,8 @@ class PickPhaseMenuMore:
         """
         evkey = event.key
         axstk = self.axstk
-        if not axstk.contains(event)[0] or evkey is None: return
+        if not axstk.contains(event)[0] or evkey is None:
+            return
         xzoom = self.xzoom
         if evkey.lower() == 'z' and len(xzoom) > 1:
             del xzoom[-1]
@@ -975,21 +977,20 @@ class PickPhaseMenuMore:
         self.axfilter.cla()
 
     def syncPick(self):
-        """ Sync final time pick hdrfin from array stack to all traces. 
-        """
+        """Sync final time pick hdrfin from array stack to all traces."""
         self.getPicks()
         tshift = self.tfin - self.tmed
-        hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
+        _, hdrmed, hdrfin = self.opts.qcpara.ichdrs
         for sacdh in self.gsac.saclist:
             tfin = sacdh.gethdr(hdrmed) + tshift
             sacdh.sethdr(hdrfin, tfin)
 
     def syncWind(self):
-        """ Sync time window relative to hdrfin from array stack to all traces. 
+        """ Sync time window relative to hdrfin from array stack to all traces.
             Times saved to twhdrs are alway absolute.
         """
         wh0, wh1 = self.opts.qcpara.twhdrs
-        hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
+        _, _, hdrfin = self.opts.qcpara.ichdrs
         self.getWindow(hdrfin)
         twfin = self.twcorr
         for sacdh in self.gsac.saclist:
@@ -998,7 +999,7 @@ class PickPhaseMenuMore:
             th1 = tfin + twfin[1]
             sacdh.sethdr(wh0, th0)
             sacdh.sethdr(wh1, th1)
-            
+
     def sync(self, event):
         """ Sync final time pick and time window from array stack to each trace and update current page.
         """
@@ -1021,9 +1022,9 @@ class PickPhaseMenuMore:
             pp.twindow = [th0, th1]
             pp.resetWindow()
         print('--> Sync final time picks and time window... You can now run CCFF to refine final picks.')
-    
+
     def getWindow(self, hdr):
-        """ Get time window twcorr (relative to hdr) from array stack, which is from last run. 
+        """ Get time window twcorr (relative to hdr) from array stack, which is from last run.
         """
         ppstk = self.ppstk
         tw0, tw1 = ppstk.twindow
@@ -1044,7 +1045,7 @@ class PickPhaseMenuMore:
 
     def ccim(self, event):
         # running ICCS-A will erase everything you did. Make sure the user did not hit it by mistake
-        shouldRun = tkinter.messagebox.askokcancel("Will Erase Work!","This will erase any picks past t1. \nAre you sure?")
+        shouldRun = tkinter.messagebox.askokcancel("Will Erase Work!", "This will erase any picks past t1. \nAre you sure?")
 
         if shouldRun:
             """ Run iccs with time window from final stack. Time picks: hdrini, hdrmed.
@@ -1066,8 +1067,8 @@ class PickPhaseMenuMore:
             return
 
         """running ICCS-B will erase everything you did. Make sure the user did not hit it by mistake"""
-        shouldRun = tkinter.messagebox.askokcancel("Will Erase Work!","This will erase any picks past t2 and will recalculate all t2 values. \nAre you sure?")
-        
+        shouldRun = tkinter.messagebox.askokcancel("Will Erase Work!", "This will erase any picks past t2 and will recalculate all t2 values. \nAre you sure?")
+
         if shouldRun:
             self.cchdrs = hdrfin, hdrfin
             self.getWindow(self.cchdrs[0])
@@ -1079,16 +1080,16 @@ class PickPhaseMenuMore:
             self.replot()
 
     def ccStack(self):
-        """ 
-        Call iccs.ccWeightStack. 
+        """
+        Call iccs.ccWeightStack.
         Change reference time pick to the input pick before ICCS and to the output pick afterwards.
         """
         opts = self.opts
         ccpara = opts.ccpara
         ccpara.twcorr = self.twcorr
         ccpara.cchdrs = self.cchdrs
-        hdr0, hdr1 = int(ccpara.cchdrs[0][1]), int(ccpara.cchdrs[1][1])
-        stkdh, stkdata, quas = iccs.ccWeightStack(self.gsac.selist, self.opts)
+        _, hdr1 = int(ccpara.cchdrs[0][1]), int(ccpara.cchdrs[1][1])
+        stkdh, _, _ = iccs.ccWeightStack(self.gsac.selist, self.opts)
         stkdh.selected = True
         stkdh.sethdr(opts.qcpara.hdrsel, 'True')
         self.gsac.stkdh = stkdh
@@ -1101,12 +1102,12 @@ class PickPhaseMenuMore:
         """ Run mccc.py  """
         gsac = self.gsac
         mcpara = self.opts.mcpara
-        #rcfile = mcpara.rcfile
+        # rcfile = mcpara.rcfile
         ipick = mcpara.ipick
         wpick = mcpara.wpick
         self.getWindow(ipick)
         timewindow = self.twcorr
-        #tw = timewindow[1]-timewindow[0]
+        # tw = timewindow[1]-timewindow[0]
         taperwindow = sacpkl.taperWindow(timewindow, mcpara.taperwidth)
         mcpara.timewindow = timewindow
         mcpara.taperwindow = taperwindow
@@ -1140,20 +1141,20 @@ class PickPhaseMenuMore:
         npick = len(tpicks)
         tlabs = 'ABCDE'
 
-        fig2 = plt.figure(figsize=(9,12))
+        fig2 = plt.figure(figsize=(9, 12))
         fig2.clf()
         plt.subplots_adjust(bottom=.05, top=0.96, left=.1, right=.97, wspace=.5, hspace=.24)
         opts.twin_on = False
         opts.pick_on = False
-        ax0 = fig2.add_subplot(npick,1,1)
-        axsacs = [ ax0 ] + [ fig2.add_subplot(npick,1,i+1, sharex=ax0) for i in range(1, npick) ]
+        ax0 = fig2.add_subplot(npick, 1, 1)
+        axsacs = [ax0] + [fig2.add_subplot(npick, 1, i+1, sharex=ax0) for i in range(1, npick)]
         for i in range(npick):
             opts.reltime = int(tpicks[i][1])
             ax = axsacs[i]
             pph.sacp2(selist, opts, ax)
             tt = '(' + tlabs[i] + ')'
             trans = mpl.transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
-            ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)    
+            ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)
 
         opts.ynorm = ynorm
         opts.twin_on = twin_on
@@ -1162,7 +1163,7 @@ class PickPhaseMenuMore:
         opts.fill = fill
         opts.zero_on = False
 
-        plt.show()        
+        plt.show()
 
 # ############################################################################### #
 #                                                                                 #
@@ -1176,6 +1177,7 @@ class PickPhaseMenuMore:
 #                                                                                 #
 # ############################################################################### #
 
+
 def sortSeis(gsac, opts):
     'Sort seismograms by file indices, quality factors, time difference, or a given header.'
     sortby = opts.sortby
@@ -1185,8 +1187,8 @@ def sortSeis(gsac, opts):
         sortby = sortby[:-1]
     else:
         sortincrease = True
-    opts.labelqual = True 
-    # sort 
+    opts.labelqual = True
+    # sort
     if sortby == 'i':   # by file indices
         gsac.selist, gsac.delist = qualsort.seleSeis(gsac.saclist)
     elif sortby == 't':    # by time difference
@@ -1196,7 +1198,7 @@ def sortSeis(gsac, opts):
             print('Same time pick: {0:s} and {1:s}. Exit'.format(ipick, wpick))
             sys.exit()
         gsac.selist, gsac.delist = qualsort.sortSeisHeaderDiff(gsac.saclist, ipick, wpick, sortincrease)
-    elif sortby.isdigit() or sortby in opts.qheaders + ['all',]: # by quality factors
+    elif sortby.isdigit() or sortby in opts.qheaders + ['all',]:  # by quality factors
         if sortby == '1' or sortby == 'ccc':
             opts.qweights = [1, 0, 0]
         elif sortby == '2' or sortby == 'snr':
@@ -1204,7 +1206,7 @@ def sortSeis(gsac, opts):
         elif sortby == '3' or sortby == 'coh':
             opts.qweights = [0, 0, 1]
         gsac.selist, gsac.delist = qualsort.sortSeisQual(gsac.saclist, opts.qheaders, opts.qweights, opts.qfactors, sortincrease)
-    else: # by a given header
+    else:  # by a given header
         gsac.selist, gsac.delist = qualsort.sortSeisHeader(gsac.saclist, sortby, sortincrease)
     return
 
@@ -1219,6 +1221,7 @@ def sortSeis(gsac, opts):
 #                                  PARSING OPTIONS                                #
 #                                                                                 #
 # ############################################################################### #
+
 
 def getDataOpts():
     'Get SAC Data and Options'
@@ -1280,9 +1283,10 @@ def getDataOpts():
     opts.nlab_on = True
     opts.ynormtwin_on = True
     gsac = pdata.prepData(gsac, opts)
-    #checkCoverage(gsac, opts)
+    # checkCoverage(gsac, opts)
     qualsort.initQual(gsac.saclist, opts.hdrsel, opts.qheaders)
     return gsac, opts
+
 
 # ############################################################################### #
 #                                                                                 #
@@ -1310,7 +1314,7 @@ def getAxes(opts):
     xm = 0.02
     dy = 0.05
     y2 = rectfstk[1] + rectfstk[3] - yy
-    yccim = y2 
+    yccim = y2
     ysync = y2 - dy*1
     yccff = y2 - dy*2
     ymccc = y2 - dy*3
@@ -1336,9 +1340,9 @@ def getAxes(opts):
     rectnext = [xm, ynext, xx, yy]
     rectlast = [xm, ylast, xx, yy]
     rectzoba = [xm, yzoba, xx, yy]
-    rectshdo = [xm, yshdo, xx, yy] #save headers only
-    rectshfp = [xm, yshfp, xx, yy] #save headers and filter params
-    rectshod = [xm, yshod, xx, yy] #save headers and 
+    rectshdo = [xm, yshdo, xx, yy]  # save headers only
+    rectshfp = [xm, yshfp, xx, yy]  # save headers and filter params
+    rectshod = [xm, yshod, xx, yy]  # save headers and
     rectquit = [xm, yquit, xx, yy]
 
     rectccim = [xm, yccim, xx, yy]
@@ -1376,6 +1380,7 @@ def getAxes(opts):
 
     return axs
 
+
 # ############################################################################### #
 #                                                                                 #
 #                        SETUP LOCATIONS OF BUTTONS AND PLOTS                     #
@@ -1385,7 +1390,7 @@ def getAxes(opts):
 def main():
     gsac, opts = getDataOpts()
     axs = getAxes(opts)
-    ppmm = PickPhaseMenuMore(gsac, opts, axs)
+    _ = PickPhaseMenuMore(gsac, opts, axs)
     fmt = 'pdf'
     fmt = 'png'
     if opts.savefig:
@@ -1394,11 +1399,10 @@ def main():
         else:
             fignm = opts.pklfile + '.' + fmt
         plt.savefig(fignm, format=fmt, dpi=300)
-	# plt.savefig(fignm, format=fmt)
+    # plt.savefig(fignm, format=fmt)
     else:
-        plt.show()        
+        plt.show()
+
 
 if __name__ == "__main__":
     main()
-
-

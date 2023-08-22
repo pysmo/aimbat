@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: xcorr.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 Python module to calculate cross-correlation function of two time series with the same length.
       c(k) = sum_i  x(i) * y(i+k)
@@ -20,11 +20,12 @@ Output ccpol=1 if positive or ccpol=-1 if negative. xlou 03/2011
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
 
 from numpy import correlate, dot, argmax, argmin, sqrt
+
 
 def _xcorr(x, y, cmode='full'):
     """
@@ -50,6 +51,7 @@ def _xcorr(x, y, cmode='full'):
         delay -= (len(y)-1)/2
     return delay, ccmax, ccpol
 
+
 def _xcorr_polarity(x, y, cmode='full'):
     """
     Cross-correlation of two 1-D arrays using 'full' or 'same' mode.
@@ -70,12 +72,14 @@ def _xcorr_polarity(x, y, cmode='full'):
         delay -= (len(y)-1)/2
     return delay, ccmax, ccpol
 
+
 def xcorr_full(x, y, shift=1):
     """
     Cross-correlation of two 1-D arrays using 'full' mode.
     Argument shift=1 is here only in order to make the same number of arguments for all xcorr functions.
     """
     return _xcorr(x, y, 'full')
+
 
 def xcorr_full_polarity(x, y, shift=1):
     """
@@ -85,11 +89,13 @@ def xcorr_full_polarity(x, y, shift=1):
     """
     return _xcorr_polarity(x, y, 'full')
 
+
 def xcorr_same(x, y):
     """
     Cross-correlation of two 1-D arrays using 'same' mode.
     """
     return _xcorr(x, y, 'same')
+
 
 def xcorr_select(x, y, lags):
     """
@@ -117,6 +123,7 @@ def xcorr_select(x, y, lags):
         ccmax = -ccmin / sqrt(dot(x, x)*dot(y, y))
     return delay, ccmax, ccpol
 
+
 def xcorr_fast(x, y, shift=10):
     """
     Fast cross-correlation of two time series of the same length.
@@ -129,6 +136,7 @@ def xcorr_fast(x, y, shift=10):
     delay, ccmax, ccpol = xcorr_select(x, y, lags)
     return delay, ccmax, ccpol
 
+
 def xcorr_faster(x, y, shift=10):
     """
     Faster cross-correlation only for time lags around zero.
@@ -136,6 +144,7 @@ def xcorr_faster(x, y, shift=10):
     lags = list(range(-shift, shift+1, 1))
     delay, ccmax, ccpol = xcorr_select(x, y, lags)
     return delay, ccmax, ccpol
+
 
 def xcorr_select_polarity(x, y, lags):
     """
@@ -157,6 +166,7 @@ def xcorr_select_polarity(x, y, lags):
     ccmax = ccmax / sqrt(dot(x, x)*dot(y, y))
     return delay, ccmax, ccpol
 
+
 def xcorr_fast_polarity(x, y, shift=10):
     """
     Fast cross-correlation of two time series of the same length.
@@ -169,6 +179,7 @@ def xcorr_fast_polarity(x, y, shift=10):
     lags = list(range(delay-shift, delay+shift+1, 1))
     delay, ccmax, ccpol = xcorr_select_polarity(x, y, lags)
     return delay, ccmax, ccpol
+
 
 def xcorr_faster_polarity(x, y, shift=10):
     """

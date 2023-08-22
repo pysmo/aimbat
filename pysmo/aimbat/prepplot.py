@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: prepplot.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2018 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 Python module for preparing plots on Qt GUI.
 
@@ -13,7 +13,7 @@ Python module for preparing plots on Qt GUI.
     Xiaoting Lou
 
 :license:
-    GNU General Public License, Version 3 (GPLv3) 
+    GNU General Public License, Version 3 (GPLv3)
     http://www.gnu.org/licenses/gpl.html
 """
 
@@ -24,7 +24,7 @@ import pyqtgraph.parametertree.parameterTypes as pTypes
 
 
 class SeisWaveItem(object):
-    """ 
+    """
     An seismogram item including sacdh and its plotting items
     """
     def __init__(self, sacdh):
@@ -36,13 +36,12 @@ class SeisWaveItem(object):
         self.twinFill = None
         self.twinCurves = []
         self.tpickCurves = []
-        
+
     def getXY(self):
         sacdh = self.sacdh
         self.x = sacdh.time - sacdh.reftime
         self.y = sacdh.datamem * sacdh.datnorm + sacdh.datbase
 
-###################################################################################################
 
 class KeyPressWidget(QtGui.QWidget):
     """
@@ -57,7 +56,7 @@ class KeyPressWidget(QtGui.QWidget):
         self.evkeys = [-1, -1]
         self.mouseOnStack = False
         self.mousePoint = [None, None]
-        
+
     def keyPressEvent(self, event):
         # keys are ints: W-->87 T-->84  0-->48 9-->57
         evkey = event.key()
@@ -81,6 +80,7 @@ class KeyPressWidget(QtGui.QWidget):
             QtGui.QApplication.instance().closeAllWindows()
         event.accept()
 
+
 def setTimeWindow(sacdh, twhdrs, twvals):
     'Set time window'
     twh0, twh1 = twhdrs
@@ -90,8 +90,9 @@ def setTimeWindow(sacdh, twhdrs, twvals):
     sacdh.sethdr(twh1, twa1)
     sacdh.twindow = [twa0, twa1]
     out = 'File {:s}: set time window to {:s} and {:s}: {:6.1f} to {:6.1f} s, abs {:6.1f} to {:6.1f} s'
-    print((out.format(sacdh.filename, twh0, twh1, twv0, twv1,twa0, twa1)))
+    print((out.format(sacdh.filename, twh0, twh1, twv0, twv1, twa0, twa1)))
     return
+
 
 def setTimePick(sacdh, ipick, rpick):
     'Set time pick '
@@ -102,7 +103,6 @@ def setTimePick(sacdh, ipick, rpick):
     print(out.format(sacdh.filename, ipick, rpick, apick))
     return
 
-###################################################################################################
 
 class RadioParameter(pTypes.GroupParameter):
     """
@@ -119,24 +119,22 @@ class RadioParameter(pTypes.GroupParameter):
         opts['type'] = 'bool'
         opts['value'] = True
         pTypes.GroupParameter.__init__(self, **opts)
-        
-        dicta = {'name': 'Filename', 'type': 'list', 'values': 
-            {"N/A": 0, "Filename": 1}, 'value': 0}
-        dictb = {'name': 'Quality', 'type': 'list', 'values': 
-            {"N/A": 0, "CCC": 1, "SNR": 2, "COH": 3, "All":4}, 'value': 1}
+
+        dicta = {'name': 'Filename', 'type': 'list', 'values': {"N/A": 0, "Filename": 1}, 'value': 0}
+        dictb = {'name': 'Quality', 'type': 'list', 'values': {"N/A": 0, "CCC": 1, "SNR": 2, "COH": 3, "All": 4}, 'value': 1}
         dictc = {'name': 'Header', 'type': 'list', 'values':
-            {"N/A": 0, "GCARC": 1, "DIST": 2, "AZ": 3, "BAZ": 4, "STLA": 5, "STLO": 6, "B": 7, "E": 8, "NPTS": 9
-            }, 'value': 0}
+                 {"N/A": 0, "GCARC": 1, "DIST": 2, "AZ": 3, "BAZ": 4, "STLA": 5, "STLO": 6, "B": 7, "E": 8, "NPTS": 9},
+                 'value': 0}
         dictf = {'name': 'HeaderDiff', 'type': 'list', 'values':
-            {"N/A": 0, "T1-T0": 10, "T2-T0": 20, "T3-T0": 30, "T2-T1": 21, "T3-T1": 31,"T3-T2": 32,  
-            }, 'value': 0}
+                 {"N/A": 0, "T1-T0": 10, "T2-T0": 20, "T3-T0": 30, "T2-T1": 21, "T3-T1": 31, "T3-T2": 32},
+                 'value': 0}
         dictd = {'name': 'Sort_Increase', 'type': 'bool', 'value': True, 'tip': "This is a checkbox"}
         dicte = {'name': 'Confirm_Sort_Parameters', 'type': 'action'}
         dictbChild = {'name': 'QualityWeights', 'type': 'group', 'children': [
             {'name': 'cccWeight', 'type': 'float', 'value': 1},
-                {'name': 'snrWeight', 'type': 'float', 'value': 0},
-                {'name': 'cohWeight', 'type': 'float', 'value': 0},
-            ]}
+            {'name': 'snrWeight', 'type': 'float', 'value': 0},
+            {'name': 'cohWeight', 'type': 'float', 'value': 0},
+        ]}
         self.addChild(dicta)
         self.addChild(dictb)
         self.addChild(dictc)
@@ -145,7 +143,7 @@ class RadioParameter(pTypes.GroupParameter):
         self.addChild(dicte)
         self.a = self.param('Filename')
         self.b = self.param('Quality')
-#        self.b.addChild(dictbChild)
+        # self.b.addChild(dictbChild)
         self.c = self.param('Header')
         self.f = self.param('HeaderDiff')
         self.d = self.param('Sort_Increase')
@@ -183,7 +181,7 @@ class RadioParameter(pTypes.GroupParameter):
             self.a.setValue(0)
             self.f.setValue(0)
             self.sortby = list(self.hdict.keys())[list(self.hdict.values()).index(cv)]
-                
+
     def dChanged(self):
         self.increase = self.d.value()
 
@@ -194,6 +192,7 @@ class RadioParameter(pTypes.GroupParameter):
             self.a.setValue(0)
             self.c.setValue(0)
             self.sortby = 't'+str(fv)
+
 
 class ParaTreeItem(object):
     """
@@ -220,7 +219,7 @@ class ParaTreeItem(object):
             RadioParameter(name='Sort'),
             self.filtDict,
             ]
-        ## Create tree of Parameter objects
+        # Create tree of Parameter objects
         self.paraTree = Parameter.create(name='params', type='group', children=self.params)
         self.paraTree.sigTreeStateChanged.connect(self.treeChanged)
         self.paraSort = self.paraTree.children()[0]
@@ -230,10 +229,10 @@ class ParaTreeItem(object):
         self.getSortPara()
         self.setFiltTree()
         self.getFiltPara()
-            
+
     def setFiltTree(self):
         'Set initial filter parameter in the tree'
-        #if self.dictFiltPara is not None:
+        # if self.dictFiltPara is not None:
         if self.dictFiltPara is None:
             self.dictFiltPara = {}
         else:
@@ -247,17 +246,17 @@ class ParaTreeItem(object):
                 self.paraFilt.param('band').setValue(bint)
 
     def getSortPara(self):
-        self.sortby  = str(self.paraSort.sortby)
+        self.sortby = str(self.paraSort.sortby)
         if not self.paraSort.increase:
             self.sortby += '-'
-    
+
     def getFiltPara(self):
         for key in self.filtKeys:
             self.dictFiltPara[key] = self.paraFilt[key]
         # integer 0/1/2 to name band/low/high pass
         bint = self.paraFilt['band']
         self.dictFiltPara['band'] = list(self.bandDict.keys())[list(self.bandDict.values()).index(bint)]
-    
+
     def treeChanged(self, param, changes):
         for param, change, data in changes:
             path = self.paraTree.childPath(param)
@@ -265,10 +264,10 @@ class ParaTreeItem(object):
                 childName = '.'.join(path)
             else:
                 childName = param.name()
-            if childName == 'Sort.Confirm_Sort_Parameters' and change=='activated':
+            if childName == 'Sort.Confirm_Sort_Parameters' and change == 'activated':
                 self.getSortPara()
                 print('--> Next: Click the Sort Button to apply sorting by: ', self.sortby)
-            elif childName == 'Filter.Confirm_Filt_Parameters' and change=='activated':
+            elif childName == 'Filter.Confirm_Filt_Parameters' and change == 'activated':
                 self.getFiltPara()
                 if self.paraFilt['apply']:
                     action = 'Apply'
@@ -283,10 +282,10 @@ class ParaTreeItem(object):
                 print('--> Next: Click the Filter Button to {:s} filter on {:s}: '.format(action, seis))
                 print(self.dictFiltPara)
 
+
 def valueChanging(param, value):
     print("Value changing (not finalized): %s %s" % (param, value))
 
-###################################################################################################
 
 def convertColors(opts, pppara):
     'Convert color names to RGBA codes for pg'
@@ -294,18 +293,15 @@ def convertColors(opts, pppara):
     opts.colorwavedel = convertToRGBA(pppara.colorwavedel, alpha=pppara.alphawave*100)
     opts.colortwfill = convertToRGBA(pppara.colortwfill, alpha=pppara.alphatwfill*100)
     opts.colortwsele = convertToRGBA(pppara.colortwsele, alpha=pppara.alphatwsele*100)
-    opts.pickcolors = [ convertToRGB(c) for c in pppara.pickcolors ]
+    opts.pickcolors = [convertToRGB(c) for c in pppara.pickcolors]
     return
 
 
-
-###################################################################################################
-
-#------------------------------------------------
+# -----------------------------------------------
 # Modified from Arnav Sankaran's utils.py in 2016
 #    Email: arnavsankaran@gmail.com
 # Copyright (c) 2016 Arnav Sankaran
-#------------------------------------------------
+# -----------------------------------------------
 def convertToRGBA(color, alpha):
     colors = {
         'b': (0, 0, 255, alpha),
@@ -324,6 +320,7 @@ def convertToRGBA(color, alpha):
     colors['gray'] = (128, 128, 128, alpha)
     return colors[color]
 
+
 def convertToRGB(color):
     colors = {
         'b': (0, 0, 255),
@@ -341,6 +338,7 @@ def convertToRGB(color):
     colors = colorAlias(colors)
     colors['gray'] = (128, 128, 128)
     return colors[color]
+
 
 def colorAlias(colors):
     alias = {

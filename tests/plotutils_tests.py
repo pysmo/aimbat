@@ -1,9 +1,7 @@
 import unittest
-import sys, os, matplotlib
-import matplotlib.pyplot as py
-from pysmo.aimbat.plotutils import TimeSelector
-from pysmo.aimbat.qualctrl import getOptions, getDataOpts, sortSeis, getAxes, PickPhaseMenuMore
-from pysmo.aimbat.pickphase import PickPhaseMenu, PickPhase
+import sys
+from pysmo.aimbat.qualctrl import getDataOpts, getAxes
+from pysmo.aimbat.pickphase import PickPhaseMenu
 
 test_filename = '20120109.04071467.bhz.pkl'
 
@@ -28,7 +26,7 @@ class plotutilsModel(unittest.TestCase):
 # ############################################################################### #
 #                                      VIEWS                                      #
 # ############################################################################### #
-        
+
 class plotutilsView(unittest.TestCase):
 
     def test_timeSelector_ignore(self):

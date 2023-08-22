@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-#------------------------------------------------
+# -----------------------------------------------
 # Filename: ttconfig.py
 #   Author: Xiaoting Lou
 #    Email: xlou@u.northwestern.edu
 #
 # Copyright (c) 2009-2012 Xiaoting Lou
-#------------------------------------------------
+# -----------------------------------------------
 """
 ===========================
 Module: ttconfig.py
@@ -15,8 +15,8 @@ Module: ttconfig.py
 
 import os
 from importlib import import_module
-from configparser    import ConfigParser
-from optparse        import OptionParser
+from configparser import ConfigParser
+from optparse import OptionParser
 
 
 def getDefaults():
@@ -42,8 +42,10 @@ def getDefaults():
         defaults = def3
     return defaults
 
+
 defaults = getDefaults()
 print('Read configuration file: ' + defaults)
+
 
 class PPConfig:
     """    Class for SAC PlotPhase and PickPhase configurations.
@@ -57,10 +59,10 @@ class PPConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
-        self.qweights = [float(val)  for val in config.get('sachdrs', 'qweights').split()]
+        self.qweights = [float(val) for val in config.get('sachdrs', 'qweights').split()]
         # SAC plots
-        self.figsize = [float(val)  for val in config.get('sacplot', 'figsize').split()]
-        self.rectseis = [float(val)  for val in config.get('sacplot', 'rectseis').split()]
+        self.figsize = [float(val) for val in config.get('sacplot', 'figsize').split()]
+        self.rectseis = [float(val) for val in config.get('sacplot', 'rectseis').split()]
         self.colorwave = config.get('sacplot', 'colorwave')
         self.colorwavedel = config.get('sacplot', 'colorwavedel')
         self.colortwfill = config.get('sacplot', 'colortwfill')
@@ -91,7 +93,6 @@ class PPConfig:
         self.fvalOrder = config.getint('signal', 'fvalOrder')
 
 
-
 class QCConfig:
     """ Class for QCTRL configuration.
     """
@@ -104,7 +105,7 @@ class QCConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
-        self.qweights = [float(val)  for val in config.get('sachdrs', 'qweights').split()]
+        self.qweights = [float(val) for val in config.get('sachdrs', 'qweights').split()]
         # SAC headers for ICCS time picks
         self.ichdrs = config.get('sachdrs', 'ichdrs').split()
         # plots
@@ -139,7 +140,8 @@ def _load_xcorr_func(func):
         xcorr_modu = import_module('pysmo.aimbat.xcorr')
         xcorr_func = getattr(xcorr_modu, func)
 
-    return(xcorr_modu, xcorr_func)
+    return xcorr_modu, xcorr_func
+
 
 class CCConfig:
     """ Class for ICCS configuration.
@@ -161,7 +163,7 @@ class CCConfig:
         self.hdrsel = config.get('sachdrs', 'hdrsel')
         self.qfactors = config.get('sachdrs', 'qfactors').split()
         self.qheaders = config.get('sachdrs', 'qheaders').split()
-        self.qweights = [float(val)  for val in config.get('sachdrs', 'qweights').split()]
+        self.qweights = [float(val) for val in config.get('sachdrs', 'qweights').split()]
         # SAC headers for ICCS time picks
         self.ichdrs = config.get('sachdrs', 'ichdrs').split()
         # Choose a xcorr module and function
@@ -171,6 +173,7 @@ class CCConfig:
         print('Imported {:s} from {:s} as cross-correlation method for ICCS'
               .format(xcorr_func.__name__, xcorr_modu.__name__))
         self.xcorr = xcorr_func
+
 
 class MCConfig:
     """ Class for MCCC configuration.
@@ -203,6 +206,7 @@ class MCConfig:
               .format(xcorr_func.__name__, xcorr_modu.__name__))
         self.xcorr = xcorr_func
         self.xcorr_modu = xcorr_modu
+
 
 def getParser():
     """ Parse command line arguments and options. """
