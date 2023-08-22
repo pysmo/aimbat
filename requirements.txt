@@ -1,6 +1,0 @@
-pysmo>=0.7.3
-scipy==1.1
-numpy~=1.15
-matplotlib~=2.2
-future>=0.16.0
-pyqtgraph>=0.10.0
