@@ -53,7 +53,7 @@ def run_setup(with_fortran=True):
             'numpy',
             'matplotlib',
             'pyqtgraph',
-            'pysmo',
+            'pysmo>=8.3,<1',
         ],
 
         entry_points={

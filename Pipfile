@@ -12,11 +12,11 @@ sphinx-rtd-theme = "*"
 pytest-cov = "*"
 
 [packages]
-pysmo = "~=0.8"
-scipy = "~=1.2"
-numpy = "~=1.15"
-matplotlib = "~=3.0"
-pyqtgraph = "~=0.10"
+pysmo = ">=0.8.3,<1.0"
+scipy = "*"
+numpy = "*"
+matplotlib = "*"
+pyqtgraph = "*"
 pyside2 = "*"
 
 [requires]
