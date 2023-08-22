@@ -9,10 +9,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.8"
-  apt_packages:
-    - pipenv
   jobs:
     pre_install:
+      - python -m pip install pipenv
       - pipenv requirements --dev > docs-requirements.txt
 
 # Build documentation in the docs/ directory with Sphinx
