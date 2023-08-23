@@ -1,12 +1,12 @@
 import os
 from click.testing import CliRunner
-from pysmo.aimbat import cli
-from pysmo.aimbat.lib.defaults import AimbatDefaults
+from aimbat import cli
+from aimbat.lib.defaults import AimbatDefaults
 
 _DEFAULTS = AimbatDefaults()
 
 
-def test_aimbat_cli():
+def test_aimbat_cli() -> None:
     """
     Test aimbat cli without any subcommands.
     """
@@ -19,7 +19,7 @@ def test_aimbat_cli():
     assert 'aimbat, version' in result.output
 
 
-def test_aimbat_defaults_cli():
+def test_aimbat_defaults_cli() -> None:
     """
     Test aimbat cli with defaults subcommand.
     """
@@ -32,7 +32,7 @@ def test_aimbat_defaults_cli():
     assert '---' in result.output
 
 
-def test_aimbat_sampledata_cli(sampledata_dir=_DEFAULTS.sampledata_dir):
+def test_aimbat_sampledata_cli(sampledata_dir: str = _DEFAULTS.sampledata_dir) -> None:  # type: ignore
     """
     Test aimbat cli with defaults subcommand.
     """

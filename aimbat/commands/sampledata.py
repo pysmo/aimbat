@@ -6,11 +6,11 @@ import shutil
 from io import BytesIO
 from urllib.request import urlopen
 from zipfile import ZipFile
-from pysmo.aimbat.lib.defaults import AimbatDefaults
+from aimbat.lib.defaults import AimbatDefaults
 
 _DEFAULTS = AimbatDefaults()
-_SAMPLEDATA_DIRECTORY = _DEFAULTS.sampledata_dir
-_SAMPLEDATA_SOURCE = _DEFAULTS.sampledata_src
+_SAMPLEDATA_DIRECTORY = _DEFAULTS.sampledata_dir  # type: ignore
+_SAMPLEDATA_SOURCE = _DEFAULTS.sampledata_src  # type: ignore
 
 
 @click.command('sampledata')
@@ -21,24 +21,23 @@ _SAMPLEDATA_SOURCE = _DEFAULTS.sampledata_src
 @click.option('-r', '--rm', 'remove', is_flag=True, help="Remove sample data directory and its contents")
 @click.option('-f', '--force', is_flag=True,
               help="Remove target directory if it already exists and re-download sample data.")
-def cli(target_directory, url, remove, force):
-    """
-    Download aimbat sample data and save it to a folder.
-    """
+def cli(target_directory: str, url: str, remove: bool, force: bool) -> None:
+    """Download aimbat sample data and save it to a folder."""
     if remove is True:
         remove_sample_data(target_directory)
     else:
         download_sample_data(target_directory, url, force)
 
 
-def remove_sample_data(target_directory=_SAMPLEDATA_DIRECTORY):
+def remove_sample_data(target_directory: str = _SAMPLEDATA_DIRECTORY) -> None:
     """
     Recursively delete sample data directory.
     """
     shutil.rmtree(target_directory, ignore_errors=False, onerror=None)
 
 
-def download_sample_data(target_directory=_SAMPLEDATA_DIRECTORY, url=_SAMPLEDATA_SOURCE, force=False):
+def download_sample_data(target_directory: str = _SAMPLEDATA_DIRECTORY,
+                         url: str = _SAMPLEDATA_SOURCE, force: bool = False) -> None:
     """
     Download aimbat sample data and save it to a folder.
     """

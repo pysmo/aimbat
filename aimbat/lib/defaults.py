@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
+from __future__ import annotations
 import os
 import yaml
-import pysmo.aimbat
+import aimbat
 from dataclasses import dataclass
 from prettytable import PrettyTable
 
 
 # Defaults shipped with Aimbat
-GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(pysmo.aimbat.__file__), 'lib/defaults.yml')
+GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat.__file__), 'lib/defaults.yml')
 # Default name of the local overrides in the working directory.
 LOCAL_DEFAULTS_FILE = 'aimbat.yml'
 
@@ -24,22 +25,18 @@ with open(GLOBAL_DEFAULTS_FILE, 'r') as stream:
 
 
 class AimbatDefaultItem():
-    """
-    Descriptor class to store and validate aimbat default items.
-    """
-    @property
-    def __doc__(self):
-        return GLOBAL_DEFAULTS_DICT[self.public_name]['description']
+    """Descriptor class to store and validate aimbat default items."""
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: AimbatDefaults, name: str) -> None:
         self.public_name = name
         self.private_name = '_' + name
+        self.__doc__ = GLOBAL_DEFAULTS_DICT[self.public_name]['description']
 
-    def __init__(self, global_value, allowed_types, description):
+    def __init__(self, global_value, allowed_types, description: str):  # type: ignore
         self.global_value = global_value
         self.allowed_types = allowed_types
 
-    def __get__(self, obj, objtype=None):
+    def __get__(self, obj, objtype=None):  # type: ignore
         # Instance attribute accessed on class, return self
         if obj is None:
             return self
@@ -51,11 +48,11 @@ class AimbatDefaultItem():
         except AttributeError:
             return self.global_value
 
-    def __set__(self, obj, value):
+    def __set__(self, obj, value) -> None:  # type: ignore
         self.validate(obj, value)
         setattr(obj, self.private_name, value)
 
-    def validate(self, obj, value):
+    def validate(self, obj, value) -> None:  # type: ignore
         if obj.global_only is True:
             raise RuntimeError("global_only flag is set to True - updating defaults is not allowed.")
         if not isinstance(value, self.allowed_types):
@@ -74,7 +71,7 @@ class AimbatDefaults():
     for key in GLOBAL_DEFAULTS_DICT.keys():
         locals()[key] = AimbatDefaultItem(**GLOBAL_DEFAULTS_DICT[key])
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Read user defined configuration and update variables
         if os.path.isfile(self.local_defaults_file) and self.global_only is False:
             with open(self.local_defaults_file, 'r') as stream:

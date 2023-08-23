@@ -1,5 +1,0 @@
-include ttdefaults.conf Readme.txt Version.txt License.txt Changelog.txt
-exclude .travis.yml Pipfile* requirements-travis.txt index.html .gitignore
-prune tests
-prune docs
-prune .github
