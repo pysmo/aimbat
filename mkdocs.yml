@@ -47,7 +47,7 @@ markdown_extensions:
       base_path: docs
 nav:
   - Home:
-      - Welcome to AIMBAT: readme.md
+      - Welcome to AIMBAT: index.md
       - How to get help with AIMBAT: help.md
       - License: gpl-3.0.md
   - Get started:
