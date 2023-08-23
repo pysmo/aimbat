@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import click
-from pysmo.aimbat.lib.defaults import AimbatDefaults
+from aimbat.lib.defaults import AimbatDefaults
 
 
 @click.command('defaults')
@@ -9,7 +9,7 @@ from pysmo.aimbat.lib.defaults import AimbatDefaults
               help="Ignore the local aimbat.yml configuration file and only show global defaults.")
 @click.option('-y', '--yaml', 'print_yaml', is_flag=True,
               help="Output yaml instead of a table (to help with the creation of a local configuration file).")
-def cli(global_only, print_yaml):
+def cli(global_only: bool, print_yaml: bool) -> None:
     """
     Lists default values for options that controll Aimbat behaviour.
 

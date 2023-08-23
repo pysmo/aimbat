@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 
-from pysmo.aimbat.commands import defaults, sampledata
+from aimbat.commands import defaults, sampledata
+from importlib import metadata
 import click
-try:
-    from importlib import metadata
-except ImportError:  # for Python<3.8
-    import importlib_metadata as metadata
 
 try:
-    __version__ = metadata.version("pysmo.aimbat")
+    __version__ = metadata.version("aimbat")
 except Exception:
     __version__ = "unknown"
 
 
 @click.group('aimbat')
 @click.version_option(version=__version__)
-def cli():
+def cli() -> None:
     """
     This is the main command line interface for aimbat. It must be run with a
     command (as specified below) to actually do anything. Help for individual

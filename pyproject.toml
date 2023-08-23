@@ -1,10 +1,15 @@
 [tool.poetry]
-name = "pysmo.aimbat"
+name = "aimbat"
 version = "2.0.0-dev0"
 description = "AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times."
 readme = "README.rst"
 authors = ["Xiaoting Lou <xlou@u.northwestern.edu>", "Simon M. Lloyd <simon@slloyd.net>"]
 license = "GPL-3.0-or-later"
+documentation = "https://pysmo.readthedocs.io"
+exclude = [
+    "tests",
+    "docs",
+]
 classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
@@ -12,29 +17,51 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
-packages = [
-  { include = "pysmo/aimbat" },
-]
 
 [tool.poetry.dependencies]
-python = "^3.7"
-click = "^8.0.1"
+python = ">=3.10,<3.12"
+click = "^8.1.7"
 pysmo = {git = "https://github.com/pysmo/pysmo"}
-prettytable = "^2.2.0"
-
-[tool.poetry.dev-dependencies]
-pytest = "^6.1.2"
-Sphinx = "^3.3.1"
-sphinx-rtd-theme = "^0.5.0"
-pytest-mpl = "^0.12"
-pytest-cov = "^2.10.1"
-pytest-depends = "^1.0.1"
-flake8 = "^3.9.2"
-pudb = "^2021.1"
+prettytable = "^3.8.0"
 
 [tool.poetry.scripts]
-aimbat = 'pysmo.aimbat.cli:cli'
+aimbat = 'aimbat.cli:cli'
+
+[tool.poetry.group.test.dependencies]
+flake8 = "^6.1.0"
+pytest = "^7.4.0"
+pytest-mpl = "^0.16.1"
+pytest-cov = "^4.1.0"
+pytest-mypy = "^0.10.3"
+pytest-depends = "^1.0.1"
+pytest-sugar = "^0.9.7"
+
+
+[tool.poetry.group.dev.dependencies]
+types-pyyaml = "^6.0.12.11"
+
+[tool.mypy]
+namespace_packages = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+    "plt.show()",
+    "plt.savefig(.*)",
+    ]
 
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry_core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

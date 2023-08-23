@@ -1,6 +1,13 @@
-.PHONY: init install test-figs tests docs build clean shell help
+.PHONY: help check-poetry install update lint test-figs tests mypy docs docs-export \
+	live-docs notebook build publish clean shell python
 
-POETRY_VERSION := $(shell command poetry --version 2> /dev/null)
+ifeq ($(OS),Windows_NT)
+  POETRY_VERSION := $(shell poetry --version 2> NUL)
+  PYTHON_VERSION := python
+else
+  POETRY_VERSION := $(shell command poetry --version 2> /dev/null)
+  PYTHON_VERSION := python3
+endif
 
 help: ## List all commands.
 	@echo -e "\nThis makefile executes mostly poetry commands. To view all poetry commands availabile run 'poetry help'."
@@ -22,25 +29,40 @@ update: check-poetry ## Update dependencies to their latest versions.
 	poetry update
 
 lint: check-poetry ## Lint code with flake8
-	poetry run flake8 --statistics --max-line-length=120 --extend-exclude=old
+	poetry run flake8 --statistics
 
 test-figs: check-poetry ## Generate baseline figures for testing. Only run this if you know what you are doing!
 	poetry run py.test --mpl-generate-path=tests/baseline
 
-tests: check-poetry ## Run tests with pytest.
-	poetry run py.test --cov=pysmo/aimbat --cov-report=xml --mpl -v tests
+tests: check-poetry lint mypy ## Run all tests with pytest.
+	poetry run pytest --mypy --cov=aimbat --cov-report=xml --mpl -v tests
 
-docs: install check-poetry ## Build html docs.
+mypy: check-poetry ## Run typing tests with pytest.
+	poetry run pytest --mypy -m mypy -v aimbat
+
+docs: check-poetry install ## Build html docs.
 	poetry run make -C docs html
 
-build: clean check-poetry ## Build distribution.
+docs-export: check-poetry install ## Export installed package information to docs/requirements.txt.
+	poetry export --only=docs -o docs/requirements.txt
+
+live-docs: check-poetry install ## Live build html docs. They are served on http://localhost:8000
+	poetry run $(PYTHON_VERSION) -m sphinx_autobuild docs/source docs/build/html --watch aimbat
+
+notebook: check-poetry install ## Run a jupyter-notebook in the poetry environment
+	poetry run jupyter-notebook
+
+build: clean check-poetry install ## Build distribution.
 	poetry build
 
 publish: check-poetry build ## Publish package to PyPI (you will be asked for PyPI username and password).
 	poetry publish
 
 clean: ## Remove existing builds.
-	rm -rf build dist .egg pysmo.aimbat.egg-info docs/build
+	rm -rf build dist .egg aimbat.egg-info docs/build
 
 shell: check-poetry ## Start a shell in the project virtual environment.
 	poetry shell
+
+python: check-poetry ## Start an interactive python shell in the project virtual environment.
+	poetry run python
