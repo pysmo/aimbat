@@ -41,13 +41,13 @@ mypy: check-poetry ## Run typing tests with pytest.
 	poetry run pytest --mypy -m mypy -v aimbat
 
 docs: check-poetry install ## Build html docs.
-	poetry run make -C docs html
+	poetry run mkdocs build
 
 docs-export: check-poetry install ## Export installed package information to docs/requirements.txt.
 	poetry export --only=docs -o docs/requirements.txt
 
 live-docs: check-poetry install ## Live build html docs. They are served on http://localhost:8000
-	poetry run $(PYTHON_VERSION) -m sphinx_autobuild docs/source docs/build/html --watch aimbat
+	poetry run mkdocs serve
 
 notebook: check-poetry install ## Run a jupyter-notebook in the poetry environment
 	poetry run jupyter-notebook
@@ -59,7 +59,7 @@ publish: check-poetry build ## Publish package to PyPI (you will be asked for Py
 	poetry publish
 
 clean: ## Remove existing builds.
-	rm -rf build dist .egg aimbat.egg-info docs/build
+	rm -rf build dist .egg aimbat.egg-info docs/build site
 
 shell: check-poetry ## Start a shell in the project virtual environment.
 	poetry shell

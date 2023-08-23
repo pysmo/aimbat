@@ -2,7 +2,7 @@
 name = "aimbat"
 version = "2.0.0-dev0"
 description = "AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times."
-readme = "README.rst"
+readme = "README.md"
 authors = ["Xiaoting Lou <xlou@u.northwestern.edu>", "Simon M. Lloyd <simon@slloyd.net>"]
 license = "GPL-3.0-or-later"
 documentation = "https://pysmo.readthedocs.io"
@@ -42,12 +42,9 @@ types-pyyaml = "^6.0.12.11"
 
 
 [tool.poetry.group.docs.dependencies]
-furo = "^2023.8.19"
-sphinx = "^7.2.2"
-sphinx-autobuild = "^2021.3.14"
-sphinx-design = "^0.5.0"
-sphinx-copybutton = "^0.5.2"
-sphinx-tippy = "^0.4.1"
+mkdocs-material = "^9.2.3"
+mkdocstrings = {extras = ["python"], version = "^0.22.0"}
+markdown-include = "^0.8.1"
 
 [tool.mypy]
 namespace_packages = true
