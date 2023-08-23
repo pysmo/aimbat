@@ -1,0 +1,54 @@
+site_name: AIMBAT
+
+# Repository
+repo_name: pysmo/aimbat
+repo_url: https://github.com/pysmo/aimbat
+
+# Configuration
+theme:
+  name: material
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
+    # - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+  palette:
+    # # Palette toggle for automatic mode
+    # - media: "(prefers-color-scheme)"
+    #   toggle:
+    #     icon: material/brightness-auto
+    #     name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+        # name: Switch to system preference
+
+markdown_extensions:
+  - attr_list
+  - markdown_include.include:
+      base_path: docs
+nav:
+  - Home:
+      - Welcome to AIMBAT: index.md
+      - How to get help with AIMBAT: help.md
+      - License: gpl-3.0.md
+  - Get started:
+      - Installation: installation.md

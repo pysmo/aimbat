@@ -8,6 +8,7 @@
 tobedel/
 __pycache__/
 build/
+site/
 dist/
 src/pysmo.aimbat.egg-info/
 .DS_Store
