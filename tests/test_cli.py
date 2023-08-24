@@ -1,15 +1,13 @@
-import os
 from click.testing import CliRunner
-from aimbat import cli
 from aimbat.lib.defaults import AimbatDefaults
+from aimbat import cli
+import os
 
 _DEFAULTS = AimbatDefaults()
 
 
 def test_aimbat_cli() -> None:
-    """
-    Test aimbat cli without any subcommands.
-    """
+    """Test aimbat cli without any subcommands."""
     runner = CliRunner()
     result = runner.invoke(cli.cli)
     assert result.exit_code == 0
@@ -17,6 +15,17 @@ def test_aimbat_cli() -> None:
     result = runner.invoke(cli.cli, '--version')
     assert result.exit_code == 0
     assert 'aimbat, version' in result.output
+
+
+def test_aimbat_cli_project() -> None:
+    """Test aimbat cli without project subcommand."""
+    runner = CliRunner()
+    result = runner.invoke(cli.cli, 'project')
+    assert result.exit_code == 0
+    assert 'Usage' in result.output
+    for subcommand in ['new', 'del', 'info']:
+        result = runner.invoke(cli.cli, ['project', subcommand])
+        assert result.exit_code == 1
 
 
 def test_aimbat_defaults_cli() -> None:
