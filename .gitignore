@@ -21,3 +21,5 @@ old
 .coverage
 sample-data
 aimbat.db
+.tox
+nohup.out
