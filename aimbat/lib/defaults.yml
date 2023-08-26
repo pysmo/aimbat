@@ -1,24 +1,45 @@
 ---
-sampledata_dir:
-  value: aimbat-sample-data
-  allowed_types:
-    - str
-  description: "Directory to store downloaded sample data"
+- name: _test_bool
+  initial_value: True
+  is_of_type: bool
+  description: For internal testing.
 
-sampledata_src:
-  value: "https://github.com/pysmo/data-example/archive/refs/heads/master.zip"
-  allowed_types:
-    - str
-  description: "URL where sample data is downloaded"
+- name: _test_float
+  initial_value: 0.1
+  is_of_type: float
+  description: For internal testing.
 
-delta_tolerance:
-  value: 9
-  allowed_types:
-    - int
-  description: "Round delta to N decimals when checking for different sampling rates in SAC files"
+- name: _test_int
+  initial_value: 1
+  is_of_type: int
+  description: For internal testing.
 
-initial_pick_header:
-  value: t0
-  allowed_types:
-    - str
-  description: "SAC header field where initial pick is stored"
+- name: _test_str
+  initial_value: test
+  is_of_type: str
+  description: For internal testing.
+
+- name: aimbat
+  initial_value: True
+  is_of_type: bool
+  description: AIMBAT is awesome!
+
+- name: sampledata_dir
+  initial_value: ./sample-data
+  is_of_type: str
+  description: "Directory to store downloaded sample data."
+
+- name: sampledata_src
+  initial_value: "https://github.com/pysmo/data-example/archive/refs/heads/master.zip"
+  is_of_type: str
+  description: "URL where sample data is downloaded from."
+
+- name: delta_tolerance
+  initial_value: 9
+  is_of_type: int
+  description: "Round delta to N decimals when checking for different sampling rates in SAC files."
+
+- name: initial_pick_header
+  initial_value: t0
+  is_of_type: str
+  description: "SAC header field where initial pick is stored."

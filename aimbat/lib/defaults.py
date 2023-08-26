@@ -1,111 +1,170 @@
-from __future__ import annotations
 from aimbat import __file__ as aimbat_dir
+from sqlmodel import Session, select
+from sqlalchemy.exc import NoResultFound
+from typing import List
+from prettytable import PrettyTable
+from .models import AimbatDefault
 import os
 import yaml
-from dataclasses import dataclass
-from prettytable import PrettyTable
 
 
-# Defaults shipped with Aimbat
-GLOBAL_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), 'lib/defaults.yml')
-# Default name of the local overrides in the working directory.
-LOCAL_DEFAULTS_FILE = 'aimbat.yml'
-
-# Create python dictionary from yaml file
-with open(GLOBAL_DEFAULTS_FILE, 'r') as stream:
-    global_dict = yaml.safe_load(stream)
-    for name in global_dict:
-        # Rename the the 'value' key to 'global_value'
-        global_dict[name]['global_value'] = global_dict[name].pop('value')
-        # get the actual types from the str expressions.
-        global_dict[name]['allowed_types'] = tuple(eval(item) for item in global_dict[name]['allowed_types'])
+# Defaults shipped with AIMBAT
+AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), 'lib/defaults.yml')
 
 
-class AimbatDefaultItem:
-    """Descriptor class to store and validate aimbat default items."""
+class AimbatDefaultNotFound(Exception):
+    pass
 
-    def __set_name__(self, owner: AimbatDefaults, name: str) -> None:
-        self.public_name = name
-        self.private_name = '_' + name
 
-    def __init__(self, global_value, allowed_types, description: str):  # type: ignore
-        self.global_value = global_value
-        self.allowed_types = allowed_types
-        self.__doc__ = description
+class AimbatDefaultTypeError(Exception):
+    pass
 
-    def __get__(self, obj, objtype=None):  # type: ignore
-        # Instance attribute accessed on class, return self
-        if obj is None:
-            return self
 
-        # Try returning the local value stored in the instance
+def defaults_load_global_values(engine  # type: ignore
+                                ) -> None:
+    """Read defaults shipped with AIMBAT from yaml file."""
+
+    with open(AIMBAT_DEFAULTS_FILE, 'r') as stream:
+        data = yaml.safe_load(stream)
+
+    with Session(engine) as session:
+        for item in data:
+            session.add(AimbatDefault(**item))
+        session.commit()
+
+
+def _get_single_item(engine,  # type: ignore
+                     name: str) -> AimbatDefault:
+    """Return a single AimbatDefault item."""
+
+    with Session(engine) as session:
+        statement = select(AimbatDefault).where(AimbatDefault.name == name)
+        results = session.exec(statement)
+
         try:
-            return getattr(obj, self.private_name)
-        # Assume global value otherwise
-        except AttributeError:
-            return self.global_value
-
-    def __set__(self, obj, value) -> None:  # type: ignore
-        self.validate(obj, value)
-        setattr(obj, self.private_name, value)
-
-    def validate(self, obj, value) -> None:  # type: ignore
-        if obj.global_only is True:
-            raise RuntimeError("global_only flag is set to True - updating defaults is not allowed.")
-        if not isinstance(value, self.allowed_types):
-            raise ValueError(f"Expected {value} to be of type {self.allowed_types} - found {type(value)}.")
+            return results.one()
+        except NoResultFound:
+            raise AimbatDefaultNotFound(f"No default with {name=}.")
 
 
-@dataclass
-class AimbatDefaults:
-    """Class to store and access Aimbat defaults."""
+def typed_value(default: AimbatDefault) -> float | int | bool | str | None:
+    """Return the typed value from AimbatDefault.name."""
 
-    local_defaults_file: str = LOCAL_DEFAULTS_FILE
-    global_only: bool = False
+    # the type we need to return
+    is_of_type = default.is_of_type
 
-    # Populate class with descriptors for each default item
-    for key in global_dict.keys():
-        locals()[key] = AimbatDefaultItem(**global_dict[key])
+    # return the type from the correct column
+    if is_of_type == "float":
+        return default.fvalue
+    elif is_of_type == "int":
+        return default.ivalue
+    elif is_of_type == "bool":
+        return default.bvalue
+    return default.svalue
 
-    def __post_init__(self) -> None:
-        # Read user defined configuration and update variables
-        if os.path.isfile(self.local_defaults_file) and self.global_only is False:
-            with open(self.local_defaults_file, 'r') as stream:
-                for name, value in yaml.safe_load(stream).items():
-                    try:
-                        setattr(self, name, value)
-                    except AttributeError:
-                        raise AttributeError(f"Invalid attribe {name=}.")
 
-    def source(self, key: str) -> str:
-        """Returns "global" if there is no local value for a key, or if the local
-        value is equal to the global value. Returns "local" otherwise.
-        """
-        if getattr(self, key) == getattr(type(self), key).global_value:
-            return "global"
-        else:
-            return "local"
+def defaults_get_value(engine,  # type: ignore
+                       name: str) -> float | int | bool | str | None:
+    """Return the value of an AIMBAT default."""
 
-    def description(self, key: str) -> str:
-        """Returns a string that describes the aimbat default."""
-        return getattr(type(self), key).__doc__.partition("\n")[0]
+    default = _get_single_item(engine, name)
+    return typed_value(default)
 
-    @property
-    def simple_dict(self) -> dict:
-        """Returns a simplified dictionary of Aimbat configuration options (i.e.
-        without description, allowed types, etc).
-        """
-        return {item: getattr(self, item) for item in global_dict.keys()}
 
-    def print_yaml(self) -> None:
-        """Prints yaml with configuration options"""
-        print(yaml.dump(self.simple_dict, default_flow_style=False, explicit_start=True))
+def defaults_set_value(engine,  # type: ignore
+                       name: str, value: float | int | str | bool) -> None:
+    """Set the value of an AIMBAT default."""
 
-    def print_table(self) -> None:
-        """Prints a pretty table with Aimbat configuration options."""
-        table = PrettyTable()
-        table.field_names = ["Name", "Value", "Source", "Description"]
-        for key in global_dict.keys():
-            table.add_row([key, getattr(self, key), self.source(key),
-                           self.description(key)])
-        print(table)
+    # Get the AimbatDefault instance
+    default = _get_single_item(engine, name)
+
+    # new value must be of this type
+    is_of_type = default.is_of_type
+
+    # set fvalue to float(value) or raise exception
+    if is_of_type == "float":
+        try:
+            default.fvalue = float(value)
+        except ValueError:
+            raise AimbatDefaultTypeError(f"Unable to set default {name} to {value}. " +
+                                         f"must be of type {is_of_type}")
+
+    # set ivalue to int(value) or raise exception
+    elif is_of_type == "int":
+        try:
+            default.ivalue = int(value)
+        except ValueError:
+            raise AimbatDefaultTypeError(f"Unable to set default {name} to {value}. " +
+                                         f"Must be of type {is_of_type}")
+
+    # different ways of setting boolean defaults
+    elif is_of_type == "bool" and str(value).lower() in ["true", "1", "yes"]:
+        default.bvalue = True
+    elif is_of_type == "bool" and str(value).lower() in ["false", "0", "no"]:
+        default.bvalue = False
+    elif is_of_type == "bool":
+        raise AimbatDefaultTypeError(f"Unable to set default {name} to {value}. " +
+                                     f"Must be of type {is_of_type}")
+
+    # Only strings should be left at this point anyway...
+    elif is_of_type == "str":
+        default.svalue = str(value)
+
+    # ... so there really shouldn't be any way to get here.
+    else:
+        raise RuntimeError(f"Unable to set default {name} to {value}.")  # pragma: no cover
+
+    # commit the changes
+    with Session(engine) as session:
+        session.add(default)
+        session.commit()
+        session.refresh(default)
+
+
+def defaults_reset_value(engine,  # type: ignore
+                         name: str) -> None:
+    """Reset the value of an AIMBAT default."""
+
+    # get single item
+    default = _get_single_item(engine, name)
+
+    # get type and initial value
+    is_of_type, initial_value = default.is_of_type, default.initial_value
+
+    # set correct attribute
+    if is_of_type == "float":
+        default.fvalue = float(initial_value)
+    elif is_of_type == "int":
+        default.ivalue = int(initial_value)
+    elif is_of_type == "bool":
+        default.bvalue = bool(initial_value)
+    else:
+        default.svalue = initial_value
+
+    # commit changes
+    with Session(engine) as session:
+        session.add(default)
+        session.commit()
+        session.refresh(default)
+
+
+def defaults_print_table(engine,  # type: ignore
+                         select_names: List[str] | None = None) -> None:
+    """Print a pretty table with AIMBAT configuration options."""
+
+    if not select_names:
+        select_names = []
+
+    # get all items
+    with Session(engine) as session:
+        statement = select(AimbatDefault)
+        defaults = session.exec(statement).all()
+
+    # print the table
+    table = PrettyTable()
+    table.field_names = ["Name", "Value", "Description"]
+    for default in defaults:
+        # names with "_test_" in them are in the table, but should only be used in unit tests
+        if "_test_" not in default.name and not select_names or default.name in select_names:
+            table.add_row([default.name, typed_value(default), default.description])
+    print(table)
