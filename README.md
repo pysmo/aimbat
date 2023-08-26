@@ -35,7 +35,7 @@ For more information visit the
 
 * [Suzan van der Lee](http://geophysics.earth.northwestern.edu/seismology/suzan/) Email: suzan at northwestern.edu
 
-* [Simon Lloyd](https://www.slloyd.net/) Email: simon at slloyd.net
+* [Simon Lloyd](https://www.slloyd.net/) Email: simon at pysmo.org
 
 ## Contributors
 

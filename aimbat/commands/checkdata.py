@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from typing import List
 import click
 # from pysmo import SAC

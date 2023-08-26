@@ -18,14 +18,18 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
 
+
+[tool.poetry.scripts]
+aimbat = 'aimbat.cli:cli'
+
+
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
 click = "^8.1.7"
 pysmo = {git = "https://github.com/pysmo/pysmo"}
 prettytable = "^3.8.0"
+sqlmodel = "^0.0.8"
 
-[tool.poetry.scripts]
-aimbat = 'aimbat.cli:cli'
 
 [tool.poetry.group.test.dependencies]
 flake8 = "^6.1.0"
@@ -46,11 +50,18 @@ mkdocs-material = "^9.2.3"
 mkdocstrings = {extras = ["python"], version = "^0.22.0"}
 markdown-include = "^0.8.1"
 
+
+[tool.pytest.ini_options]
+testpaths = [
+  "tests",
+]
+
 [tool.mypy]
 namespace_packages = true
 disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
+
 
 [tool.coverage.report]
 exclude_also = [
@@ -66,7 +77,9 @@ exclude_also = [
     "@(abc\\.)?abstractmethod",
     "plt.show()",
     "plt.savefig(.*)",
+    "pass",
     ]
+
 
 [build-system]
 requires = ["poetry_core>=1.0.0"]

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from aimbat.commands import (
+from .commands import (
     project,
     defaults,
     sampledata
