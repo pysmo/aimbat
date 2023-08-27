@@ -1,8 +1,7 @@
-#!/usr/bin/env python
-
-from .commands import (
+from aimbat.lib import (
     project,
     defaults,
+    checkdata,
     sampledata
 )
 from importlib import metadata
@@ -28,6 +27,7 @@ def cli() -> None:
 cli.add_command(project.cli)
 cli.add_command(defaults.cli)
 cli.add_command(sampledata.cli)
+cli.add_command(checkdata.cli)
 
 
 if __name__ == "__main__":

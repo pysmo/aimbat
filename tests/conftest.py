@@ -1,6 +1,15 @@
 import pytest
 import os
-import tempfile
+from unittest import mock
+
+
+@pytest.fixture(scope="function", autouse=True)
+def mock_aimbat_project_env(tmp_path):  # type: ignore
+    d = tmp_path / "aimbat"
+    d.mkdir()
+    p = d / "pytest.db"
+    with mock.patch.dict(os.environ, {"AIMBAT_PROJECT": f"{str(p)}"}):
+        yield
 
 
 @pytest.fixture(scope="class")
@@ -12,17 +21,19 @@ def project_directory(tmp_path_factory):  # type: ignore
 
 @pytest.fixture(scope="class")
 def tmp_project_engine(project_directory):  # type: ignore
-    from aimbat.lib.project import project_new, project_db_engine
+    from aimbat.lib.db import db_engine
+    from aimbat.lib.project import project_new
     project_file = f"{project_directory}/pytest-aimbat.db"
     project_new(project_file=project_file)
-    return project_db_engine(project_file=project_file)
+    return db_engine(project_file=project_file)
 
 
-# Set AIMBAT_PROJECT to a temporary file for the whole test
-# I don't know how to do this with pytest fixtures...
-def my_mock_env() -> None:
-    with tempfile.TemporaryDirectory() as tmpfile:
-        os.environ["AIMBAT_PROJECT"] = f"{tmpfile}"
+@pytest.mark.depends(depends=["tests/lib/test_project.py::TestProject.test_lib_project"],
+                     scope="session")
+@pytest.fixture()
+def cli_project():  # type: ignore
+    """Create an AIMBAT project for other test functions."""
+    from aimbat.lib import project
 
-
-my_mock_env()
+    yield project.project_new()
+    project.project_del()

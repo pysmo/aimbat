@@ -1,3 +1,4 @@
+from aimbat.lib.db import db_engine
 from aimbat import __file__ as aimbat_dir
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
@@ -6,10 +7,13 @@ from prettytable import PrettyTable
 from .models import AimbatDefault
 import os
 import yaml
+import click
 
 
 # Defaults shipped with AIMBAT
 AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), 'lib/defaults.yml')
+
+ENGINE = db_engine()
 
 
 class AimbatDefaultNotFound(Exception):
@@ -168,3 +172,45 @@ def defaults_print_table(engine,  # type: ignore
         if "_test_" not in default.name and not select_names or default.name in select_names:
             table.add_row([default.name, typed_value(default), default.description])
     print(table)
+
+
+@click.group("defaults")
+def cli() -> None:
+    """
+    Lists or change AIMBAT defaults.
+
+    This command lists various settings that are used in Aimbat.
+    Defaults shipped with AIMBAT may be overriden here too.
+    """
+
+
+@cli.command("list")
+@click.argument("name", nargs=-1)
+def list_defaults(name: List[str] | None = None) -> None:
+    """Print a table with defaults used in AIMBAT.
+
+    One or more default names may be provided to filter output.
+    """
+
+    defaults_print_table(ENGINE, name)
+
+
+@cli.command("set")
+@click.argument("name")
+@click.argument("value")
+def set_default(name: str, value: float | int | bool | str) -> None:
+    """Set an AIMBAT default to a new value."""
+
+    defaults_set_value(ENGINE, name, value)
+
+
+@cli.command("reset")
+@click.argument("name")
+def reset_default(name: str) -> None:
+    """Reset an AIMBAT default to the initial value."""
+
+    defaults_reset_value(ENGINE, name)
+
+
+if __name__ == "__main__":
+    cli()

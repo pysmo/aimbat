@@ -1,4 +1,4 @@
-from aimbat.lib import defaults as lib
+from click.testing import CliRunner
 import pytest
 
 
@@ -8,6 +8,8 @@ class TestDefaults:
 
     @pytest.mark.usefixtures("tmp_project_engine")
     def test_lib_defaults(self, tmp_project_engine):  # type: ignore
+
+        from aimbat.lib import defaults
 
         # test itens also present in aimbat/lib/defaults.yml
         test_items = {"_test_bool": True, "_test_float": 0.1,
@@ -30,37 +32,73 @@ class TestDefaults:
 
         # get a valid default item
         for key, val in test_items.items():
-            assert lib.defaults_get_value(engine=tmp_project_engine, name=key) == val
+            assert defaults.defaults_get_value(engine=tmp_project_engine, name=key) == val
 
         # get one that doesn't exist
-        with pytest.raises(lib.AimbatDefaultNotFound):
-            lib.defaults_get_value(engine=tmp_project_engine, name=test_invalid_name)
+        with pytest.raises(defaults.AimbatDefaultNotFound):
+            defaults.defaults_get_value(engine=tmp_project_engine, name=test_invalid_name)
 
         # set to new value
         for key, val in test_items_set.items():
-            lib.defaults_set_value(engine=tmp_project_engine, name=key, value=val)
-            assert lib.defaults_get_value(engine=tmp_project_engine, name=key) == val
+            defaults.defaults_set_value(engine=tmp_project_engine, name=key, value=val)
+            assert defaults.defaults_get_value(engine=tmp_project_engine, name=key) == val
 
         # try different ways of setting _test_bool to True
         for val in test_bool_true:
-            lib.defaults_set_value(engine=tmp_project_engine, name="_test_bool", value=val)
-            assert lib.defaults_get_value(engine=tmp_project_engine, name="_test_bool") is True
+            defaults.defaults_set_value(engine=tmp_project_engine, name="_test_bool", value=val)
+            assert defaults.defaults_get_value(engine=tmp_project_engine, name="_test_bool") is True
 
         # try different ways of setting _test_bool to False
         for val in test_bool_false:
-            lib.defaults_set_value(engine=tmp_project_engine, name="_test_bool", value=val)
-            assert lib.defaults_get_value(engine=tmp_project_engine, name="_test_bool") is False
+            defaults.defaults_set_value(engine=tmp_project_engine, name="_test_bool", value=val)
+            assert defaults.defaults_get_value(engine=tmp_project_engine, name="_test_bool") is False
 
         # set to incorrect type
         for key, val in test_items_invalid_type.items():
-            with pytest.raises(lib.AimbatDefaultTypeError):
-                lib.defaults_set_value(engine=tmp_project_engine, name=key, value=val)
+            with pytest.raises(defaults.AimbatDefaultTypeError):
+                defaults.defaults_set_value(engine=tmp_project_engine, name=key, value=val)
 
         # use invalid name
-        with pytest.raises(lib.AimbatDefaultNotFound):
-            lib.defaults_set_value(engine=tmp_project_engine, name=test_invalid_name, value=False)
+        with pytest.raises(defaults.AimbatDefaultNotFound):
+            defaults.defaults_set_value(engine=tmp_project_engine, name=test_invalid_name, value=False)
 
         # reset to defaults
         for key, val in test_items.items():
-            lib.defaults_reset_value(engine=tmp_project_engine, name=key)
-            assert lib.defaults_get_value(engine=tmp_project_engine, name=key) == val
+            defaults.defaults_reset_value(engine=tmp_project_engine, name=key)
+            assert defaults.defaults_get_value(engine=tmp_project_engine, name=key) == val
+
+
+@pytest.mark.depends(depends=["TestProject.test_lib_defaults",
+                              "test_cli_project"], scope="session")
+def test_cli_defaults(cli_project) -> None:  # type: ignore
+    """Test AIMBAT cli with defaults subcommand."""
+
+    from aimbat.lib import defaults
+
+    runner = CliRunner()
+    result = runner.invoke(defaults.cli)
+    assert result.exit_code == 0
+    assert 'Usage' in result.output
+
+    result = runner.invoke(defaults.cli, ["list"])
+    assert result.exit_code == 0
+    for val in ["Name", "Value", "Description"]:
+        assert val in result.output
+
+    result = runner.invoke(defaults.cli, ["list", "aimbat"])
+    assert result.exit_code == 0
+    assert "True" in result.output
+
+    result = runner.invoke(defaults.cli, ["set", "aimbat", "False"])
+    assert result.exit_code == 0
+
+    result = runner.invoke(defaults.cli, ["list", "aimbat"])
+    assert result.exit_code == 0
+    assert "False" in result.output
+
+    result = runner.invoke(defaults.cli, ["reset", "aimbat"])
+    assert result.exit_code == 0
+
+    result = runner.invoke(defaults.cli, ["list", "aimbat"])
+    assert result.exit_code == 0
+    assert "True" in result.output
