@@ -14,10 +14,10 @@
 <a href="https://aimbat.readthedocs.io/en/latest/?badge=latest" target="_blank">
 <img src="https://readthedocs.org/projects/aimbat/badge/?version=latest" alt="Documentation Status">
 </img></a>
-<h href="https://codecov.io/gh/pysmo/aimbat" target="_blank">
+<a href="https://codecov.io/gh/pysmo/aimbat" target="_blank">
 <img src="https://codecov.io/gh/pysmo/aimbat/branch/master/graph/badge.svg?token=ZsHTBN4rxF" alt="codecov">
 </img></a>
-<h href="https://pypi.org/project/aimbat/" target="_blank">
+<a href="https://pypi.org/project/aimbat/" target="_blank">
 <img src="https://img.shields.io/pypi/v/aimbat" alt="PyPI">
 </img></a></div>
 
