@@ -1,4 +1,4 @@
-<h1 style="text-align: center;">AIMBAT</h1>
+<h1 align="center">AIMBAT</h1>
 
 <p align="center">
 <em>Automated and Interactive Measurement of Body wave Arrival Times</em>
@@ -21,10 +21,10 @@
 <img src="https://img.shields.io/pypi/v/aimbat" alt="PyPI">
 </img></a></div>
 
-<p style="text-align: center;">
+<p align="center">
 <em>Documentation:</em> <a href="https://aimbat.readthedocs.io" target="_blank">https://aimbat.readthedocs.io</a>
 </p>
-<p style="text-align: center;">
+<p align="center">
 <em>Source Code:</em> <a href="https://github.com/pysmo/aimbat" target="_blank">https://github.com/pysmo/aimbat</a>
 </p>
 
