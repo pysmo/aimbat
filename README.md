@@ -1,10 +1,35 @@
-# AIMBAT
+<h1 style="text-align: center;">AIMBAT</h1>
 
-[![Test Status](https://github.com/pysmo/aimbat/actions/workflows/run-tests.yml/badge.svg)](https://github.com/pysmo/pysmo/actions/workflows/run-tests.yml)
-[![Build Status](https://github.com/pysmo/aimbat/actions/workflows/build.yml/badge.svg)](https://github.com/pysmo/pysmo/actions/workflows/build.yml)
-[![Documentation Status](https://readthedocs.org/projects/aimbat/badge/?version=latest)](https://aimbat.readthedocs.io/en/latest/?badge=latest)
-[![codecov](https://codecov.io/gh/pysmo/aimbat/branch/master/graph/badge.svg?token=ZsHTBN4rxF)](https://codecov.io/gh/pysmo/aimbat)
-[![PyPI](https://img.shields.io/pypi/v/aimbat)](https://pypi.org/project/aimbat/)
+<p align="center">
+<em>Automated and Interactive Measurement of Body wave Arrival Times</em>
+</p>
+
+<div align="center">
+<a href="https://github.com/pysmo/pysmo/actions/workflows/run-tests.yml" target="_blank">
+<img src="https://github.com/pysmo/aimbat/actions/workflows/run-tests.yml/badge.svg" alt="Test Status">
+</img></a>
+<a href="https://github.com/pysmo/pysmo/actions/workflows/build.yml" target="_bank">
+<img src= "https://github.com/pysmo/aimbat/actions/workflows/build.yml/badge.svg" alt="Build Status">
+</img></a>
+<a href="https://aimbat.readthedocs.io/en/latest/?badge=latest" target="_blank">
+<img src="https://readthedocs.org/projects/aimbat/badge/?version=latest" alt="Documentation Status">
+</img></a>
+<h href="https://codecov.io/gh/pysmo/aimbat" target="_blank">
+<img src="https://codecov.io/gh/pysmo/aimbat/branch/master/graph/badge.svg?token=ZsHTBN4rxF" alt="codecov">
+</img></a>
+<h href="https://pypi.org/project/aimbat/" target="_blank">
+<img src="https://img.shields.io/pypi/v/aimbat" alt="PyPI">
+</img></a></div>
+
+<p style="text-align: center;">
+<em>Documentation:</em> <a href="https://aimbat.readthedocs.io" target="_blank">https://aimbat.readthedocs.io</a>
+</p>
+<p style="text-align: center;">
+<em>Source Code:</em> <a href="https://github.com/pysmo/aimbat" target="_blank">https://github.com/pysmo/aimbat</a>
+</p>
+
+
+---
 
 AIMBAT (Automated and Interactive Measurement of Body wave Arrival Times) is an
 open-source software package for efficiently measuring teleseismic body wave arrival
