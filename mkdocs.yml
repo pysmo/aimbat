@@ -30,6 +30,7 @@ theme:
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: purple
+      accent: purple
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
@@ -38,6 +39,7 @@ theme:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: purple
+      accent: purple
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -71,4 +73,5 @@ nav:
       - License: gpl-3.0.md
   - Get started:
       - installation.md
-  - Code Reference:  reference/
+  - Code Reference: reference/
+
