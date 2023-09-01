@@ -2,6 +2,13 @@ Changelog
 =========
 
 
+aimbat-v1.0.7
+-------------
+Sep 6, 2021
+
+* Bug fixes.
+
+
 aimbat-v1.0.5
 -------------
 Aug 18, 2019

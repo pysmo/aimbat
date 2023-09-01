@@ -62,10 +62,6 @@ For more information visit the
 
 * [Simon Lloyd](https://www.slloyd.net/) Email: simon at pysmo.org
 
-## Contributors
-
-* Lay Kuan Loh
-
 ## References
 
 <a id="1">[1]</a>

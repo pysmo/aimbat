@@ -1,74 +1,42 @@
-# Installing AIMBAT
-
-## Prerequisites
+# Installation
 
 AIMBAT is built on top of standard [Python](https://www.python.org) and uses some popular
-third party modules (e.g. [NumPy](inv:numpy#index), [SciPy](inv:scipy#index)). In order
+third party modules (e.g. [NumPy][numpy], [SciPy][scipy]). In order
 to benefit from modern Python features and up to date modules, AIMBAT is developed on the
 latest stable Python versions. Automatic tests are done on version 3.10 and newer.
 
 AIMBAT is available as a package from the
 [Python Package Index](https://pypi.org/project/aimbat/). This means it can be easily
-installed using the [`pip`](inv:pip#index) module:
+installed using the [`pip`](https://pip.pypa.io/en/stable/) module. However, as AIMBAT is
+an application (rather than a library), we recommend installing it using
+[`pipx`](https://pypa.github.io/pipx/) instead. Pipx installs a Python package into an
+isolated environment, where other packages cannot interfere with it.
+
+!!! warning
+    Please consult the [pipx documentation](https://pypa.github.io/pipx/#install-pipx)
+    before running the commands below! Installation and initial setup of pipx may vary
+    depending on the operating system you are using.
 
 <!-- termynal -->
 
 ```
-$ python3 -m pip install aimbat
+# First we check the python version is at least 3.10
+# (you may have to type python3 instead of python)
+$ python --version
+Python 3.11.2
+# Next we install pipx with pip.
+$ python -m pip install --user pipx
 ---> 100%
-Done!
-
-```
-
-
-Pre-release versions of aimbat can be installed with the `--pre` flag:
-
-<!-- termynal -->
-
-```
-$ python3 -m pip install aimbat  --pre
+Successfully installed pipx-1.2.0
+# Now we use pipx to install AIMBAT in an isolated environment.
+$ pipx install aimbat
 ---> 100%
-Done!
+  installed package aimbat 2.0.0, installed using Python 3.11.2
+  These apps are now globally available
+    - aimbat
+done! ✨ 🌟 ✨
+# Let's verify AIMBAT is installed:
+$ aimbat --version
+aimbat, version 2.0.0
+# hurray! 🥳
 ```
-
-Finally, the latest development version of aimbat can be installed directly from
-[GitHub](https://github.com/pysmo/aimbat) by running:
-
-
-<!-- termynal -->
-
-```
-$ python3 -m pip install git+https://github.com/pysmo/aimbat
----> 100%
-Done!
-
-```
-
-```{note}
-It is possible to install the stable release alongside the development
-version. Please read the aimbat
-[development documentation](<project:developing.md#development-environment>) for
-instructions.
-```
-
-## Upgrading
-
-Upgrades to pysmo are also performed with the ``pip`` command:
-
-```bash
-$ python3 -m pip install -U aimbat
-```
-
-## Uninstalling
-
-To remove AIMBAT from the system run:
-
-```bash
-$ python3 -m pip uninstall aimbat
-```
-
-!!! note
-
-    Unfortunately `pip` currently does not remove dependencies that were automatically
-    installed. We suggest running `pip list` to see the installed packages, which can
-    then also be removed using `pip uninstall`.
