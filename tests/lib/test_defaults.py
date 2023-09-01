@@ -4,10 +4,10 @@ import pytest
 
 @pytest.mark.depends(depends=["tests/lib/test_project.py::TestProject.test_lib_project"],
                      scope="session")
+@pytest.mark.usefixtures("tmp_project")
 class TestDefaults:
 
-    @pytest.mark.usefixtures("tmp_project_engine")
-    def test_lib_defaults(self, tmp_project_engine):  # type: ignore
+    def test_lib_defaults(self) -> None:
 
         from aimbat.lib import defaults
 
@@ -32,45 +32,46 @@ class TestDefaults:
 
         # get a valid default item
         for key, val in test_items.items():
-            assert defaults.defaults_get_value(engine=tmp_project_engine, name=key) == val
+            assert defaults.defaults_get_value(name=key) == val
 
         # get one that doesn't exist
         with pytest.raises(defaults.AimbatDefaultNotFound):
-            defaults.defaults_get_value(engine=tmp_project_engine, name=test_invalid_name)
+            defaults.defaults_get_value(name=test_invalid_name)
 
         # set to new value
         for key, val in test_items_set.items():
-            defaults.defaults_set_value(engine=tmp_project_engine, name=key, value=val)
-            assert defaults.defaults_get_value(engine=tmp_project_engine, name=key) == val
+            defaults.defaults_set_value(name=key, value=val)  # type: ignore
+            assert defaults.defaults_get_value(name=key) == val
 
         # try different ways of setting _test_bool to True
         for val in test_bool_true:
-            defaults.defaults_set_value(engine=tmp_project_engine, name="_test_bool", value=val)
-            assert defaults.defaults_get_value(engine=tmp_project_engine, name="_test_bool") is True
+            defaults.defaults_set_value(name="_test_bool", value=val)  # type: ignore
+            assert defaults.defaults_get_value(name="_test_bool") is True
 
         # try different ways of setting _test_bool to False
         for val in test_bool_false:
-            defaults.defaults_set_value(engine=tmp_project_engine, name="_test_bool", value=val)
-            assert defaults.defaults_get_value(engine=tmp_project_engine, name="_test_bool") is False
+            defaults.defaults_set_value(name="_test_bool", value=val)  # type: ignore
+            assert defaults.defaults_get_value(name="_test_bool") is False
 
         # set to incorrect type
         for key, val in test_items_invalid_type.items():
             with pytest.raises(defaults.AimbatDefaultTypeError):
-                defaults.defaults_set_value(engine=tmp_project_engine, name=key, value=val)
+                defaults.defaults_set_value(name=key, value=val)
 
         # use invalid name
         with pytest.raises(defaults.AimbatDefaultNotFound):
-            defaults.defaults_set_value(engine=tmp_project_engine, name=test_invalid_name, value=False)
+            defaults.defaults_set_value(name=test_invalid_name, value=False)
 
         # reset to defaults
         for key, val in test_items.items():
-            defaults.defaults_reset_value(engine=tmp_project_engine, name=key)
-            assert defaults.defaults_get_value(engine=tmp_project_engine, name=key) == val
+            defaults.defaults_reset_value(name=key)
+            assert defaults.defaults_get_value(name=key) == val
 
 
 @pytest.mark.depends(depends=["TestProject.test_lib_defaults",
                               "test_cli_project"], scope="session")
-def test_cli_defaults(cli_project) -> None:  # type: ignore
+@pytest.mark.usefixtures("tmp_project")
+def test_cli_defaults() -> None:
     """Test AIMBAT cli with defaults subcommand."""
 
     from aimbat.lib import defaults

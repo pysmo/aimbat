@@ -1,13 +1,10 @@
 from aimbat.lib.defaults import defaults_load_global_values
-from aimbat.lib.db import db_engine, AIMBAT_PROJECT
+from aimbat.lib.db import engine, AIMBAT_PROJECT
 from aimbat.lib import models  # noqa: F401
 from sqlmodel import SQLModel
 from pathlib import Path
 from typing import Any
 import click
-
-
-ENGINE = db_engine()
 
 
 def project_new(project_file: str = AIMBAT_PROJECT) -> str:
@@ -17,13 +14,11 @@ def project_new(project_file: str = AIMBAT_PROJECT) -> str:
     if Path(project_file).exists():
         raise FileExistsError(f"Unable to create a new project: found existing {project_file=}!")
 
-    engine = db_engine(project_file)
-
     # create tables
     SQLModel.metadata.create_all(engine)
 
     # load defaults
-    defaults_load_global_values(engine)
+    defaults_load_global_values()
 
     # return project file for things like the cli
     return project_file

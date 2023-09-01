@@ -1,4 +1,4 @@
-from aimbat.lib.db import db_engine
+from aimbat.lib.db import engine
 from aimbat import __file__ as aimbat_dir
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
@@ -13,8 +13,6 @@ import click
 # Defaults shipped with AIMBAT
 AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), 'lib/defaults.yml')
 
-ENGINE = db_engine()
-
 
 class AimbatDefaultNotFound(Exception):
     pass
@@ -24,8 +22,7 @@ class AimbatDefaultTypeError(Exception):
     pass
 
 
-def defaults_load_global_values(engine  # type: ignore
-                                ) -> None:
+def defaults_load_global_values() -> None:
     """Read defaults shipped with AIMBAT from yaml file."""
 
     with open(AIMBAT_DEFAULTS_FILE, 'r') as stream:
@@ -37,8 +34,7 @@ def defaults_load_global_values(engine  # type: ignore
         session.commit()
 
 
-def _get_single_item(engine,  # type: ignore
-                     name: str) -> AimbatDefault:
+def _get_single_item(name: str) -> AimbatDefault:
     """Return a single AimbatDefault item."""
 
     with Session(engine) as session:
@@ -67,20 +63,18 @@ def typed_value(default: AimbatDefault) -> float | int | bool | str | None:
     return default.svalue
 
 
-def defaults_get_value(engine,  # type: ignore
-                       name: str) -> float | int | bool | str | None:
+def defaults_get_value(name: str) -> float | int | bool | str | None:
     """Return the value of an AIMBAT default."""
 
-    default = _get_single_item(engine, name)
+    default = _get_single_item(name)
     return typed_value(default)
 
 
-def defaults_set_value(engine,  # type: ignore
-                       name: str, value: float | int | str | bool) -> None:
+def defaults_set_value(name: str, value: float | int | str | bool) -> None:
     """Set the value of an AIMBAT default."""
 
     # Get the AimbatDefault instance
-    default = _get_single_item(engine, name)
+    default = _get_single_item(name)
 
     # new value must be of this type
     is_of_type = default.is_of_type
@@ -125,12 +119,11 @@ def defaults_set_value(engine,  # type: ignore
         session.refresh(default)
 
 
-def defaults_reset_value(engine,  # type: ignore
-                         name: str) -> None:
+def defaults_reset_value(name: str) -> None:
     """Reset the value of an AIMBAT default."""
 
     # get single item
-    default = _get_single_item(engine, name)
+    default = _get_single_item(name)
 
     # get type and initial value
     is_of_type, initial_value = default.is_of_type, default.initial_value
@@ -152,8 +145,7 @@ def defaults_reset_value(engine,  # type: ignore
         session.refresh(default)
 
 
-def defaults_print_table(engine,  # type: ignore
-                         select_names: List[str] | None = None) -> None:
+def defaults_print_table(select_names: List[str] | None = None) -> None:
     """Print a pretty table with AIMBAT configuration options."""
 
     if not select_names:
@@ -192,7 +184,7 @@ def list_defaults(name: List[str] | None = None) -> None:
     One or more default names may be provided to filter output.
     """
 
-    defaults_print_table(ENGINE, name)
+    defaults_print_table(name)
 
 
 @cli.command("set")
@@ -201,7 +193,7 @@ def list_defaults(name: List[str] | None = None) -> None:
 def set_default(name: str, value: float | int | bool | str) -> None:
     """Set an AIMBAT default to a new value."""
 
-    defaults_set_value(ENGINE, name, value)
+    defaults_set_value(name, value)
 
 
 @cli.command("reset")
@@ -209,7 +201,7 @@ def set_default(name: str, value: float | int | bool | str) -> None:
 def reset_default(name: str) -> None:
     """Reset an AIMBAT default to the initial value."""
 
-    defaults_reset_value(ENGINE, name)
+    defaults_reset_value(name)
 
 
 if __name__ == "__main__":

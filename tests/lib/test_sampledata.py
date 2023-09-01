@@ -5,7 +5,8 @@ from pathlib import Path
 
 @pytest.mark.depends(depends=["tests/lib/test_defaults.py::test_cli_defaults",
                               "test_cli_project"], scope="session")
-def test_cli_sampledata(project_directory, cli_project) -> None:  # type: ignore
+@pytest.mark.usefixtures("tmp_project")
+def test_cli_sampledata(project_directory) -> None:  # type: ignore
     """Test AIMBAT cli with defaults subcommand."""
 
     from aimbat.lib import sampledata, defaults

@@ -8,10 +8,4 @@ from os import environ, getcwd
 # set set it to aimbat.db in the current working directory.
 AIMBAT_PROJECT: str = environ.get("AIMBAT_PROJECT", f"{getcwd()}/aimbat.db")
 
-
-def db_engine(project_file: str = AIMBAT_PROJECT):  # type: ignore
-    """Create DB engine."""
-
-    project_db = rf"sqlite+pysqlite:///{project_file}"
-
-    return create_engine(project_db)
+engine = create_engine(rf"sqlite+pysqlite:///{AIMBAT_PROJECT}")

@@ -22,8 +22,6 @@ def test_cli(monkeypatch):  # type: ignore
     monkeypatch.setattr(metadata, "version", mock_raise)
     reload(cli)
 
-    # runner = CliRunner()
-
     result = runner.invoke(cli.cli, '--version')
     assert result.exit_code == 0
     assert 'unknown' in result.output

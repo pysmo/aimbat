@@ -1,5 +1,4 @@
 from aimbat.lib.defaults import defaults_get_value
-from aimbat.lib.db import db_engine
 from urllib.request import urlopen
 from io import BytesIO
 from zipfile import ZipFile
@@ -7,26 +6,23 @@ import click
 import os
 import shutil
 
-ENGINE = db_engine()
 
-
-def sampledata_delete(engine):   # type: ignore
+def sampledata_delete() -> None:
     """Delete sample data."""
 
-    sampledata_dir = str(defaults_get_value(engine, "sampledata_dir"))
+    sampledata_dir = str(defaults_get_value("sampledata_dir"))
     shutil.rmtree(sampledata_dir, ignore_errors=False, onerror=None)
 
 
-def sampledata_download(engine,  # type: ignore
-                        force: bool = False) -> None:
+def sampledata_download(force: bool = False) -> None:
     """Download sample data."""
 
-    sampledata_src = str(defaults_get_value(engine, "sampledata_src"))
-    sampledata_dir = str(defaults_get_value(engine, "sampledata_dir"))
+    sampledata_src = str(defaults_get_value("sampledata_src"))
+    sampledata_dir = str(defaults_get_value("sampledata_dir"))
 
     if os.path.exists(sampledata_dir) is True:
         if force is True:
-            sampledata_delete(engine)
+            sampledata_delete()
         else:
             raise RuntimeError(f"The directory {sampledata_dir} already exists.")
 
@@ -49,7 +45,7 @@ def cli() -> None:
 def sampledata_cli_delete() -> None:
     """Recursively delete sample data directory."""
 
-    sampledata_delete(ENGINE)
+    sampledata_delete()
 
 
 @cli.command("download")
@@ -58,7 +54,7 @@ def sampledata_cli_delete() -> None:
 def sampledata_cli_download(force: bool) -> None:
     """Download aimbat sample data."""
 
-    sampledata_download(ENGINE, force)
+    sampledata_download(force)
 
 
 if __name__ == "__main__":
