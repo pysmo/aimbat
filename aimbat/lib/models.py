@@ -3,7 +3,8 @@ from sqlmodel import SQLModel, Field
 
 
 class AimbatDefault(SQLModel, table=True):
-    name: str = Field(primary_key=True)
+    id: Optional[int] = Field(primary_key=True)
+    name: str = Field(unique=True)
     is_of_type: str
     description: str
     initial_value: str
