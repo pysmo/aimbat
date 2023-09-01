@@ -5,10 +5,10 @@
 </p>
 
 <div align="center">
-<a href="https://github.com/pysmo/pysmo/actions/workflows/run-tests.yml" target="_blank">
+<a href="https://github.com/pysmo/aimbat/actions/workflows/run-tests.yml" target="_blank">
 <img src="https://github.com/pysmo/aimbat/actions/workflows/run-tests.yml/badge.svg" alt="Test Status">
 </img></a>
-<a href="https://github.com/pysmo/pysmo/actions/workflows/build.yml" target="_bank">
+<a href="https://github.com/pysmo/aimbat/actions/workflows/build.yml" target="_bank">
 <img src= "https://github.com/pysmo/aimbat/actions/workflows/build.yml/badge.svg" alt="Build Status">
 </img></a>
 <a href="https://aimbat.readthedocs.io/en/latest/?badge=latest" target="_blank">
