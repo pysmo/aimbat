@@ -1,5 +1,5 @@
 .PHONY: help check-poetry install update lint test-figs tests mypy docs docs-export \
-	live-docs notebook build publish clean shell python
+	live-docs notebook build publish clean shell python format format-check
 
 ifeq ($(OS),Windows_NT)
   POETRY_VERSION := $(shell poetry --version 2> NUL)
@@ -28,13 +28,14 @@ install: check-poetry ## Install this project and its dependencies in a virtual 
 update: check-poetry ## Update dependencies to their latest versions.
 	poetry update
 
-lint: check-poetry ## Lint code with flake8
-	poetry run flake8 --statistics
+lint: check-poetry ## Check formatting with black and lint code with ruff.
+	poetry run black . --check --diff --color
+	poetry run ruff .
 
 test-figs: check-poetry ## Generate baseline figures for testing. Only run this if you know what you are doing!
 	poetry run py.test --mpl-generate-path=tests/baseline
 
-tests: check-poetry lint mypy ## Run all tests with pytest.
+tests: check-poetry mypy ## Run all tests with pytest.
 	poetry run pytest --mypy --cov=aimbat --cov-report=xml --mpl -v
 
 mypy: check-poetry ## Run typing tests with pytest.
@@ -66,3 +67,9 @@ shell: check-poetry ## Start a shell in the project virtual environment.
 
 python: check-poetry ## Start an interactive python shell in the project virtual environment.
 	poetry run python
+
+format: check-poetry ## Format python code with black.
+	poetry run black .
+
+format-check: check-poetry ## See what running 'make format' would change instead of actually running it.
+	poetry run black . --diff --color

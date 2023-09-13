@@ -10,11 +10,11 @@ def test_cli(monkeypatch):  # type: ignore
 
     result = runner.invoke(cli.cli)
     assert result.exit_code == 0
-    assert 'Usage' in result.output
+    assert "Usage" in result.output
 
-    result = runner.invoke(cli.cli, '--version')
+    result = runner.invoke(cli.cli, "--version")
     assert result.exit_code == 0
-    assert 'aimbat, version' in result.output
+    assert "aimbat, version" in result.output
 
     def mock_raise(*args, **kwargs):  # type: ignore
         raise Exception
@@ -22,6 +22,6 @@ def test_cli(monkeypatch):  # type: ignore
     monkeypatch.setattr(metadata, "version", mock_raise)
     reload(cli)
 
-    result = runner.invoke(cli.cli, '--version')
+    result = runner.invoke(cli.cli, "--version")
     assert result.exit_code == 0
-    assert 'unknown' in result.output
+    assert "unknown" in result.output

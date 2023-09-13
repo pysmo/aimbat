@@ -34,8 +34,11 @@ def mock_aimbat_project_env(project_directory):  # type: ignore
         yield
 
 
-@pytest.mark.depends(depends=["tests/lib/test_project.py::TestProject.test_lib_project"],
-                     scope="class", autouse=True)
+@pytest.mark.depends(
+    depends=["tests/lib/test_project.py::TestProject.test_lib_project"],
+    scope="class",
+    autouse=True,
+)
 @pytest.fixture()
 def tmp_project(mock_aimbat_project_env):  # type: ignore
     """Create an AIMBAT project for other test functions."""

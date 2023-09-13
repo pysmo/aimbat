@@ -25,4 +25,6 @@ class AimbatDefault(SQLModel, table=True):
             self.svalue = self.initial_value
         # we really shouldn't ever end up here..
         else:
-            raise RuntimeError("Unable to assign {self.name} with value: {self.initial_value}.")  # pragma: no cover
+            raise RuntimeError(
+                "Unable to assign {self.name} with value: {self.initial_value}."
+            )  # pragma: no cover

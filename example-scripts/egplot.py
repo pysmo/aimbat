@@ -12,9 +12,9 @@ from pysmo.aimbat.plotphase import getDataOpts, sacp1, sacp2, sacprs
 
 # figure axes
 fig = plt.figure(figsize=(9, 12))
-rectp2 = [.09, .050, .8, .15]
-rectp1 = [.09, .245, .8, .33]
-rectp0 = [.09, .620, .8, .36]
+rectp2 = [0.09, 0.050, 0.8, 0.15]
+rectp1 = [0.09, 0.245, 0.8, 0.33]
+rectp0 = [0.09, 0.620, 0.8, 0.36]
 axp2 = fig.add_axes(rectp2)
 axp1 = fig.add_axes(rectp1)
 axp0 = fig.add_axes(rectp0)
@@ -22,7 +22,7 @@ axp0 = fig.add_axes(rectp0)
 # read data and plot
 gsac, opts = getDataOpts()
 # prs
-opts.ynorm = .95
+opts.ynorm = 0.95
 saclist = gsac.saclist
 prs = sacprs(saclist, opts, axp0)
 # p1
@@ -37,10 +37,10 @@ axp1.set_xlim(625, 762)
 axp2.set_xlim(-45, 65)
 # numbering
 axs = [axp0, axp1, axp2]
-labs = 'abc'
+labs = "abc"
 for ax, lab in zip(axs, labs):
-    tt = '(' + lab + ')'
+    tt = "(" + lab + ")"
     trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
-    ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)
-fig.savefig('egplot.pdf', format='pdf')
+    ax.text(-0.05, 1, tt, transform=trans, va="center", ha="right", size=16)
+fig.savefig("egplot.pdf", format="pdf")
 plt.show()

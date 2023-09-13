@@ -82,7 +82,9 @@ def check_event(event: Event, called_from_cli: bool = False) -> List[str]:
     return issues
 
 
-def check_seismogram(seismogram: Seismogram, called_from_cli: bool = False) -> List[str]:
+def check_seismogram(
+    seismogram: Seismogram, called_from_cli: bool = False
+) -> List[str]:
     """Check if seismogram information is complete.
 
     Parameters:
@@ -90,7 +92,7 @@ def check_seismogram(seismogram: Seismogram, called_from_cli: bool = False) -> L
         called_from_cli:
             set to true to return a list of issues instead of
             raising errors.
-        """
+    """
     issues = list()
     try:
         assert seismogram.data is not None
@@ -110,18 +112,19 @@ def run_checks_cli(sacfiles: List[Path]) -> None:
     Parameters:
         sacfiles: SAC files to test.
     """
+
     def checkmark() -> None:
-        print(u'\N{check mark}', end='')
+        print("\N{check mark}", end="")
 
     def crossmark() -> None:
-        print(u'\N{ballot x}', end='')
+        print("\N{ballot x}", end="")
 
     all_issues = dict()
 
     for sacfile in sacfiles:
         issues = list()
         my_sac = SAC.from_file(str(sacfile))
-        print(f"\n{sacfile}: ", end='')
+        print(f"\n{sacfile}: ", end="")
 
         station_issues = check_station(my_sac.station, called_from_cli=True)
         if len(station_issues) == 0:
@@ -158,8 +161,8 @@ def run_checks_cli(sacfiles: List[Path]) -> None:
             print(f"  - {issue}")
 
 
-@click.command('checkdata')
-@click.argument('sacfiles', nargs=-1, type=click.Path(exists=True), required=True)
+@click.command("checkdata")
+@click.argument("sacfiles", nargs=-1, type=click.Path(exists=True), required=True)
 def cli(sacfiles: List[Path]) -> None:
     """Check if there are any problems with the input SAC files."""
 
