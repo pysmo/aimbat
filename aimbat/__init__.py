@@ -1,7 +1,4 @@
 """
-AIMBAT
-======
-
 AIMBAT (Automated and Interactive Measurement of Body wave Arrival Times)
 is an open-source software package for efficiently measuring teleseismic
 body wave arrival times for large seismic arrays (Lou et al., 2012). It is

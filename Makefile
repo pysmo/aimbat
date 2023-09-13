@@ -10,7 +10,7 @@ else
 endif
 
 help: ## List all commands.
-	@echo -e "\nThis makefile executes mostly poetry commands. To view all poetry commands availabile run 'poetry help'."
+	@echo -e "\nThis makefile executes mostly poetry commands. To view all poetry commands available run 'poetry help'."
 	@echo -e "\n\033[1mAVAILABLE COMMANDS\033[0m"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9 -]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 | "sort"}' $(MAKEFILE_LIST)
 

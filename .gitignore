@@ -23,3 +23,5 @@ sample-data
 aimbat.db
 .tox
 nohup.out
+blah.py
+.idea
