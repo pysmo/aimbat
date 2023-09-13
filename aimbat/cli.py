@@ -1,9 +1,4 @@
-from aimbat.lib import (
-    project,
-    defaults,
-    checkdata,
-    sampledata
-)
+from aimbat.lib import project, defaults, checkdata, sampledata
 from importlib import metadata
 import click
 
@@ -13,7 +8,7 @@ except Exception:
     __version__ = "unknown"
 
 
-@click.group('aimbat')
+@click.group("aimbat")
 @click.version_option(version=__version__)
 def cli() -> None:
     """Command line interface entrypoint for all other commands.

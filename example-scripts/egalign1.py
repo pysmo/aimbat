@@ -15,41 +15,40 @@ from pysmo.aimbat.ttconfig import PPConfig, CCConfig
 
 def axes1(npick=2):
     fig = plt.figure(figsize=(9.5, 12.7))
-    axs = [fig.add_subplot(1, npick, i+1) for i in range(npick)]
-    plt.subplots_adjust(bottom=.04, top=0.97, left=.065, right=.905, wspace=.4,
-                        hspace=.1)
+    axs = [fig.add_subplot(1, npick, i + 1) for i in range(npick)]
+    plt.subplots_adjust(
+        bottom=0.04, top=0.97, left=0.065, right=0.905, wspace=0.4, hspace=0.1
+    )
     return axs
 
 
-def getwin(gsac, opts, pick='t2'):
-    'Get time window from array stack'
+def getwin(gsac, opts, pick="t2"):
+    "Get time window from array stack"
     sacdh = gsac.stkdh
     twh0, twh1 = opts.pppara.twhdrs
     tw0 = sacdh.gethdr(twh0)
     tw1 = sacdh.gethdr(twh1)
     tref = sacdh.gethdr(pick)
-    tw = tw0-tref, tw1-tref
-    print('Time window wrt {:s}: [{:.1f}  {:.1f}] s'.format(pick, tw[0],
-                                                            tw[1]))
+    tw = tw0 - tref, tw1 - tref
+    print("Time window wrt {:s}: [{:.1f}  {:.1f}] s".format(pick, tw[0], tw[1]))
     return tw
 
 
 def plotwin(ax, tw, pppara):
-    'Plot time window'
+    "Plot time window"
     tw0, tw1 = tw
     ymin, ymax = ax.get_ylim()
     a, col = pppara.alphatwfill, pppara.colortwfill
-    ax.fill([tw0, tw1, tw1, tw0], [ymin, ymin, ymax, ymax], col, alpha=a,
-            edgecolor=col)
+    ax.fill([tw0, tw1, tw1, tw0], [ymin, ymin, ymax, ymax], col, alpha=a, edgecolor=col)
 
 
 def load():
-    'load data'
+    "load data"
     opts, ifiles = getOptions()
     pppara = PPConfig()
     ccpara = CCConfig()
     gsac = loadData(ifiles, opts, pppara)
-    if opts.filemode == 'pkl':
+    if opts.filemode == "pkl":
         opts.fstack = None
     else:
         opts.fstack = ccpara.fstack
@@ -59,7 +58,7 @@ def load():
     return gsac, opts
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     gsac, opts = load()
     saclist = gsac.saclist
     xxlim = -20, 20
@@ -67,9 +66,9 @@ if __name__ == '__main__':
     npick = len(reltimes)
     axs = axes1(npick)
     twa = -10, 10
-    twb = getwin(gsac, opts, 't2')
+    twb = getwin(gsac, opts, "t2")
     twins = [twa, twb]
-    tts = ['Predicted', 'Measured']
+    tts = ["Predicted", "Measured"]
     for i in range(npick):
         opts.reltime = reltimes[i]
         ax = axs[i]
@@ -77,11 +76,10 @@ if __name__ == '__main__':
         ax.set_xlim(xxlim)
         plotwin(ax, twins[i], opts.pppara)
         ax.set_title(tts[i])
-    labs = 'ab'
+    labs = "ab"
     for ax, lab in zip(axs, labs):
-        tt = '(' + lab + ')'
-        trans = transforms.blended_transform_factory(ax.transAxes,
-                                                     ax.transAxes)
-        ax.text(-.05, 1, tt, transform=trans, va='center', ha='right', size=16)
-    plt.savefig('egalignp1.pdf', format='pdf')
+        tt = "(" + lab + ")"
+        trans = transforms.blended_transform_factory(ax.transAxes, ax.transAxes)
+        ax.text(-0.05, 1, tt, transform=trans, va="center", ha="right", size=16)
+    plt.savefig("egalignp1.pdf", format="pdf")
     plt.show()

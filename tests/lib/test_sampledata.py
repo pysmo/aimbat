@@ -3,8 +3,10 @@ import pytest
 from pathlib import Path
 
 
-@pytest.mark.depends(depends=["tests/lib/test_defaults.py::test_cli_defaults",
-                              "test_cli_project"], scope="session")
+@pytest.mark.depends(
+    depends=["tests/lib/test_defaults.py::test_cli_defaults", "test_cli_project"],
+    scope="session",
+)
 @pytest.mark.usefixtures("tmp_project")
 def test_cli_sampledata(project_directory) -> None:  # type: ignore
     """Test AIMBAT cli with defaults subcommand."""
@@ -16,7 +18,7 @@ def test_cli_sampledata(project_directory) -> None:  # type: ignore
     runner = CliRunner()
     result = runner.invoke(sampledata.cli)
     assert result.exit_code == 0
-    assert 'Usage' in result.output
+    assert "Usage" in result.output
 
     result = runner.invoke(defaults.cli, ["set", "sampledata_dir", str(sampledata_dir)])
     assert result.exit_code == 0

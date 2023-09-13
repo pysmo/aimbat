@@ -11,7 +11,7 @@ import click
 
 
 # Defaults shipped with AIMBAT
-AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), 'lib/defaults.yml')
+AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), "lib/defaults.yml")
 
 
 class AimbatDefaultNotFound(Exception):
@@ -25,7 +25,7 @@ class AimbatDefaultTypeError(Exception):
 def defaults_load_global_values() -> None:
     """Read defaults shipped with AIMBAT from yaml file."""
 
-    with open(AIMBAT_DEFAULTS_FILE, 'r') as stream:
+    with open(AIMBAT_DEFAULTS_FILE, "r") as stream:
         data = yaml.safe_load(stream)
 
     with Session(engine) as session:
@@ -84,16 +84,20 @@ def defaults_set_value(name: str, value: float | int | str | bool) -> None:
         try:
             default.fvalue = float(value)
         except ValueError:
-            raise AimbatDefaultTypeError(f"Unable to set default {name} to {value}. " +
-                                         f"must be of type {is_of_type}")
+            raise AimbatDefaultTypeError(
+                f"Unable to set default {name} to {value}. "
+                + f"must be of type {is_of_type}"
+            )
 
     # set ivalue to int(value) or raise exception
     elif is_of_type == "int":
         try:
             default.ivalue = int(value)
         except ValueError:
-            raise AimbatDefaultTypeError(f"Unable to set default {name} to {value}. " +
-                                         f"Must be of type {is_of_type}")
+            raise AimbatDefaultTypeError(
+                f"Unable to set default {name} to {value}. "
+                + f"Must be of type {is_of_type}"
+            )
 
     # different ways of setting boolean defaults
     elif is_of_type == "bool" and str(value).lower() in ["true", "1", "yes"]:
@@ -101,8 +105,10 @@ def defaults_set_value(name: str, value: float | int | str | bool) -> None:
     elif is_of_type == "bool" and str(value).lower() in ["false", "0", "no"]:
         default.bvalue = False
     elif is_of_type == "bool":
-        raise AimbatDefaultTypeError(f"Unable to set default {name} to {value}. " +
-                                     f"Must be of type {is_of_type}")
+        raise AimbatDefaultTypeError(
+            f"Unable to set default {name} to {value}. "
+            + f"Must be of type {is_of_type}"
+        )
 
     # Only strings should be left at this point anyway...
     elif is_of_type == "str":
@@ -110,7 +116,9 @@ def defaults_set_value(name: str, value: float | int | str | bool) -> None:
 
     # ... so there really shouldn't be any way to get here.
     else:
-        raise RuntimeError(f"Unable to set default {name} to {value}.")  # pragma: no cover
+        raise RuntimeError(
+            f"Unable to set default {name} to {value}."
+        )  # pragma: no cover
 
     # commit the changes
     with Session(engine) as session:
@@ -160,8 +168,13 @@ def defaults_print_table(select_names: List[str] | None = None) -> None:
     table = PrettyTable()
     table.field_names = ["Name", "Value", "Description"]
     for default in defaults:
-        # names with "_test_" in them are in the table, but should only be used in unit tests
-        if "_test_" not in default.name and not select_names or default.name in select_names:
+        # names with "_test_" in them are in the table,
+        # but should only be used in unit tests
+        if (
+            "_test_" not in default.name
+            and not select_names
+            or default.name in select_names
+        ):
             table.add_row([default.name, typed_value(default), default.description])
     print(table)
 

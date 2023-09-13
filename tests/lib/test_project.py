@@ -4,9 +4,7 @@ import pytest
 
 
 class TestProject:
-
     def test_lib_project(self) -> None:
-
         from aimbat.lib import project, db
 
         project_file = Path(db.AIMBAT_PROJECT)
@@ -39,9 +37,10 @@ class TestProject:
 
 
 class TestCliProject:
-
-    @pytest.mark.depends(depends=["TestProject.test_lib_project",
-                                  "/tests/test_cli.py::test_cli"], scope="session")
+    @pytest.mark.depends(
+        depends=["TestProject.test_lib_project", "/tests/test_cli.py::test_cli"],
+        scope="session",
+    )
     def test_cli_project(self) -> None:
         """Test AIMBAT cli with project subcommand."""
         from aimbat.lib import project, db
@@ -51,30 +50,33 @@ class TestCliProject:
         runner = CliRunner()
         result = runner.invoke(project.cli)
         assert result.exit_code == 0
-        assert 'Usage' in result.output
+        assert "Usage" in result.output
 
-        result = runner.invoke(project.cli, ['new'])
+        result = runner.invoke(project.cli, ["new"])
         assert result.exit_code == 0
         assert project_file.exists()
         assert "Created new AIMBAT project" in result.output
 
         # can't make a new project if one exists already
-        result = runner.invoke(project.cli, ['new'])
+        result = runner.invoke(project.cli, ["new"])
         assert result.exit_code == 0
-        assert "Unable to create a new project: found existing project_file" in result.output
+        assert (
+            "Unable to create a new project: found existing project_file"
+            in result.output
+        )
 
         # TODO - info not implemented yet
-        result = runner.invoke(project.cli, ['info'])
+        result = runner.invoke(project.cli, ["info"])
         assert result.exit_code == 1
 
-        result = runner.invoke(project.cli, ['del', '--yes'])
+        result = runner.invoke(project.cli, ["del", "--yes"])
         assert result.exit_code == 0
         assert not project_file.exists()
 
-        result = runner.invoke(project.cli, ['del', '--yes'])
+        result = runner.invoke(project.cli, ["del", "--yes"])
         assert result.exit_code == 0
         assert "Unable to delete project: project_file=" in result.output
 
-        result = runner.invoke(project.cli, ['info'])
+        result = runner.invoke(project.cli, ["info"])
         assert result.exit_code == 0
         assert "Unable to show info: project_file=" in result.output

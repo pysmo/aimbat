@@ -12,7 +12,9 @@ def project_new(project_file: str = AIMBAT_PROJECT) -> str:
 
     # stop here if there is an existing aimbat.db file
     if Path(project_file).exists():
-        raise FileExistsError(f"Unable to create a new project: found existing {project_file=}!")
+        raise FileExistsError(
+            f"Unable to create a new project: found existing {project_file=}!"
+        )
 
     # create tables
     SQLModel.metadata.create_all(engine)
@@ -43,7 +45,7 @@ def project_info(project_file: str = AIMBAT_PROJECT) -> Any:
     raise NotImplementedError
 
 
-@click.group('project')
+@click.group("project")
 def cli() -> None:
     """Manage an AIMBAT project file.
 
@@ -57,7 +59,7 @@ def cli() -> None:
     pass
 
 
-@cli.command('new')
+@cli.command("new")
 def cli_project_new() -> None:
     """Creates a new AIMBAT project ."""
     try:
@@ -67,7 +69,7 @@ def cli_project_new() -> None:
         print(e)
 
 
-@cli.command('del')
+@cli.command("del")
 @click.confirmation_option(prompt="Are you sure?")
 def cli_project_del() -> None:
     """Delete project (note: this does not delete seismogram data)."""
@@ -77,7 +79,7 @@ def cli_project_del() -> None:
         print(e)
 
 
-@cli.command('info')
+@cli.command("info")
 def cli_project_info() -> None:
     """Show information on an exisiting project."""
     try:

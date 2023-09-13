@@ -49,8 +49,12 @@ def sampledata_cli_delete() -> None:
 
 
 @cli.command("download")
-@click.option('-f', '--force', is_flag=True,
-              help="Remove target directory if it already exists and re-download sample data.")
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    help="Remove target directory if it already exists and re-download sample data.",
+)
 def sampledata_cli_download(force: bool) -> None:
     """Download aimbat sample data."""
 
