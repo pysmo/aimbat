@@ -26,9 +26,10 @@ aimbat = 'aimbat.cli:cli'
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
 click = "^8.1.7"
-pysmo = {git = "https://github.com/pysmo/pysmo"}
 prettytable = "^3.8.0"
 sqlmodel = "^0.0.8"
+pysmo = {git = "https://github.com/pysmo/pysmo.git", rev = "master"}
+pyyaml = "^6.0.1"
 
 
 [tool.poetry.group.test.dependencies]
