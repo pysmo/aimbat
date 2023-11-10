@@ -24,7 +24,7 @@ aimbat = 'aimbat.cli:cli'
 
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.10,<3.13"
 click = "^8.1.7"
 prettytable = "^3.8.0"
 sqlmodel = "^0.0.8"

@@ -3,12 +3,13 @@ name: unit tests
 on: [ push, pull_request ]
 
 jobs:
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
-        python-version: [ '3.10', '3.11' ]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        python-version: [ '3.10', '3.11', '3.12' ]
 
     steps:
       - uses: actions/checkout@v3
@@ -21,9 +22,46 @@ jobs:
           python -m pip install --upgrade pip
           pip install poetry tox tox-gh-actions
       - name: Test with tox
-        run: tox
+        env:
+          COVERAGE_FILE: coverage/.coverage.${{ runner.os }}-py${{ matrix.python-version }}
+          CONTEXT: ${{ runner.os }}-py${{ matrix.python-version }}
+        run: |
+          mkdir coverage
+          tox
+      - name: Store coverage results as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: coverage
+        if: matrix.os == 'ubuntu-latest'
+
+  coverage-combine:
+    needs:
+      - test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - '3.12'
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install coverage[toml]
+      - name: Get coverage results
+        uses: actions/download-artifact@v3
+        with:
+          name: coverage
+          path: coverage
+      - name: combine reports
+        run: |
+          coverage combine coverage
+          coverage xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           files: ./coverage.xml
-        if: ${{ (matrix.python-version == '3.11') && (matrix.os == 'ubuntu-latest') }}
