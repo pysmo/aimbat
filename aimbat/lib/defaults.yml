@@ -43,3 +43,8 @@
   initial_value: t0
   is_of_type: str
   description: "SAC header field where initial pick is stored."
+
+- name: initial_time_window_width
+  initial_value: 15
+  is_of_type: float
+  description: "Width of initial timewindow in seconds."

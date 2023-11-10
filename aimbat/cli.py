@@ -1,4 +1,4 @@
-from aimbat.lib import project, defaults, checkdata, sampledata
+from aimbat.lib import project, defaults, checkdata, sampledata, data
 from importlib import metadata
 import click
 
@@ -24,6 +24,7 @@ cli.add_command(project.cli)
 cli.add_command(defaults.cli)
 cli.add_command(sampledata.cli)
 cli.add_command(checkdata.cli)
+cli.add_command(data.cli)
 
 
 if __name__ == "__main__":

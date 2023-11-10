@@ -12,14 +12,14 @@ an application (rather than a library), we recommend installing it using
 [`pipx`](https://pypa.github.io/pipx/) instead. Pipx installs a Python package into an
 isolated environment, where other packages cannot interfere with it.
 
-!!! warning
+!!! note
     Please consult the [pipx documentation](https://pypa.github.io/pipx/#install-pipx)
     before running the commands below! Installation and initial setup of pipx may vary
     depending on the operating system you are using.
 
 <!-- termynal -->
 
-```
+```bash
 # First we check the python version is at least 3.10
 # (you may have to type python3 instead of python)
 $ python --version

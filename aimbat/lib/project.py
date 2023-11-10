@@ -2,12 +2,13 @@ from aimbat.lib.defaults import defaults_load_global_values
 from aimbat.lib.db import engine, AIMBAT_PROJECT
 from aimbat.lib import models  # noqa: F401
 from sqlmodel import SQLModel
+from sqlalchemy import Engine
 from pathlib import Path
 from typing import Any
 import click
 
 
-def project_new(project_file: str = AIMBAT_PROJECT) -> str:
+def project_new(project_file: str = AIMBAT_PROJECT, engine: Engine = engine) -> None:
     """Create a new AIMBAT project."""
 
     # stop here if there is an existing aimbat.db file
@@ -16,14 +17,9 @@ def project_new(project_file: str = AIMBAT_PROJECT) -> str:
             f"Unable to create a new project: found existing {project_file=}!"
         )
 
-    # create tables
+    # create tables and load defaults
     SQLModel.metadata.create_all(engine)
-
-    # load defaults
-    defaults_load_global_values()
-
-    # return project file for things like the cli
-    return project_file
+    defaults_load_global_values(engine)
 
 
 def project_del(project_file: str = AIMBAT_PROJECT) -> None:
@@ -63,8 +59,8 @@ def cli() -> None:
 def cli_project_new() -> None:
     """Creates a new AIMBAT project ."""
     try:
-        project_file = project_new()
-        print(f"Created new AIMBAT project in {project_file}.")
+        project_new()
+        print(f"Created new AIMBAT project in {AIMBAT_PROJECT}.")
     except FileExistsError as e:
         print(e)
 

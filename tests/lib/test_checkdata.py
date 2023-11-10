@@ -8,6 +8,7 @@ import pytest
 import numpy as np
 
 
+@pytest.mark.usefixtures("mock_project_env")
 class TestCheckData:
     def test_check_station_no_name(self, sac_good: SAC) -> None:
         from aimbat.lib.checkdata import check_station
@@ -72,43 +73,40 @@ class TestCheckData:
         with pytest.raises(AimbatDataError):
             check_seismogram(sac_good.seismogram)
 
+    def test_cli_checkdata(self, project_directory: Path) -> None:
+        """Test AIMBAT cli with checkdata subcommand."""
+        from aimbat.lib import checkdata
 
-@pytest.mark.depends(depends=["TestCheckData"])
-@pytest.mark.usefixtures("tmp_project")
-def test_cli_checkdata(project_directory: Path) -> None:
-    """Test AIMBAT cli with checkdata subcommand."""
-    from aimbat.lib import checkdata
+        testfile = str(project_directory) + "/test.sac"
 
-    testfile = str(project_directory) + "/test.sac"
+        sac = SAC()
+        sac.write(testfile)
 
-    sac = SAC()
-    sac.write(testfile)
+        runner = CliRunner()
+        result = runner.invoke(checkdata.cli)
+        assert result.exit_code == 2
+        assert "Error: Missing argument" in result.output
 
-    runner = CliRunner()
-    result = runner.invoke(checkdata.cli)
-    assert result.exit_code == 2
-    assert "Error: Missing argument" in result.output
+        result = runner.invoke(checkdata.cli, [testfile])
+        assert result.exit_code == 0
+        for item in ["name", "latitude", "longitude"]:
+            assert f"No station {item} found in file" in result.output
+        for item in ["time", "latitude", "longitude"]:
+            assert f"No event {item} found in file" in result.output
+        assert "No seismogram data found in file" in result.output
 
-    result = runner.invoke(checkdata.cli, [testfile])
-    assert result.exit_code == 0
-    for item in ["name", "latitude", "longitude"]:
-        assert f"No station {item} found in file" in result.output
-    for item in ["time", "latitude", "longitude"]:
-        assert f"No event {item} found in file" in result.output
-    assert "No seismogram data found in file" in result.output
-
-    sac.station.name = "test"
-    sac.station.latitude = 1.1
-    sac.station.longitude = -23
-    sac.event.time = datetime.now(timezone.utc)
-    sac.event.latitude = 33
-    sac.event.longitude = 19.1
-    sac.seismogram.data = np.random.rand(100)
-    sac.write(testfile)
-    result = runner.invoke(checkdata.cli, [testfile])
-    assert result.exit_code == 0
-    for item in ["name", "latitude", "longitude"]:
-        assert f"No station {item} found in file" not in result.output
-    for item in ["time", "latitude", "longitude"]:
-        assert f"No event {item} found in file" not in result.output
-    assert "No seismogram data found in file" not in result.output
+        sac.station.name = "test"
+        sac.station.latitude = 1.1
+        sac.station.longitude = -23
+        sac.event.time = datetime.now(timezone.utc)
+        sac.event.latitude = 33
+        sac.event.longitude = 19.1
+        sac.seismogram.data = np.random.rand(100)
+        sac.write(testfile)
+        result = runner.invoke(checkdata.cli, [testfile])
+        assert result.exit_code == 0
+        for item in ["name", "latitude", "longitude"]:
+            assert f"No station {item} found in file" not in result.output
+        for item in ["time", "latitude", "longitude"]:
+            assert f"No event {item} found in file" not in result.output
+        assert "No seismogram data found in file" not in result.output

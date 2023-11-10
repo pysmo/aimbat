@@ -1,6 +1,9 @@
 # Workflow
 
 ``` mermaid
+---
+title: AIMBAT Workflow
+---
 graph TD
   A[Start] --> B>Check seismogram files];
   B --> C{"Any

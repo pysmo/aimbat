@@ -26,26 +26,25 @@ aimbat = 'aimbat.cli:cli'
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 click = "^8.1.7"
-prettytable = "^3.8.0"
-sqlmodel = "^0.0.8"
+prettytable = "^3.9.0"
+sqlmodel = "^0.0.14"
 pysmo = {git = "https://github.com/pysmo/pysmo.git", rev = "master"}
 pyyaml = "^6.0.1"
 
 
 [tool.poetry.group.test.dependencies]
-flake8 = "^6.1.0"
-pytest = "^7.4.0"
+pytest = "^7.4.3"
 pytest-mpl = "^0.16.1"
 pytest-cov = "^4.1.0"
 pytest-mypy = "^0.10.3"
 pytest-depends = "^1.0.1"
 pytest-sugar = "^0.9.7"
-ruff = "^0.0.289"
+ruff = "^0.1.6"
 
 
 [tool.poetry.group.dev.dependencies]
-types-pyyaml = "^6.0.12.11"
-black = "^23.9.1"
+types-pyyaml = "^6.0.12.12"
+black = "^23.11.0"
 
 
 [tool.poetry.group.docs.dependencies]

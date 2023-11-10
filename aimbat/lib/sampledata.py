@@ -1,24 +1,26 @@
+from aimbat.lib.db import engine
 from aimbat.lib.defaults import defaults_get_value
 from urllib.request import urlopen
 from io import BytesIO
 from zipfile import ZipFile
+from sqlalchemy import Engine
 import click
 import os
 import shutil
 
 
-def sampledata_delete() -> None:
+def sampledata_delete(engine: Engine = engine) -> None:
     """Delete sample data."""
 
-    sampledata_dir = str(defaults_get_value("sampledata_dir"))
+    sampledata_dir = str(defaults_get_value("sampledata_dir", engine))
     shutil.rmtree(sampledata_dir, ignore_errors=False, onerror=None)
 
 
-def sampledata_download(force: bool = False) -> None:
+def sampledata_download(force: bool = False, engine: Engine = engine) -> None:
     """Download sample data."""
 
-    sampledata_src = str(defaults_get_value("sampledata_src"))
-    sampledata_dir = str(defaults_get_value("sampledata_dir"))
+    sampledata_src = str(defaults_get_value("sampledata_src", engine))
+    sampledata_dir = str(defaults_get_value("sampledata_dir", engine))
 
     if os.path.exists(sampledata_dir) is True:
         if force is True:
