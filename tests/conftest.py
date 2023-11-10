@@ -1,9 +1,13 @@
+from pysmo import SAC
+from sqlmodel import create_engine
 import shutil
-
 import pytest
 import os
-from unittest import mock
-from pysmo import SAC
+import aimbat.lib.db
+import aimbat.lib.project
+import aimbat.lib.defaults
+import aimbat.lib.data
+import aimbat.lib.io
 
 
 TESTDATA = dict(
@@ -11,38 +15,40 @@ TESTDATA = dict(
 )
 
 
-@pytest.fixture(scope="class")
-def project_directory(tmp_path_factory):  # type: ignore
-    """Define temporary project directory for testing."""
-    tmpdir = tmp_path_factory.mktemp("aimbat")
-    return tmpdir
-
-
 @pytest.fixture()
-def sac_good(tmp_path_factory):  # type: ignore
+def sac_file_good(tmp_path_factory):  # type: ignore
     orgfile = TESTDATA["sacfile_good"]
     tmpdir = tmp_path_factory.mktemp("aimbat")
     testfile = os.path.join(tmpdir, "good.sac")
     shutil.copy(orgfile, testfile)
-    return SAC.from_file(testfile)
+    return testfile
 
 
-@pytest.fixture(scope="class", autouse=True)
-def mock_aimbat_project_env(project_directory):  # type: ignore
-    p = project_directory / "pytest.db"
-    with mock.patch.dict(os.environ, {"AIMBAT_PROJECT": f"{str(p)}"}):
-        yield
-
-
-@pytest.mark.depends(
-    depends=["tests/lib/test_project.py::TestProject.test_lib_project"],
-    scope="class",
-    autouse=True,
-)
 @pytest.fixture()
-def tmp_project(mock_aimbat_project_env):  # type: ignore
-    """Create an AIMBAT project for other test functions."""
-    from aimbat.lib import project
+def sac_instance_good(sac_file_good):  # type: ignore
+    my_sac = SAC.from_file(sac_file_good)
+    yield my_sac
+    del my_sac
 
-    yield project.project_new()
-    project.project_del()
+
+@pytest.fixture()
+def project_directory(tmp_path_factory):  # type: ignore
+    """Define temporary project directory for testing."""
+    tmpdir = tmp_path_factory.mktemp("aimbat")
+    yield tmpdir
+
+
+@pytest.fixture(autouse=True)
+def mock_aimbat_project(monkeypatch, tmp_path_factory):  # type: ignore
+
+    project = tmp_path_factory.mktemp("aimbat") / "mock.db"
+    engine = create_engine(rf"sqlite+pysqlite:///{project}")
+
+    monkeypatch.setattr(aimbat.lib.db, "AIMBAT_PROJECT", project)
+    monkeypatch.setattr(aimbat.lib.project, "AIMBAT_PROJECT", project)
+
+    monkeypatch.setattr(aimbat.lib.db, "engine", engine)
+    monkeypatch.setattr(aimbat.lib.project, "engine", engine)
+    monkeypatch.setattr(aimbat.lib.defaults, "engine", engine)
+    monkeypatch.setattr(aimbat.lib.data, "engine", engine)
+    monkeypatch.setattr(aimbat.lib.io, "engine", engine)

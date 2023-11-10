@@ -1,10 +1,10 @@
-from aimbat.lib.db import engine
 from aimbat import __file__ as aimbat_dir
+from aimbat.lib.db import engine
+from aimbat.lib.models import AimbatDefault
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from typing import List
 from prettytable import PrettyTable
-from .models import AimbatDefault
 import os
 import yaml
 import click
@@ -120,7 +120,6 @@ def defaults_set_value(name: str, value: float | int | str | bool) -> None:
             f"Unable to set default {name} to {value}."
         )  # pragma: no cover
 
-    # commit the changes
     with Session(engine) as session:
         session.add(default)
         session.commit()
@@ -130,13 +129,10 @@ def defaults_set_value(name: str, value: float | int | str | bool) -> None:
 def defaults_reset_value(name: str) -> None:
     """Reset the value of an AIMBAT default."""
 
-    # get single item
     default = _get_single_item(name)
 
-    # get type and initial value
     is_of_type, initial_value = default.is_of_type, default.initial_value
 
-    # set correct attribute
     if is_of_type == "float":
         default.fvalue = float(initial_value)
     elif is_of_type == "int":
@@ -146,7 +142,6 @@ def defaults_reset_value(name: str) -> None:
     else:
         default.svalue = initial_value
 
-    # commit changes
     with Session(engine) as session:
         session.add(default)
         session.commit()
@@ -159,12 +154,10 @@ def defaults_print_table(select_names: List[str] | None = None) -> None:
     if not select_names:
         select_names = []
 
-    # get all items
     with Session(engine) as session:
         statement = select(AimbatDefault)
         defaults = session.exec(statement).all()
 
-    # print the table
     table = PrettyTable()
     table.field_names = ["Name", "Value", "Description"]
     for default in defaults:

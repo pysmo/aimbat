@@ -30,7 +30,7 @@ update: check-poetry ## Update dependencies to their latest versions.
 
 lint: check-poetry ## Check formatting with black and lint code with ruff.
 	poetry run black . --check --diff --color
-	poetry run ruff .
+	poetry run ruff check .
 
 test-figs: check-poetry ## Generate baseline figures for testing. Only run this if you know what you are doing!
 	poetry run py.test --mpl-generate-path=tests/baseline

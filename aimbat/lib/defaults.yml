@@ -30,7 +30,7 @@
   description: "Directory to store downloaded sample data."
 
 - name: sampledata_src
-  initial_value: "https://github.com/pysmo/data-example/archive/refs/heads/master.zip"
+  initial_value: "https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip"
   is_of_type: str
   description: "URL where sample data is downloaded from."
 
@@ -43,3 +43,8 @@
   initial_value: t0
   is_of_type: str
   description: "SAC header field where initial pick is stored."
+
+- name: initial_time_window_width
+  initial_value: 15
+  is_of_type: float
+  description: "Width of initial timewindow in seconds."

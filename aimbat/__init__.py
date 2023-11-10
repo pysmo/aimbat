@@ -13,4 +13,5 @@ et al., 2003) plotting and phase picking functionalities are replicated
 and enhanced.
 
 """
+
 name = "aimbat"

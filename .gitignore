@@ -25,3 +25,5 @@ aimbat.db
 nohup.out
 blah.py
 .idea
+.direnv
+.venv
