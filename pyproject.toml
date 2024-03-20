@@ -45,7 +45,7 @@ ruff = "^0.0.289"
 
 [tool.poetry.group.dev.dependencies]
 types-pyyaml = "^6.0.12.11"
-black = "^23.9.1"
+black = ">=23.9.1,<25.0.0"
 
 
 [tool.poetry.group.docs.dependencies]
