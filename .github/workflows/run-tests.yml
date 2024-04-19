@@ -29,9 +29,9 @@ jobs:
           mkdir coverage
           tox
       - name: Store coverage results as artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: coverage-${{ matrix.runs-on }}-py${{ matrix.python-version }}
           path: coverage
         if: matrix.os == 'ubuntu-latest'
 
@@ -53,10 +53,11 @@ jobs:
       - name: Install dependencies
         run: pip install coverage[toml]
       - name: Get coverage results
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: coverage
           path: coverage
+          pattern: coverage-*
+          merge-multiple: true
       - name: combine reports
         run: |
           coverage combine coverage
