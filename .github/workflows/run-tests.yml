@@ -29,7 +29,7 @@ jobs:
           mkdir coverage
           tox
       - name: Store coverage results as artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage
