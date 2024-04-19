@@ -26,36 +26,35 @@ aimbat = 'aimbat.cli:cli'
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 click = "^8.1.7"
-prettytable = "^3.8.0"
-sqlmodel = "^0.0.8"
+prettytable = "^3.10.0"
+sqlmodel = "^0.0.16"
 pysmo = {git = "https://github.com/pysmo/pysmo.git", rev = "master"}
 pyyaml = "^6.0.1"
 
 
 [tool.poetry.group.test.dependencies]
-flake8 = "^6.1.0"
-pytest = "^7.4.0"
-pytest-mpl = "^0.16.1"
-pytest-cov = "^4.1.0"
+pytest = "^8.1.1"
+pytest-mpl = "^0.17.0"
+pytest-cov = "^5.0.0"
 pytest-mypy = "^0.10.3"
+pytest-sugar = "^1.0.0"
+ruff = "^0.3.5"
 pytest-depends = "^1.0.1"
-pytest-sugar = "^0.9.7"
-ruff = "^0.0.289"
 
 
 [tool.poetry.group.dev.dependencies]
-types-pyyaml = "^6.0.12.11"
-black = "^23.9.1"
+types-pyyaml = "^6.0.12.20240311"
+black = "^24.3.0"
 
 
 [tool.poetry.group.docs.dependencies]
-mkdocs-material = "^9.2.3"
-mkdocstrings = {extras = ["python"], version = "^0.22.0"}
+mkdocs-material = "^9.5.17"
+mkdocstrings = {extras = ["python"], version = "^0.24.3"}
 markdown-include = "^0.8.1"
 mkdocs-gen-files = "^0.5.0"
-mkdocs-literate-nav = "^0.6.0"
-mkdocs-section-index = "^0.3.5"
-termynal = "^0.11.0"
+mkdocs-literate-nav = "^0.6.1"
+mkdocs-section-index = "^0.3.8"
+termynal = "^0.12.1"
 
 
 [tool.pytest.ini_options]
@@ -91,6 +90,7 @@ exclude_also = [
 target-version = [
     "py310",
     "py311",
+    "py312",
 ]
 
 [tool.ruff]

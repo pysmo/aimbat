@@ -93,7 +93,8 @@ nav:
       - Welcome: index.md
       - installation.md
   - User Guide:
-      - Workflow: user-guide/workflow.md
+      - user-guide/workflow.md
+      - user-guide/data.md
       - user-guide/cli.md
       - user-guide/gui.md
   - help.md

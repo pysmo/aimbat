@@ -1,14 +1,14 @@
-from click.testing import CliRunner
 import pytest
+from click.testing import CliRunner
+from importlib import reload
 
 
-@pytest.mark.depends(
-    depends=["tests/lib/test_project.py::TestProject.test_lib_project"], scope="session"
-)
-@pytest.mark.usefixtures("tmp_project")
-class TestDefaults:
-    def test_lib_defaults(self) -> None:
-        from aimbat.lib import defaults
+class TestLibDefaults:
+    def test_defaults(self) -> None:
+
+        from aimbat.lib import project, defaults
+
+        reload(project)
 
         # test itens also present in aimbat/lib/defaults.yml
         test_items = {
@@ -39,6 +39,8 @@ class TestDefaults:
             "_test_float": "blah",
             "_test_int": "blah",
         }
+
+        project.project_new()
 
         # get a valid default item
         for key, val in test_items.items():
@@ -78,39 +80,42 @@ class TestDefaults:
             assert defaults.defaults_get_value(name=key) == val
 
 
-@pytest.mark.depends(
-    depends=["TestProject.test_lib_defaults", "test_cli_project"], scope="session"
-)
-@pytest.mark.usefixtures("tmp_project")
-def test_cli_defaults() -> None:
-    """Test AIMBAT cli with defaults subcommand."""
+class TestCliDefaults:
 
-    from aimbat.lib import defaults
+    def test_defaults(self) -> None:
+        """Test AIMBAT cli with defaults subcommand."""
 
-    runner = CliRunner()
-    result = runner.invoke(defaults.cli)
-    assert result.exit_code == 0
-    assert "Usage" in result.output
+        from aimbat.lib import project, defaults
 
-    result = runner.invoke(defaults.cli, ["list"])
-    assert result.exit_code == 0
-    for val in ["Name", "Value", "Description"]:
-        assert val in result.output
+        reload(project)
 
-    result = runner.invoke(defaults.cli, ["list", "aimbat"])
-    assert result.exit_code == 0
-    assert "True" in result.output
+        runner = CliRunner()
+        result = runner.invoke(defaults.cli)
+        assert result.exit_code == 0
+        assert "Usage" in result.output
 
-    result = runner.invoke(defaults.cli, ["set", "aimbat", "False"])
-    assert result.exit_code == 0
+        result = runner.invoke(project.cli, ["new"])
+        assert result.exit_code == 0
 
-    result = runner.invoke(defaults.cli, ["list", "aimbat"])
-    assert result.exit_code == 0
-    assert "False" in result.output
+        result = runner.invoke(defaults.cli, ["list"])
+        assert result.exit_code == 0
+        for val in ["Name", "Value", "Description"]:
+            assert val in result.output
 
-    result = runner.invoke(defaults.cli, ["reset", "aimbat"])
-    assert result.exit_code == 0
+        result = runner.invoke(defaults.cli, ["list", "aimbat"])
+        assert result.exit_code == 0
+        assert "True" in result.output
 
-    result = runner.invoke(defaults.cli, ["list", "aimbat"])
-    assert result.exit_code == 0
-    assert "True" in result.output
+        result = runner.invoke(defaults.cli, ["set", "aimbat", "False"])
+        assert result.exit_code == 0
+
+        result = runner.invoke(defaults.cli, ["list", "aimbat"])
+        assert result.exit_code == 0
+        assert "False" in result.output
+
+        result = runner.invoke(defaults.cli, ["reset", "aimbat"])
+        assert result.exit_code == 0
+
+        result = runner.invoke(defaults.cli, ["list", "aimbat"])
+        assert result.exit_code == 0
+        assert "True" in result.output

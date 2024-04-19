@@ -1,14 +1,10 @@
+from aimbat.lib.common import AimbatDataError
 from pathlib import Path
-from typing import List
 from pysmo import SAC, Station, Event, Seismogram
 import click
 
 
-class AimbatDataError(Exception):
-    pass
-
-
-def check_station(station: Station, called_from_cli: bool = False) -> List[str]:
+def check_station(station: Station, called_from_cli: bool = False) -> list[str]:
     """Check if station information is complete.
 
     Parameters:
@@ -45,7 +41,7 @@ def check_station(station: Station, called_from_cli: bool = False) -> List[str]:
     return issues
 
 
-def check_event(event: Event, called_from_cli: bool = False) -> List[str]:
+def check_event(event: Event, called_from_cli: bool = False) -> list[str]:
     """Check if event information is complete.
 
     Parameters:
@@ -84,7 +80,7 @@ def check_event(event: Event, called_from_cli: bool = False) -> List[str]:
 
 def check_seismogram(
     seismogram: Seismogram, called_from_cli: bool = False
-) -> List[str]:
+) -> list[str]:
     """Check if seismogram information is complete.
 
     Parameters:
@@ -106,7 +102,7 @@ def check_seismogram(
     return issues
 
 
-def run_checks_cli(sacfiles: List[Path]) -> None:
+def run_checks_cli(sacfiles: list[Path]) -> None:
     """Run all checks on one or more SAC files.
 
     Parameters:
@@ -163,7 +159,7 @@ def run_checks_cli(sacfiles: List[Path]) -> None:
 
 @click.command("checkdata")
 @click.argument("sacfiles", nargs=-1, type=click.Path(exists=True), required=True)
-def cli(sacfiles: List[Path]) -> None:
+def cli(sacfiles: list[Path]) -> None:
     """Check if there are any problems with the input SAC files."""
 
     run_checks_cli(sacfiles)
