@@ -8,9 +8,7 @@ from aimbat.lib.models import AimbatFile, AimbatSeismogram, AimbatStation, Aimba
 
 
 class TestLibData:
-
     def test_sac_data(self, sac_file_good, sac_instance_good) -> None:  # type: ignore
-
         from aimbat.lib import db, project, data
 
         reload(project)
@@ -90,6 +88,9 @@ class TestLibData:
             aimbat_file = session.exec(select_file).one()
             assert sac_file_good == aimbat_file.filename
             assert 1 == aimbat_file.id
+            select_seismogram = select(AimbatSeismogram).where(
+                AimbatSeismogram.file_id == aimbat_file.id
+            )
             aimbat_seismogram = session.exec(select_seismogram).one()
             assert aimbat_seismogram.delta == new_delta
 
@@ -109,14 +110,12 @@ class TestLibData:
 
 
 class TestCliData:
-
     def test_sac_data(self, sac_file_good) -> None:  # type: ignore
         """Test AIMBAT cli with data subcommand."""
 
         from aimbat.lib import project, data
 
         reload(project)
-        # reload(data)
 
         runner = CliRunner()
 
@@ -132,3 +131,15 @@ class TestCliData:
 
         result = runner.invoke(data.cli, ["add", sac_file_good])
         assert result.exit_code == 0
+
+        result = runner.invoke(data.cli, ["list", "seismograms"])
+        assert result.exit_code == 0
+        assert "pytest-of" in result.output
+
+        result = runner.invoke(data.cli, ["list", "stations"])
+        assert result.exit_code == 0
+        assert "113A - AR" in result.output
+
+        result = runner.invoke(data.cli, ["list", "events"])
+        assert result.exit_code == 0
+        assert "2011-09-15 19:31:04.080000" in result.output
