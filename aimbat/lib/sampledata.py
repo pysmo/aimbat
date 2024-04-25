@@ -1,5 +1,4 @@
 from aimbat.lib.defaults import defaults_get_value
-from aimbat.lib.project import project_exists, project_new
 from urllib.request import urlopen
 from io import BytesIO
 from zipfile import ZipFile
@@ -17,12 +16,6 @@ def sampledata_delete() -> None:
 
 def sampledata_download(force: bool = False) -> None:
     """Download sample data."""
-
-    # download URl is stored in the "defaults" table, so we need
-    # to make sure an aimbat project exists in order to download
-    # the sample data.
-    if not project_exists():
-        project_new()
 
     sampledata_src = str(defaults_get_value("sampledata_src"))
     sampledata_dir = str(defaults_get_value("sampledata_dir"))

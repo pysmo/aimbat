@@ -51,4 +51,3 @@ def mock_aimbat_project(monkeypatch, tmp_path_factory):  # type: ignore
     monkeypatch.setattr(aimbat.lib.project, "engine", engine)
     monkeypatch.setattr(aimbat.lib.defaults, "engine", engine)
     monkeypatch.setattr(aimbat.lib.data, "engine", engine)
-    monkeypatch.setattr(aimbat.lib.io, "engine", engine)

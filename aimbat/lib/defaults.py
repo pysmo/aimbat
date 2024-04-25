@@ -4,7 +4,8 @@ from aimbat.lib.models import AimbatDefault
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from typing import List
-from prettytable import PrettyTable
+from rich.console import Console
+from rich.table import Table
 import os
 import yaml
 import click
@@ -158,8 +159,12 @@ def defaults_print_table(select_names: List[str] | None = None) -> None:
         statement = select(AimbatDefault)
         defaults = session.exec(statement).all()
 
-    table = PrettyTable()
-    table.field_names = ["Name", "Value", "Description"]
+    table = Table(title="AIMBAT Defaults")
+
+    table.add_column("Name", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Value", justify="center", style="magenta")
+    table.add_column("Description", justify="left", style="green")
+
     for default in defaults:
         # names with "_test_" in them are in the table,
         # but should only be used in unit tests
@@ -168,8 +173,10 @@ def defaults_print_table(select_names: List[str] | None = None) -> None:
             and not select_names
             or default.name in select_names
         ):
-            table.add_row([default.name, typed_value(default), default.description])
-    print(table)
+            table.add_row(default.name, str(typed_value(default)), default.description)
+
+    console = Console()
+    console.print(table)
 
 
 @click.group("defaults")

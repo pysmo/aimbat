@@ -1,10 +1,8 @@
 """The `io` module provides functions to read and write data files used with AIMBAT"""
 
 from aimbat.lib.common import AimbatDataError
-from aimbat.lib.db import engine
-from aimbat.lib import models
+import aimbat.lib.defaults as defaults
 from pysmo import SAC, Event, Seismogram, Station
-from sqlmodel import Session, select
 from datetime import datetime
 import numpy as np
 
@@ -46,13 +44,17 @@ def _read_metadata_from_sacfile(
     Returns:
         Seismogram metadata.
     """
+    initial_pick_header = defaults.defaults_get_value("initial_pick_header")
     sac = SAC.from_file(str(sacfile))
-    if sac.timestamps.t0 is None:
-        raise AimbatDataError("Unable to add {sacfile=}: header 'T0' contains no value")
-    return sac.seismogram, sac.station, sac.event, sac.timestamps.t0
+    t0 = getattr(sac.timestamps, str(initial_pick_header))
+    if t0 is None:
+        raise AimbatDataError(
+            "Unable to add {sacfile=}: header '{initial_pick_header}' contains no value"
+        )
+    return sac.seismogram, sac.station, sac.event, t0
 
 
-def read_seismogram_data_from_file(aimbatfile_id: int) -> np.ndarray:
+def read_seismogram_data_from_file(filename: str, filetype: str) -> np.ndarray:
     """Read seismogram data from a data file.
 
     Parameters:
@@ -61,35 +63,26 @@ def read_seismogram_data_from_file(aimbatfile_id: int) -> np.ndarray:
     Returns:
         Seismogram data.
     """
-    with Session(engine) as session:
-        select_aimbatfile = select(models.AimbatFile).where(
-            models.AimbatFile.id == aimbatfile_id
-        )
-        aimbatfile = session.exec(select_aimbatfile).one()
-        if aimbatfile.filetype == "sac":
-            return _read_seismogram_sacdata_from_file(aimbatfile.filename)
+    if filetype == "sac":
+        return _read_seismogram_sacdata_from_file(filename)
     raise RuntimeError("Unable to read data from file")
 
 
-def write_seismogram_data_to_file(aimbatfile_id: int, data: np.ndarray) -> None:
+def write_seismogram_data_to_file(
+    filename: str, filetype: str, data: np.ndarray
+) -> None:
     """Write seismogram data to a data file.
 
     Parameters:
-        aimbatfile_id: ID of the datafile as stored in the AIMBAT database
+        aimbatfile: instance of an AimbatFile
         data: Seismogram data
     """
-    with Session(engine) as session:
-        statement = select(models.AimbatFile).where(
-            models.AimbatFile.id == aimbatfile_id
+    if filetype == "sac":
+        _write_seismogram_sacdata_to_file(filename, data)
+    else:
+        raise NotImplementedError(
+            f"I don't know how to write data to file of type {filetype}"
         )
-        results = session.exec(statement).one()
-        filetype, filename = results.filetype, results.filename
-        if filetype == "sac":
-            _write_seismogram_sacdata_to_file(filename, data)
-        else:
-            raise NotImplementedError(
-                f"I don't know how to write data to file of type {filetype}"
-            )
 
 
 def read_metadata_from_file(

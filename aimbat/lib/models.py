@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import Relationship, SQLModel, Field
 from datetime import datetime, timedelta
 from aimbat.lib.common import AimbatFileType
 import aimbat.lib.io as io
@@ -37,6 +37,27 @@ class AimbatDefault(SQLModel, table=True):
             )  # pragma: no cover
 
 
+class AimbatFileBase(SQLModel):
+    """Class to store data file information."""
+
+    filename: str = Field(unique=True)
+
+
+class AimbatFileCreate(AimbatFileBase):
+    """Class to store data file information."""
+
+    filetype: AimbatFileType = "sac"
+
+
+class AimbatFile(AimbatFileBase, table=True):
+    """Class to store data file information."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    filetype: str
+
+    seismogram: "AimbatSeismogram" = Relationship(back_populates="file")
+
+
 class AimbatStation(SQLModel, table=True):
     """Class to store station information."""
 
@@ -46,6 +67,7 @@ class AimbatStation(SQLModel, table=True):
     longitude: float
     network: str | None = Field(default=None, allow_mutation=False)
     elevation: float | None = None
+    seismograms: list["AimbatSeismogram"] = Relationship(back_populates="station")
 
 
 class AimbatEvent(SQLModel, table=True):
@@ -56,6 +78,49 @@ class AimbatEvent(SQLModel, table=True):
     latitude: float
     longitude: float
     depth: float | None = None
+    seismograms: list["AimbatSeismogram"] = Relationship(back_populates="event")
+
+
+class AimbatSeismogram(SQLModel, table=True):
+    """Class to store seismogram data"""
+
+    id: int | None = Field(default=None, primary_key=True)
+
+    begin_time: datetime
+    delta: float
+    t0: datetime
+    cached_length: int | None = None
+
+    file_id: int | None = Field(default=None, foreign_key="aimbatfile.id")
+    file: AimbatFile = Relationship(back_populates="seismogram")
+    station_id: int | None = Field(default=None, foreign_key="aimbatstation.id")
+    station: AimbatStation = Relationship(back_populates="seismograms")
+    event_id: int | None = Field(default=None, foreign_key="aimbatevent.id")
+    event: AimbatEvent = Relationship(back_populates="seismograms")
+
+    def __len__(self) -> int:
+        if self.cached_length is None:
+            self.cached_length = np.size(self.data)
+        return self.cached_length
+
+    @property
+    def end_time(self) -> datetime:
+        if len(self) == 0:
+            return self.begin_time
+        return self.begin_time + timedelta(seconds=self.delta * (len(self) - 1))
+
+    @property
+    def data(self) -> np.ndarray:
+        if self.file_id is None:
+            raise RuntimeError("I don't know which file to read data from")
+        return io.read_seismogram_data_from_file(self.file.filename, self.file.filetype)
+
+    @data.setter
+    def data(self, value: np.ndarray) -> None:
+        if self.file_id is None:
+            raise RuntimeError("I don't know which file to write data to")
+        io.write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
+        self.cached_length = np.size(value)
 
 
 class AimbatSnapshot(SQLModel, table=True):
@@ -87,62 +152,6 @@ class AimbatSingleParameter(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     common_id: int = Field(foreign_key="aimbatcommonparameter.id")
     seismogram_id: int = Field(foreign_key="aimbatseismogram.id")
-    use: bool = True
+    select: bool = True
     t1: datetime | None = None
     t2: datetime | None = None
-
-
-class AimbatFileBase(SQLModel):
-    """Class to store data file information."""
-
-    filename: str = Field(unique=True)
-
-
-class AimbatFileCreate(AimbatFileBase):
-    """Class to store data file information."""
-
-    filetype: AimbatFileType = "sac"
-
-
-class AimbatFile(AimbatFileBase, table=True):
-    """Class to store data file information."""
-
-    id: int | None = Field(default=None, primary_key=True)
-    filetype: str
-
-
-class AimbatSeismogram(SQLModel, table=True):
-    """Class to store seismogram data"""
-
-    id: int | None = Field(default=None, primary_key=True)
-    file_id: int = Field(foreign_key="aimbatfile.id", unique=True)
-    station_id: int = Field(foreign_key="aimbatstation.id")
-    event_id: int = Field(foreign_key="aimbatevent.id")
-    begin_time: datetime
-    delta: float
-    t0: datetime
-    cached_length: int | None = None
-
-    def __len__(self) -> int:
-        if self.cached_length is None:
-            self.cached_length = np.size(self.data)
-        return self.cached_length
-
-    @property
-    def end_time(self) -> datetime:
-        if len(self) == 0:
-            return self.begin_time
-        return self.begin_time + timedelta(seconds=self.delta * (len(self) - 1))
-
-    @property
-    def data(self) -> np.ndarray:
-        if self.file_id is None:
-            raise RuntimeError("I don't know which file to read data from")
-        return io.read_seismogram_data_from_file(self.file_id)
-
-    @data.setter
-    def data(self, value: np.ndarray) -> None:
-        if self.file_id is None:
-            raise RuntimeError("I don't know which file to write data to")
-        io.write_seismogram_data_to_file(self.file_id, value)
-        self.cached_length = np.size(value)
