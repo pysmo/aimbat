@@ -1,6 +1,11 @@
+from datetime import timedelta
+from aimbat.lib.defaults import defaults_get_value
 from aimbat.lib.models import (
+    AimbatEventParameter,
     AimbatFile,
     AimbatFileCreate,
+    AimbatParameterSet,
+    AimbatSeismogramParameter,
     AimbatStation,
     AimbatEvent,
     AimbatSeismogram,
@@ -97,6 +102,23 @@ def update_metadata(disable_progress: bool = True) -> None:
             )
             aimbatseismogram = session.exec(select_aimbatseismogram).first()
             if aimbatseismogram is None:
+                select_event_parameter = select(AimbatEventParameter).where(
+                    AimbatEventParameter.event_id == aimbatevent.id
+                )
+                event_parameter = session.exec(select_event_parameter).first()
+                if event_parameter is None:
+                    window_width = defaults_get_value("initial_time_window_width")
+                    assert isinstance(window_width, float)
+                    event_parameter = AimbatEventParameter(
+                        event_id=aimbatevent.id,
+                        window_pre=timedelta(seconds=window_width / -2),
+                        window_post=timedelta(seconds=window_width / 2),
+                    )
+                seismogram_parameter = AimbatSeismogramParameter()
+                parameter = AimbatParameterSet(
+                    event_parameter=event_parameter,
+                    seismogram_parameter=seismogram_parameter,
+                )
                 aimbatseismogram = AimbatSeismogram(
                     begin_time=seismogram.begin_time,
                     delta=seismogram.delta,
@@ -104,6 +126,7 @@ def update_metadata(disable_progress: bool = True) -> None:
                     file_id=aimbatfile.id,
                     station_id=aimbatstation.id,
                     event_id=aimbatevent.id,
+                    parameter=parameter,
                 )
             else:
                 aimbatseismogram.begin_time = seismogram.begin_time
@@ -112,6 +135,7 @@ def update_metadata(disable_progress: bool = True) -> None:
                 aimbatseismogram.cached_length = None
                 aimbatseismogram.station_id = aimbatstation.id
                 aimbatseismogram.event_id = aimbatevent.id
+
             session.add(aimbatseismogram)
 
         session.commit()
