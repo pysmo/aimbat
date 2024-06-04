@@ -85,53 +85,69 @@ reference for AIMBAT developers, or advanced users who may want to interact with
 database file directly (e.g. via 3rd party tools), we describe the tables below:
 
 ``` mermaid
----
-title: AIMBAT database structure
----
-classDiagram
-  class AimbatDefault{
-    id: int
-    name: str
-    is_of_type: str
-    description: str
-    initial_value: str
-    fvalue: float
-    ivalue: int
-    bvalue: bool
-    svalue: str
+erDiagram
+  AimbatFile {
+    int id PK
+    str filename UK
+    str filetype
   }
 
-  class AimbatStation{
-    id: int
-    name: str
-    latitude: float
-    longitude: float
-    network: str
-    elevation: float
+  AimbatStation {
+    int id PK
+    str name
+    float latitude
+    float longitude
+    network str
+    float elevation
   }
 
-  class AimbatEvent{
-    id: int
-    time: DateTime
-    latitude: float
-    longitude: float
-    depth: float
+  AimbatEvent {
+    int id PK
+    DateTime time UK
+    float latitude
+    float longitude
+    float depth
   }
 
-  class AimbatFile{
-    id: int
-    filename: Path
+  AimbatSeismogram {
+    int id PK
+    datetime begin_time
+    float delta
+    datetime t0
+    int cached_length
+    int file_id FK
+    int station_id FK
+    int event_id FK
+    int parameter_id FK
+  }
+  AimbatFile ||--|| AimbatSeismogram : file_id
+  AimbatStation }|--|| AimbatSeismogram : station_id
+  AimbatEvent }|--|| AimbatSeismogram : event_id
+  AimbatParameterSet ||--|| AimbatSeismogram : parameter_id
+
+  AimbatEventParameter {
+    int id PK
+    int event_id FK
+    timedelta window_pre
+    timedelta window_post
+  }
+  AimbatEvent ||--|| AimbatEventParameter : event_id
+
+  AimbatSeismogramParameter {
+    int id PK
+    bool select
+    datetime t1
+    datetime t2
   }
 
-  class AimbatMeta{
-    id: int
-    file_id: int | None = Field(default=True, foreign_key="aimbatfile.id")
-    station_id: int | None = Field(default=None, foreign_key="aimbatstation.id")
-    event_id: int | None = Field(default=None, foreign_key="aimbatevent.id")
-    use: bool = True
+  AimbatParameterSet {
+    int id PK
+    int event_parameter_id FK
+    int seismogram_parameter_id FK
   }
+  AimbatParameterSet }|--|| AimbatEventParameter : event_parameter_id
+  AimbatParameterSet ||--|| AimbatSeismogramParameter: seismogram_parameter_id
 
-AimbatFile  --> AimbatMeta
 ```
 
 #### AimbatDefault
