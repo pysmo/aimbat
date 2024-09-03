@@ -1,4 +1,14 @@
-from aimbat.lib import project, defaults, checkdata, sampledata, data, parameter
+from aimbat.lib import (
+    project,
+    defaults,
+    checkdata,
+    sampledata,
+    data,
+    station,
+    seismogram,
+    event,
+    snapshot,
+)
 from importlib import metadata
 import click
 
@@ -25,7 +35,10 @@ cli.add_command(defaults.cli)
 cli.add_command(sampledata.cli)
 cli.add_command(checkdata.cli)
 cli.add_command(data.cli)
-cli.add_command(parameter.cli)
+cli.add_command(station.cli)
+cli.add_command(event.cli)
+cli.add_command(seismogram.cli)
+cli.add_command(snapshot.cli)
 
 
 if __name__ == "__main__":
