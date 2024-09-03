@@ -23,16 +23,17 @@ jobs:
           pip install poetry tox tox-gh-actions
       - name: Test with tox
         env:
-          COVERAGE_FILE: coverage/.coverage.${{ runner.os }}-py${{ matrix.python-version }}
-          CONTEXT: ${{ runner.os }}-py${{ matrix.python-version }}
+          COVERAGE_FILE: coverage/.coverage.${{ matrix.os }}-py${{ matrix.python-version }}
+          CONTEXT: ${{ matrix.os }}-py${{ matrix.python-version }}
         run: |
           mkdir coverage
           tox
       - name: Store coverage results as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.runs-on }}-py${{ matrix.python-version }}
+          name: coverage-${{ matrix.os }}-py${{ matrix.python-version }}
           path: coverage
+          include-hidden-files: true
         if: matrix.os == 'ubuntu-latest'
 
   coverage-combine:

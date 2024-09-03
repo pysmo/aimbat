@@ -1,6 +1,6 @@
 # Data
 
-An AIMBAT project consists of two kinds of data:
+An AMBAT project consists of two kinds of data:
 
   1. **Static data:** [Seismogram files](data.md#seismogram-files) are treated as
      immutable objects by AIMBAT (i.e. the file contents are never changed).
@@ -12,8 +12,8 @@ An AIMBAT project consists of two kinds of data:
      Since it doesn't make much sense to read an entire seismogram file every
      time such an operation is performed, all mutable data are stored in the
      [AIMBAT project file](data.md#aimbat-project-file). This file holds a
-     database, which is much more efficient at handling data which is frequently
-     changed. The project file is automatically created from the seismogram files
+     database, which is efficient at handling data which is frequently changed.
+     The project file is automatically created from the seismogram files
      when a new AIMBAT project is started.
 
 
@@ -76,87 +76,3 @@ get some additional nice features as byproducts:
   - The same seismogram files can be used for multiple AIMBAT projects. In practice
     one might, for example, want to use the same files multiple times but with
     different parameters.
-
-
-### Database tables
-
-AIMBAT users typically will never need to interact directly with the project file. As as
-reference for AIMBAT developers, or advanced users who may want to interact with the
-database file directly (e.g. via 3rd party tools), we describe the tables below:
-
-``` mermaid
-erDiagram
-  AimbatFile {
-    int id PK
-    str filename UK
-    str filetype
-  }
-
-  AimbatStation {
-    int id PK
-    str name
-    float latitude
-    float longitude
-    network str
-    float elevation
-  }
-
-  AimbatEvent {
-    int id PK
-    DateTime time UK
-    float latitude
-    float longitude
-    float depth
-  }
-
-  AimbatSeismogram {
-    int id PK
-    datetime begin_time
-    float delta
-    datetime t0
-    int cached_length
-    int file_id FK
-    int station_id FK
-    int event_id FK
-    int parameter_id FK
-  }
-  AimbatFile ||--|| AimbatSeismogram : file_id
-  AimbatStation }|--|| AimbatSeismogram : station_id
-  AimbatEvent }|--|| AimbatSeismogram : event_id
-  AimbatParameterSet ||--|| AimbatSeismogram : parameter_id
-
-  AimbatEventParameter {
-    int id PK
-    int event_id FK
-    timedelta window_pre
-    timedelta window_post
-  }
-  AimbatEvent ||--|| AimbatEventParameter : event_id
-
-  AimbatSeismogramParameter {
-    int id PK
-    bool select
-    datetime t1
-    datetime t2
-  }
-
-  AimbatParameterSet {
-    int id PK
-    int event_parameter_id FK
-    int seismogram_parameter_id FK
-  }
-  AimbatParameterSet }|--|| AimbatEventParameter : event_parameter_id
-  AimbatParameterSet ||--|| AimbatSeismogramParameter: seismogram_parameter_id
-
-```
-
-#### AimbatDefault
-
-The `AimbatDefault` table contains defaults used to tweak the behaviour of AIMBAT. It is
-populated when a new AIMBAT project is created.
-
-
-To account for values
-of different types (float, integer, boolean, string), multiple columns are required. If
-a default is of type `float`, the `fvalue` column will contain data, whereas if it is a
-`str` the `svalue` column contains data, and so on.

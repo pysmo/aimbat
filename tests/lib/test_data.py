@@ -4,7 +4,14 @@ from pysmo import SAC
 import pytest
 import numpy as np
 from importlib import reload
-from aimbat.lib.models import AimbatFile, AimbatSeismogram, AimbatStation, AimbatEvent
+from aimbat.lib.models import (
+    AimbatEventParameter,
+    AimbatFile,
+    AimbatSeismogram,
+    AimbatSeismogramParameter,
+    AimbatStation,
+    AimbatEvent,
+)
 
 
 class TestLibData:
@@ -38,6 +45,7 @@ class TestLibData:
             assert aimbat_seismogram.delta == sac_seismogram.delta
             assert len(aimbat_seismogram) == len(sac_seismogram)
             assert aimbat_seismogram.end_time == sac_seismogram.end_time
+            assert isinstance(aimbat_seismogram.parameter, AimbatSeismogramParameter)
 
             new_data = np.random.rand(10)
             aimbat_seismogram.data = new_data
@@ -61,6 +69,7 @@ class TestLibData:
             assert aimbat_event.time == sac_event.time
             assert aimbat_event.latitude == sac_event.latitude
             assert aimbat_event.longitude == sac_event.longitude
+            assert isinstance(aimbat_event.parameter, AimbatEventParameter)
 
         sac = SAC.from_file(sac_file_good)
 
@@ -113,9 +122,10 @@ class TestCliData:
     def test_sac_data(self, sac_file_good) -> None:  # type: ignore
         """Test AIMBAT cli with data subcommand."""
 
-        from aimbat.lib import project, data
+        from aimbat.lib import db, project, data
 
         reload(project)
+        reload(data)
 
         runner = CliRunner()
 
@@ -131,15 +141,9 @@ class TestCliData:
 
         result = runner.invoke(data.cli, ["add", sac_file_good])
         assert result.exit_code == 0
+        with Session(db.engine) as session:
+            test_file = session.exec(select(AimbatFile)).one()
+            assert test_file.filename == sac_file_good
 
-        result = runner.invoke(data.cli, ["list", "seismograms"])
+        result = runner.invoke(data.cli, ["list"])
         assert result.exit_code == 0
-        assert "pytest-of" in result.output
-
-        result = runner.invoke(data.cli, ["list", "stations"])
-        assert result.exit_code == 0
-        assert "113A - AR" in result.output
-
-        result = runner.invoke(data.cli, ["list", "events"])
-        assert result.exit_code == 0
-        assert "2011-09-15 19:31:04.080000" in result.output

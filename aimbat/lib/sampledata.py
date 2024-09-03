@@ -11,7 +11,7 @@ def sampledata_delete() -> None:
     """Delete sample data."""
 
     sampledata_dir = str(defaults_get_value("sampledata_dir"))
-    shutil.rmtree(sampledata_dir, ignore_errors=False, onerror=None)
+    shutil.rmtree(sampledata_dir)
 
 
 def sampledata_download(force: bool = False) -> None:

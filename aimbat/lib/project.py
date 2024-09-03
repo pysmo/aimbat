@@ -1,6 +1,6 @@
 from aimbat.lib.defaults import defaults_load_global_values
 from aimbat.lib.db import engine, AIMBAT_PROJECT
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, text
 from pathlib import Path
 from typing import Any
 import click
@@ -23,6 +23,8 @@ def project_new() -> None:
 
     # create tables and load defaults
     SQLModel.metadata.create_all(engine)
+    with engine.connect() as connection:
+        connection.execute(text("PRAGMA foreign_keys=ON"))  # for SQLite only
     defaults_load_global_values()
 
 
