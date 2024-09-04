@@ -89,11 +89,10 @@ plugins:
   - termynal
 
 nav:
-  - Home:
-      - Welcome: index.md
-      - installation.md
+  - Home: index.md
   - User Guide:
-      - user-guide/workflow.md
+      - user-guide/overview.md
+      - user-guide/installation.md
       - user-guide/data.md
       - user-guide/cli.md
       - user-guide/gui.md

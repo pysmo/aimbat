@@ -1,3 +1,5 @@
+"""Module to add seismogram files to an AIMBAT project and view information about them."""
+
 from datetime import timedelta
 from aimbat.lib.defaults import defaults_get_value
 from aimbat.lib.models import (

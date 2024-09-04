@@ -1,19 +1,23 @@
-# Workflow
+# Overview
+
+## Conventions
+
+## Workflow
 
 ``` mermaid
 ---
 title: AIMBAT Workflow
 ---
 flowchart TD
-  A[Start] --> B>Read seismogram files into AIMBAT];
-  B --> C>Check data];
-  C --> D{"Any
+  A[Start] --> B>Check data];
+  B --> C{"Any
           errors?"};
-  D --->|No| G>Filter seismograms];
-  D -->|Yes| F[Fix files];
+  C --->|No| G>Import files to AIMBAT and
+              run ICCS with initial picks
+              and default parameters];
+  C -->|Yes| F[Fix files];
   F --> B;
-  G --> H>"ICCS with initital pick and default time window"];
-  H --> I["Inspect initial results"];
+  G --> I["Inspect initial results"];
 
   I --> Iq2{"Adjust
                    filtering?"};
@@ -66,3 +70,5 @@ flowchart TD
   qM -->|No| Iq2;
 
 ```
+
+## Strategy

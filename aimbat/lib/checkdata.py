@@ -1,3 +1,7 @@
+"""
+Module to check seismogram files for errors before importing them into AIMBAT.
+"""
+
 from aimbat.lib.common import AimbatDataError
 from pathlib import Path
 from pysmo import SAC, Station, Event, Seismogram

@@ -1,20 +1,10 @@
 # Data
 
-An AMBAT project consists of two kinds of data:
-
-  1. **Static data:** [Seismogram files](data.md#seismogram-files) are treated as
-     immutable objects by AIMBAT (i.e. the file contents are never changed).
-     Besides the seismograms themselves, these files must also provide the
-     necessary metadata (e.g. event information) to initialise a new AIMBAT
-     project.
-
-  2. **Mutable data:** A lot of operations in AIMBAT involve changing only metadata.
-     Since it doesn't make much sense to read an entire seismogram file every
-     time such an operation is performed, all mutable data are stored in the
-     [AIMBAT project file](data.md#aimbat-project-file). This file holds a
-     database, which is efficient at handling data which is frequently changed.
-     The project file is automatically created from the seismogram files
-     when a new AIMBAT project is started.
+AIMBAT projects are created from [seismogram files](data.md#seismogram-files).
+Event and station information, as well as initial arrival time picks are read from
+these files to populate the AIMBAT [project file](data.md#project-file). The majority
+of operations within AIMBAT exclusively use the project file. The contents of the
+seismogram files are never modified by AIMBAT.
 
 
 ## Seismogram files
@@ -53,8 +43,7 @@ No issues found!
 ```
 
 The seismogram files can be stored in an arbitrary directory (i.e. they don't necessarily
-need to be stored together with an AIMBAT project file). They are also never modified by
-AIMBAT.
+need to be stored together with an AIMBAT project file).
 
 !!! warning
 
@@ -62,17 +51,13 @@ AIMBAT.
     not be changed!
 
 
-## AIMBAT project file
+## Project file
 
-AIMBAT projects consist of a single [sqlite](https://www.sqlite.org) file (which is
-automatically generated when a new project is created). This file contains all relevant
-metadata of imported seismograms, but not the actual time series data. This separation of
-data and metadata is mainly to increase performance in AIMBAT. However, it also means we
-get some additional nice features as byproducts:
-
-  - The single (and small) file makes it easy to backup and restore entire AIMBAT
-    projects.
-  - Starting over is also trivially simple - one only needs to delete a single file.
-  - The same seismogram files can be used for multiple AIMBAT projects. In practice
-    one might, for example, want to use the same files multiple times but with
-    different parameters.
+AIMBAT projects consist of a single [sqlite](https://www.sqlite.org){ target="_blank" }
+file (which is automatically generated when a new project is created). This file contains
+a database to manage all aspects of an AIMBAT project. Understanding the internals of this
+file is not particularly important for normal AIMBAT usage, though it might be useful to
+look at the data directly in cases where AIMBAT behaves in unexpected ways (e.g. due to
+inconsistencies in the seismogram files used as input). To do this we suggest viewing the
+database in tools such as [DB Browser for SQLite](https://sqlitebrowser.org){ target="_blank" }:
+![DB Browser](../images/sqlbrowser.png){ loading=lazy }
