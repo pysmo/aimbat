@@ -1,3 +1,5 @@
+"""Module to manage and view events in AIMBAT."""
+
 from aimbat.lib.db import engine
 from aimbat.lib.models import (
     AimbatEvent,

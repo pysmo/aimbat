@@ -1,3 +1,5 @@
+"""Module to manage defaults used in an AIMBAT project."""
+
 from aimbat import __file__ as aimbat_dir
 from aimbat.lib.db import engine
 from aimbat.lib.models import AimbatDefault

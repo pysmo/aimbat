@@ -35,6 +35,11 @@ jobs:
           path: coverage
           include-hidden-files: true
         if: matrix.os == 'ubuntu-latest'
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
 
   coverage-combine:
     needs:
@@ -67,3 +72,5 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
