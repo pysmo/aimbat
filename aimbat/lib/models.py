@@ -1,40 +1,8 @@
 from sqlmodel import Relationship, SQLModel, Field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from aimbat.lib.common import AimbatFileType
-import aimbat.lib.io as io
+import aimbat.lib.io as abio
 import numpy as np
-
-TAimbatDefault = float | int | bool | str
-
-
-class AimbatDefault(SQLModel, table=True):
-    """Class to store AIMBAT defaults."""
-
-    id: int | None = Field(primary_key=True)
-    name: str = Field(unique=True)
-    is_of_type: str
-    description: str
-    initial_value: str
-    fvalue: float | None = None
-    ivalue: int | None = None
-    bvalue: bool | None = None
-    svalue: str | None = None
-
-    def __init__(self, **kwargs: TAimbatDefault) -> None:
-        super().__init__(**kwargs)
-        if self.is_of_type == "float":
-            self.fvalue = float(self.initial_value)
-        elif self.is_of_type == "int":
-            self.ivalue = int(self.initial_value)
-        elif self.is_of_type == "bool":
-            self.bvalue = bool(self.initial_value)
-        elif self.is_of_type == "str":
-            self.svalue = self.initial_value
-        # we really shouldn't ever end up here...
-        else:
-            raise RuntimeError(
-                "Unable to assign {self.name} with value: {self.initial_value}."
-            )  # pragma: no cover
 
 
 class AimbatFileBase(SQLModel):
@@ -77,7 +45,7 @@ class AimbatEvent(SQLModel, table=True):
     """Class to store event information."""
 
     id: int | None = Field(default=None, primary_key=True)
-    time: datetime = Field(unique=True)
+    time_db: datetime = Field(unique=True)
     latitude: float
     longitude: float
     depth: float | None = None
@@ -90,6 +58,14 @@ class AimbatEvent(SQLModel, table=True):
     snapshots: list["AimbatSnapshot"] = Relationship(
         back_populates="event", cascade_delete=True
     )
+
+    @property
+    def time(self) -> datetime:
+        return self.time_db.replace(tzinfo=timezone.utc)
+
+    @time.setter
+    def time(self, value: datetime) -> None:
+        self.time_db = value
 
 
 class AimbatEventParameterBase(SQLModel):
@@ -115,7 +91,7 @@ class AimbatSeismogram(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
 
-    begin_time: datetime
+    begin_time_db: datetime = Field()
     delta: float
     t0: datetime
     cached_length: int | None = None
@@ -139,6 +115,14 @@ class AimbatSeismogram(SQLModel, table=True):
         return self.cached_length
 
     @property
+    def begin_time(self) -> datetime:
+        return self.begin_time_db.replace(tzinfo=timezone.utc)
+
+    @begin_time.setter
+    def begin_time(self, value: datetime) -> None:
+        self.begin_time_db = value
+
+    @property
     def end_time(self) -> datetime:
         if len(self) == 0:
             return self.begin_time
@@ -148,13 +132,17 @@ class AimbatSeismogram(SQLModel, table=True):
     def data(self) -> np.ndarray:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to read data from")
-        return io.read_seismogram_data_from_file(self.file.filename, self.file.filetype)
+        return abio.read_seismogram_data_from_file(
+            self.file.filename, self.file.filetype
+        )
 
     @data.setter
     def data(self, value: np.ndarray) -> None:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to write data to")
-        io.write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
+        abio.write_seismogram_data_to_file(
+            self.file.filename, self.file.filetype, value
+        )
         self.cached_length = np.size(value)
 
 
@@ -186,7 +174,9 @@ class AimbatSnapshot(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     date: datetime = Field(
-        default_factory=datetime.now, unique=True, allow_mutation=False
+        default_factory=lambda: datetime.now(timezone.utc),
+        unique=True,
+        allow_mutation=False,
     )
     comment: str | None = None
     event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")

@@ -8,6 +8,7 @@ import aimbat.lib.project
 import aimbat.lib.defaults
 import aimbat.lib.data
 import aimbat.lib.io
+import matplotlib.pyplot as plt
 
 
 TESTDATA = dict(
@@ -40,7 +41,6 @@ def project_directory(tmp_path_factory):  # type: ignore
 
 @pytest.fixture(autouse=True)
 def mock_aimbat_project(monkeypatch, tmp_path_factory):  # type: ignore
-
     project = tmp_path_factory.mktemp("aimbat") / "mock.db"
     engine = create_engine(rf"sqlite+pysqlite:///{project}")
 
@@ -51,3 +51,8 @@ def mock_aimbat_project(monkeypatch, tmp_path_factory):  # type: ignore
     monkeypatch.setattr(aimbat.lib.project, "engine", engine)
     monkeypatch.setattr(aimbat.lib.defaults, "engine", engine)
     monkeypatch.setattr(aimbat.lib.data, "engine", engine)
+
+
+@pytest.fixture()
+def mock_show(monkeypatch):  # type: ignore
+    monkeypatch.setattr(plt, "show", lambda: None)

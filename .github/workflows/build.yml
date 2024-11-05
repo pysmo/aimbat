@@ -3,25 +3,25 @@ name: build
 on:
   workflow_run:
     workflows:
-      - 'unit tests'
+      - "unit tests"
     branches:
       - master
     types:
       - completed
   push:
     tags:
-      - 'v?[0-9]+.[0-9]+.[0-9]+-?*'
+      - "v?[0-9]+.[0-9]+.[0-9]+-?*"
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version:
-          - '3.10'
-          - '3.11'
-          - '3.12'
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
 
     steps:
       - uses: actions/checkout@v4
@@ -40,14 +40,13 @@ jobs:
         run: |
           make build
       - name: Upload build artifacts
-        if: ${{ matrix.python-version == '3.12' && github.event.workflow_run.conclusion == 'success'}}
+        if: ${{ matrix.python-version == '3.13' && github.event.workflow_run.conclusion == 'success'}}
         uses: actions/upload-artifact@v4
         with:
           name: packages
           path: dist
 
   publish:
-
     needs: build
     runs-on: ubuntu-latest
 

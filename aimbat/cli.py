@@ -8,6 +8,7 @@ from aimbat.lib import (
     seismogram,
     event,
     snapshot,
+    utils,
 )
 from importlib import metadata
 import click
@@ -39,6 +40,7 @@ cli.add_command(station.cli)
 cli.add_command(event.cli)
 cli.add_command(seismogram.cli)
 cli.add_command(snapshot.cli)
+cli.add_command(utils.cli)
 
 
 if __name__ == "__main__":

@@ -2,10 +2,8 @@
 
 from aimbat import __file__ as aimbat_dir
 from aimbat.lib.db import engine
-from aimbat.lib.models import AimbatDefault
-from sqlmodel import Session, select
+from sqlmodel import SQLModel, Field, Session, select
 from sqlalchemy.exc import NoResultFound
-from typing import List
 from rich.console import Console
 from rich.table import Table
 import os
@@ -16,20 +14,83 @@ import click
 # Defaults shipped with AIMBAT
 AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), "lib/defaults.yml")
 
-
-class AimbatDefaultNotFound(Exception):
-    pass
+TAimbatDefault = float | int | bool | str
 
 
-class AimbatDefaultTypeError(Exception):
-    pass
+def _format_value(is_of_type: str, value: str) -> TAimbatDefault:
+    if is_of_type == "float":
+        return float(value)
+    elif is_of_type == "int":
+        return int(value)
+    # different ways of setting boolean defaults
+    elif is_of_type == "bool" and str(value).lower() in ["true", "1", "yes"]:
+        return True
+    elif is_of_type == "bool" and str(value).lower() in ["false", "0", "no"]:
+        return False
+    elif is_of_type == "bool":
+        raise ValueError(f"Unable to set to use {value=}. Must be of type {is_of_type}")
+    # Only strings should be left at this point anyway...
+    elif is_of_type == "str":
+        return str(value)
+    else:
+        raise RuntimeError(f"Unable to set default with {value=}.")  # pragma: no cover
+
+
+class AimbatDefault(SQLModel, table=True):
+    """Class to store AIMBAT defaults."""
+
+    id: int | None = Field(primary_key=True)
+    name: str = Field(unique=True)
+    is_of_type: str = Field(allow_mutation=False)
+    description: str = Field(allow_mutation=False)
+    initial_value: str = Field(allow_mutation=False)
+    fvalue: float | None = None
+    ivalue: int | None = None
+    bvalue: bool | None = None
+    svalue: str | None = None
+
+    def __init__(self, **kwargs: str | TAimbatDefault) -> None:
+        super().__init__(**kwargs)
+        self.reset_value()
+
+    def reset_value(self) -> None:
+        self.value = _format_value(self.is_of_type, self.initial_value)
+
+    @property
+    def value(self) -> TAimbatDefault:
+        """Return default value"""
+        if self.is_of_type == "float" and self.fvalue is not None:
+            return self.fvalue
+        elif self.is_of_type == "int" and self.ivalue is not None:
+            return self.ivalue
+        elif self.is_of_type == "bool" and self.bvalue is not None:
+            return self.bvalue
+        elif self.is_of_type == "str" and self.svalue is not None:
+            return self.svalue
+        raise RuntimeError("Unable to return value")  # pragma: no cover
+
+    @value.setter
+    def value(self, value: TAimbatDefault) -> None:
+        """Set a default value"""
+        if self.is_of_type == "float" and isinstance(value, float):
+            self.fvalue = value
+        elif self.is_of_type == "int" and isinstance(value, int):
+            self.ivalue = value
+        elif self.is_of_type == "bool" and isinstance(value, bool):
+            self.bvalue = value
+        elif self.is_of_type == "str" and isinstance(value, str):
+            self.svalue = value
+        else:
+            raise RuntimeError(
+                "Unable to assign {self.name} with value: {self.initial_value}."
+            )  # pragma: no cover
 
 
 def defaults_load_global_values() -> None:
     """Read defaults shipped with AIMBAT from yaml file."""
 
     with open(AIMBAT_DEFAULTS_FILE, "r") as stream:
-        data = yaml.safe_load(stream)
+        data: list[dict[str, str | TAimbatDefault]] = yaml.safe_load(stream)
 
     with Session(engine) as session:
         for item in data:
@@ -37,7 +98,7 @@ def defaults_load_global_values() -> None:
         session.commit()
 
 
-def _get_single_item(name: str) -> AimbatDefault:
+def _select_single_item(name: str) -> AimbatDefault:
     """Return a single AimbatDefault item."""
 
     with Session(engine) as session:
@@ -47,103 +108,39 @@ def _get_single_item(name: str) -> AimbatDefault:
         try:
             return results.one()
         except NoResultFound:
-            raise AimbatDefaultNotFound(f"No default with {name=}.")
+            raise RuntimeError(f"No default with {name=}.")
 
 
-def typed_value(default: AimbatDefault) -> float | int | bool | str | None:
-    """Return the typed value from AimbatDefault.name."""
-
-    # the type we need to return
-    is_of_type = default.is_of_type
-
-    # return the type from the correct column
-    if is_of_type == "float":
-        return default.fvalue
-    elif is_of_type == "int":
-        return default.ivalue
-    elif is_of_type == "bool":
-        return default.bvalue
-    return default.svalue
-
-
-def defaults_get_value(name: str) -> float | int | bool | str | None:
+def defaults_get_value(name: str) -> TAimbatDefault:
     """Return the value of an AIMBAT default."""
 
-    default = _get_single_item(name)
-    return typed_value(default)
+    return _select_single_item(name).value
 
 
-def defaults_set_value(name: str, value: float | int | str | bool) -> None:
+def defaults_set_value(name: str, value: TAimbatDefault) -> None:
     """Set the value of an AIMBAT default."""
 
     # Get the AimbatDefault instance
-    default = _get_single_item(name)
+    aimbat_default = _select_single_item(name)
 
-    # new value must be of this type
-    is_of_type = default.is_of_type
+    is_of_type = aimbat_default.is_of_type
 
-    # set fvalue to float(value) or raise exception
-    if is_of_type == "float":
-        try:
-            default.fvalue = float(value)
-        except ValueError:
-            raise AimbatDefaultTypeError(
-                f"Unable to set default {name} to {value}. "
-                + f"must be of type {is_of_type}"
-            )
+    if isinstance(value, str) and is_of_type != "str":
+        value = _format_value(is_of_type, value)
 
-    # set ivalue to int(value) or raise exception
-    elif is_of_type == "int":
-        try:
-            default.ivalue = int(value)
-        except ValueError:
-            raise AimbatDefaultTypeError(
-                f"Unable to set default {name} to {value}. "
-                + f"Must be of type {is_of_type}"
-            )
-
-    # different ways of setting boolean defaults
-    elif is_of_type == "bool" and str(value).lower() in ["true", "1", "yes"]:
-        default.bvalue = True
-    elif is_of_type == "bool" and str(value).lower() in ["false", "0", "no"]:
-        default.bvalue = False
-    elif is_of_type == "bool":
-        raise AimbatDefaultTypeError(
-            f"Unable to set default {name} to {value}. "
-            + f"Must be of type {is_of_type}"
-        )
-
-    # Only strings should be left at this point anyway...
-    elif is_of_type == "str":
-        default.svalue = str(value)
-
-    # ... so there really shouldn't be any way to get here.
-    else:
-        raise RuntimeError(
-            f"Unable to set default {name} to {value}."
-        )  # pragma: no cover
+    aimbat_default.value = value
 
     with Session(engine) as session:
-        session.add(default)
+        session.add(aimbat_default)
         session.commit()
-        session.refresh(default)
+        session.refresh(aimbat_default)
 
 
 def defaults_reset_value(name: str) -> None:
     """Reset the value of an AIMBAT default."""
 
-    default = _get_single_item(name)
-
-    is_of_type, initial_value = default.is_of_type, default.initial_value
-
-    if is_of_type == "float":
-        default.fvalue = float(initial_value)
-    elif is_of_type == "int":
-        default.ivalue = int(initial_value)
-    elif is_of_type == "bool":
-        default.bvalue = bool(initial_value)
-    else:
-        default.svalue = initial_value
+    default = _select_single_item(name)
+    default.reset_value()
 
     with Session(engine) as session:
         session.add(default)
@@ -151,7 +148,7 @@ def defaults_reset_value(name: str) -> None:
         session.refresh(default)
 
 
-def defaults_print_table(select_names: List[str] | None = None) -> None:
+def defaults_print_table(select_names: list[str] | None = None) -> None:
     """Print a pretty table with AIMBAT configuration options."""
 
     if not select_names:
@@ -175,7 +172,7 @@ def defaults_print_table(select_names: List[str] | None = None) -> None:
             and not select_names
             or default.name in select_names
         ):
-            table.add_row(default.name, str(typed_value(default)), default.description)
+            table.add_row(default.name, str(default.value), default.description)
 
     console = Console()
     console.print(table)
@@ -193,7 +190,7 @@ def cli() -> None:
 
 @cli.command("list")
 @click.argument("name", nargs=-1)
-def list_defaults(name: List[str] | None = None) -> None:
+def list_defaults(name: list[str] | None = None) -> None:
     """Print a table with defaults used in AIMBAT.
 
     One or more default names may be provided to filter output.
