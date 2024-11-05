@@ -5,10 +5,9 @@ from importlib import reload
 
 class TestLibDefaults:
     def test_defaults(self) -> None:
-
         from aimbat.lib import project, defaults
 
-        reload(project)
+        _ = reload(project)
 
         # test itens also present in aimbat/lib/defaults.yml
         test_items = {
@@ -29,10 +28,6 @@ class TestLibDefaults:
             "_test_str": "TEST",
         }
 
-        # booleans are a bit more flexible...
-        test_bool_true = [True, "yes", 1]
-        test_bool_false = [False, "no", 0]
-
         # used to test setting to new values
         test_items_invalid_type = {
             "_test_bool": "blah",
@@ -47,31 +42,21 @@ class TestLibDefaults:
             assert defaults.defaults_get_value(name=key) == val
 
         # get one that doesn't exist
-        with pytest.raises(defaults.AimbatDefaultNotFound):
-            defaults.defaults_get_value(name=test_invalid_name)
+        with pytest.raises(RuntimeError):
+            _ = defaults.defaults_get_value(name=test_invalid_name)
 
         # set to new value
         for key, val in test_items_set.items():
             defaults.defaults_set_value(name=key, value=val)  # type: ignore
             assert defaults.defaults_get_value(name=key) == val
 
-        # try different ways of setting _test_bool to True
-        for val in test_bool_true:
-            defaults.defaults_set_value(name="_test_bool", value=val)  # type: ignore
-            assert defaults.defaults_get_value(name="_test_bool") is True
-
-        # try different ways of setting _test_bool to False
-        for val in test_bool_false:
-            defaults.defaults_set_value(name="_test_bool", value=val)  # type: ignore
-            assert defaults.defaults_get_value(name="_test_bool") is False
-
         # set to incorrect type
         for key, val in test_items_invalid_type.items():
-            with pytest.raises(defaults.AimbatDefaultTypeError):
+            with pytest.raises(ValueError):
                 defaults.defaults_set_value(name=key, value=val)
 
         # use invalid name
-        with pytest.raises(defaults.AimbatDefaultNotFound):
+        with pytest.raises(RuntimeError):
             defaults.defaults_set_value(name=test_invalid_name, value=False)
 
         # reset to defaults
@@ -81,13 +66,12 @@ class TestLibDefaults:
 
 
 class TestCliDefaults:
-
     def test_defaults(self) -> None:
         """Test AIMBAT cli with defaults subcommand."""
 
         from aimbat.lib import project, defaults
 
-        reload(project)
+        _ = reload(project)
 
         runner = CliRunner()
         result = runner.invoke(defaults.cli)
@@ -106,12 +90,21 @@ class TestCliDefaults:
         assert result.exit_code == 0
         assert "True" in result.output
 
-        result = runner.invoke(defaults.cli, ["set", "aimbat", "False"])
-        assert result.exit_code == 0
-
-        result = runner.invoke(defaults.cli, ["list", "aimbat"])
-        assert result.exit_code == 0
-        assert "False" in result.output
+        # booleans are a bit more flexible...
+        test_bool_true = ["True", "yes", "1"]
+        test_bool_false = ["False", "no", "0"]
+        for i in test_bool_true:
+            result = runner.invoke(defaults.cli, ["set", "aimbat", i])
+            assert result.exit_code == 0
+            result = runner.invoke(defaults.cli, ["list", "aimbat"])
+            assert result.exit_code == 0
+            assert "True" in result.output
+        for i in test_bool_false:
+            result = runner.invoke(defaults.cli, ["set", "aimbat", i])
+            assert result.exit_code == 0
+            result = runner.invoke(defaults.cli, ["list", "aimbat"])
+            assert result.exit_code == 0
+            assert "False" in result.output
 
         result = runner.invoke(defaults.cli, ["reset", "aimbat"])
         assert result.exit_code == 0

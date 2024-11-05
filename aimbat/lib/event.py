@@ -5,7 +5,7 @@ from aimbat.lib.models import (
     AimbatEvent,
 )
 from aimbat.lib.common import RegexEqual
-from typing import Literal, Tuple, get_args
+from typing import Literal, get_args
 from rich.console import Console
 from rich.table import Table
 from sqlmodel import Session, select
@@ -16,7 +16,7 @@ import click
 # Valid AIMBAT event parameter types and names
 AimbatEventParameterType = timedelta
 AimbatEventParameterName = Literal["window_pre", "window_post"]
-AIMBAT_EVENT_PARAMETER_NAMES: Tuple[AimbatEventParameterName, ...] = get_args(
+AIMBAT_EVENT_PARAMETER_NAMES: tuple[AimbatEventParameterName, ...] = get_args(
     AimbatEventParameterName
 )
 
@@ -56,20 +56,18 @@ def print_table() -> None:
     table.add_column("# Stations", justify="center", style="green")
 
     with Session(engine) as session:
-        all_events = session.exec(select(AimbatEvent)).all()
-        if all_events is not None:
-            for event in all_events:
-                assert event.id is not None
-                stations = {i.station_id for i in event.seismograms}
-                table.add_row(
-                    str(event.id),
-                    str(event.time),
-                    str(event.latitude),
-                    str(event.longitude),
-                    str(event.depth),
-                    str(len(event.seismograms)),
-                    str(len(stations)),
-                )
+        for event in session.exec(select(AimbatEvent)).all():
+            assert event.id is not None
+            stations = {i.station_id for i in event.seismograms}
+            table.add_row(
+                str(event.id),
+                str(event.time),
+                str(event.latitude),
+                str(event.longitude),
+                str(event.depth),
+                str(len(event.seismograms)),
+                str(len(stations)),
+            )
 
     console = Console()
     console.print(table)

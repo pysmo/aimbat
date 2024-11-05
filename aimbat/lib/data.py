@@ -84,11 +84,13 @@ def update_metadata(disable_progress: bool = True) -> None:
             session.add(aimbatstation)
 
             select_aimbatevent = select(AimbatEvent).where(
-                AimbatEvent.time == event.time
+                AimbatEvent.time_db == event.time
             )
             aimbatevent = session.exec(select_aimbatevent).first()
             if aimbatevent is None:
-                aimbatevent = AimbatEvent.model_validate(event)
+                aimbatevent = AimbatEvent.model_validate(
+                    event, update={"time_db": event.time}
+                )
             else:
                 aimbatevent.latitude = event.latitude
                 aimbatevent.longitude = event.longitude
@@ -103,7 +105,7 @@ def update_metadata(disable_progress: bool = True) -> None:
             aimbatseismogram = session.exec(select_aimbatseismogram).first()
             if aimbatseismogram is None:
                 aimbatseismogram = AimbatSeismogram(
-                    begin_time=seismogram.begin_time,
+                    begin_time_db=seismogram.begin_time,
                     delta=seismogram.delta,
                     t0=t0,
                     file_id=aimbatfile.id,
@@ -158,15 +160,12 @@ def print_table() -> None:
     table.add_column("filetype", justify="center", style="magenta")
 
     with Session(engine) as session:
-        all_files = session.exec(select(AimbatFile)).all()
-        if all_files is not None:
-            for file in all_files:
-                assert file.id is not None
-                table.add_row(
-                    str(file.id),
-                    str(file.filename),
-                    str(file.filetype),
-                )
+        for file in session.exec(select(AimbatFile)).all():
+            table.add_row(
+                str(file.id),
+                str(file.filename),
+                str(file.filetype),
+            )
 
     console = Console()
     console.print(table)

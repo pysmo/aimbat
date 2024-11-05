@@ -12,7 +12,6 @@ class TestCliSampleData:
         from aimbat.lib import project, defaults, sampledata
 
         reload(project)
-        reload(defaults)
         reload(sampledata)
 
         sampledata_dir = Path(f"{project_directory}/aimbat-test")

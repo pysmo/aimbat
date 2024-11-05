@@ -1,11 +1,11 @@
-from typing import Literal, Tuple, get_args
+from typing import Literal, get_args
 from dataclasses import dataclass
 import re
 
 
 # File types that AIMBAT can use as input
 AimbatFileType = Literal["sac"]
-AIMBAT_FILE_TYPES: Tuple[AimbatFileType, ...] = get_args(AimbatFileType)
+AIMBAT_FILE_TYPES: tuple[AimbatFileType, ...] = get_args(AimbatFileType)
 
 
 class AimbatDataError(Exception):
