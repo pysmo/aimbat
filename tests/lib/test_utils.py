@@ -20,7 +20,7 @@ class TestCliUtils:
 
         from aimbat.lib import project, data, utils
 
-        reload(project)
+        _ = reload(project)
 
         runner = CliRunner()
 

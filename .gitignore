@@ -28,3 +28,4 @@ blah.py
 .direnv
 .venv
 junit.xml
+.ipynb_checkpoints

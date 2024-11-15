@@ -4,29 +4,37 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    nixgl.url = "github:nix-community/nixgl";
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    flake-utils,
-  }:
+  outputs =
+    { self
+    , nixpkgs
+    , flake-utils
+    , nixgl
+    , ...
+    } @ inputs:
     flake-utils.lib.eachDefaultSystem (
-      system: let
-        pkgs = nixpkgs.legacyPackages.${system};
-      in {
+      system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ nixgl.overlay ];
+        };
+      in
+      {
         devShells = {
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
-              gnumake
-              autoPatchelfHook
-              sqlitebrowser
               poetry
-              python313Full
+              python313
               python310
               python311
               python312
               python312Packages.tox
+              gnumake
+              autoPatchelfHook
+              sqlitebrowser
             ];
 
             shellHook = ''
@@ -34,12 +42,20 @@
                 lib.makeLibraryPath [
                   stdenv.cc.cc.lib
                   zlib
+                  zstd
+                  xorg.libX11
+                  libGL
+                  glib
+                  libxkbcommon
+                  fontconfig
+                  freetype
+                  dbus
+                  wayland
                 ]}:$LD_LIBRARY_PATH
               VENV=.venv
               export POETRY_ACTIVE="true"
               export POETRY_VIRTUALENVS_IN_PROJECT="true"
-              export POETRY_VIRTUALENVS_OPTIONS_SYSTEM_SITE_PACKAGES="true"
-              export MPLBACKEND=TkAgg
+              export MPLBACKEND=QtAgg
               poetry env use -- 3.13
               poetry install
 
@@ -50,7 +66,7 @@
             '';
           };
         };
-        formatter = nixpkgs.legacyPackages.${system}.nixpkgs-fmt;
+        formatter = pkgs.nixpkgs-fmt;
       }
     );
 }
