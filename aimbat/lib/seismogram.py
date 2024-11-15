@@ -1,12 +1,15 @@
 from aimbat.lib.db import engine
 from aimbat.lib.models import AimbatSeismogram
-from aimbat.lib.common import RegexEqual
-import click
+from aimbat.lib.common import RegexEqual, cli_enable_debug
 from rich.console import Console
 from rich.table import Table
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
 from typing import Literal, Tuple, get_args
+from icecream import ic  # type: ignore
+import click
+
+ic.disable()
 
 # Valid AIMBAT parameter types and names
 AimbatSeismogramParameterType = float | datetime | timedelta | str
@@ -22,7 +25,22 @@ def get_parameter(
     select_seismogram = select(AimbatSeismogram).where(
         AimbatSeismogram.id == seismogram_id
     )
+    """Get parameter value from an AimbatSeismogram instance.
+
+    Parameters:
+        session: Database session
+        seismogram_id: seismogram id to return paramter for.
+        parameter_name: name of the parameter to return.
+
+    Returns:
+        Seismogram parameter value.
+    """
+
+    ic()
+    ic(session, seismogram_id, parameter_name)
+
     aimbatseismogram = session.exec(select_seismogram).one()
+    ic(aimbatseismogram)
     return getattr(aimbatseismogram.parameter, parameter_name)
 
 
@@ -32,10 +50,24 @@ def set_parameter(
     parameter_name: AimbatSeismogramParameterName,
     parameter_value: AimbatSeismogramParameterType,
 ) -> None:
+    """Set parameter value for an AimbatSeismogram instance.
+
+    Parameters:
+        session: Database session
+        seismogram_id: seismogram id to return paramter for.
+        parameter_name: name of the parameter to return.
+        parameter_value: value to set parameter to.
+
+    """
+
+    ic()
+    ic(session, seismogram_id, parameter_name, parameter_value)
+
     select_seismogram = select(AimbatSeismogram).where(
         AimbatSeismogram.id == seismogram_id
     )
     aimbatseismogram = session.exec(select_seismogram).one()
+    ic(aimbatseismogram)
     setattr(
         aimbatseismogram.parameter,
         parameter_name,
@@ -72,9 +104,10 @@ def print_table() -> None:
 
 
 @click.group("seismogram")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """View and manage seismograms in the AIMBAT project."""
-    pass
+    cli_enable_debug(ctx)
 
 
 @cli.command("list")
@@ -135,4 +168,4 @@ def cli_set(
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})

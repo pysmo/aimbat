@@ -4,14 +4,16 @@ from aimbat.lib.db import engine
 from aimbat.lib.models import (
     AimbatEvent,
 )
-from aimbat.lib.common import RegexEqual
+from aimbat.lib.common import RegexEqual, cli_enable_debug
 from typing import Literal, get_args
 from rich.console import Console
 from rich.table import Table
 from sqlmodel import Session, select
 from datetime import timedelta
+from icecream import ic  # type: ignore
 import click
 
+ic.disable()
 
 # Valid AIMBAT event parameter types and names
 AimbatEventParameterType = timedelta
@@ -24,6 +26,8 @@ AIMBAT_EVENT_PARAMETER_NAMES: tuple[AimbatEventParameterName, ...] = get_args(
 def get_parameter(
     session: Session, event_id: int, parameter_name: AimbatEventParameterName
 ) -> AimbatEventParameterType:
+    ic()
+    ic(session, event_id, parameter_name)
     select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
     aimbatevent = session.exec(select_event).one()
     return getattr(aimbatevent.parameter, parameter_name)
@@ -35,6 +39,8 @@ def set_parameter(
     parameter_name: AimbatEventParameterName,
     parameter_value: AimbatEventParameterType,
 ) -> None:
+    ic()
+    ic(session, event_id, parameter_name, parameter_value)
     select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
     aimbatevent = session.exec(select_event).one()
     setattr(aimbatevent.parameter, parameter_name, parameter_value)
@@ -44,6 +50,7 @@ def set_parameter(
 
 def print_table() -> None:
     """Prints a pretty table with AIMBAT events."""
+    ic()
 
     table = Table(title="AIMBAT Events")
 
@@ -74,9 +81,10 @@ def print_table() -> None:
 
 
 @click.group("event")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """View and manage events in the AIMBAT project."""
-    pass
+    cli_enable_debug(ctx)
 
 
 @cli.command("list")

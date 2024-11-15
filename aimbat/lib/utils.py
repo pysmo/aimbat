@@ -1,5 +1,6 @@
 from aimbat.lib.db import engine
 from aimbat.lib.models import AimbatSeismogram
+from aimbat.lib.common import cli_enable_debug
 from pysmo import MiniSeismogram, distance, time_array, unix_time_array
 from sqlmodel import Session, select
 from icecream import ic  # type: ignore
@@ -18,6 +19,7 @@ def plotseis(event_id: int, use_qt: bool = False) -> None:
     Parameters:
         event_id: event id number seismograms are plotted for.
     """
+
     ic()
     ic(event_id, use_qt)
 
@@ -82,10 +84,7 @@ def plotseis(event_id: int, use_qt: bool = False) -> None:
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Usefull extra tools to use with AIMBAT projects."""
-    _ = ctx.ensure_object(dict)
-    debug: bool = ctx.obj.get("DEBUG", False)
-    if debug:
-        ic.enable()
+    cli_enable_debug(ctx)
 
 
 @cli.command("plotseis")

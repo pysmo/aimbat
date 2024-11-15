@@ -1,3 +1,4 @@
+from aimbat.lib.common import cli_enable_debug
 from aimbat.lib.db import engine
 from aimbat.lib.models import (
     AimbatEvent,
@@ -9,10 +10,23 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from rich.console import Console
 from rich.table import Table
+from icecream import ic  # type: ignore
 import click
+
+ic.disable()
 
 
 def snapshot_create(event_id: int, comment: str | None = None) -> None:
+    """Create a snapshot of the AIMBAT processing parameters.
+
+    Parameters:
+        event_id: Event id.
+        comment: Optional comment.
+    """
+
+    ic()
+    ic(event_id, comment, engine)
+
     with Session(engine) as session:
         try:
             select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
@@ -41,6 +55,15 @@ def snapshot_create(event_id: int, comment: str | None = None) -> None:
 
 
 def snapshot_delete(snapshot_id: int) -> None:
+    """Delete an AIMBAT parameter snapshot.
+
+    Parameters:
+        event_id: Event id.
+    """
+
+    ic()
+    ic(snapshot_id, engine)
+
     with Session(engine) as session:
         try:
             select_snapshot = select(AimbatSnapshot).where(
@@ -55,7 +78,7 @@ def snapshot_delete(snapshot_id: int) -> None:
 
 
 def print_table() -> None:
-    """Prints a pretty table with AIMBAT snapshots."""
+    """Print a pretty table with AIMBAT snapshots."""
 
     table = Table(title="AIMBAT Snapshots")
 
@@ -83,9 +106,10 @@ def print_table() -> None:
 
 
 @click.group("snapshot")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """View and manage stations in the AIMBAT project."""
-    pass
+    cli_enable_debug(ctx)
 
 
 @cli.command("create")
@@ -110,4 +134,4 @@ def cli_list() -> None:
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})

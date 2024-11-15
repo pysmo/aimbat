@@ -7,22 +7,20 @@
     nixgl.url = "github:nix-community/nixgl";
   };
 
-  outputs =
-    { self
-    , nixpkgs
-    , flake-utils
-    , nixgl
-    , ...
-    } @ inputs:
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    nixgl,
+    ...
+  } @ inputs:
     flake-utils.lib.eachDefaultSystem (
-      system:
-      let
+      system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ nixgl.overlay ];
+          overlays = [nixgl.overlay];
         };
-      in
-      {
+      in {
         devShells = {
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
