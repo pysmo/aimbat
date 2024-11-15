@@ -2,10 +2,13 @@
 Module to check seismogram files for errors before importing them into AIMBAT.
 """
 
-from aimbat.lib.common import AimbatDataError
+from aimbat.lib.common import AimbatDataError, cli_enable_debug
 from pathlib import Path
 from pysmo import SAC, Station, Event, Seismogram
+from icecream import ic  # type: ignore
 import click
+
+ic.disable()
 
 
 def check_station(station: Station, called_from_cli: bool = False) -> list[str]:
@@ -17,6 +20,7 @@ def check_station(station: Station, called_from_cli: bool = False) -> list[str]:
             set to true to return a list of issues instead of
             raising errors.
     """
+    ic()
     issues = list()
     try:
         assert station.name is not None
@@ -42,6 +46,7 @@ def check_station(station: Station, called_from_cli: bool = False) -> list[str]:
             raise AimbatDataError(issue)
         issues.append(issue)
 
+    ic(issues)
     return issues
 
 
@@ -54,6 +59,7 @@ def check_event(event: Event, called_from_cli: bool = False) -> list[str]:
             set to true to return a list of issues instead of
             raising errors.
     """
+    ic()
     issues = list()
     try:
         assert event.latitude is not None
@@ -79,6 +85,7 @@ def check_event(event: Event, called_from_cli: bool = False) -> list[str]:
             raise AimbatDataError(issue)
         issues.append(issue)
 
+    ic(issues)
     return issues
 
 
@@ -93,6 +100,7 @@ def check_seismogram(
             set to true to return a list of issues instead of
             raising errors.
     """
+    ic()
     issues = list()
     try:
         assert seismogram.data is not None
@@ -103,6 +111,7 @@ def check_seismogram(
             raise AimbatDataError(issue)
         issues.append(issue)
 
+    ic(issues)
     return issues
 
 
@@ -112,12 +121,13 @@ def run_checks_cli(sacfiles: list[Path]) -> None:
     Parameters:
         sacfiles: SAC files to test.
     """
+    ic()
 
     def checkmark() -> None:
-        print("\N{check mark}", end="")
+        print("\N{CHECK MARK}", end="")
 
     def crossmark() -> None:
-        print("\N{ballot x}", end="")
+        print("\N{BALLOT X}", end="")
 
     all_issues = dict()
 
@@ -163,11 +173,12 @@ def run_checks_cli(sacfiles: list[Path]) -> None:
 
 @click.command("checkdata")
 @click.argument("sacfiles", nargs=-1, type=click.Path(exists=True), required=True)
-def cli(sacfiles: list[Path]) -> None:
+@click.pass_context
+def cli(ctx: click.Context, sacfiles: list[Path]) -> None:
     """Check if there are any problems with the input SAC files."""
-
+    cli_enable_debug(ctx)
     run_checks_cli(sacfiles)
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})

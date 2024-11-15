@@ -1,13 +1,19 @@
 from aimbat.lib.db import engine
 from aimbat.lib.models import AimbatStation
+from aimbat.lib.common import cli_enable_debug
 import click
 from rich.console import Console
 from rich.table import Table
 from sqlmodel import Session, select
+from icecream import ic  # type: ignore
+
+ic.disable()
 
 
 def print_table() -> None:
     """Prints a pretty table with AIMBAT stations."""
+    ic()
+    ic(engine)
 
     table = Table(title="AIMBAT Stations")
 
@@ -40,12 +46,18 @@ def print_table() -> None:
 
 
 @click.group("station")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """View and manage stations in the AIMBAT project."""
-    pass
+    cli_enable_debug(ctx)
 
 
 @cli.command("list")
 def cli_list() -> None:
     """Print information on the stations stored in AIMBAT."""
+    ic()
     print_table()
+
+
+if __name__ == "__main__":
+    cli(obj={})

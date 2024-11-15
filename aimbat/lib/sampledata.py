@@ -1,24 +1,34 @@
 from aimbat.lib.defaults import defaults_get_value
+from aimbat.lib.common import cli_enable_debug
 from urllib.request import urlopen
 from io import BytesIO
 from zipfile import ZipFile
+from icecream import ic  # type: ignore
 import click
 import os
 import shutil
+
+
+ic.disable()
 
 
 def sampledata_delete() -> None:
     """Delete sample data."""
 
     sampledata_dir = str(defaults_get_value("sampledata_dir"))
+    ic(sampledata_dir)
     shutil.rmtree(sampledata_dir)
 
 
 def sampledata_download(force: bool = False) -> None:
     """Download sample data."""
 
+    ic()
+    ic(force)
+
     sampledata_src = str(defaults_get_value("sampledata_src"))
     sampledata_dir = str(defaults_get_value("sampledata_dir"))
+    ic(sampledata_src, sampledata_dir)
 
     if os.path.exists(sampledata_dir) is True:
         if force is True:
@@ -32,13 +42,14 @@ def sampledata_download(force: bool = False) -> None:
 
 
 @click.group("sampledata")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """Download aimbat sample data and save it to a folder.
 
     The sample data source url can be viewed or changed via `aimbat default
     <list/set> sampledata_src`. Likewise the sample data destination folder
     be viewed or changed via `aimbat default <list/set> sampledata_dir`."""
-    pass
+    cli_enable_debug(ctx)
 
 
 @cli.command("delete")
@@ -62,4 +73,4 @@ def sampledata_cli_download(force: bool) -> None:
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})

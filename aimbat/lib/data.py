@@ -12,14 +12,17 @@ from aimbat.lib.models import (
     AimbatSeismogramParameter,
 )
 from aimbat.lib.db import engine
-from aimbat.lib.common import AIMBAT_FILE_TYPES, AimbatFileType
+from aimbat.lib.common import AIMBAT_FILE_TYPES, AimbatFileType, cli_enable_debug
 from aimbat.lib.io import read_metadata_from_file
 from pathlib import Path
 from sqlmodel import Session, select
-import click
 from rich.progress import track
 from rich.console import Console
 from rich.table import Table
+from icecream import ic  # type: ignore
+import click
+
+ic.disable()
 
 
 def add_files(
@@ -32,6 +35,8 @@ def add_files(
         filetype: Type of data file (e.g. sac).
         disable_progress_bar: Do not display progress bar.
     """
+    ic()
+    ic(engine)
     with Session(engine) as session:
         for filename in track(
             sequence=data_files,
@@ -47,8 +52,10 @@ def add_files(
             )
             if session.exec(statement).first() is None:
                 session.add(aimbatfile)
+            ic(aimbatfile)
 
         session.commit()
+
     update_metadata(disable_progress)
 
 
@@ -59,6 +66,8 @@ def update_metadata(disable_progress: bool = True) -> None:
     Parameters:
         disable_progress_bar: Do not display progress bar.
     """
+    ic()
+    ic(engine)
 
     with Session(engine) as session:
         for aimbatfile in track(
@@ -147,11 +156,14 @@ def update_metadata(disable_progress: bool = True) -> None:
                 )
                 session.add(seismogram_parameter)
 
+            ic(aimbatfile.id, aimbatevent.id, aimbatstation.id)
+
         session.commit()
 
 
 def print_table() -> None:
     """Prints a pretty table with AIMBAT data."""
+    ic()
 
     table = Table(title="AIMBAT Data")
 
@@ -172,9 +184,10 @@ def print_table() -> None:
 
 
 @click.group("data")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """Manage data in the AIMBAT project."""
-    pass
+    cli_enable_debug(ctx)
 
 
 @cli.command("add")
@@ -187,7 +200,7 @@ def cli() -> None:
 @click.argument("data_files", nargs=-1, type=click.Path(exists=True), required=True)
 def cli_add(data_files: list[Path], filetype: AimbatFileType) -> None:
     """Add or update data files in the AIMBAT project."""
-    add_files(data_files, filetype, disable_progress=False)
+    add_files(data_files, filetype, disable_progress=ic.enabled)
 
 
 @cli.command("list")
@@ -197,4 +210,4 @@ def cli_list() -> None:
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})

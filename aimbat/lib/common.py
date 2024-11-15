@@ -1,6 +1,8 @@
 from typing import Literal, get_args
 from dataclasses import dataclass
+from icecream import ic  # type: ignore
 import re
+import click
 
 
 # File types that AIMBAT can use as input
@@ -13,6 +15,12 @@ class AimbatDataError(Exception):
 
 
 # some helpers below
+def cli_enable_debug(ctx: click.Context) -> None:
+    """Enable icecream debugging if cli flag is set."""
+    _ = ctx.ensure_object(dict)
+    debug: bool = ctx.obj.get("DEBUG", False)
+    if debug:
+        ic.enable()
 
 
 @dataclass

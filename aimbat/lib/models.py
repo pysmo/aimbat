@@ -1,8 +1,11 @@
 from sqlmodel import Relationship, SQLModel, Field
 from datetime import datetime, timedelta, timezone
 from aimbat.lib.common import AimbatFileType
-import aimbat.lib.io as abio
+from icecream import ic  # type: ignore
+import aimbat.lib.io as io
 import numpy as np
+
+ic.disable()
 
 
 class AimbatFileBase(SQLModel):
@@ -132,17 +135,13 @@ class AimbatSeismogram(SQLModel, table=True):
     def data(self) -> np.ndarray:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to read data from")
-        return abio.read_seismogram_data_from_file(
-            self.file.filename, self.file.filetype
-        )
+        return io.read_seismogram_data_from_file(self.file.filename, self.file.filetype)
 
     @data.setter
     def data(self, value: np.ndarray) -> None:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to write data to")
-        abio.write_seismogram_data_to_file(
-            self.file.filename, self.file.filetype, value
-        )
+        io.write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
         self.cached_length = np.size(value)
 
 

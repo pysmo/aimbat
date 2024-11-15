@@ -1,19 +1,30 @@
 from aimbat.lib.defaults import defaults_load_global_values
 from aimbat.lib.db import engine, AIMBAT_PROJECT
+from aimbat.lib.common import cli_enable_debug
 from sqlmodel import SQLModel, text
 from pathlib import Path
 from typing import Any
+from icecream import ic  # type: ignore
 import click
 import aimbat.lib.models  # noqa: F401
+
+ic.disable()
 
 
 def project_exists() -> bool:
     """Check if AIMBAT project exists."""
+
+    ic()
+    ic(AIMBAT_PROJECT)
+
     return Path(AIMBAT_PROJECT).exists()
 
 
 def project_new() -> None:
     """Create a new AIMBAT project."""
+
+    ic()
+    ic(AIMBAT_PROJECT)
 
     # stop here if there is an existing aimbat.db file
     if project_exists():
@@ -31,6 +42,9 @@ def project_new() -> None:
 def project_del() -> None:
     """Delete the AIMBAT project."""
 
+    ic()
+    ic(AIMBAT_PROJECT)
+
     try:
         Path(AIMBAT_PROJECT).unlink()
 
@@ -43,6 +57,9 @@ def project_del() -> None:
 def project_info() -> Any:
     """Show AIMBAT project information."""
 
+    ic()
+    ic(AIMBAT_PROJECT)
+
     if not Path(AIMBAT_PROJECT).exists():
         raise FileNotFoundError(f"Unable to show info: {AIMBAT_PROJECT=} not found!")
 
@@ -50,7 +67,8 @@ def project_info() -> Any:
 
 
 @click.group("project")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """Manage an AIMBAT project file.
 
     This command manages an AIMBAT project. By default, the project consists
@@ -60,7 +78,7 @@ def cli() -> None:
     The location (and name) of the project file may also be specified by
     setting the AIMBAT_PROJECT environment variable to the desired filename.
     """
-    pass
+    cli_enable_debug(ctx)
 
 
 @cli.command("new")
@@ -93,4 +111,4 @@ def cli_project_info() -> None:
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})

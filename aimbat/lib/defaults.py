@@ -2,14 +2,17 @@
 
 from aimbat import __file__ as aimbat_dir
 from aimbat.lib.db import engine
+from aimbat.lib.common import cli_enable_debug
 from sqlmodel import SQLModel, Field, Session, select
 from sqlalchemy.exc import NoResultFound
 from rich.console import Console
 from rich.table import Table
+from icecream import ic  # type: ignore
 import os
 import yaml
 import click
 
+ic.disable()
 
 # Defaults shipped with AIMBAT
 AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), "lib/defaults.yml")
@@ -18,6 +21,8 @@ TAimbatDefault = float | int | bool | str
 
 
 def _format_value(is_of_type: str, value: str) -> TAimbatDefault:
+    ic()
+    ic(is_of_type, value)
     if is_of_type == "float":
         return float(value)
     elif is_of_type == "int":
@@ -50,6 +55,8 @@ class AimbatDefault(SQLModel, table=True):
     svalue: str | None = None
 
     def __init__(self, **kwargs: str | TAimbatDefault) -> None:
+        ic()
+        ic(kwargs)
         super().__init__(**kwargs)
         self.reset_value()
 
@@ -72,6 +79,8 @@ class AimbatDefault(SQLModel, table=True):
     @value.setter
     def value(self, value: TAimbatDefault) -> None:
         """Set a default value"""
+        ic()
+        ic(value)
         if self.is_of_type == "float" and isinstance(value, float):
             self.fvalue = value
         elif self.is_of_type == "int" and isinstance(value, int):
@@ -88,6 +97,8 @@ class AimbatDefault(SQLModel, table=True):
 
 def defaults_load_global_values() -> None:
     """Read defaults shipped with AIMBAT from yaml file."""
+    ic()
+    ic(engine)
 
     with open(AIMBAT_DEFAULTS_FILE, "r") as stream:
         data: list[dict[str, str | TAimbatDefault]] = yaml.safe_load(stream)
@@ -100,6 +111,8 @@ def defaults_load_global_values() -> None:
 
 def _select_single_item(name: str) -> AimbatDefault:
     """Return a single AimbatDefault item."""
+    ic()
+    ic(name, engine)
 
     with Session(engine) as session:
         statement = select(AimbatDefault).where(AimbatDefault.name == name)
@@ -113,12 +126,15 @@ def _select_single_item(name: str) -> AimbatDefault:
 
 def defaults_get_value(name: str) -> TAimbatDefault:
     """Return the value of an AIMBAT default."""
-
+    ic()
+    ic(name)
     return _select_single_item(name).value
 
 
 def defaults_set_value(name: str, value: TAimbatDefault) -> None:
     """Set the value of an AIMBAT default."""
+    ic()
+    ic(name, value)
 
     # Get the AimbatDefault instance
     aimbat_default = _select_single_item(name)
@@ -138,6 +154,8 @@ def defaults_set_value(name: str, value: TAimbatDefault) -> None:
 
 def defaults_reset_value(name: str) -> None:
     """Reset the value of an AIMBAT default."""
+    ic()
+    ic(name)
 
     default = _select_single_item(name)
     default.reset_value()
@@ -150,6 +168,8 @@ def defaults_reset_value(name: str) -> None:
 
 def defaults_print_table(select_names: list[str] | None = None) -> None:
     """Print a pretty table with AIMBAT configuration options."""
+    ic()
+    ic(select_names)
 
     if not select_names:
         select_names = []
@@ -179,13 +199,15 @@ def defaults_print_table(select_names: list[str] | None = None) -> None:
 
 
 @click.group("defaults")
-def cli() -> None:
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """
     Lists or change AIMBAT defaults.
 
     This command lists various settings that are used in Aimbat.
     Defaults shipped with AIMBAT may be overriden here too.
     """
+    cli_enable_debug(ctx)
 
 
 @cli.command("list")
@@ -195,7 +217,6 @@ def list_defaults(name: list[str] | None = None) -> None:
 
     One or more default names may be provided to filter output.
     """
-
     defaults_print_table(name)
 
 
@@ -204,7 +225,6 @@ def list_defaults(name: list[str] | None = None) -> None:
 @click.argument("value")
 def set_default(name: str, value: float | int | bool | str) -> None:
     """Set an AIMBAT default to a new value."""
-
     defaults_set_value(name, value)
 
 
@@ -212,9 +232,8 @@ def set_default(name: str, value: float | int | bool | str) -> None:
 @click.argument("name")
 def reset_default(name: str) -> None:
     """Reset an AIMBAT default to the initial value."""
-
     defaults_reset_value(name)
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})
