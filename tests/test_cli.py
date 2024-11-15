@@ -20,7 +20,7 @@ def test_cli(monkeypatch):  # type: ignore
         raise Exception
 
     monkeypatch.setattr(metadata, "version", mock_raise)
-    reload(cli)
+    _ = reload(cli)
 
     result = runner.invoke(cli.cli, "--version")
     assert result.exit_code == 0
