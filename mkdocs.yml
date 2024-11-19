@@ -1,5 +1,5 @@
 site_name: AIMBAT
-copyright: Copyright &copy; 2023 Simon Lloyd
+copyright: Copyright &copy; 2024 Simon Lloyd
 
 # Repository
 repo_name: pysmo/aimbat
@@ -21,11 +21,11 @@ theme:
     # - navigation.tabs
     - navigation.top
   palette:
-    # # Palette toggle for automatic mode
-    # - media: "(prefers-color-scheme)"
-    #   toggle:
-    #     icon: material/brightness-auto
-    #     name: Switch to light mode
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
 
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
@@ -43,12 +43,16 @@ theme:
       accent: purple
       toggle:
         icon: material/brightness-4
-        name: Switch to light mode
-        # name: Switch to system preference
+        name: Switch to system preference
+
+extra:
+  version:
+    provider: mike
 
 markdown_extensions:
   - admonition
   - attr_list
+  - footnotes
   - md_in_html
   - pymdownx.details
   - pymdownx.superfences:
@@ -60,19 +64,25 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji ""
-      emoji_generator: !!python/name:materialx.emoji.to_svg ""
-  - termynal:
-      prompt_literal_start:
-        - "$"
-        - ">"
-        - ">>>"
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+        # - markdown_include.include:
+        #     base_path: docs
+        # - termynal:
+        #     prompt_literal_start:
+        #       - "$"
+        #       - ">"
+        #       - ">>>"
+
 
 plugins:
   - search
+  - mkdocs-jupyter:
+      ignore:
+        - docs/user-guide/gen_ref_pages.py
   - gen-files:
       scripts:
-        - docs/gen_ref_pages.py
+        - docs/user-guide/gen_ref_pages.py
   - literate-nav:
       nav_file: SUMMARY.md
   - section-index
@@ -82,6 +92,7 @@ plugins:
           options:
             docstring_style: google
           import:
+            - https://docs.pysmo.org/en/latest/objects.inv
             - https://docs.python.org/3/objects.inv
             - https://numpy.org/doc/stable/objects.inv
             - https://docs.scipy.org/doc/scipy/objects.inv
@@ -90,13 +101,16 @@ plugins:
 
 nav:
   - Home: index.md
+  - First Steps:
+      - Installation: user-guide/installation.md
+      - Data & Conventions: user-guide/data.md
+      - Workflow & Strategy: user-guide/workflow.md
   - User Guide:
       - user-guide/overview.md
-      - user-guide/installation.md
-      - user-guide/data.md
       - user-guide/cli.md
+      - examples/tutorial.ipynb
       - user-guide/gui.md
-  - help.md
-  - Code Reference: reference/
-  - Contributors: contributors.md
-  - Changelog: changelog.md
+  - Getting Help: user-guide/help.md
+  - API: reference/
+  - Contributors: user-guide/contributors.md
+  - Changelog: user-guide/changelog.md

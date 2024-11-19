@@ -58,7 +58,7 @@ def snapshot_delete(snapshot_id: int) -> None:
     """Delete an AIMBAT parameter snapshot.
 
     Parameters:
-        event_id: Event id.
+        snapshot_id: Snapshot id.
     """
 
     ic()

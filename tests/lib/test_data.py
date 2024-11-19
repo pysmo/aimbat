@@ -26,7 +26,7 @@ class TestLibData:
 
         project.project_new()
 
-        data.add_files([sac_file_good], filetype="sac")
+        data.data_add_files([sac_file_good], filetype="sac")
 
         select_file = select(AimbatFile).where(AimbatFile.filename == sac_file_good)
         select_seismogram = select(AimbatSeismogram).where(
@@ -92,7 +92,7 @@ class TestLibData:
         assert sac.event.longitude == new_event_longitude
 
         sac.write(sac_file_good)
-        data.add_files([sac_file_good], filetype="sac")
+        data.data_add_files([sac_file_good], filetype="sac")
         with Session(db.engine) as session:
             aimbat_file = session.exec(select_file).one()
             assert sac_file_good == aimbat_file.filename
@@ -132,18 +132,18 @@ class TestCliData:
         result = runner.invoke(project.cli, ["new"])
         assert result.exit_code == 0
 
-        result = runner.invoke(data.cli)
+        result = runner.invoke(data.cli_data)
         assert result.exit_code == 0
         assert "Usage" in result.output
 
-        result = runner.invoke(data.cli, ["add"])
+        result = runner.invoke(data.cli_data, ["add"])
         assert result.exit_code == 2
 
-        result = runner.invoke(data.cli, ["add", sac_file_good])
+        result = runner.invoke(data.cli_data, ["add", sac_file_good])
         assert result.exit_code == 0
         with Session(db.engine) as session:
             test_file = session.exec(select(AimbatFile)).one()
             assert test_file.filename == sac_file_good
 
-        result = runner.invoke(data.cli, ["list"])
+        result = runner.invoke(data.cli_data, ["list"])
         assert result.exit_code == 0

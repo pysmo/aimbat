@@ -13,7 +13,7 @@ class TestLibEvent:
 
         project.project_new()
 
-        data.add_files([sac_file_good], filetype="sac")
+        data.data_add_files([sac_file_good], filetype="sac")
 
         with Session(db.engine) as session:
             assert event.get_parameter(
@@ -30,7 +30,7 @@ class TestLibEvent:
 
         project.project_new()
 
-        data.add_files([sac_file_good], filetype="sac")
+        data.data_add_files([sac_file_good], filetype="sac")
 
         with Session(db.engine) as session:
             window_post_new = timedelta(seconds=randrange(10))
@@ -61,10 +61,10 @@ class TestCliEvent:
         result = runner.invoke(project.cli, ["new"])
         assert result.exit_code == 0
 
-        result = runner.invoke(data.cli, ["add"])
+        result = runner.invoke(data.cli_data, ["add"])
         assert result.exit_code == 2
 
-        result = runner.invoke(data.cli, ["add", sac_file_good])
+        result = runner.invoke(data.cli_data, ["add", sac_file_good])
         assert result.exit_code == 0
 
         result = runner.invoke(event.cli)

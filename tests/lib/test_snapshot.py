@@ -14,7 +14,7 @@ class TestLibSnapshot:
 
         project.project_new()
 
-        data.add_files([sac_file_good], filetype="sac")
+        data.data_add_files([sac_file_good], filetype="sac")
 
         select_snapshots = select(AimbatSnapshot)
 
@@ -59,7 +59,7 @@ class TestCliSnapshot:
         result = runner.invoke(project.cli, ["new"])
         assert result.exit_code == 0
 
-        result = runner.invoke(data.cli, ["add", sac_file_good])
+        result = runner.invoke(data.cli_data, ["add", sac_file_good])
         assert result.exit_code == 0
 
         result = runner.invoke(snapshot.cli)

@@ -6,20 +6,19 @@ these files to populate the AIMBAT [project file](data.md#project-file). The maj
 of operations within AIMBAT exclusively use the project file. The contents of the
 seismogram files are never modified by AIMBAT.
 
-
 ## Seismogram files
 
 AIMBAT uses [SAC](https://ds.iris.edu/files/sac-manual/) files as input. Before adding
-files to an AIMBAT project please ensure the following header fields are set correctly
-in all files:
+files to an AIMBAT project please ensure the following header fields are set
+correctly in all files:
 
-  - Seismogram begin time (SAC header *B*).
-  - Seismogram reference time (*KZTIME*) and date (*KZDATE*).
-  - Station name (*KSTNM*), latitude (*STLA*) and longitude *STLO*).
-  - Event origin time (*O*), latitude (*EVLA*) and longitude (*EVLO*).
+- Seismogram begin time (SAC header *B*).
+- Seismogram reference time (*KZTIME*) and date (*KZDATE*).
+- Station name (*KSTNM*), latitude (*STLA*) and longitude *STLO*).
+- Event origin time (*O*), latitude (*EVLA*) and longitude (*EVLO*).
 
-To detect any potential problems with the data before importing them into AIMBAT, you can
-use the AIMBAT cli:
+To detect any potential problems with the data before importing them into AIMBAT,
+you can use the AIMBAT cli:
 
 <!-- termynal -->
 
@@ -42,22 +41,23 @@ sacfile_NN.BHZ: ✓✓✓
 No issues found!
 ```
 
-The seismogram files can be stored in an arbitrary directory (i.e. they don't necessarily
-need to be stored together with an AIMBAT project file).
+The seismogram files can be stored in an arbitrary directory (i.e. they do not
+necessarily need to be stored together with an AIMBAT project file).
 
 !!! warning
 
-    After importing files into an AIMBAT project, their location (and contents) should
-    not be changed!
-
+    After importing files into an AIMBAT project, their location (and contents)
+    should not be changed!
 
 ## Project file
 
-AIMBAT projects consist of a single [sqlite](https://www.sqlite.org){ target="_blank" }
-file (which is automatically generated when a new project is created). This file contains
-a database to manage all aspects of an AIMBAT project. Understanding the internals of this
-file is not particularly important for normal AIMBAT usage, though it might be useful to
-look at the data directly in cases where AIMBAT behaves in unexpected ways (e.g. due to
-inconsistencies in the seismogram files used as input). To do this we suggest viewing the
-database in tools such as [DB Browser for SQLite](https://sqlitebrowser.org){ target="_blank" }:
-![DB Browser](../images/sqlbrowser.png){ loading=lazy }
+AIMBAT projects consist of a single
+[sqlite](https://www.sqlite.org){ target="_blank" } file (which is automatically
+generated when a new project is created). This file contains a database to manage
+all aspects of an AIMBAT project. Understanding the internals of this file is not
+particularly important for normal AIMBAT usage, though it might be useful to look
+at the data directly in cases where AIMBAT behaves in unexpected ways (e.g. due
+to inconsistencies in the seismogram files used as input). To do this we suggest
+viewing the database in tools such as
+[DB Browser for SQLite](https://sqlitebrowser.org){ target="_blank" }.
+![DB Browser](images/sqlbrowser.png){ loading=lazy }
