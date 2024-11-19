@@ -1,4 +1,4 @@
-# Installation
+# Installing AIMBAT
 
 AIMBAT is built on top of standard [Python](https://www.python.org) and uses some popular
 third party modules (e.g. [NumPy][numpy], [SciPy][scipy]). In order

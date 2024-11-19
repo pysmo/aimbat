@@ -1,5 +1,6 @@
-.PHONY: help check-poetry install update lint test-figs tests mypy docs docs-export \
-	live-docs lab build publish clean shell python format format-check
+.PHONY: help check-poetry install update lint test-figs test-tutorial tests \
+	mypy docs docs-export live-docs notebook build publish clean shell python \
+	format format-check
 
 ifeq ($(OS),Windows_NT)
   POETRY_VERSION := $(shell poetry --version 2> NUL)
@@ -35,7 +36,10 @@ lint: check-poetry ## Check formatting with black and lint code with ruff.
 test-figs: check-poetry ## Generate baseline figures for testing. Only run this if you know what you are doing!
 	poetry run py.test --mpl-generate-path=tests/baseline
 
-tests: check-poetry mypy ## Run all tests with pytest.
+test-tutorial: check-poetry ## Check if the tutorial notebook runs error-free.
+	poetry run py.test --nbmake docs/examples/tutorial.ipynb
+
+tests: check-poetry mypy test-tutorial ## Run all tests with pytest.
 	poetry run pytest --mypy --cov=aimbat --cov-report=term-missing --mpl -v
 
 mypy: check-poetry ## Run typing tests with pytest.
@@ -50,7 +54,7 @@ docs-export: check-poetry install ## Export installed package information to doc
 live-docs: check-poetry install ## Live build html docs. They are served on http://localhost:8000
 	poetry run mkdocs serve -w README.md -w aimbat
 
-lab: check-poetry install ## Run a jupyter-lab in the poetry environment
+notebook: check-poetry install ## Run a jupyter notebook in the poetry environment
 	poetry run jupyter-lab
 
 build: clean check-poetry install ## Build distribution.

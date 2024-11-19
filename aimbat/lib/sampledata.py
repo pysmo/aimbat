@@ -30,11 +30,13 @@ def sampledata_download(force: bool = False) -> None:
     sampledata_dir = str(defaults_get_value("sampledata_dir"))
     ic(sampledata_src, sampledata_dir)
 
-    if os.path.exists(sampledata_dir) is True:
+    if os.path.exists(sampledata_dir) is True and len(os.listdir(sampledata_dir)) != 0:
         if force is True:
             sampledata_delete()
         else:
-            raise RuntimeError(f"The directory {sampledata_dir} already exists.")
+            raise RuntimeError(
+                f"The directory {sampledata_dir} already exists and is non-empty."
+            )
 
     with urlopen(sampledata_src) as zipresp:
         with ZipFile(BytesIO(zipresp.read())) as zfile:

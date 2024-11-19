@@ -19,10 +19,10 @@ class TestCliStation:
         assert result.exit_code == 0
         assert "Usage" in result.output
 
-        result = runner.invoke(data.cli, ["add"])
+        result = runner.invoke(data.cli_data, ["add"])
         assert result.exit_code == 2
 
-        result = runner.invoke(data.cli, ["add", sac_file_good])
+        result = runner.invoke(data.cli_data, ["add", sac_file_good])
         assert result.exit_code == 0
 
         result = runner.invoke(station.cli, ["list"])

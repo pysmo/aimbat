@@ -1,19 +1,19 @@
 from aimbat.lib.db import engine
 from aimbat.lib.models import AimbatSeismogram
-from aimbat.lib.common import cli_enable_debug
+from aimbat.lib.common import cli_enable_debug, check_for_notebook
 from pysmo import MiniSeismogram, distance, time_array, unix_time_array
 from sqlmodel import Session, select
 from icecream import ic  # type: ignore
+from pyqtgraph.jupyter import PlotWidget  # type: ignore
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pyqtgraph as pg  # type: ignore
 import click
-import sys
 
 ic.disable()
 
 
-def plotseis(event_id: int, use_qt: bool = False) -> None:
+def plotseis(event_id: int, use_qt: bool = False) -> None | PlotWidget:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Parameters:
@@ -44,22 +44,25 @@ def plotseis(event_id: int, use_qt: bool = False) -> None:
         xlabel = "Time of day"
         ylabel = "Epicentral distance [km]"
 
-        plotWidget = None
+        plot_widget = None
         if use_qt:
-            plotWidget = pg.plot(title=title)
+            if check_for_notebook():
+                plot_widget = PlotWidget(width=200)
+            else:
+                plot_widget = pg.plot(title=title)
             axis = pg.DateAxisItem()
-            plotWidget.setAxisItems({"bottom": axis})
-            plotWidget.setLabel("bottom", xlabel)
-            plotWidget.setLabel("left", ylabel)
+            plot_widget.setAxisItems({"bottom": axis})
+            plot_widget.setLabel("bottom", xlabel)
+            plot_widget.setLabel("left", ylabel)
 
         for seismogram in seismograms:
             miniseis = MiniSeismogram.clone(seismogram)
             miniseis.detrend()
             miniseis.normalize()
             plot_data = miniseis.data * scaling_factor + distance_dict[seismogram.id]
-            if use_qt and plotWidget is not None:
+            if use_qt and plot_widget is not None:
                 times = unix_time_array(miniseis)
-                plotWidget.plot(times, plot_data)
+                plot_widget.plot(times, plot_data)
             else:
                 times = time_array(miniseis)
                 plt.plot(
@@ -68,7 +71,9 @@ def plotseis(event_id: int, use_qt: bool = False) -> None:
                     scalex=True,
                     scaley=True,
                 )
-        if not use_qt:
+        if use_qt and isinstance(plot_widget, PlotWidget):
+            return plot_widget
+        elif not use_qt:
             plt.xlabel(xlabel=xlabel)
             plt.ylabel(ylabel=ylabel)
             plt.gcf().autofmt_xdate()
@@ -76,8 +81,7 @@ def plotseis(event_id: int, use_qt: bool = False) -> None:
             plt.gca().xaxis.set_major_formatter(fmt)
             plt.title(title)
             plt.show()
-        elif use_qt and sys.flags.interactive != 1:
-            pg.exec()
+        return None
 
 
 @click.group("utils")
@@ -92,9 +96,16 @@ def cli(ctx: click.Context) -> None:
 @click.pass_context
 def cli_plotseis(ctx: click.Context, event_id: int) -> None:
     """Plot seismograms in project."""
-    ic()
+
     use_qt: bool = ctx.obj.get("USE_QT", False)
+
+    if use_qt:
+        pg.mkQApp()
+
     plotseis(event_id, use_qt)
+
+    if use_qt:
+        pg.exec()
 
 
 if __name__ == "__main__":

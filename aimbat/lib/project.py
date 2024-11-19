@@ -52,6 +52,8 @@ def project_del() -> None:
         raise FileNotFoundError(
             f"Unable to delete project: {AIMBAT_PROJECT=} not found."
         )
+    finally:
+        engine.dispose()
 
 
 def project_info() -> Any:

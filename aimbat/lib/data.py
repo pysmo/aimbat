@@ -25,7 +25,7 @@ import click
 ic.disable()
 
 
-def add_files(
+def data_add_files(
     data_files: list[Path], filetype: AimbatFileType, disable_progress: bool = True
 ) -> None:
     """Add files to the AIMBAT database.
@@ -33,7 +33,7 @@ def add_files(
     Parameters:
         data_files: List of filepaths of the data files.
         filetype: Type of data file (e.g. sac).
-        disable_progress_bar: Do not display progress bar.
+        disable_progress: Do not display progress bar.
     """
     ic()
     ic(engine)
@@ -161,7 +161,7 @@ def update_metadata(disable_progress: bool = True) -> None:
         session.commit()
 
 
-def print_table() -> None:
+def data_print_table() -> None:
     """Prints a pretty table with AIMBAT data."""
     ic()
 
@@ -185,12 +185,12 @@ def print_table() -> None:
 
 @click.group("data")
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def cli_data(ctx: click.Context) -> None:
     """Manage data in the AIMBAT project."""
     cli_enable_debug(ctx)
 
 
-@cli.command("add")
+@cli_data.command("add")
 @click.option(
     "--filetype",
     type=click.Choice(AIMBAT_FILE_TYPES, case_sensitive=False),
@@ -200,14 +200,14 @@ def cli(ctx: click.Context) -> None:
 @click.argument("data_files", nargs=-1, type=click.Path(exists=True), required=True)
 def cli_add(data_files: list[Path], filetype: AimbatFileType) -> None:
     """Add or update data files in the AIMBAT project."""
-    add_files(data_files, filetype, disable_progress=ic.enabled)
+    data_add_files(data_files, filetype, disable_progress=ic.enabled)
 
 
-@cli.command("list")
+@cli_data.command("list")
 def cli_list() -> None:
     """Print information on the data stored in AIMBAT."""
-    print_table()
+    data_print_table()
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    cli_data(obj={})

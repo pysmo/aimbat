@@ -1,74 +1,16 @@
-# Overview
+# Using AIMBAT
 
-## Conventions
+Once [installed](installation.md), AIMBAT can be used in several ways:
 
-## Workflow
+- As a [command line](cli.md) application.
+- Within a [notebook](/examples/tutorial)[^notebook].
+- As a [GUI](gui.md) (graphical user interface) application.
 
-``` mermaid
----
-title: AIMBAT Workflow
----
-flowchart TD
-  A[Start] --> B>Check data];
-  B --> C{"Any
-          errors?"};
-  C --->|No| G>Import files to AIMBAT and
-              run ICCS with initial picks
-              and default parameters];
-  C -->|Yes| F[Fix files];
-  F --> B;
-  G --> I["Inspect initial results"];
+[^notebook]: [Jupyter Lab/Notebook](https://jupyter.org/) is *not* bundled with AIMBAT.
 
-  I --> Iq2{"Adjust
-                   filtering?"};
-  Iq2 -->|No| Iq3{"Any bad
-                   traces?"};
-  Iq3 -->|No| Iq4{"Adjust time
-                   window?"};
-  Iq4 -->|No| Iq5{"Has the phase
-                   arrival emerged
-                   in stack?"};
-  Iq5 -->|No| Irerun;
+Complete walkthroughs for each of these options are presented in the following sections.
 
-  Iq2 -->|Yes| Iq2y["Set new filter parameters."];
-  Iq2y --> Iq2yq{"Re-run
-                  ICCS
-                  now?"};
-  Iq2yq -->|No|Iq3;
-  Iq2yq -->|Yes|Irerun;
+!!! tip
 
-  Iq3 -->|Yes| Iq3y["Select/deselect seismograms."];
-  Iq3y --> Iq3yq{"Re-run
-                  ICCS
-                  now?"};
-  Iq3yq -->|No|Iq4;
-  Iq3yq -->|Yes|Irerun;
-
-  Iq4 -->|Yes| Iq4y["Pick new time window"];
-  Iq4y --> Iq4yq{"Re-run
-                  ICCS
-                  now?"};
-  Iq4yq -->|No|Iq5;
-  Iq4yq -->|Yes|Irerun;
-
-  Iq5 -->|Yes| Iq5q{"Is the pick
-                     on the visible
-                     arrival?"};
-  Iq5q -->|No| Iq5qy["Pick new Time"]  --> Irerun;
-  Iq5q -->|Yes| Irerun;
-
-  Irerun>"Run ICCS with
-          updated settings"] --> I2;
-
-  I2["Inspect updated results"];
-
-  I2 --> qM{"Continue
-             with
-             MCCC?"}
-  qM -->|Yes| M>"MCCC with final pick
-                  and time window"] --> Z[END];
-  qM -->|No| Iq2;
-
-```
-
-## Strategy
+    AIMBAT project files are independent of user interface. In other words,
+    existing projects can be opened in any way (cli, notebook, gui).
