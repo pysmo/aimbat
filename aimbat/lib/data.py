@@ -26,14 +26,14 @@ ic.disable()
 
 
 def data_add_files(
-    data_files: list[Path], filetype: AimbatFileType, disable_progress: bool = True
+    data_files: list[Path], filetype: AimbatFileType, disable_progress_bar: bool = True
 ) -> None:
     """Add files to the AIMBAT database.
 
     Parameters:
         data_files: List of filepaths of the data files.
         filetype: Type of data file (e.g. sac).
-        disable_progress: Do not display progress bar.
+        disable_progress_bar: Do not display progress bar.
     """
     ic()
     ic(engine)
@@ -41,7 +41,7 @@ def data_add_files(
         for filename in track(
             sequence=data_files,
             description="Adding files ...",
-            disable=disable_progress,
+            disable=disable_progress_bar,
         ):
             aimbatfilecreate = AimbatFileCreate(
                 filename=str(filename), filetype=filetype
@@ -56,10 +56,10 @@ def data_add_files(
 
         session.commit()
 
-    update_metadata(disable_progress)
+    update_metadata(disable_progress_bar)
 
 
-def update_metadata(disable_progress: bool = True) -> None:
+def update_metadata(disable_progress_bar: bool = True) -> None:
     """Update or add metadata by reading all files whose paths are stored
     in the AIMBAT project.
 
@@ -73,7 +73,7 @@ def update_metadata(disable_progress: bool = True) -> None:
         for aimbatfile in track(
             sequence=session.exec(select(AimbatFile)).all(),
             description="Parsing data ...",
-            disable=disable_progress,
+            disable=disable_progress_bar,
         ):
             seismogram, station, event, t0 = read_metadata_from_file(
                 aimbatfile.filename, aimbatfile.filetype
@@ -200,7 +200,7 @@ def cli_data(ctx: click.Context) -> None:
 @click.argument("data_files", nargs=-1, type=click.Path(exists=True), required=True)
 def cli_add(data_files: list[Path], filetype: AimbatFileType) -> None:
     """Add or update data files in the AIMBAT project."""
-    data_add_files(data_files, filetype, disable_progress=ic.enabled)
+    data_add_files(data_files, filetype, disable_progress_bar=ic.enabled)
 
 
 @cli_data.command("list")

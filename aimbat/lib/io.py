@@ -75,7 +75,8 @@ def read_seismogram_data_from_file(
     """Read seismogram data from a data file.
 
     Parameters:
-        aimbatfile_id: ID of the datafile as stored in the AIMBAT database.
+        filename: Name of the seismogram file.
+        filetype: AIMBAT compatible filetype.
 
     Returns:
         Seismogram data.
@@ -95,7 +96,8 @@ def write_seismogram_data_to_file(
     """Write seismogram data to a data file.
 
     Parameters:
-        aimbatfile: instance of an AimbatFile
+        filename: Name of the seismogram file.
+        filetype: AIMBAT compatible filetype.
         data: Seismogram data
     """
 
