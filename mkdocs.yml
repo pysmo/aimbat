@@ -100,7 +100,7 @@ plugins:
   - termynal
 
 nav:
-  - Home: user-guide/index.md
+  - Home: index.md
   - First Steps:
       - Installation: user-guide/installation.md
       - Data & Conventions: user-guide/data.md
