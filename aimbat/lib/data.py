@@ -185,12 +185,12 @@ def data_print_table() -> None:
 
 @click.group("data")
 @click.pass_context
-def cli_data(ctx: click.Context) -> None:
+def data_cli(ctx: click.Context) -> None:
     """Manage data in the AIMBAT project."""
     cli_enable_debug(ctx)
 
 
-@cli_data.command("add")
+@data_cli.command("add")
 @click.option(
     "--filetype",
     type=click.Choice(AIMBAT_FILE_TYPES, case_sensitive=False),
@@ -203,11 +203,11 @@ def cli_add(data_files: list[Path], filetype: AimbatFileType) -> None:
     data_add_files(data_files, filetype, disable_progress_bar=ic.enabled)
 
 
-@cli_data.command("list")
+@data_cli.command("list")
 def cli_list() -> None:
     """Print information on the data stored in AIMBAT."""
     data_print_table()
 
 
 if __name__ == "__main__":
-    cli_data(obj={})
+    data_cli(obj={})

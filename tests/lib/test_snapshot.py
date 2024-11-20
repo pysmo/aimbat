@@ -56,22 +56,24 @@ class TestCliSnapshot:
 
         runner = CliRunner()
 
-        result = runner.invoke(project.cli, ["new"])
+        result = runner.invoke(project.project_cli, ["new"])
         assert result.exit_code == 0
 
-        result = runner.invoke(data.cli_data, ["add", sac_file_good])
+        result = runner.invoke(data.data_cli, ["add", sac_file_good])
         assert result.exit_code == 0
 
-        result = runner.invoke(snapshot.cli)
+        result = runner.invoke(snapshot.snapshot_cli)
         assert result.exit_code == 0
         assert "Usage" in result.output
 
-        result = runner.invoke(snapshot.cli, ["list"])
+        result = runner.invoke(snapshot.snapshot_cli, ["list"])
         assert result.exit_code == 0
         assert "AIMBAT Snapshots" in result.output
 
         random_comment = str(uuid.uuid4())
-        result = runner.invoke(snapshot.cli, ["create", "1", "-c", random_comment])
+        result = runner.invoke(
+            snapshot.snapshot_cli, ["create", "1", "-c", random_comment]
+        )
         assert result.exit_code == 0
 
         with Session(db.engine) as session:
@@ -79,9 +81,9 @@ class TestCliSnapshot:
             assert test_snapshot.id == 1
             assert test_snapshot.comment == random_comment
 
-        result = runner.invoke(snapshot.cli, ["list"])
+        result = runner.invoke(snapshot.snapshot_cli, ["list"])
         assert result.exit_code == 0
 
-        result = runner.invoke(snapshot.cli, ["delete", "1"])
+        result = runner.invoke(snapshot.snapshot_cli, ["delete", "1"])
         assert result.exit_code == 0
         assert random_comment not in result.output

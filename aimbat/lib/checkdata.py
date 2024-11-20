@@ -11,7 +11,7 @@ import click
 ic.disable()
 
 
-def check_station(station: Station, called_from_cli: bool = False) -> list[str]:
+def checkdata_station(station: Station, called_from_cli: bool = False) -> list[str]:
     """Check if station information is complete.
 
     Parameters:
@@ -50,7 +50,7 @@ def check_station(station: Station, called_from_cli: bool = False) -> list[str]:
     return issues
 
 
-def check_event(event: Event, called_from_cli: bool = False) -> list[str]:
+def checkdata_event(event: Event, called_from_cli: bool = False) -> list[str]:
     """Check if event information is complete.
 
     Parameters:
@@ -89,7 +89,7 @@ def check_event(event: Event, called_from_cli: bool = False) -> list[str]:
     return issues
 
 
-def check_seismogram(
+def checkdata_seismogram(
     seismogram: Seismogram, called_from_cli: bool = False
 ) -> list[str]:
     """Check if seismogram information is complete.
@@ -115,7 +115,7 @@ def check_seismogram(
     return issues
 
 
-def run_checks_cli(sacfiles: list[Path]) -> None:
+def checkdata_run_checks_cli(sacfiles: list[Path]) -> None:
     """Run all checks on one or more SAC files.
 
     Parameters:
@@ -136,21 +136,23 @@ def run_checks_cli(sacfiles: list[Path]) -> None:
         my_sac = SAC.from_file(str(sacfile))
         print(f"\n{sacfile}: ", end="")
 
-        station_issues = check_station(my_sac.station, called_from_cli=True)
+        station_issues = checkdata_station(my_sac.station, called_from_cli=True)
         if len(station_issues) == 0:
             checkmark()
         else:
             issues.extend(station_issues)
             crossmark()
 
-        event_issues = check_event(my_sac.event, called_from_cli=True)
+        event_issues = checkdata_event(my_sac.event, called_from_cli=True)
         if len(event_issues) == 0:
             checkmark()
         else:
             issues.extend(event_issues)
             crossmark()
 
-        seismogram_issues = check_seismogram(my_sac.seismogram, called_from_cli=True)
+        seismogram_issues = checkdata_seismogram(
+            my_sac.seismogram, called_from_cli=True
+        )
         if len(seismogram_issues) == 0:
             checkmark()
         else:
@@ -174,11 +176,11 @@ def run_checks_cli(sacfiles: list[Path]) -> None:
 @click.command("checkdata")
 @click.argument("sacfiles", nargs=-1, type=click.Path(exists=True), required=True)
 @click.pass_context
-def cli(ctx: click.Context, sacfiles: list[Path]) -> None:
+def checkdata_cli(ctx: click.Context, sacfiles: list[Path]) -> None:
     """Check if there are any problems with the input SAC files."""
     cli_enable_debug(ctx)
-    run_checks_cli(sacfiles)
+    checkdata_run_checks_cli(sacfiles)
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    checkdata_cli(obj={})

@@ -48,16 +48,16 @@ def cli(ctx: click.Context, debug: bool, use_qt: bool) -> None:
 #     aimbat_main_gui()
 
 
-cli.add_command(project.cli)
-cli.add_command(defaults.cli)
-cli.add_command(sampledata.cli)
-cli.add_command(checkdata.cli)
-cli.add_command(data.cli_data)
-cli.add_command(station.cli)
-cli.add_command(event.cli)
-cli.add_command(seismogram.cli)
-cli.add_command(snapshot.cli)
-cli.add_command(utils.cli)
+cli.add_command(project.project_cli)
+cli.add_command(defaults.defaults_cli)
+cli.add_command(sampledata.sampledata_cli)
+cli.add_command(checkdata.checkdata_cli)
+cli.add_command(data.data_cli)
+cli.add_command(station.station_cli)
+cli.add_command(event.event_cli)
+cli.add_command(seismogram.seismogram_cli)
+cli.add_command(snapshot.snapshot_cli)
+cli.add_command(utils.utils_cli)
 
 
 if __name__ == "__main__":

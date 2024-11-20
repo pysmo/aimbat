@@ -13,7 +13,7 @@ import click
 ic.disable()
 
 
-def plotseis(event_id: int, use_qt: bool = False) -> None | PlotWidget:
+def utils_plotseis(event_id: int, use_qt: bool = False) -> None | PlotWidget:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Parameters:
@@ -86,15 +86,15 @@ def plotseis(event_id: int, use_qt: bool = False) -> None | PlotWidget:
 
 @click.group("utils")
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def utils_cli(ctx: click.Context) -> None:
     """Usefull extra tools to use with AIMBAT projects."""
     cli_enable_debug(ctx)
 
 
-@cli.command("plotseis")
+@utils_cli.command("plotseis")
 @click.argument("event_id", nargs=1, type=int, required=True)
 @click.pass_context
-def cli_plotseis(ctx: click.Context, event_id: int) -> None:
+def utils_cli_plotseis(ctx: click.Context, event_id: int) -> None:
     """Plot seismograms in project."""
 
     use_qt: bool = ctx.obj.get("USE_QT", False)
@@ -102,11 +102,11 @@ def cli_plotseis(ctx: click.Context, event_id: int) -> None:
     if use_qt:
         pg.mkQApp()
 
-    plotseis(event_id, use_qt)
+    utils_plotseis(event_id, use_qt)
 
     if use_qt:
         pg.exec()
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    utils_cli(obj={})

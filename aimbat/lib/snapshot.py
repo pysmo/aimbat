@@ -7,7 +7,6 @@ from aimbat.lib.models import (
     AimbatSeismogramParameterSnapshot,
 )
 from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
 from rich.console import Console
 from rich.table import Table
 from icecream import ic  # type: ignore
@@ -28,15 +27,16 @@ def snapshot_create(event_id: int, comment: str | None = None) -> None:
     ic(event_id, comment, engine)
 
     with Session(engine) as session:
-        try:
-            select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
-            event = session.exec(select_event).one()
-        except NoResultFound:
-            raise RuntimeError(f"Unable to find event with id={event_id}.")
+        select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
+        event = session.exec(select_event).one_or_none()
+
+        if not event:
+            raise RuntimeError(
+                f"Unable to create snapshot: event with id={event_id} not found."
+            )
 
         snapshot = AimbatSnapshot(event_id=event.id, comment=comment)
         session.add(snapshot)
-
         event_parameter_snapshot = AimbatEventParameterSnapshot.model_validate(
             event.parameter, update={"id": None, "snapshot_id": snapshot.id}
         )
@@ -65,19 +65,19 @@ def snapshot_delete(snapshot_id: int) -> None:
     ic(snapshot_id, engine)
 
     with Session(engine) as session:
-        try:
-            select_snapshot = select(AimbatSnapshot).where(
-                AimbatSnapshot.id == snapshot_id
+        select_snapshot = select(AimbatSnapshot).where(AimbatSnapshot.id == snapshot_id)
+        snapshot = session.exec(select_snapshot).one_or_none()
+
+        if not snapshot:
+            raise RuntimeError(
+                f"Unable to delete snapshot: snapshot with id={snapshot_id} not found."
             )
-            snapshot = session.exec(select_snapshot).one()
-        except NoResultFound:
-            raise RuntimeError(f"Unable to find snapshot with id={snapshot_id}.")
 
         session.delete(snapshot)
         session.commit()
 
 
-def print_table() -> None:
+def snapshot_print_table() -> None:
     """Print a pretty table with AIMBAT snapshots."""
 
     table = Table(title="AIMBAT Snapshots")
@@ -107,31 +107,31 @@ def print_table() -> None:
 
 @click.group("snapshot")
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def snapshot_cli(ctx: click.Context) -> None:
     """View and manage stations in the AIMBAT project."""
     cli_enable_debug(ctx)
 
 
-@cli.command("create")
+@snapshot_cli.command("create")
 @click.argument("event_id", nargs=1, type=int, required=True)
 @click.option("--comment", "-c", default=None, help="Add a comment to snapshot")
-def cli_create(event_id: int, comment: str | None = None) -> None:
+def snapshot_cli_create(event_id: int, comment: str | None = None) -> None:
     """Create new snapshot."""
     snapshot_create(event_id, comment)
 
 
-@cli.command("delete")
+@snapshot_cli.command("delete")
 @click.argument("snapshot_id", nargs=1, type=int, required=True)
-def cli_delete(snapshot_id: int) -> None:
+def snapshot_cli_delete(snapshot_id: int) -> None:
     """Delete existing snapshot."""
     snapshot_delete(snapshot_id)
 
 
-@cli.command("list")
-def cli_list() -> None:
+@snapshot_cli.command("list")
+def snapshot_cli_list() -> None:
     """Print information on the snapshots stored in AIMBAT."""
-    print_table()
+    snapshot_print_table()
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    snapshot_cli(obj={})

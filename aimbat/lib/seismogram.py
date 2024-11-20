@@ -19,7 +19,7 @@ AIMBAT_SEISMOGRAM_PARAMETER_NAMES: Tuple[AimbatSeismogramParameterName, ...] = g
 )
 
 
-def get_parameter(
+def seismogram_get_parameter(
     session: Session, seismogram_id: int, parameter_name: AimbatSeismogramParameterName
 ) -> AimbatSeismogramParameterType:
     select_seismogram = select(AimbatSeismogram).where(
@@ -44,7 +44,7 @@ def get_parameter(
     return getattr(aimbatseismogram.parameter, parameter_name)
 
 
-def set_parameter(
+def seismogram_set_parameter(
     session: Session,
     seismogram_id: int,
     parameter_name: AimbatSeismogramParameterName,
@@ -77,7 +77,7 @@ def set_parameter(
     session.commit()
 
 
-def print_table() -> None:
+def seismogram_print_table() -> None:
     """Prints a pretty table with AIMBAT seismograms."""
 
     table = Table(title="AIMBAT Seismograms")
@@ -105,36 +105,38 @@ def print_table() -> None:
 
 @click.group("seismogram")
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def seismogram_cli(ctx: click.Context) -> None:
     """View and manage seismograms in the AIMBAT project."""
     cli_enable_debug(ctx)
 
 
-@cli.command("list")
-def cli_list() -> None:
+@seismogram_cli.command("list")
+def seismogram_cli_list() -> None:
     """Print information on the seismograms stored in AIMBAT."""
-    print_table()
+    seismogram_print_table()
 
 
-@cli.group("parameter")
-def cli_paramater() -> None:
+@seismogram_cli.group("parameter")
+def seismogram_cli_parameter() -> None:
     """Manage evennt parameters in the AIMBAT project."""
     pass
 
 
-@cli_paramater.command("get")
+@seismogram_cli_parameter.command("get")
 @click.argument("seismogram_id", nargs=1, type=int, required=True)
 @click.argument(
     "name", nargs=1, type=click.Choice(AIMBAT_SEISMOGRAM_PARAMETER_NAMES), required=True
 )
-def cli_get(seismogram_id: int, name: AimbatSeismogramParameterName) -> None:
+def seismogram_cli_paramter_get(
+    seismogram_id: int, name: AimbatSeismogramParameterName
+) -> None:
     """Get the value of a processing parameter."""
 
     with Session(engine) as session:
-        print(get_parameter(session, seismogram_id, name))
+        print(seismogram_get_parameter(session, seismogram_id, name))
 
 
-@cli_paramater.command("set")
+@seismogram_cli_parameter.command("set")
 @click.argument(
     "seismogram_id",
     nargs=1,
@@ -145,7 +147,7 @@ def cli_get(seismogram_id: int, name: AimbatSeismogramParameterName) -> None:
     "name", nargs=1, type=click.Choice(AIMBAT_SEISMOGRAM_PARAMETER_NAMES), required=True
 )
 @click.argument("value", nargs=1, type=str, required=True)
-def cli_set(
+def seismogram_cli_parameter_set(
     seismogram_id: int,
     name: AimbatSeismogramParameterName,
     value: str,
@@ -155,12 +157,12 @@ def cli_set(
     with Session(engine) as session:
         match [name, RegexEqual(value)]:
             case ["select", "True" | "true" | "yes" | "y"]:
-                set_parameter(session, seismogram_id, name, True)
+                seismogram_set_parameter(session, seismogram_id, name, True)
             case ["select", "False" | "false" | "no" | "n"]:
-                set_parameter(session, seismogram_id, name, False)
+                seismogram_set_parameter(session, seismogram_id, name, False)
             case ["t1" | "t2", r"\d\d\d\d[W,T,0-9,\-,:,\.,\s]+"]:
                 datetime_object = datetime.fromisoformat(value)
-                set_parameter(session, seismogram_id, name, datetime_object)
+                seismogram_set_parameter(session, seismogram_id, name, datetime_object)
             case _:
                 raise RuntimeError(
                     f"Unknown parameter name '{name}' or incorrect value '{value}'."
@@ -168,4 +170,4 @@ def cli_set(
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    seismogram_cli(obj={})

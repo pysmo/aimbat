@@ -48,6 +48,7 @@ class AimbatEvent(SQLModel, table=True):
     """Class to store event information."""
 
     id: int | None = Field(default=None, primary_key=True)
+    selected: bool = False
     time_db: datetime = Field(unique=True)
     latitude: float
     longitude: float
@@ -73,6 +74,7 @@ class AimbatEvent(SQLModel, table=True):
 
 class AimbatEventParameterBase(SQLModel):
     id: int | None = Field(default=None, primary_key=True)
+    completed: bool = False
     window_pre: timedelta
     window_post: timedelta
 
