@@ -12,19 +12,19 @@ class TestCliStation:
 
         runner = CliRunner()
 
-        result = runner.invoke(project.cli, ["new"])
+        result = runner.invoke(project.project_cli, ["new"])
         assert result.exit_code == 0
 
-        result = runner.invoke(station.cli)
+        result = runner.invoke(station.station_cli)
         assert result.exit_code == 0
         assert "Usage" in result.output
 
-        result = runner.invoke(data.cli_data, ["add"])
+        result = runner.invoke(data.data_cli, ["add"])
         assert result.exit_code == 2
 
-        result = runner.invoke(data.cli_data, ["add", sac_file_good])
+        result = runner.invoke(data.data_cli, ["add", sac_file_good])
         assert result.exit_code == 0
 
-        result = runner.invoke(station.cli, ["list"])
+        result = runner.invoke(station.station_cli, ["list"])
         assert result.exit_code == 0
         assert "113A - AR" in result.output

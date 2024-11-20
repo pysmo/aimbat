@@ -11,7 +11,7 @@ class TestLibUtils:
         project.project_new()
 
         data.data_add_files([sac_file_good], filetype="sac")
-        utils.plotseis(1)
+        utils.utils_plotseis(1)
 
 
 class TestCliUtils:
@@ -24,18 +24,18 @@ class TestCliUtils:
 
         runner = CliRunner()
 
-        result = runner.invoke(project.cli, ["new"])
+        result = runner.invoke(project.project_cli, ["new"])
         assert result.exit_code == 0
 
-        result = runner.invoke(data.cli_data, ["add"])
+        result = runner.invoke(data.data_cli, ["add"])
         assert result.exit_code == 2
 
-        result = runner.invoke(data.cli_data, ["add", sac_file_good])
+        result = runner.invoke(data.data_cli, ["add", sac_file_good])
         assert result.exit_code == 0
 
-        result = runner.invoke(utils.cli)
+        result = runner.invoke(utils.utils_cli)
         assert result.exit_code == 0
         assert "Usage" in result.output
 
-        result = runner.invoke(utils.cli, ["plotseis", "1"])
+        result = runner.invoke(utils.utils_cli, ["plotseis", "1"])
         assert result.exit_code == 0

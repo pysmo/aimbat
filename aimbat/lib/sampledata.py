@@ -45,7 +45,7 @@ def sampledata_download(force: bool = False) -> None:
 
 @click.group("sampledata")
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def sampledata_cli(ctx: click.Context) -> None:
     """Download aimbat sample data and save it to a folder.
 
     The sample data source url can be viewed or changed via `aimbat default
@@ -54,14 +54,14 @@ def cli(ctx: click.Context) -> None:
     cli_enable_debug(ctx)
 
 
-@cli.command("delete")
+@sampledata_cli.command("delete")
 def sampledata_cli_delete() -> None:
     """Recursively delete sample data directory."""
 
     sampledata_delete()
 
 
-@cli.command("download")
+@sampledata_cli.command("download")
 @click.option(
     "-f",
     "--force",
@@ -75,4 +75,4 @@ def sampledata_cli_download(force: bool) -> None:
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    sampledata_cli(obj={})

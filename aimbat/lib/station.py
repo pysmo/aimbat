@@ -10,7 +10,7 @@ from icecream import ic  # type: ignore
 ic.disable()
 
 
-def print_table() -> None:
+def station_print_table() -> None:
     """Prints a pretty table with AIMBAT stations."""
     ic()
     ic(engine)
@@ -47,17 +47,17 @@ def print_table() -> None:
 
 @click.group("station")
 @click.pass_context
-def cli(ctx: click.Context) -> None:
+def station_cli(ctx: click.Context) -> None:
     """View and manage stations in the AIMBAT project."""
     cli_enable_debug(ctx)
 
 
-@cli.command("list")
-def cli_list() -> None:
+@station_cli.command("list")
+def station_cli_list() -> None:
     """Print information on the stations stored in AIMBAT."""
     ic()
-    print_table()
+    station_print_table()
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    station_cli(obj={})

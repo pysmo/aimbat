@@ -17,34 +17,34 @@ class TestCliSampleData:
         sampledata_dir = Path(f"{project_directory}/aimbat-test")
 
         runner = CliRunner()
-        result = runner.invoke(sampledata.cli)
+        result = runner.invoke(sampledata.sampledata_cli)
         assert result.exit_code == 0
         assert "Usage" in result.output
 
-        result = runner.invoke(project.cli, ["new"])
+        result = runner.invoke(project.project_cli, ["new"])
         assert result.exit_code == 0
 
         result = runner.invoke(
-            defaults.cli, ["set", "sampledata_dir", str(sampledata_dir)]
+            defaults.defaults_cli, ["set", "sampledata_dir", str(sampledata_dir)]
         )
         assert result.exit_code == 0
 
         assert not sampledata_dir.exists()
-        result = runner.invoke(sampledata.cli, ["download"])
+        result = runner.invoke(sampledata.sampledata_cli, ["download"])
         assert result.exit_code == 0
         assert sampledata_dir.exists()
 
         # can't download if it is already there
-        result = runner.invoke(sampledata.cli, ["download"])
+        result = runner.invoke(sampledata.sampledata_cli, ["download"])
         assert result.exit_code == 1
 
         # unless we use force
-        result = runner.invoke(sampledata.cli, ["download", "-f"])
+        result = runner.invoke(sampledata.sampledata_cli, ["download", "-f"])
         assert result.exit_code == 0
 
-        result = runner.invoke(sampledata.cli, ["delete"])
+        result = runner.invoke(sampledata.sampledata_cli, ["delete"])
         assert result.exit_code == 0
         assert not sampledata_dir.exists()
 
-        result = runner.invoke(defaults.cli, ["reset", "sampledata_dir"])
+        result = runner.invoke(defaults.defaults_cli, ["reset", "sampledata_dir"])
         assert result.exit_code == 0

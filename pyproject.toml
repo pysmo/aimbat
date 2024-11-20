@@ -46,6 +46,7 @@ pytest-mypy = "^0.10.3"
 pytest-sugar = "^1.0.0"
 ruff = "^0.7.2"
 pytest-depends = "^1.0.1"
+nbmake = "^1.5.4"
 
 
 [tool.poetry.group.dev.dependencies]
