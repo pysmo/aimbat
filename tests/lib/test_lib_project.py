@@ -1,6 +1,4 @@
 from pathlib import Path
-from click.testing import CliRunner
-from importlib import reload
 import pytest
 import platform
 
@@ -9,7 +7,6 @@ class TestLibProject:
     def test_project(self) -> None:
         from aimbat.lib import project
 
-        # reload(project)
         project_file = project.AIMBAT_PROJECT
 
         assert Path(project_file).exists() is False
