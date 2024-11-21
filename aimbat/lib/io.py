@@ -1,14 +1,11 @@
 """The `io` module provides functions to read and write data files used with AIMBAT"""
 
-from aimbat.lib.common import AimbatDataError
+from aimbat.lib.common import AimbatDataError, ic
 from pysmo import SAC, Event, Seismogram, Station
 from datetime import datetime
-from icecream import ic  # type: ignore
 import aimbat.lib.defaults as defaults
 import numpy as np
 import numpy.typing as npt
-
-ic.disable()
 
 
 def _read_seismogram_data_from_sacfile(sacfile: str) -> npt.NDArray[np.float64]:

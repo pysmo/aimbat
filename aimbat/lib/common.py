@@ -1,14 +1,10 @@
-from typing import Literal, get_args
 from dataclasses import dataclass
-from icecream import ic  # type: ignore
 from IPython.core.getipython import get_ipython
+from icecream import ic  # type: ignore
 import re
 import click
 
-
-# File types that AIMBAT can use as input
-AimbatFileType = Literal["sac"]
-AIMBAT_FILE_TYPES: tuple[AimbatFileType, ...] = get_args(AimbatFileType)
+ic.disable()
 
 
 class AimbatDataError(Exception):

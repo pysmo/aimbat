@@ -1,12 +1,15 @@
+from sqlmodel import Session, select
 from click.testing import CliRunner
 from importlib import reload
+from aimbat.lib.models import AimbatFile
 
 
-class TestCliStation:
+class TestCliData:
     def test_sac_data(self, sac_file_good) -> None:  # type: ignore
-        """Test AIMBAT cli with station subcommand."""
+        """Test AIMBAT cli with data subcommand."""
 
-        from aimbat.lib import project, data, station
+        from aimbat.lib import db
+        from aimbat.cli import data, project
 
         reload(project)
 
@@ -15,7 +18,7 @@ class TestCliStation:
         result = runner.invoke(project.project_cli, ["new"])
         assert result.exit_code == 0
 
-        result = runner.invoke(station.station_cli)
+        result = runner.invoke(data.data_cli)
         assert result.exit_code == 0
         assert "Usage" in result.output
 
@@ -24,7 +27,9 @@ class TestCliStation:
 
         result = runner.invoke(data.data_cli, ["add", sac_file_good])
         assert result.exit_code == 0
+        with Session(db.engine) as session:
+            test_file = session.exec(select(AimbatFile)).one()
+            assert test_file.filename == sac_file_good
 
-        result = runner.invoke(station.station_cli, ["list"])
+        result = runner.invoke(data.data_cli, ["list"])
         assert result.exit_code == 0
-        assert "113A - AR" in result.output

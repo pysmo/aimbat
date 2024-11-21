@@ -1,18 +1,12 @@
 from click.testing import CliRunner
-
-# import pytest
 from pathlib import Path
-from importlib import reload
 
 
 class TestCliSampleData:
     def test_cli_sampledata(self, project_directory) -> None:  # type: ignore
         """Test AIMBAT cli with defaults subcommand."""
 
-        from aimbat.lib import project, defaults, sampledata
-
-        reload(project)
-        reload(sampledata)
+        from aimbat.cli import project, defaults, sampledata
 
         sampledata_dir = Path(f"{project_directory}/aimbat-test")
 

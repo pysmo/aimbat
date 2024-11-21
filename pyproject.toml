@@ -20,7 +20,7 @@ classifiers = [
 
 
 [tool.poetry.scripts]
-aimbat = 'aimbat.cli:cli'
+aimbat = 'aimbat.app:cli'
 
 
 [tool.poetry.dependencies]

@@ -1,11 +1,8 @@
-from sqlmodel import Relationship, SQLModel, Field
+from aimbat.lib.types import AimbatFileType
 from datetime import datetime, timedelta, timezone
-from aimbat.lib.common import AimbatFileType
-from icecream import ic  # type: ignore
-import aimbat.lib.io as io
+from sqlmodel import Relationship, SQLModel, Field
 import numpy as np
-
-ic.disable()
+import aimbat.lib.io as io
 
 
 class AimbatFileBase(SQLModel):
