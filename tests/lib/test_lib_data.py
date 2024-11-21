@@ -1,5 +1,4 @@
 from sqlmodel import Session, select
-from click.testing import CliRunner
 from pysmo import SAC
 import pytest
 import numpy as np
@@ -116,34 +115,3 @@ class TestLibData:
             aimbat_event = session.exec(select_event).one()
             assert aimbat_event.latitude == pytest.approx(new_event_latitude)
             assert aimbat_event.longitude == pytest.approx(new_event_longitude)
-
-
-class TestCliData:
-    def test_sac_data(self, sac_file_good) -> None:  # type: ignore
-        """Test AIMBAT cli with data subcommand."""
-
-        from aimbat.lib import db, project, data
-
-        reload(project)
-        reload(data)
-
-        runner = CliRunner()
-
-        result = runner.invoke(project.project_cli, ["new"])
-        assert result.exit_code == 0
-
-        result = runner.invoke(data.data_cli)
-        assert result.exit_code == 0
-        assert "Usage" in result.output
-
-        result = runner.invoke(data.data_cli, ["add"])
-        assert result.exit_code == 2
-
-        result = runner.invoke(data.data_cli, ["add", sac_file_good])
-        assert result.exit_code == 0
-        with Session(db.engine) as session:
-            test_file = session.exec(select(AimbatFile)).one()
-            assert test_file.filename == sac_file_good
-
-        result = runner.invoke(data.data_cli, ["list"])
-        assert result.exit_code == 0

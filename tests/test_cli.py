@@ -4,15 +4,15 @@ from importlib import metadata, reload
 
 def test_cli(monkeypatch):  # type: ignore
     """Test aimbat cli without any subcommands."""
-    from aimbat import cli
+    from aimbat import app
 
     runner = CliRunner()
 
-    result = runner.invoke(cli.cli)
+    result = runner.invoke(app.cli)
     assert result.exit_code == 0
     assert "Usage" in result.output
 
-    result = runner.invoke(cli.cli, "--version")
+    result = runner.invoke(app.cli, "--version")
     assert result.exit_code == 0
     assert "aimbat, version" in result.output
 
@@ -20,8 +20,8 @@ def test_cli(monkeypatch):  # type: ignore
         raise Exception
 
     monkeypatch.setattr(metadata, "version", mock_raise)
-    _ = reload(cli)
+    _ = reload(app)
 
-    result = runner.invoke(cli.cli, "--version")
+    result = runner.invoke(app.cli, "--version")
     assert result.exit_code == 0
     assert "unknown" in result.output

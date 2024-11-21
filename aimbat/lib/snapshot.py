@@ -1,4 +1,4 @@
-from aimbat.lib.common import cli_enable_debug
+from aimbat.lib.common import ic
 from aimbat.lib.db import engine
 from aimbat.lib.models import (
     AimbatEvent,
@@ -9,10 +9,6 @@ from aimbat.lib.models import (
 from sqlmodel import Session, select
 from rich.console import Console
 from rich.table import Table
-from icecream import ic  # type: ignore
-import click
-
-ic.disable()
 
 
 def snapshot_create(event_id: int, comment: str | None = None) -> None:
@@ -103,35 +99,3 @@ def snapshot_print_table() -> None:
 
     console = Console()
     console.print(table)
-
-
-@click.group("snapshot")
-@click.pass_context
-def snapshot_cli(ctx: click.Context) -> None:
-    """View and manage stations in the AIMBAT project."""
-    cli_enable_debug(ctx)
-
-
-@snapshot_cli.command("create")
-@click.argument("event_id", nargs=1, type=int, required=True)
-@click.option("--comment", "-c", default=None, help="Add a comment to snapshot")
-def snapshot_cli_create(event_id: int, comment: str | None = None) -> None:
-    """Create new snapshot."""
-    snapshot_create(event_id, comment)
-
-
-@snapshot_cli.command("delete")
-@click.argument("snapshot_id", nargs=1, type=int, required=True)
-def snapshot_cli_delete(snapshot_id: int) -> None:
-    """Delete existing snapshot."""
-    snapshot_delete(snapshot_id)
-
-
-@snapshot_cli.command("list")
-def snapshot_cli_list() -> None:
-    """Print information on the snapshots stored in AIMBAT."""
-    snapshot_print_table()
-
-
-if __name__ == "__main__":
-    snapshot_cli(obj={})

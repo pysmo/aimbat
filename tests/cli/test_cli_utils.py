@@ -1,26 +1,11 @@
 from click.testing import CliRunner
-from importlib import reload
-
-
-class TestLibUtils:
-    def test_plotseis(self, sac_file_good, mock_show) -> None:  # type: ignore
-        from aimbat.lib import project, data, utils
-
-        _ = reload(project)
-
-        project.project_new()
-
-        data.data_add_files([sac_file_good], filetype="sac")
-        utils.utils_plotseis(1)
 
 
 class TestCliUtils:
     def test_sac_data(self, sac_file_good, mock_show) -> None:  # type: ignore
         """Test AIMBAT cli with utils subcommand."""
 
-        from aimbat.lib import project, data, utils
-
-        _ = reload(project)
+        from aimbat.cli import data, project, utils
 
         runner = CliRunner()
 
