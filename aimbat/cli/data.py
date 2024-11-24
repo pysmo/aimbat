@@ -1,50 +1,77 @@
 """Module to add seismogram files to an AIMBAT project and view information about them."""
 
-from aimbat.lib.common import cli_enable_debug, ic
-from aimbat.lib.types import AIMBAT_FILE_TYPES, AimbatFileType
+from aimbat.lib.common import debug_callback, ic
+from aimbat.lib.types import AimbatFileType, AIMBAT_FILE_TYPES
 from pathlib import Path
-import click
+from enum import StrEnum
+from typing import Annotated
+import typer
 
 
-def cli_data_add_files(
-    data_files: list[Path], filetype: AimbatFileType, disable_progress_bar: bool = True
+FileType = StrEnum("FileType", [(i, str(i)) for i in AIMBAT_FILE_TYPES])  # type: ignore
+
+
+def _add_files_to_project(
+    seismogram_files: list[Path],
+    filetype: AimbatFileType,
+    db_url: str | None,
+    disable_progress_bar: bool = True,
 ) -> None:
-    from aimbat.lib.data import data_add_files
+    from aimbat.lib.data import add_files_to_project
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
 
-    data_add_files(data_files, filetype, disable_progress_bar=disable_progress_bar)
-
-
-def cli_data_print_table() -> None:
-    from aimbat.lib.data import data_print_table
-
-    data_print_table()
-
-
-@click.group("data")
-@click.pass_context
-def data_cli(ctx: click.Context) -> None:
-    """Manage data in the AIMBAT project."""
-    cli_enable_debug(ctx)
+    with Session(engine_from_url(db_url)) as session:
+        add_files_to_project(
+            session,
+            seismogram_files,
+            filetype,
+            disable_progress_bar=disable_progress_bar,
+        )
 
 
-@data_cli.command("add")
-@click.option(
-    "--filetype",
-    type=click.Choice(AIMBAT_FILE_TYPES, case_sensitive=False),
-    default="sac",
-    help="File type.",
+def _print_data_table(db_url: str | None) -> None:
+    from aimbat.lib.data import print_data_table
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        print_data_table(session)
+
+
+app = typer.Typer(
+    name="data",
+    no_args_is_help=True,
+    callback=debug_callback,
+    short_help=__doc__.partition("\n")[0],
+    help=__doc__,
 )
-@click.argument("data_files", nargs=-1, type=click.Path(exists=True), required=True)
-def cli_add(data_files: list[Path], filetype: AimbatFileType) -> None:
+
+
+@app.command("add")
+def cli_add(
+    ctx: typer.Context,
+    files: Annotated[list[Path], typer.Argument(help="Seismogram files to be added.")],
+    filetype: Annotated[
+        FileType, typer.Option(help="Specify type of seismogram file.")
+    ] = FileType.sac,  # type: ignore
+) -> None:
     """Add or update data files in the AIMBAT project."""
-    cli_data_add_files(data_files, filetype, disable_progress_bar=ic.enabled)
+    db_url = ctx.obj["DB_URL"]
+    _add_files_to_project(
+        seismogram_files=files,
+        filetype=filetype.value,  # type: ignore
+        db_url=db_url,
+        disable_progress_bar=ic.enabled,
+    )
 
 
-@data_cli.command("list")
-def cli_list() -> None:
+@app.command("list")
+def cli_list(ctx: typer.Context) -> None:
     """Print information on the data stored in AIMBAT."""
-    cli_data_print_table()
+    db_url = ctx.obj["DB_URL"]
+    _print_data_table(db_url)
 
 
 if __name__ == "__main__":
-    data_cli(obj={})
+    app()

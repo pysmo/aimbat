@@ -3,6 +3,7 @@
 from aimbat.lib.common import AimbatDataError, ic
 from pysmo import SAC, Event, Seismogram, Station
 from datetime import datetime
+from sqlmodel import Session
 import aimbat.lib.defaults as defaults
 import numpy as np
 import numpy.typing as npt
@@ -42,12 +43,14 @@ def _write_seismogram_data_to_sacfile(
 
 
 def _read_metadata_from_sacfile(
+    session: Session,
     sacfile: str,
 ) -> tuple[Seismogram, Station, Event, datetime]:
     """Read seismogram metadata from a SAC file.
 
     Parameters:
-        sacfile: str containing the name of the SAC file.
+        session: Database session.
+        sacfile: Name of the SAC file.
 
     Returns:
         Seismogram metadata.
@@ -56,7 +59,7 @@ def _read_metadata_from_sacfile(
     ic()
     ic(sacfile)
 
-    initial_pick_header = defaults.defaults_get_value("initial_pick_header")
+    initial_pick_header = defaults.get_default(session, "initial_pick_header")
     sac = SAC.from_file(str(sacfile))
     t0 = getattr(sac.timestamps, str(initial_pick_header))
     if t0 is None:
@@ -110,18 +113,19 @@ def write_seismogram_data_to_file(
 
 
 def read_metadata_from_file(
-    filename: str, filetype: str
+    session: Session, filename: str, filetype: str
 ) -> tuple[Seismogram, Station, Event, datetime]:
-    """Read seismogram metadata from a file.
+    """Read seismogram metadata from a seismogram file.
 
     Parameters:
-        filename: input filename.
-        filetype: type of input file.
+        session: Database session.
+        filename: Input filename.
+        filetype: Type of input file.
     """
 
     ic()
     ic(filename, filetype)
 
     if filetype == "sac":
-        return _read_metadata_from_sacfile(filename)
+        return _read_metadata_from_sacfile(session, filename)
     raise NotImplementedError(f"Unable to parse files of type {filetype}")

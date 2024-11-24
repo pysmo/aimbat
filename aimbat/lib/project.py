@@ -1,99 +1,138 @@
 from aimbat.lib.common import ic
-from aimbat.lib.db import engine, AIMBAT_PROJECT
+from aimbat.lib.db import engine
+from aimbat.lib.defaults import load_global_defaults
+from aimbat.lib.event import get_completed_events, get_active_event
 from aimbat.lib.models import (
     AimbatEvent,
-    AimbatEventParameter,
     AimbatSeismogram,
     AimbatSeismogramParameter,
     AimbatStation,
 )
-from aimbat.lib.defaults import defaults_load_global_values
+from sqlalchemy import Engine
 from sqlmodel import SQLModel, Session, select, text
 from pathlib import Path
 from typing import Any
 from rich.console import Console
-import aimbat.lib.models  # noqa: F401
 
 
-def project_exists() -> bool:
+def _project_exists(engine: Engine) -> bool:
     """Check if AIMBAT project exists."""
 
     ic()
-    ic(AIMBAT_PROJECT)
+    ic(engine)
 
-    return Path(AIMBAT_PROJECT).exists()
+    if engine.driver == "pysqlite":
+        with engine.connect() as connection:
+            result = connection.execute(text("PRAGMA table_info(aimbatdefault)")).all()
+            if result == []:
+                return False
+            return True
+    raise RuntimeError(
+        f"Unable to determine if project already exists using {engine=}."
+    )
 
 
-def project_new() -> None:
+def _project_file(engine: Engine) -> Path:
+    """Get filename from sqlite engine"""
+    with engine.connect() as connection:
+        dbs = connection.execute(text("PRAGMA database_list")).all()
+        assert dbs is not None
+        for db in dbs:
+            if db[1] == "main":
+                db_file = db[-1]
+                return Path(db_file)
+    raise RuntimeError(f"Unable to to determine project file using {engine=}.")
+
+
+def create_project(engine: Engine = engine) -> None:
     """Create a new AIMBAT project."""
+    import aimbat.lib.models  # noqa: F401
 
     ic()
-    ic(AIMBAT_PROJECT)
+    ic(engine)
 
-    # stop here if there is an existing aimbat.db file
-    if project_exists():
-        raise FileExistsError(
-            f"Unable to create a new project: found existing {AIMBAT_PROJECT=}!"
+    if _project_exists(engine):
+        raise RuntimeError(
+            f"Unable to create a new project: project already exists in {engine=}!"
         )
 
     # create tables and load defaults
     SQLModel.metadata.create_all(engine)
-    with engine.connect() as connection:
-        connection.execute(text("PRAGMA foreign_keys=ON"))  # for SQLite only
-    defaults_load_global_values()
+    if engine.driver == "pysqlite":
+        with engine.connect() as connection:
+            connection.execute(text("PRAGMA foreign_keys=ON"))  # for SQLite only
+    with Session(engine) as session:
+        load_global_defaults(session)
 
 
-def project_del() -> None:
+def delete_project(engine: Engine = engine) -> None:
     """Delete the AIMBAT project."""
 
     ic()
-    ic(AIMBAT_PROJECT)
+    ic(engine)
 
-    try:
-        Path(AIMBAT_PROJECT).unlink()
+    if _project_exists(engine):
+        if engine.driver == "pysqlite":
+            project = _project_file(engine)
+            try:
+                Path(project).unlink()
+                ic(f"Deleting {project=}")
+            except IsADirectoryError:
+                ic("Possibly running in-memory database?")
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"Unable to delete project file: {project=} not found."
+                )
+            finally:
+                engine.dispose()
+            return
+    raise RuntimeError("Unable to delete project.")
 
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            f"Unable to delete project: {AIMBAT_PROJECT=} not found."
-        )
-    finally:
-        engine.dispose()
 
-
-def project_print_info() -> Any:
+def print_project_info(engine: Engine = engine) -> Any:
     """Show AIMBAT project information."""
 
     ic()
-    ic(AIMBAT_PROJECT)
+    ic(engine)
 
-    if not Path(AIMBAT_PROJECT).exists():
-        raise FileNotFoundError(f"Unable to show info: {AIMBAT_PROJECT=} not found!")
+    if not _project_exists(engine):
+        raise RuntimeError("No AIMBAT project found.")
 
     with Session(engine) as session:
-        select_completed_events = (
-            select(AimbatEvent)
-            .join(AimbatEventParameter)
-            .where(AimbatEventParameter.completed == 1)
-        )
-        select_selected_seismograms = (
+        select_selected_seismograms_in_project = (
             select(AimbatSeismogram)
             .join(AimbatSeismogramParameter)
             .where(AimbatSeismogramParameter.select == 1)
         )
 
-        all_stations = session.exec(select(AimbatStation)).all()
-        all_events = session.exec(select(AimbatEvent)).all()
-        completed_events = session.exec(select_completed_events).all()
-        all_seismograms = session.exec(select(AimbatSeismogram)).all()
-        selected_seismograms = session.exec(select_selected_seismograms).all()
+        events_in_project = session.exec(select(AimbatEvent)).all()
+        completed_events_in_project = get_completed_events(session)
+        all_stations_in_project = session.exec(select(AimbatStation)).all()
+        all_seismograms_in_project = session.exec(select(AimbatSeismogram)).all()
+        number_of_stations_in_active_event = None
+        try:
+            selected_event = get_active_event(session)
+            number_of_stations_in_active_event = len(selected_event.stations)
+        except RuntimeError:
+            selected_event = None
+
+        seismograms_selected = session.exec(
+            select_selected_seismograms_in_project
+        ).all()
+
         console = Console()
-        console.print("AIMBAT Project File: ", AIMBAT_PROJECT)
-        console.print("Number of Stations:", len(all_stations))
+        if engine.driver == "pysqlite":
+            project = _project_file(engine)
+            console.print("AIMBAT Project File: ", project)
         console.print(
-            "Number of Events (total/completed): ",
-            f"({len(all_events)}/{len(completed_events)})",
+            "Number of Events (total/completed):",
+            f"({len(events_in_project)}/{len(completed_events_in_project)})",
+        )
+        console.print("Active Event ID:", getattr(selected_event, "id", None))
+        console.print(
+            f"Number of Stations (total/active event): ({len(all_stations_in_project)}/{number_of_stations_in_active_event})",
         )
         console.print(
             "Number of Seismograms (total/selected): ",
-            f"({len(all_seismograms)}/{len(selected_seismograms)})",
+            f"({len(all_seismograms_in_project)}/{len(seismograms_selected)})",
         )

@@ -1,63 +1,82 @@
+"""
+AIMBAT command line interface entrypoint for all other commands.
+
+This is the main command line interface for AIMBAT. It must be executed with a
+command (as specified below) to actually do anything. Help for individual
+commands is available by typing aimbat COMMAND --help.
+"""
+
+from aimbat.lib.db import AIMBAT_DB_URL
 from aimbat.cli import (
-    checkdata,
     data,
     defaults,
     event,
     project,
-    sampledata,
     seismogram,
     snapshot,
     station,
     utils,
 )
 from importlib import metadata
-import click
-
+from rich import print
+from rich.panel import Panel
+from typing import Annotated
+import typer
 
 try:
-    __version__ = metadata.version("aimbat")
+    __version__ = str(metadata.version("aimbat"))
 except Exception:
     __version__ = "unknown"
 
 
-@click.group("aimbat")
-@click.option("--debug", is_flag=True, help="Print extra debug information.")
-@click.option(
-    "--use-qt",
-    is_flag=True,
-    help="Use pyqtgraph instead of matplotlib for plot (where applicable).",
-)
-@click.pass_context
-@click.version_option(version=__version__)
-def cli(ctx: click.Context, debug: bool, use_qt: bool) -> None:
-    """Command line interface entrypoint for all other commands.
-
-    This is the main command line interface for AIMBAT. It must be executed with a
-    command (as specified below) to actually do anything. Help for individual
-    commands is available by typing aimbat COMMAND --help.
-    """
+def app_callback(
+    ctx: typer.Context,
+    db_url: Annotated[
+        str,
+        typer.Option(help="Database connection URL."),
+    ] = AIMBAT_DB_URL,
+    debug: Annotated[bool, typer.Option(help="Run in debugging mode.")] = False,
+    use_qt: Annotated[
+        bool,
+        typer.Option(
+            help="Use pyqtgraph instead of matplotlib for plots (where applicable)."
+        ),
+    ] = False,
+) -> None:
     ctx.ensure_object(dict)
     ctx.obj["DEBUG"] = debug
+    ctx.obj["DB_URL"] = db_url
     ctx.obj["USE_QT"] = use_qt
 
 
-# @cli.command("gui")
-# def gui() -> None:
-#     """Launch AIMBAT graphical user interface."""
-#     aimbat_main_gui()
+app = typer.Typer(
+    name="aimbat",
+    no_args_is_help=True,
+    callback=app_callback,
+    short_help=__doc__.partition("\n")[0],
+    help=__doc__,
+)
+app.add_typer(project.app)
+app.add_typer(data.app)
+app.add_typer(defaults.app)
+app.add_typer(event.app)
+app.add_typer(station.app)
+app.add_typer(seismogram.app)
+app.add_typer(snapshot.app)
+app.add_typer(utils.app)
 
 
-cli.add_command(checkdata.checkdata_cli)
-cli.add_command(data.data_cli)
-cli.add_command(defaults.defaults_cli)
-cli.add_command(event.event_cli)
-cli.add_command(project.project_cli)
-cli.add_command(sampledata.sampledata_cli)
-cli.add_command(seismogram.seismogram_cli)
-cli.add_command(snapshot.snapshot_cli)
-cli.add_command(station.station_cli)
-cli.add_command(utils.utils_cli)
+@app.command("version")
+def version() -> None:
+    """Print the AIMBAT version."""
+    print(
+        Panel(
+            __version__,
+            title="AIMBAT version",
+            title_align="left",
+        )
+    )
 
 
 if __name__ == "__main__":
-    cli(obj={})
+    app()

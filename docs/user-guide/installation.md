@@ -3,7 +3,7 @@
 AIMBAT is built on top of standard [Python](https://www.python.org) and uses some popular
 third party modules (e.g. [NumPy][numpy], [SciPy][scipy]). In order
 to benefit from modern Python features and up to date modules, AIMBAT is developed on the
-latest stable Python versions. Automatic tests are done on version 3.10 and newer.
+latest stable Python versions. Automatic tests are done on version 3.11 and newer.
 
 AIMBAT is available as a package from the
 [Python Package Index](https://pypi.org/project/aimbat/). This means it can be easily
@@ -20,7 +20,7 @@ isolated environment, where other packages cannot interfere with it.
 <!-- termynal -->
 
 ```bash
-# First we check the python version is at least 3.10
+# First we check the python version is at least 3.11
 # (you may have to type python3 instead of python)
 $ python --version
 Python 3.11.2
