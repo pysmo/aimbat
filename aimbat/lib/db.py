@@ -11,5 +11,6 @@ from os import environ, getcwd
 
 
 AIMBAT_PROJECT: str = environ.get("AIMBAT_PROJECT", f"{getcwd()}/aimbat.db")
+AIMBAT_DB_URL: str = rf"sqlite+pysqlite:///{AIMBAT_PROJECT}"
 
-engine = create_engine(rf"sqlite+pysqlite:///{AIMBAT_PROJECT}", echo=False)
+engine = create_engine(url=AIMBAT_DB_URL, echo=False)

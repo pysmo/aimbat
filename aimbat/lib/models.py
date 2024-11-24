@@ -27,17 +27,15 @@ class AimbatFile(AimbatFileBase, table=True):
     )
 
 
-class AimbatStation(SQLModel, table=True):
-    """Class to store station information."""
-
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(allow_mutation=False)
-    latitude: float
-    longitude: float
-    network: str | None = Field(default=None, allow_mutation=False)
-    elevation: float | None = None
-    seismograms: list["AimbatSeismogram"] = Relationship(
-        back_populates="station", cascade_delete=True
+class EventStationLink(SQLModel, table=True):
+    event_id: int | None = Field(
+        default=None, foreign_key="aimbatevent.id", primary_key=True, ondelete="CASCADE"
+    )
+    station_id: int | None = Field(
+        default=None,
+        foreign_key="aimbatstation.id",
+        primary_key=True,
+        ondelete="CASCADE",
     )
 
 
@@ -45,11 +43,14 @@ class AimbatEvent(SQLModel, table=True):
     """Class to store event information."""
 
     id: int | None = Field(default=None, primary_key=True)
-    selected: bool = False
+    is_active: bool = False
     time_db: datetime = Field(unique=True)
     latitude: float
     longitude: float
     depth: float | None = None
+    stations: list["AimbatStation"] = Relationship(
+        back_populates="events", link_model=EventStationLink
+    )
     seismograms: list["AimbatSeismogram"] = Relationship(
         back_populates="event", cascade_delete=True
     )
@@ -86,6 +87,23 @@ class AimbatEventParameter(AimbatEventParameterBase, table=True):
 class AimbatEventParameterSnapshot(AimbatEventParameterBase, table=True):
     snapshot_id: int | None = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
     snapshot: "AimbatSnapshot" = Relationship(back_populates="event_parameter_snapshot")
+
+
+class AimbatStation(SQLModel, table=True):
+    """Class to store station information."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(allow_mutation=False)
+    latitude: float
+    longitude: float
+    network: str | None = Field(default=None, allow_mutation=False)
+    elevation: float | None = None
+    seismograms: list["AimbatSeismogram"] = Relationship(
+        back_populates="station", cascade_delete=True
+    )
+    events: list[AimbatEvent] = Relationship(
+        back_populates="stations", link_model=EventStationLink
+    )
 
 
 class AimbatSeismogram(SQLModel, table=True):

@@ -1,5 +1,6 @@
 from aimbat.lib.common import ic
-from aimbat.lib.defaults import defaults_get_value
+from aimbat.lib.defaults import get_default
+from sqlmodel import Session
 from urllib.request import urlopen
 from io import BytesIO
 from zipfile import ZipFile
@@ -7,27 +8,27 @@ import os
 import shutil
 
 
-def sampledata_delete() -> None:
+def delete_sampledata(session: Session) -> None:
     """Delete sample data."""
 
-    sampledata_dir = str(defaults_get_value("sampledata_dir"))
+    sampledata_dir = str(get_default(session, "sampledata_dir"))
     ic(sampledata_dir)
     shutil.rmtree(sampledata_dir)
 
 
-def sampledata_download(force: bool = False) -> None:
+def download_sampledata(session: Session, force: bool = False) -> None:
     """Download sample data."""
 
     ic()
     ic(force)
 
-    sampledata_src = str(defaults_get_value("sampledata_src"))
-    sampledata_dir = str(defaults_get_value("sampledata_dir"))
+    sampledata_src = str(get_default(session, "sampledata_src"))
+    sampledata_dir = str(get_default(session, "sampledata_dir"))
     ic(sampledata_src, sampledata_dir)
 
     if os.path.exists(sampledata_dir) is True and len(os.listdir(sampledata_dir)) != 0:
         if force is True:
-            sampledata_delete()
+            delete_sampledata(session)
         else:
             raise RuntimeError(
                 f"The directory {sampledata_dir} already exists and is non-empty."

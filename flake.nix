@@ -26,7 +26,6 @@
             nativeBuildInputs = with pkgs; [
               poetry
               python313
-              python310
               python311
               python312
               python312Packages.tox

@@ -1,4 +1,4 @@
-from click.testing import CliRunner
+from typer.testing import CliRunner
 from importlib import metadata, reload
 
 
@@ -8,13 +8,13 @@ def test_cli(monkeypatch):  # type: ignore
 
     runner = CliRunner()
 
-    result = runner.invoke(app.cli)
+    result = runner.invoke(app.app)
     assert result.exit_code == 0
     assert "Usage" in result.output
 
-    result = runner.invoke(app.cli, "--version")
+    result = runner.invoke(app.app, "version")
     assert result.exit_code == 0
-    assert "aimbat, version" in result.output
+    assert "AIMBAT version" in result.output
 
     def mock_raise(*args, **kwargs):  # type: ignore
         raise Exception
@@ -22,6 +22,6 @@ def test_cli(monkeypatch):  # type: ignore
     monkeypatch.setattr(metadata, "version", mock_raise)
     _ = reload(app)
 
-    result = runner.invoke(app.cli, "--version")
+    result = runner.invoke(app.app, "version")
     assert result.exit_code == 0
     assert "unknown" in result.output

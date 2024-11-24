@@ -6,7 +6,7 @@ from rich.table import Table
 from sqlmodel import Session, select
 
 
-def station_print_table() -> None:
+def print_station_table(session: Session) -> None:
     """Prints a pretty table with AIMBAT stations."""
     ic()
     ic(engine)
@@ -21,21 +21,20 @@ def station_print_table() -> None:
     table.add_column("# Seismograms", justify="center", style="green")
     table.add_column("# Events", justify="center", style="green")
 
-    with Session(engine) as session:
-        all_stations = session.exec(select(AimbatStation)).all()
-        if all_stations is not None:
-            for station in all_stations:
-                assert station.id is not None
-                events = {i.event_id for i in station.seismograms}
-                table.add_row(
-                    str(station.id),
-                    f"{station.name} - {station.network}",
-                    str(station.latitude),
-                    str(station.longitude),
-                    str(station.elevation),
-                    str(len(station.seismograms)),
-                    str(len(events)),
-                )
+    all_stations = session.exec(select(AimbatStation)).all()
+    if all_stations is not None:
+        for station in all_stations:
+            assert station.id is not None
+            events = {i.event_id for i in station.seismograms}
+            table.add_row(
+                str(station.id),
+                f"{station.name} - {station.network}",
+                str(station.latitude),
+                str(station.longitude),
+                str(station.elevation),
+                str(len(station.seismograms)),
+                str(len(events)),
+            )
 
     console = Console()
     console.print(table)

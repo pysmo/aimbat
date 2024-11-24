@@ -2,7 +2,7 @@
 
 from aimbat import __file__ as aimbat_dir
 from aimbat.lib.common import ic
-from aimbat.lib.db import engine
+from aimbat.lib.types import TAimbatDefault
 from sqlmodel import SQLModel, Field, Session, select
 from rich.console import Console
 from rich.table import Table
@@ -12,8 +12,6 @@ import yaml
 
 # Defaults shipped with AIMBAT
 AIMBAT_DEFAULTS_FILE = os.path.join(os.path.dirname(aimbat_dir), "lib/defaults.yml")
-
-TAimbatDefault = float | int | bool | str
 
 
 def _format_value(is_of_type: str, value: str) -> TAimbatDefault:
@@ -91,48 +89,46 @@ class AimbatDefault(SQLModel, table=True):
             )  # pragma: no cover
 
 
-def defaults_load_global_values() -> None:
+def load_global_defaults(session: Session) -> None:
     """Read defaults shipped with AIMBAT from yaml file."""
     ic()
-    ic(engine)
+    ic(session)
 
     with open(AIMBAT_DEFAULTS_FILE, "r") as stream:
         data: list[dict[str, str | TAimbatDefault]] = yaml.safe_load(stream)
 
-    with Session(engine) as session:
         for item in data:
             session.add(AimbatDefault(**item))
         session.commit()
 
 
-def _select_single_item(name: str) -> AimbatDefault:
+def _select_single_item(session: Session, name: str) -> AimbatDefault:
     """Return a single AimbatDefault item."""
     ic()
-    ic(name, engine)
+    ic(name, session)
 
-    with Session(engine) as session:
-        statement = select(AimbatDefault).where(AimbatDefault.name == name)
-        result = session.exec(statement).one_or_none()
+    statement = select(AimbatDefault).where(AimbatDefault.name == name)
+    result = session.exec(statement).one_or_none()
 
-        if result is None:
-            raise RuntimeError(f"No default with {name=}.")
-        return result
+    if result is None:
+        raise RuntimeError(f"No default with {name=}.")
+    return result
 
 
-def defaults_get_value(name: str) -> TAimbatDefault:
+def get_default(session: Session, name: str) -> TAimbatDefault:
     """Return the value of an AIMBAT default."""
     ic()
     ic(name)
-    return _select_single_item(name).value
+    return _select_single_item(session, name).value
 
 
-def defaults_set_value(name: str, value: TAimbatDefault) -> None:
+def set_default(session: Session, name: str, value: TAimbatDefault) -> None:
     """Set the value of an AIMBAT default."""
     ic()
     ic(name, value)
 
     # Get the AimbatDefault instance
-    aimbat_default = _select_single_item(name)
+    aimbat_default = _select_single_item(session, name)
 
     is_of_type = aimbat_default.is_of_type
 
@@ -140,28 +136,25 @@ def defaults_set_value(name: str, value: TAimbatDefault) -> None:
         value = _format_value(is_of_type, value)
 
     aimbat_default.value = value
-
-    with Session(engine) as session:
-        session.add(aimbat_default)
-        session.commit()
-        session.refresh(aimbat_default)
+    session.add(aimbat_default)
+    session.commit()
 
 
-def defaults_reset_value(name: str) -> None:
+def reset_default(session: Session, name: str) -> None:
     """Reset the value of an AIMBAT default."""
     ic()
     ic(name)
 
-    default = _select_single_item(name)
-    default.reset_value()
+    aimbat_default = _select_single_item(session, name)
+    aimbat_default.reset_value()
 
-    with Session(engine) as session:
-        session.add(default)
-        session.commit()
-        session.refresh(default)
+    session.add(aimbat_default)
+    session.commit()
 
 
-def defaults_print_table(select_names: list[str] | None = None) -> None:
+def print_defaults_table(
+    session: Session, select_names: list[str] | None = None
+) -> None:
     """Print a pretty table with AIMBAT configuration options."""
     ic()
     ic(select_names)
@@ -169,9 +162,7 @@ def defaults_print_table(select_names: list[str] | None = None) -> None:
     if not select_names:
         select_names = []
 
-    with Session(engine) as session:
-        statement = select(AimbatDefault)
-        defaults = session.exec(statement).all()
+    defaults = session.exec(select(AimbatDefault)).all()
 
     table = Table(title="AIMBAT Defaults")
 
@@ -179,15 +170,19 @@ def defaults_print_table(select_names: list[str] | None = None) -> None:
     table.add_column("Value", justify="center", style="magenta")
     table.add_column("Description", justify="left", style="green")
 
-    for default in defaults:
+    for aimbat_default in defaults:
         # names with "_test_" in them are in the table,
         # but should only be used in unit tests
         if (
-            "_test_" not in default.name
+            "_test_" not in aimbat_default.name
             and not select_names
-            or default.name in select_names
+            or aimbat_default.name in select_names
         ):
-            table.add_row(default.name, str(default.value), default.description)
+            table.add_row(
+                aimbat_default.name,
+                str(aimbat_default.value),
+                aimbat_default.description,
+            )
 
     console = Console()
     console.print(table)

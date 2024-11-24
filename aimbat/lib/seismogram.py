@@ -1,5 +1,4 @@
 from aimbat.lib.common import ic
-from aimbat.lib.db import engine
 from aimbat.lib.models import AimbatSeismogram
 from aimbat.lib.types import (
     AimbatSeismogramParameterName,
@@ -10,7 +9,7 @@ from rich.table import Table
 from sqlmodel import Session, select
 
 
-def seismogram_get_parameter(
+def get_seismogram_parameter(
     session: Session, seismogram_id: int, parameter_name: AimbatSeismogramParameterName
 ) -> AimbatSeismogramParameterType:
     select_seismogram = select(AimbatSeismogram).where(
@@ -35,7 +34,7 @@ def seismogram_get_parameter(
     return getattr(aimbatseismogram.parameter, parameter_name)
 
 
-def seismogram_set_parameter(
+def set_seismogram_parameter(
     session: Session,
     seismogram_id: int,
     parameter_name: AimbatSeismogramParameterName,
@@ -68,8 +67,11 @@ def seismogram_set_parameter(
     session.commit()
 
 
-def seismogram_print_table() -> None:
+def print_seismogram_table(session: Session) -> None:
     """Prints a pretty table with AIMBAT seismograms."""
+
+    ic()
+    ic(session)
 
     table = Table(title="AIMBAT Seismograms")
 
@@ -78,17 +80,16 @@ def seismogram_print_table() -> None:
     table.add_column("Station ID", justify="center", style="magenta")
     table.add_column("Event ID", justify="center", style="magenta")
 
-    with Session(engine) as session:
-        all_seismograms = session.exec(select(AimbatSeismogram)).all()
-        if all_seismograms is not None:
-            for seismogram in all_seismograms:
-                assert seismogram.id is not None
-                table.add_row(
-                    str(seismogram.id),
-                    str(seismogram.file.filename),
-                    str(seismogram.station.id),
-                    str(seismogram.event.id),
-                )
+    all_seismograms = session.exec(select(AimbatSeismogram)).all()
+    if all_seismograms is not None:
+        for seismogram in all_seismograms:
+            assert seismogram.id is not None
+            table.add_row(
+                str(seismogram.id),
+                str(seismogram.file.filename),
+                str(seismogram.station.id),
+                str(seismogram.event.id),
+            )
 
     console = Console()
     console.print(table)

@@ -1,123 +1,135 @@
-"""Module to manage and view events in AIMBAT."""
+"""View and manage events in the AIMBAT project."""
 
-from aimbat.lib.common import RegexEqual, cli_enable_debug
+from aimbat.lib.common import RegexEqual, debug_callback, ic
 from aimbat.lib.types import (
     AimbatEventParameterType,
     AimbatEventParameterName,
     AIMBAT_EVENT_PARAMETER_NAMES,
 )
+from typing import Annotated
 from datetime import timedelta
-import click
+from enum import StrEnum
+import typer
 
 
-def _event_print_table() -> None:
-    from aimbat.lib.event import event_print_table
-
-    event_print_table()
+ParameterName = StrEnum("ParameterName", [(i, i) for i in AIMBAT_EVENT_PARAMETER_NAMES])  # type: ignore
 
 
-def _event_set_selected_event(event_id: int) -> None:
-    from aimbat.lib.event import event_set_selected_event
-    from aimbat.lib.db import engine
+def _print_event_table(db_url: str | None) -> None:
+    from aimbat.lib.event import print_event_table
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        print_event_table(session)
+
+
+def _set_active_event(event_id: int, db_url: str | None) -> None:
+    from aimbat.lib.event import set_active_event
+    from aimbat.lib.common import engine_from_url
     from aimbat.lib.models import AimbatEvent
     from sqlmodel import Session, select
 
-    with Session(engine) as session:
+    with Session(engine_from_url(db_url)) as session:
         select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
         event = session.exec(select_event).one_or_none()
         if event is None:
             raise RuntimeError(f"No event with {event_id=} found.")
-        event_set_selected_event(session, event)
+        set_active_event(session, event)
 
 
-def _event_get_parameter(
-    event_id: int, parameter_name: AimbatEventParameterName
-) -> AimbatEventParameterType:
-    from aimbat.lib.event import event_get_parameter
-    from aimbat.lib.db import engine
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        return event_get_parameter(session, event_id, parameter_name)
-
-
-def _event_set_parameter(
-    event_id: int,
+def _get_event_parameter(
     parameter_name: AimbatEventParameterName,
-    parameter_value: AimbatEventParameterType,
-) -> None:
-    from aimbat.lib.event import event_set_parameter
-    from aimbat.lib.db import engine
+    db_url: str | None,
+) -> AimbatEventParameterType:
+    from aimbat.lib.event import get_active_event
+    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine) as session:
-        event_set_parameter(session, event_id, parameter_name, parameter_value)
+    with Session(engine_from_url(db_url)) as session:
+        event = get_active_event(session)
+        return getattr(event.parameter, parameter_name)
 
 
-@click.group("event")
-@click.pass_context
-def event_cli(ctx: click.Context) -> None:
-    """View and manage events in the AIMBAT project."""
-    cli_enable_debug(ctx)
-
-
-@event_cli.command("list")
-def event_cli_list() -> None:
-    """Print information on the events stored in AIMBAT."""
-    _event_print_table()
-
-
-@event_cli.command("select")
-@click.argument("event_id", nargs=1, type=int, required=True)
-def event_cli_select(event_id: int) -> None:
-    """Select an event for Processing."""
-    _event_set_selected_event(event_id)
-
-
-@event_cli.group("parameter")
-def event_cli_parameter() -> None:
-    """Manage event parameters in the AIMBAT project."""
-    pass
-
-
-@event_cli_parameter.command("get")
-@click.argument("event_id", nargs=1, type=int, required=True)
-@click.argument(
-    "name", nargs=1, type=click.Choice(AIMBAT_EVENT_PARAMETER_NAMES), required=True
-)
-def event_cli_parameter_get(event_id: int, name: AimbatEventParameterName) -> None:
-    """Get the value of a processing parameter."""
-
-    print(_event_get_parameter(event_id, name))
-
-
-@event_cli_parameter.command("set")
-@click.argument(
-    "event_id",
-    nargs=1,
-    type=int,
-    required=True,
-)
-@click.argument(
-    "name", nargs=1, type=click.Choice(AIMBAT_EVENT_PARAMETER_NAMES), required=True
-)
-@click.argument("value", nargs=1, type=str, required=True)
-def event_cli_paramater_set(
-    event_id: int,
-    name: AimbatEventParameterName,
-    value: str,
+def _set_event_parameter(
+    parameter_name: AimbatEventParameterName,
+    parameter_value: str,
+    db_url: str | None,
 ) -> None:
-    """Set value of a processing parameter."""
+    from aimbat.lib.event import get_active_event
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
 
-    match [name, RegexEqual(value)]:
+    value: AimbatEventParameterType
+
+    match [parameter_name, RegexEqual(parameter_value)]:
         case ["window_pre" | "window_post", r"\d+\.+\d*" | r"\d+"]:
-            timedelta_object = timedelta(seconds=float(value))
-            _event_set_parameter(event_id, name, timedelta_object)
+            value = timedelta(seconds=float(parameter_value))
+        case ["completed", r"^[T,t]rue$" | r"^[Y,y]es$" | r"^[Y,y]$" | r"^1$"]:
+            value = True
+        case ["completed", r"^[F,f]alse$" | r"^[N,n]o$" | r"^[N,n]$" | r"^0$"]:
+            value = False
         case _:
             raise RuntimeError(
-                f"Unknown parameter name '{name}' or incorrect value '{value}'."
+                f"Unknown parameter {parameter_name=} or incorrect {parameter_value=}."
             )
+
+    ic(parameter_name, parameter_value, value)
+
+    with Session(engine_from_url(db_url)) as session:
+        event = get_active_event(session)
+        setattr(event.parameter, parameter_name, value)
+        session.add(event)
+        session.commit()
+
+
+app = typer.Typer(
+    name="event",
+    callback=debug_callback,
+    no_args_is_help=True,
+    short_help=__doc__.partition("\n")[0],
+    help=__doc__,
+)
+
+
+@app.command("list")
+def event_cli_list(ctx: typer.Context) -> None:
+    """Print information on the events stored in AIMBAT."""
+    db_url = ctx.obj["DB_URL"]
+    _print_event_table(db_url=db_url)
+
+
+@app.command("activate")
+def event_cli_activate(
+    ctx: typer.Context, eid: Annotated[int, typer.Argument(help="Event ID number.")]
+) -> None:
+    """Select the event to be active for Processing."""
+    db_url = ctx.obj["DB_URL"]
+    _set_active_event(eid, db_url)
+
+
+@app.command("get")
+def event_cli_parameter_get(
+    ctx: typer.Context,
+    name: Annotated[ParameterName, typer.Argument(help="Event parameter name.")],
+) -> None:
+    """Get parameter value for the active event."""
+
+    db_url = ctx.obj["DB_URL"]
+    print(_get_event_parameter(name.value, db_url))  # type: ignore
+
+
+@app.command("set")
+def event_cli_paramater_set(
+    ctx: typer.Context,
+    name: Annotated[ParameterName, typer.Argument(help="Event parameter name.")],
+    value: str,
+) -> None:
+    """Set parameter value for the active event."""
+
+    db_url = ctx.obj["DB_URL"]
+    _set_event_parameter(parameter_name=name, parameter_value=value, db_url=db_url)  # type: ignore
 
 
 if __name__ == "__main__":
-    event_cli()
+    app()

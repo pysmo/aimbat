@@ -1,64 +1,16 @@
 """Module to manage and view events in AIMBAT."""
 
 from aimbat.lib.common import ic
-from aimbat.lib.db import engine
-from aimbat.lib.models import AimbatEvent
-from aimbat.lib.types import AimbatEventParameterType, AimbatEventParameterName
+from aimbat.lib.models import AimbatEvent, AimbatEventParameter
 from rich.console import Console
 from rich.table import Table
 from sqlmodel import Session, select
+from typing import Sequence
 
 
-def event_get_parameter(
-    session: Session, event_id: int, parameter_name: AimbatEventParameterName
-) -> AimbatEventParameterType:
-    """Return the value of an event parameter.
-
-    Parameters:
-        session: SQL session.
-        event_id: Event ID.
-        parameter_name: Parameter name.
-
-    Returns:
-        Value of AIMBAT parameter.
+def get_active_event(session: Session) -> AimbatEvent:
     """
-
-    ic()
-    ic(session, event_id, parameter_name)
-
-    select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
-    aimbatevent = session.exec(select_event).one()
-    return getattr(aimbatevent.parameter, parameter_name)
-
-
-def event_set_parameter(
-    session: Session,
-    event_id: int,
-    parameter_name: AimbatEventParameterName,
-    parameter_value: AimbatEventParameterType,
-) -> None:
-    """Set the value of an event parameter.
-
-    Parameters:
-        session: SQL session.
-        event_id: Event ID.
-        parameter_name: Parameter name.
-        parameter_value: Parameter value.
-    """
-
-    ic()
-    ic(session, event_id, parameter_name, parameter_value)
-
-    select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
-    aimbatevent = session.exec(select_event).one()
-    setattr(aimbatevent.parameter, parameter_name, parameter_value)
-    session.add(aimbatevent)
-    session.commit()
-
-
-def event_get_selected_event(session: Session) -> AimbatEvent | None:
-    """
-    Return the currently selected event (i.e. the one being processed).
+    Return the currently active event (i.e. the one being processed).
 
     Parameters:
         session: SQL session.
@@ -70,11 +22,14 @@ def event_get_selected_event(session: Session) -> AimbatEvent | None:
     ic()
     ic(session)
 
-    select_active_event = select(AimbatEvent).where(AimbatEvent.selected == 1)
-    return session.exec(select_active_event).one_or_none()
+    select_active_event = select(AimbatEvent).where(AimbatEvent.is_active == 1)
+    active_event = session.exec(select_active_event).one_or_none()
+    if active_event is None:
+        raise RuntimeError("Active event not found or none selected.")
+    return active_event
 
 
-def event_set_selected_event(session: Session, event: AimbatEvent) -> None:
+def set_active_event(session: Session, event: AimbatEvent) -> None:
     """
     Set the currently selected event (i.e. the one being processed).
 
@@ -86,23 +41,47 @@ def event_set_selected_event(session: Session, event: AimbatEvent) -> None:
     ic()
     ic(session)
 
-    currently_active_event = event_get_selected_event(session)
-    if currently_active_event:
-        currently_active_event.selected = False
-        session.add(currently_active_event)
-    event.selected = True
+    try:
+        active_event = get_active_event(session)
+        ic(active_event)
+        active_event.is_active = False
+        session.add(active_event)
+    except RuntimeError:
+        pass
+
+    event.is_active = True
     session.add(event)
-    ic(currently_active_event, event)
     session.commit()
 
 
-def event_print_table() -> None:
-    """Print a pretty table with AIMBAT events."""
+def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
+    """Get the events marked as completed.
+
+    Parameters:
+        session: SQL session.
+    """
+
     ic()
+    ic(session)
+
+    select_completed_events = (
+        select(AimbatEvent)
+        .join(AimbatEventParameter)
+        .where(AimbatEventParameter.completed == 1)
+    )
+
+    return session.exec(select_completed_events).all()
+
+
+def print_event_table(session: Session) -> None:
+    """Print a pretty table with AIMBAT events."""
+
+    ic()
+    ic(session)
 
     table = Table(title="AIMBAT Events")
     table.add_column("id", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Selected", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Active", justify="center", style="cyan", no_wrap=True)
     table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
     table.add_column("Latitude", justify="center", style="magenta")
     table.add_column("Longitude", justify="center", style="magenta")
@@ -111,20 +90,18 @@ def event_print_table() -> None:
     table.add_column("# Seismograms", justify="center", style="green")
     table.add_column("# Stations", justify="center", style="green")
 
-    with Session(engine) as session:
-        for event in session.exec(select(AimbatEvent)).all():
-            assert event.id is not None
-            stations = {i.station_id for i in event.seismograms}
+    for event in session.exec(select(AimbatEvent)).all():
+        if event.id is not None:
             table.add_row(
                 str(event.id),
-                str(event.selected),
+                str(event.is_active),
                 str(event.time),
                 str(event.latitude),
                 str(event.longitude),
                 str(event.depth),
                 str(event.parameter.completed),
                 str(len(event.seismograms)),
-                str(len(stations)),
+                str(len(event.stations)),
             )
 
     console = Console()
