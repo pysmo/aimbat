@@ -80,7 +80,7 @@ class TestCliUtils:
     def test_sampledata(self, tmp_path_factory, db_url, monkeypatch) -> None:  # type: ignore
         """Test AIMBAT cli with utils sampledata subcommand."""
 
-        monkeypatch.setenv("COLUMNS", "300")
+        monkeypatch.setenv("COLUMNS", "1000")
 
         from aimbat.app import app
 

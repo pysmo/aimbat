@@ -112,8 +112,10 @@ class TestLibData:
 
 
 class TestCliData:
-    def test_sac_data(self, sac_file_good, db_url) -> None:  # type: ignore
+    def test_sac_data(self, sac_file_good, db_url, monkeypatch) -> None:  # type: ignore
         """Test AIMBAT cli with data subcommand."""
+
+        monkeypatch.setenv("COLUMNS", "1000")
 
         from aimbat.app import app
 

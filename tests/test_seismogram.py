@@ -46,8 +46,10 @@ class TestLibSeismogram:
 
 
 class TestCliSeismogram:
-    def test_sac_data(self, db_url, sac_file_good) -> None:  # type: ignore
+    def test_sac_data(self, db_url, sac_file_good, monkeypatch) -> None:  # type: ignore
         """Test AIMBAT cli with seismogram subcommand."""
+
+        monkeypatch.setenv("COLUMNS", "1000")
 
         from aimbat.app import app
 
