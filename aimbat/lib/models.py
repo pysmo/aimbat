@@ -54,10 +54,7 @@ class AimbatEvent(SQLModel, table=True):
     seismograms: list["AimbatSeismogram"] = Relationship(
         back_populates="event", cascade_delete=True
     )
-    parameter: "AimbatEventParameter" = Relationship(
-        back_populates="event", cascade_delete=True
-    )
-    snapshots: list["AimbatSnapshot"] = Relationship(
+    parameters: "AimbatEventParameters" = Relationship(
         back_populates="event", cascade_delete=True
     )
 
@@ -70,23 +67,35 @@ class AimbatEvent(SQLModel, table=True):
         self.time_db = value
 
 
-class AimbatEventParameterBase(SQLModel):
-    id: int | None = Field(default=None, primary_key=True)
+class AimbatEventParametersBase(SQLModel):
+    """Base class that defines the event parameters used in AIMBAT"""
+
     completed: bool = False
     window_pre: timedelta
     window_post: timedelta
 
 
-class AimbatEventParameter(AimbatEventParameterBase, table=True):
-    """Processing parameter common to all seismograms of a particular event."""
+class AimbatEventParameters(AimbatEventParametersBase, table=True):
+    """Processing parameters common to all seismograms of a particular event."""
 
+    id: int | None = Field(default=None, primary_key=True)
     event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
-    event: AimbatEvent = Relationship(back_populates="parameter")
+    event: AimbatEvent = Relationship(back_populates="parameters")
+    snapshots: list["AimbatEventParametersSnapshot"] = Relationship(
+        back_populates="parameters", cascade_delete=True
+    )
 
 
-class AimbatEventParameterSnapshot(AimbatEventParameterBase, table=True):
+class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
     snapshot_id: int | None = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
-    snapshot: "AimbatSnapshot" = Relationship(back_populates="event_parameter_snapshot")
+    snapshot: "AimbatSnapshot" = Relationship(
+        back_populates="event_parameters_snapshot"
+    )
+    parameters: AimbatEventParameters = Relationship(back_populates="snapshots")
+    parameters_id: int | None = Field(
+        foreign_key="aimbateventparameters.id", ondelete="CASCADE"
+    )
 
 
 class AimbatStation(SQLModel, table=True):
@@ -124,7 +133,7 @@ class AimbatSeismogram(SQLModel, table=True):
     station: AimbatStation = Relationship(back_populates="seismograms")
     event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
     event: AimbatEvent = Relationship(back_populates="seismograms")
-    parameter: "AimbatSeismogramParameter" = Relationship(
+    parameters: "AimbatSeismogramParameters" = Relationship(
         back_populates="seismogram",
         cascade_delete=True,
     )
@@ -162,26 +171,38 @@ class AimbatSeismogram(SQLModel, table=True):
         self.cached_length = np.size(value)
 
 
-class AimbatSeismogramParameterBase(SQLModel):
-    id: int | None = Field(default=None, primary_key=True)
+class AimbatSeismogramParametersBase(SQLModel):
+    """Base class that defines the seismogram parameters used in AIMBAT"""
+
     select: bool = True
     t1: datetime | None = None
     t2: datetime | None = None
 
 
-class AimbatSeismogramParameter(AimbatSeismogramParameterBase, table=True):
+class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
     """Class to store ICCS processing parameters of a single seismogram."""
 
+    id: int | None = Field(default=None, primary_key=True)
     seismogram_id: int | None = Field(
         foreign_key="aimbatseismogram.id", ondelete="CASCADE"
     )
-    seismogram: AimbatSeismogram = Relationship(back_populates="parameter")
+    seismogram: AimbatSeismogram = Relationship(back_populates="parameters")
+    snapshots: list["AimbatSeismogramParametersSnapshot"] = Relationship(
+        back_populates="parameters", cascade_delete=True
+    )
 
 
-class AimbatSeismogramParameterSnapshot(AimbatSeismogramParameterBase, table=True):
+class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=True):
+    """Class to store a snapshot of ICCS processing parameters of a single seismogram."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    seismogram_parameters_id: int | None = Field(
+        foreign_key="aimbatseismogramparameters.id", ondelete="CASCADE"
+    )
+    parameters: AimbatSeismogramParameters = Relationship(back_populates="snapshots")
     snapshot_id: int | None = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
     snapshot: "AimbatSnapshot" = Relationship(
-        back_populates="seismogram_parameter_snapshot"
+        back_populates="seismogram_parameters_snapshots"
     )
 
 
@@ -195,11 +216,11 @@ class AimbatSnapshot(SQLModel, table=True):
         allow_mutation=False,
     )
     comment: str | None = None
-    event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
-    event: AimbatEvent = Relationship(back_populates="snapshots")
-    event_parameter_snapshot: AimbatEventParameterSnapshot = Relationship(
+    # event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
+    # event: AimbatEvent = Relationship(back_populates="snapshots")
+    event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
         back_populates="snapshot", cascade_delete=True
     )
-    seismogram_parameter_snapshot: list[AimbatSeismogramParameterSnapshot] = (
+    seismogram_parameters_snapshots: list[AimbatSeismogramParametersSnapshot] = (
         Relationship(back_populates="snapshot", cascade_delete=True)
     )

@@ -1,6 +1,6 @@
 from aimbat.lib.common import ic
 from aimbat.lib.event import get_active_event
-from aimbat.lib.models import AimbatEvent, AimbatSeismogram, AimbatSeismogramParameter
+from aimbat.lib.models import AimbatEvent, AimbatSeismogram, AimbatSeismogramParameters
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.types import (
     AimbatSeismogramParameterName,
@@ -33,7 +33,7 @@ def get_seismogram_parameter(
 
     aimbatseismogram = session.exec(select_seismogram).one()
     ic(aimbatseismogram)
-    return getattr(aimbatseismogram.parameter, parameter_name)
+    return getattr(aimbatseismogram.parameters, parameter_name)
 
 
 def set_seismogram_parameter(
@@ -61,7 +61,7 @@ def set_seismogram_parameter(
     aimbatseismogram = session.exec(select_seismogram).one()
     ic(aimbatseismogram)
     setattr(
-        aimbatseismogram.parameter,
+        aimbatseismogram.parameters,
         parameter_name,
         parameter_value,
     )
@@ -86,15 +86,15 @@ def get_selected_seismograms(
 
     select_events = (
         select(AimbatSeismogram)
-        .join(AimbatSeismogramParameter)
+        .join(AimbatSeismogramParameters)
         .join(AimbatEvent)
-        .where(AimbatEvent.is_active == 1 and AimbatSeismogramParameter.select == 1)
+        .where(AimbatEvent.is_active == 1 and AimbatSeismogramParameters.select == 1)
     )
     if all_events:
         select_events = (
             select(AimbatSeismogram)
-            .join(AimbatSeismogramParameter)
-            .where(AimbatSeismogramParameter.select == 1)
+            .join(AimbatSeismogramParameters)
+            .where(AimbatSeismogramParameters.select == 1)
         )
     return session.exec(select_events).all()
 

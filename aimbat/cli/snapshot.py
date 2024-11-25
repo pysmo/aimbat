@@ -4,6 +4,8 @@ from aimbat.lib.common import debug_callback
 from typing import Annotated, Optional
 import typer
 
+from aimbat.lib.models import AimbatSnapshot
+
 
 def _create_snapshot(db_url: str | None, comment: str | None = None) -> None:
     from aimbat.lib.snapshot import create_snapshot
@@ -12,6 +14,18 @@ def _create_snapshot(db_url: str | None, comment: str | None = None) -> None:
 
     with Session(engine_from_url(db_url)) as session:
         create_snapshot(session, comment)
+
+
+def _rollback_to_snapshot(db_url: str | None, snapshot_id: int) -> None:
+    from aimbat.lib.snapshot import rollback_to_snapshot
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session, select
+
+    with Session(engine_from_url(db_url)) as session:
+        snapshot = session.exec(
+            select(AimbatSnapshot).where(AimbatSnapshot.id == snapshot_id)
+        ).one()
+        rollback_to_snapshot(session, snapshot)
 
 
 def _delete_snapshot(snapshot_id: int, db_url: str | None) -> None:
@@ -51,6 +65,16 @@ def snapshot_cli_create(
     """Create new snapshot."""
     db_url = ctx.obj["DB_URL"]
     _create_snapshot(db_url=db_url, comment=comment)
+
+
+@app.command("rollback")
+def snapshot_cli_rollback(
+    id: Annotated[int, typer.Argument(help="Snapshot ID Number.")],
+    ctx: typer.Context,
+) -> None:
+    """Rollback to snapshot."""
+    db_url = ctx.obj["DB_URL"]
+    _rollback_to_snapshot(db_url=db_url, snapshot_id=id)
 
 
 @app.command("delete")

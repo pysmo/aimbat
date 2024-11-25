@@ -1,7 +1,7 @@
 """Module to manage and view events in AIMBAT."""
 
 from aimbat.lib.common import ic
-from aimbat.lib.models import AimbatEvent, AimbatEventParameter
+from aimbat.lib.models import AimbatEvent, AimbatEventParameters
 from aimbat.lib.misc.rich_utils import make_table
 from rich.console import Console
 from sqlmodel import Session, select
@@ -66,8 +66,8 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
 
     select_completed_events = (
         select(AimbatEvent)
-        .join(AimbatEventParameter)
-        .where(AimbatEventParameter.completed == 1)
+        .join(AimbatEventParameters)
+        .where(AimbatEventParameters.completed == 1)
     )
 
     return session.exec(select_completed_events).all()
@@ -91,18 +91,17 @@ def print_event_table(session: Session) -> None:
     table.add_column("# Stations", justify="center", style="green")
 
     for event in session.exec(select(AimbatEvent)).all():
-        if event.id is not None:
-            table.add_row(
-                str(event.id),
-                str(event.is_active),
-                str(event.time),
-                str(event.latitude),
-                str(event.longitude),
-                str(event.depth),
-                str(event.parameter.completed),
-                str(len(event.seismograms)),
-                str(len(event.stations)),
-            )
+        table.add_row(
+            str(event.id),
+            str(event.is_active),
+            str(event.time),
+            str(event.latitude),
+            str(event.longitude),
+            str(event.depth),
+            str(event.parameters.completed),
+            str(len(event.seismograms)),
+            str(len(event.stations)),
+        )
 
     console = Console()
     console.print(table)

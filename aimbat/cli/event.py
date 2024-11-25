@@ -38,7 +38,7 @@ def _set_active_event(event_id: int, db_url: str | None) -> None:
         set_active_event(session, event)
 
 
-def _get_event_parameter(
+def _get_event_parameters(
     parameter_name: AimbatEventParameterName,
     db_url: str | None,
 ) -> AimbatEventParameterType:
@@ -48,10 +48,10 @@ def _get_event_parameter(
 
     with Session(engine_from_url(db_url)) as session:
         event = get_active_event(session)
-        return getattr(event.parameter, parameter_name)
+        return getattr(event.parameters, parameter_name)
 
 
-def _set_event_parameter(
+def _set_event_parameters(
     parameter_name: AimbatEventParameterName,
     parameter_value: str,
     db_url: str | None,
@@ -78,7 +78,7 @@ def _set_event_parameter(
 
     with Session(engine_from_url(db_url)) as session:
         event = get_active_event(session)
-        setattr(event.parameter, parameter_name, value)
+        setattr(event.parameters, parameter_name, value)
         session.add(event)
         session.commit()
 
@@ -116,7 +116,7 @@ def event_cli_parameter_get(
     """Get parameter value for the active event."""
 
     db_url = ctx.obj["DB_URL"]
-    print(_get_event_parameter(name.value, db_url))  # type: ignore
+    print(_get_event_parameters(name.value, db_url))  # type: ignore
 
 
 @app.command("set")
@@ -128,7 +128,7 @@ def event_cli_paramater_set(
     """Set parameter value for the active event."""
 
     db_url = ctx.obj["DB_URL"]
-    _set_event_parameter(parameter_name=name, parameter_value=value, db_url=db_url)  # type: ignore
+    _set_event_parameters(parameter_name=name, parameter_value=value, db_url=db_url)  # type: ignore
 
 
 if __name__ == "__main__":

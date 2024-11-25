@@ -11,9 +11,9 @@ from aimbat.lib.models import (
     AimbatFileCreate,
     AimbatStation,
     AimbatEvent,
-    AimbatEventParameter,
+    AimbatEventParameters,
     AimbatSeismogram,
-    AimbatSeismogramParameter,
+    AimbatSeismogramParameters,
 )
 from datetime import timedelta
 from pathlib import Path
@@ -132,26 +132,26 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
         session.add(aimbatseismogram)
         session.commit()
 
-        select_event_parameter = select(AimbatEventParameter).where(
-            AimbatEventParameter.event_id == aimbatevent.id
+        select_event_parameter = select(AimbatEventParameters).where(
+            AimbatEventParameters.event_id == aimbatevent.id
         )
         event_parameter = session.exec(select_event_parameter).first()
         if event_parameter is None:
             window_width = get_default(session, "initial_time_window_width")
             assert isinstance(window_width, float)
-            event_parameter = AimbatEventParameter(
+            event_parameter = AimbatEventParameters(
                 event_id=aimbatevent.id,
                 window_pre=timedelta(seconds=window_width / -2),
                 window_post=timedelta(seconds=window_width / 2),
             )
             session.add(event_parameter)
 
-        select_seismogram_parameter = select(AimbatSeismogramParameter).where(
-            AimbatSeismogramParameter.seismogram_id == aimbatseismogram.id
+        select_seismogram_parameter = select(AimbatSeismogramParameters).where(
+            AimbatSeismogramParameters.seismogram_id == aimbatseismogram.id
         )
         seismogram_parameter = session.exec(select_seismogram_parameter).first()
         if seismogram_parameter is None:
-            seismogram_parameter = AimbatSeismogramParameter(
+            seismogram_parameter = AimbatSeismogramParameters(
                 seismogram_id=aimbatseismogram.id
             )
             session.add(seismogram_parameter)
