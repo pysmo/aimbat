@@ -2,8 +2,10 @@
 
 from aimbat.lib.common import ic
 from aimbat.lib.defaults import get_default
+from aimbat.lib.event import get_active_event
 from aimbat.lib.types import AimbatFileType
 from aimbat.lib.io import read_metadata_from_file
+from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatFile,
     AimbatFileCreate,
@@ -16,9 +18,9 @@ from aimbat.lib.models import (
 from datetime import timedelta
 from pathlib import Path
 from sqlmodel import Session, select
+from typing import Sequence
 from rich.progress import track
 from rich.console import Console
-from rich.table import Table
 
 
 def add_files_to_project(
@@ -159,22 +161,45 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
     session.commit()
 
 
-def print_data_table(session: Session) -> None:
-    """Print a pretty table with AIMBAT data."""
+def get_data_for_active_event(session: Session) -> Sequence[AimbatFile]:
+    """Returns the AimbatFiles belonging to the active event"""
+    active_event = get_active_event(session)
+    select_files = (
+        select(AimbatFile)
+        .join(AimbatSeismogram)
+        .where(AimbatSeismogram.event_id == active_event.id)
+    )
+    return session.exec(select_files).all()
+
+
+def print_data_table(session: Session, all_events: bool = False) -> None:
+    """Print a pretty table with AIMBAT data.
+
+    Parameters:
+        session: Database session.
+        all_events: Print all files instead of limiting to the active event.
+    """
+
     ic()
+    ic(session)
 
-    table = Table(title="AIMBAT Data")
+    title = "AIMBAT data for all events"
+    aimbat_files = None
+    if all_events:
+        aimbat_files = session.exec(select(AimbatFile)).all()
+    else:
+        active_event = get_active_event(session)
+        aimbat_files = get_data_for_active_event(session)
+        title = f"AIMBAT data for event {active_event.time} (ID={active_event.id})"
 
-    table.add_column("id", justify="center", style="cyan", no_wrap=True)
-    table.add_column("filename", justify="center", style="cyan", no_wrap=True)
-    table.add_column("filetype", justify="center", style="magenta")
+    table = make_table(title=title)
 
-    for file in session.exec(select(AimbatFile)).all():
-        table.add_row(
-            str(file.id),
-            str(file.filename),
-            str(file.filetype),
-        )
+    table.add_column("ID", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Filetype", justify="center", style="magenta")
+    table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
+
+    for file in aimbat_files:
+        table.add_row(str(file.id), str(file.filetype), str(file.filename))
 
     console = Console()
     console.print(table)

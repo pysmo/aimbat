@@ -20,5 +20,15 @@ class TestCliStation:
         assert result.exit_code == 0
 
         result = runner.invoke(app, ["--db-url", db_url, "station", "list"])
+        assert result.exit_code == 1
+
+        result = runner.invoke(app, ["--db-url", db_url, "station", "list", "--all"])
+        assert result.exit_code == 0
+        assert "113A - AR" in result.output
+
+        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
+        assert result.exit_code == 0
+
+        result = runner.invoke(app, ["--db-url", db_url, "station", "list"])
         assert result.exit_code == 0
         assert "113A - AR" in result.output

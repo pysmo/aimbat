@@ -2,8 +2,8 @@
 
 from aimbat.lib.common import ic
 from aimbat.lib.models import AimbatEvent, AimbatEventParameter
+from aimbat.lib.misc.rich_utils import make_table
 from rich.console import Console
-from rich.table import Table
 from sqlmodel import Session, select
 from typing import Sequence
 
@@ -16,7 +16,7 @@ def get_active_event(session: Session) -> AimbatEvent:
         session: SQL session.
 
     Returns:
-        Selected Event
+        Active Event
     """
 
     ic()
@@ -79,7 +79,7 @@ def print_event_table(session: Session) -> None:
     ic()
     ic(session)
 
-    table = Table(title="AIMBAT Events")
+    table = make_table(title="AIMBAT Events")
     table.add_column("id", justify="center", style="cyan", no_wrap=True)
     table.add_column("Active", justify="center", style="cyan", no_wrap=True)
     table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)

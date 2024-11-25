@@ -57,6 +57,9 @@ class TestCliSnapshot:
         result = runner.invoke(app, ["--db-url", db_url, "snapshot", "create"])
         assert result.exit_code == 1
 
+        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list"])
+        assert result.exit_code == 1
+
         result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
         assert result.exit_code == 0
 
@@ -65,7 +68,11 @@ class TestCliSnapshot:
 
         result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list"])
         assert result.exit_code == 0
-        assert "AIMBAT Snapshots" in result.output
+        assert "AIMBAT snapshots for event" in result.output
+
+        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list", "--all"])
+        assert result.exit_code == 0
+        assert "AIMBAT snapshots for all events" in result.output
 
         result = runner.invoke(
             app, ["--db-url", db_url, "snapshot", "create", "--comment", RANDOM_COMMENT]

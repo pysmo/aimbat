@@ -1,12 +1,14 @@
 from aimbat.lib.common import ic
-from aimbat.lib.models import AimbatSeismogram
+from aimbat.lib.event import get_active_event
+from aimbat.lib.models import AimbatEvent, AimbatSeismogram, AimbatSeismogramParameter
+from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.types import (
     AimbatSeismogramParameterName,
     AimbatSeismogramParameterType,
 )
 from rich.console import Console
-from rich.table import Table
 from sqlmodel import Session, select
+from typing import Sequence
 
 
 def get_seismogram_parameter(
@@ -67,28 +69,75 @@ def set_seismogram_parameter(
     session.commit()
 
 
-def print_seismogram_table(session: Session) -> None:
+def get_selected_seismograms(
+    session: Session, all_events: bool = False
+) -> Sequence[AimbatSeismogram]:
+    """Get the selected seismograms for the active avent.
+
+    Parameters:
+        session: Database session.
+        all_events: Get the selected seismograms for all events.
+
+    Returns: Selected seismograms.
+    """
+
+    ic()
+    ic(session, all_events)
+
+    select_events = (
+        select(AimbatSeismogram)
+        .join(AimbatSeismogramParameter)
+        .join(AimbatEvent)
+        .where(AimbatEvent.is_active == 1 and AimbatSeismogramParameter.select == 1)
+    )
+    if all_events:
+        select_events = (
+            select(AimbatSeismogram)
+            .join(AimbatSeismogramParameter)
+            .where(AimbatSeismogramParameter.select == 1)
+        )
+    return session.exec(select_events).all()
+
+
+def print_seismogram_table(session: Session, all_events: bool = False) -> None:
     """Prints a pretty table with AIMBAT seismograms."""
 
     ic()
-    ic(session)
+    ic(session, all_events)
 
-    table = Table(title="AIMBAT Seismograms")
+    title = "AIMBAT Seismograms"
+    aimbat_seismograms = None
 
-    table.add_column("id", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Filename", justify="center", style="cyan", no_wrap=True)
+    if all_events:
+        aimbat_seismograms = session.exec(select(AimbatSeismogram)).all()
+    else:
+        active_event = get_active_event(session)
+        aimbat_seismograms = active_event.seismograms
+        title = (
+            f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
+        )
+
+    table = make_table(title=title)
+
+    table.add_column("ID", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
     table.add_column("Station ID", justify="center", style="magenta")
-    table.add_column("Event ID", justify="center", style="magenta")
+    if all_events:
+        table.add_column("Event ID", justify="center", style="magenta")
 
-    all_seismograms = session.exec(select(AimbatSeismogram)).all()
-    if all_seismograms is not None:
-        for seismogram in all_seismograms:
-            assert seismogram.id is not None
+    for seismogram in aimbat_seismograms:
+        if all_events:
             table.add_row(
                 str(seismogram.id),
                 str(seismogram.file.filename),
                 str(seismogram.station.id),
                 str(seismogram.event.id),
+            )
+        else:
+            table.add_row(
+                str(seismogram.id),
+                str(seismogram.file.filename),
+                str(seismogram.station.id),
             )
 
     console = Console()
