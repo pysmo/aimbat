@@ -1,8 +1,8 @@
 from aimbat.lib.models import (
-    AimbatEventParameter,
+    AimbatEventParameters,
     AimbatFile,
     AimbatSeismogram,
-    AimbatSeismogramParameter,
+    AimbatSeismogramParameters,
     AimbatStation,
     AimbatEvent,
 )
@@ -39,7 +39,7 @@ class TestLibData:
         assert aimbat_seismogram.delta == sac_seismogram.delta
         assert len(aimbat_seismogram) == len(sac_seismogram)
         assert aimbat_seismogram.end_time == sac_seismogram.end_time
-        assert isinstance(aimbat_seismogram.parameter, AimbatSeismogramParameter)
+        assert isinstance(aimbat_seismogram.parameters, AimbatSeismogramParameters)
 
         new_data = np.random.rand(10)
         aimbat_seismogram.data = new_data
@@ -63,7 +63,7 @@ class TestLibData:
         assert aimbat_event.time == sac_event.time
         assert aimbat_event.latitude == sac_event.latitude
         assert aimbat_event.longitude == sac_event.longitude
-        assert isinstance(aimbat_event.parameter, AimbatEventParameter)
+        assert isinstance(aimbat_event.parameters, AimbatEventParameters)
 
         sac = SAC.from_file(sac_file_good)
 
