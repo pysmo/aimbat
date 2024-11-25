@@ -60,13 +60,13 @@ def _set_seismogram_parameter(
         set_seismogram_parameter(session, seismogram_id, parameter_name, value)
 
 
-def _print_seismogram_table(db_url: str | None) -> None:
+def _print_seismogram_table(db_url: str | None, all_events: bool) -> None:
     from aimbat.lib.seismogram import print_seismogram_table
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print_seismogram_table(session)
+        print_seismogram_table(session, all_events)
 
 
 app = typer.Typer(
@@ -79,10 +79,15 @@ app = typer.Typer(
 
 
 @app.command("list")
-def seismogram_cli_list(ctx: typer.Context) -> None:
-    """Print information on the seismograms stored in AIMBAT."""
+def seismogram_cli_list(
+    ctx: typer.Context,
+    all_events: Annotated[
+        bool, typer.Option("--all", help="Select seismograms for all events.")
+    ] = False,
+) -> None:
+    """Print information on the seismograms in the active event."""
     db_url = ctx.obj["DB_URL"]
-    _print_seismogram_table(db_url)
+    _print_seismogram_table(db_url, all_events)
 
 
 @app.command("get")

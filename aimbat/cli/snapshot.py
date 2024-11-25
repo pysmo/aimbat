@@ -23,13 +23,13 @@ def _delete_snapshot(snapshot_id: int, db_url: str | None) -> None:
         delete_snapshot(session, snapshot_id)
 
 
-def _print_snapshot_table(db_url: str | None) -> None:
+def _print_snapshot_table(db_url: str | None, all_events: bool) -> None:
     from aimbat.lib.snapshot import print_snapshot_table
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print_snapshot_table(session)
+        print_snapshot_table(session, all_events)
 
 
 app = typer.Typer(
@@ -64,10 +64,15 @@ def snapshot_cli_delete(
 
 
 @app.command("list")
-def snapshot_cli_list(ctx: typer.Context) -> None:
-    """Print information on the snapshots stored in AIMBAT."""
+def snapshot_cli_list(
+    ctx: typer.Context,
+    all_events: Annotated[
+        bool, typer.Option("--all", help="Select snapshots for all events.")
+    ] = False,
+) -> None:
+    """Print information on the snapshots for the active event."""
     db_url = ctx.obj["DB_URL"]
-    _print_snapshot_table(db_url)
+    _print_snapshot_table(db_url, all_events)
 
 
 if __name__ == "__main__":

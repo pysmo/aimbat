@@ -71,9 +71,7 @@ def version() -> None:
     """Print the AIMBAT version."""
     print(
         Panel(
-            __version__,
-            title="AIMBAT version",
-            title_align="left",
+            __version__, title="AIMBAT version", title_align="left", border_style="dim"
         )
     )
 

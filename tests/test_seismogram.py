@@ -140,5 +140,15 @@ class TestCliSeismogram:
         assert "2011-11-04 00:15:29.283" in result.output
 
         result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list"])
+        assert result.exit_code == 1
+
+        result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list", "--all"])
+        assert result.exit_code == 0
+        assert "good.sac" in result.output
+
+        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
+        assert result.exit_code == 0
+
+        result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list"])
         assert result.exit_code == 0
         assert "good.sac" in result.output

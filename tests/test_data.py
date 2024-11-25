@@ -134,6 +134,16 @@ class TestCliData:
         result = runner.invoke(app, ["--db-url", db_url, "data", "add", sac_file_good])
         assert result.exit_code == 0
 
+        result = runner.invoke(app, ["--db-url", db_url, "data", "list", "--all"])
+        assert result.exit_code == 0
+        assert sac_file_good in result.output
+
+        result = runner.invoke(app, ["--db-url", db_url, "data", "list"])
+        assert result.exit_code == 1
+
+        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
+        assert result.exit_code == 0
+
         result = runner.invoke(app, ["--db-url", db_url, "data", "list"])
         assert result.exit_code == 0
         assert sac_file_good in result.output

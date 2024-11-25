@@ -30,13 +30,13 @@ def _add_files_to_project(
         )
 
 
-def _print_data_table(db_url: str | None) -> None:
+def _print_data_table(db_url: str | None, all_events: bool) -> None:
     from aimbat.lib.data import print_data_table
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print_data_table(session)
+        print_data_table(session, all_events)
 
 
 app = typer.Typer(
@@ -67,10 +67,15 @@ def cli_add(
 
 
 @app.command("list")
-def cli_list(ctx: typer.Context) -> None:
+def cli_list(
+    ctx: typer.Context,
+    all_events: Annotated[
+        bool, typer.Option("--all", help="Select data for all events.")
+    ] = False,
+) -> None:
     """Print information on the data stored in AIMBAT."""
     db_url = ctx.obj["DB_URL"]
-    _print_data_table(db_url)
+    _print_data_table(db_url, all_events)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from aimbat.lib.common import ic
 from aimbat.lib.db import engine
 from aimbat.lib.event import get_active_event
+from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     # AimbatEvent,
     AimbatSnapshot,
@@ -9,7 +10,6 @@ from aimbat.lib.models import (
 )
 from sqlmodel import Session, select
 from rich.console import Console
-from rich.table import Table
 
 
 def create_snapshot(session: Session, comment: str | None = None) -> None:
@@ -65,26 +65,42 @@ def delete_snapshot(session: Session, snapshot_id: int) -> None:
     session.commit()
 
 
-def print_snapshot_table(session: Session) -> None:
+def print_snapshot_table(session: Session, all_events: bool) -> None:
     """Print a pretty table with AIMBAT snapshots."""
 
-    table = Table(title="AIMBAT Snapshots")
+    title = "AIMBAT snapshots for all events"
+    aimbat_snapshots = None
+
+    if all_events:
+        aimbat_snapshots = session.exec(select(AimbatSnapshot)).all()
+    else:
+        active_event = get_active_event(session)
+        aimbat_snapshots = active_event.snapshots
+        title = f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
+
+    table = make_table(title=title)
 
     table.add_column("id", justify="center", style="cyan", no_wrap=True)
     table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
     table.add_column("Comment", justify="center", style="magenta")
-    table.add_column("Event ID", justify="center", style="magenta")
+    if all_events:
+        table.add_column("Event ID", justify="center", style="magenta")
     table.add_column("# Seismograms", justify="center", style="green")
 
-    all_snapshots = session.exec(select(AimbatSnapshot)).all()
-    if all_snapshots is not None:
-        for snapshot in all_snapshots:
-            assert snapshot.id is not None
+    for snapshot in aimbat_snapshots:
+        if all_events:
             table.add_row(
                 str(snapshot.id),
                 str(snapshot.date),
                 str(snapshot.comment),
                 str(snapshot.event_id),
+                str(len(snapshot.seismogram_parameter_snapshot)),
+            )
+        else:
+            table.add_row(
+                str(snapshot.id),
+                str(snapshot.date),
+                str(snapshot.comment),
                 str(len(snapshot.seismogram_parameter_snapshot)),
             )
 
