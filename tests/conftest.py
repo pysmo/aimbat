@@ -1,14 +1,41 @@
 from pysmo import SAC
 from sqlmodel import create_engine, Session
+from pathlib import Path
 import sqlalchemy as sa
 import shutil
 import pytest
 import os
 import matplotlib.pyplot as plt
+from uuid import uuid4
 
 TESTDATA = dict(
-    sacfile_good=os.path.join(os.path.dirname(__file__), "assets/goodfile.sac"),
+    multi_event=sorted(Path(os.path.dirname(__file__)).glob("assets/event_*/*.bhz")),
+    sacfile_good=Path(os.path.dirname(__file__)) / "assets/goodfile.sac",
 )
+
+
+@pytest.fixture(scope="session")
+def test_data_dir(tmp_path_factory):  # type: ignore
+    tmp_dir = tmp_path_factory.mktemp("test_data")
+
+    yield tmp_dir
+
+    shutil.rmtree(tmp_dir)
+
+
+@pytest.fixture(scope="session")
+def test_data(test_data_dir):  # type: ignore
+    data_list = []
+    for orgfile in TESTDATA["multi_event"]:
+        testfile = test_data_dir / f"{uuid4()}.sac"
+        shutil.copy(orgfile, testfile)
+        data_list.append(testfile)
+    return data_list
+
+
+@pytest.fixture(scope="session")
+def test_data_string(test_data):  # type: ignore
+    return [str(data) for data in test_data]
 
 
 @pytest.fixture(scope="session")

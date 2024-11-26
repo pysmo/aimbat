@@ -29,3 +29,4 @@ blah.py
 .venv
 junit.xml
 .ipynb_checkpoints
+reset_project.sh

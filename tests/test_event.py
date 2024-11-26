@@ -1,14 +1,14 @@
-from sqlmodel import select
+from aimbat.lib import data, event
 from aimbat.lib.models import AimbatEvent
+from aimbat.app import app
 from typer.testing import CliRunner
+from sqlmodel import select
 import pytest
 
 
 class TestLibEvent:
-    def test_active_event(self, db_session, sac_file_good) -> None:  # type: ignore
-        from aimbat.lib import data, event
-
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+    def test_active_event(self, db_session, test_data) -> None:  # type: ignore
+        data.add_files_to_project(db_session, test_data, filetype="sac")
 
         with pytest.raises(RuntimeError):
             event.get_active_event(db_session)
@@ -19,10 +19,8 @@ class TestLibEvent:
         assert aimbat_event.active_event is not None
         assert event.get_active_event(db_session) is aimbat_event
 
-    def test_station_link(self, db_session, sac_file_good) -> None:  # type: ignore
-        from aimbat.lib import data
-
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+    def test_station_link(self, db_session, test_data) -> None:  # type: ignore
+        data.add_files_to_project(db_session, test_data, filetype="sac")
 
         select_event = select(AimbatEvent).where(AimbatEvent.id == 1)
         aimbat_event = db_session.exec(select_event).one()
@@ -30,10 +28,8 @@ class TestLibEvent:
 
 
 class TestCliEvent:
-    def test_sac_data(self, db_url, sac_file_good) -> None:  # type: ignore
+    def test_sac_data(self, db_url, test_data_string) -> None:  # type: ignore
         """Test AIMBAT cli with event subcommand."""
-
-        from aimbat.app import app
 
         runner = CliRunner()
 
@@ -44,7 +40,9 @@ class TestCliEvent:
         result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
         assert result.exit_code == 0
 
-        result = runner.invoke(app, ["--db-url", db_url, "data", "add", sac_file_good])
+        args = ["--db-url", db_url, "data", "add"]
+        args.extend(test_data_string)
+        result = runner.invoke(app, args)
         assert result.exit_code == 0
 
         result = runner.invoke(app, ["--db-url", db_url, "event", "list"])
