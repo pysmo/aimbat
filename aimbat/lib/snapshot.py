@@ -5,6 +5,7 @@ from aimbat.lib.db import engine
 from aimbat.lib.event import get_active_event
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
+    AimbatActiveEvent,
     AimbatSeismogramParametersBase,
     AimbatSnapshot,
     AimbatEvent,
@@ -135,7 +136,8 @@ def get_snapshots(
         .join(AimbatEventParametersSnapshot)
         .join(AimbatEventParameters)
         .join(AimbatEvent)
-        .where(AimbatEvent.is_active == 1)
+        .join(AimbatActiveEvent)
+        # .where(AimbatEvent.is_active == 1)
     )
     return session.exec(select_active_event_snapshots).all()
 
@@ -155,7 +157,7 @@ def print_snapshot_table(session: Session, all_events: bool) -> None:
 
     table = make_table(title=title)
 
-    table.add_column("id", justify="center", style="cyan", no_wrap=True)
+    table.add_column("id", justify="right", style="cyan", no_wrap=True)
     table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
     table.add_column("Comment", justify="center", style="magenta")
     if all_events:

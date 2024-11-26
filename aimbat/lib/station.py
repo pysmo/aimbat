@@ -24,7 +24,7 @@ def print_station_table(session: Session, all_events: bool = False) -> None:
 
     table = make_table(title=title)
 
-    table.add_column("id", justify="center", style="cyan", no_wrap=True)
+    table.add_column("id", justify="right", style="cyan", no_wrap=True)
     table.add_column("Name & Network", justify="center", style="cyan", no_wrap=True)
     table.add_column("Latitude", justify="center", style="magenta")
     table.add_column("Longitude", justify="center", style="magenta")

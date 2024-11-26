@@ -95,11 +95,19 @@ class EventStationLink(SQLModel, table=True):
     )
 
 
+class AimbatActiveEvent(SQLModel, table=True):
+    """Stores the active event id."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
+    event: "AimbatEvent" = Relationship(back_populates="active_event")
+
+
 class AimbatEvent(SQLModel, table=True):
     """Class to store event information."""
 
     id: int | None = Field(default=None, primary_key=True)
-    is_active: bool = False
+    # is_active: bool = False
     time_db: datetime = Field(unique=True)
     latitude: float
     longitude: float
@@ -111,6 +119,9 @@ class AimbatEvent(SQLModel, table=True):
         back_populates="event", cascade_delete=True
     )
     parameters: "AimbatEventParameters" = Relationship(
+        back_populates="event", cascade_delete=True
+    )
+    active_event: AimbatActiveEvent = Relationship(
         back_populates="event", cascade_delete=True
     )
 

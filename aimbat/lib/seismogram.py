@@ -1,6 +1,11 @@
 from aimbat.lib.common import ic
 from aimbat.lib.event import get_active_event
-from aimbat.lib.models import AimbatEvent, AimbatSeismogram, AimbatSeismogramParameters
+from aimbat.lib.models import (
+    AimbatActiveEvent,
+    AimbatEvent,
+    AimbatSeismogram,
+    AimbatSeismogramParameters,
+)
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.types import (
     SeismogramParameterName,
@@ -88,7 +93,9 @@ def get_selected_seismograms(
         select(AimbatSeismogram)
         .join(AimbatSeismogramParameters)
         .join(AimbatEvent)
-        .where(AimbatEvent.is_active == 1 and AimbatSeismogramParameters.select == 1)
+        .join(AimbatActiveEvent)
+        .where(AimbatSeismogramParameters.select == 1)
+        # .where(AimbatEvent.is_active == 1 and AimbatSeismogramParameters.select == 1)
     )
     if all_events:
         select_events = (
@@ -119,7 +126,7 @@ def print_seismogram_table(session: Session, all_events: bool = False) -> None:
 
     table = make_table(title=title)
 
-    table.add_column("ID", justify="center", style="cyan", no_wrap=True)
+    table.add_column("id", justify="right", style="cyan", no_wrap=True)
     table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
     table.add_column("Station ID", justify="center", style="magenta")
     if all_events:
