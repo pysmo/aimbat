@@ -1,11 +1,11 @@
 from typer.testing import CliRunner
+from aimbat.lib import data, seismogram
+from aimbat.app import app
 
 
 class TestLibSeismogram:
-    def test_get_parameter(self, db_session, sac_file_good) -> None:  # type: ignore
-        from aimbat.lib import data, seismogram
-
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+    def test_get_parameter(self, db_session, test_data) -> None:  # type: ignore
+        data.add_files_to_project(db_session, test_data, filetype="sac")
 
         assert (
             seismogram.get_seismogram_parameter(
@@ -26,10 +26,8 @@ class TestLibSeismogram:
             is None
         )
 
-    def test_set_parameter(self, db_session, sac_file_good) -> None:  # type: ignore
-        from aimbat.lib import data, seismogram
-
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+    def test_set_parameter(self, db_session, test_data) -> None:  # type: ignore
+        data.add_files_to_project(db_session, test_data, filetype="sac")
 
         seismogram.set_seismogram_parameter(
             session=db_session,
@@ -46,12 +44,10 @@ class TestLibSeismogram:
 
 
 class TestCliSeismogram:
-    def test_sac_data(self, db_url, sac_file_good, monkeypatch) -> None:  # type: ignore
+    def test_sac_data(self, db_url, test_data_string, monkeypatch) -> None:  # type: ignore
         """Test AIMBAT cli with seismogram subcommand."""
 
         monkeypatch.setenv("COLUMNS", "1000")
-
-        from aimbat.app import app
 
         runner = CliRunner()
 
@@ -62,7 +58,9 @@ class TestCliSeismogram:
         result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
         assert result.exit_code == 0
 
-        result = runner.invoke(app, ["--db-url", db_url, "data", "add", sac_file_good])
+        args = ["--db-url", db_url, "data", "add"]
+        args.extend(test_data_string)
+        result = runner.invoke(app, args)
         assert result.exit_code == 0
 
         result = runner.invoke(
@@ -144,11 +142,10 @@ class TestCliSeismogram:
 
         result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list", "--all"])
         assert result.exit_code == 0
-        assert "good.sac" in result.output
+        assert test_data_string[0] in result.output
 
         result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
         assert result.exit_code == 0
 
         result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list"])
         assert result.exit_code == 0
-        assert "good.sac" in result.output

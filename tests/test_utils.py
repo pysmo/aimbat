@@ -69,10 +69,10 @@ class TestLibUtils:
         issues = checkdata_seismogram(sac_instance_good.seismogram)
         assert "No seismogram data" in issues[0]
 
-    def test_plotseis(self, sac_file_good, db_session, mock_show) -> None:  # type: ignore
+    def test_plotseis(self, test_data, db_session, mock_show) -> None:  # type: ignore
         from aimbat.lib import data, utils
 
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+        data.add_files_to_project(db_session, test_data, filetype="sac")
         utils.plotseis(db_session, 1)
 
 
@@ -180,7 +180,7 @@ class TestCliUtils:
             assert f"No event {item} found in file" not in result.output
         assert "No seismogram data found in file" not in result.output
 
-    def test_plotseis(self, sac_file_good, db_url, mock_show) -> None:  # type: ignore
+    def test_plotseis(self, test_data_string, db_url, mock_show) -> None:  # type: ignore
         """Test AIMBAT cli with utils subcommand."""
 
         from aimbat.app import app
@@ -194,7 +194,9 @@ class TestCliUtils:
         result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
         assert result.exit_code == 0
 
-        result = runner.invoke(app, ["--db-url", db_url, "data", "add", sac_file_good])
+        args = ["--db-url", db_url, "data", "add"]
+        args.extend(test_data_string)
+        result = runner.invoke(app, args)
         assert result.exit_code == 0
 
         result = runner.invoke(app, ["--db-url", db_url, "utils", "plotseis", "1"])

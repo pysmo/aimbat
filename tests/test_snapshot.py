@@ -1,5 +1,6 @@
-from sqlmodel import select, Session
+from aimbat.lib import data, snapshot, event
 from aimbat.lib.models import AimbatSnapshot, AimbatEvent
+from sqlmodel import select, Session
 from typer.testing import CliRunner
 from pathlib import Path
 import pytest
@@ -13,10 +14,8 @@ class TestLibSnapshot:
     select_event = select(AimbatEvent).where(AimbatEvent.id == 1)
     select_snapshots = select(AimbatSnapshot)
 
-    def test_snapshot_create_and_delete(self, sac_file_good, db_session) -> None:  # type: ignore
-        from aimbat.lib import data, snapshot, event
-
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+    def test_snapshot_create_and_delete(self, test_data, db_session) -> None:  # type: ignore
+        data.add_files_to_project(db_session, test_data, filetype="sac")
 
         with pytest.raises(RuntimeError):
             snapshot.create_snapshot(db_session)
@@ -41,10 +40,10 @@ class TestLibSnapshot:
         with pytest.raises(RuntimeError):
             snapshot.delete_snapshot(db_session, 1)
 
-    def test_snapshot_rollback(self, sac_file_good: Path, db_session: Session) -> None:
-        from aimbat.lib import data, snapshot, event
-
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+    def test_snapshot_rollback(
+        self, test_data: list[Path], db_session: Session
+    ) -> None:
+        data.add_files_to_project(db_session, test_data, filetype="sac")
 
         active_event = db_session.exec(self.select_event).one()
         event.set_active_event(db_session, active_event)
@@ -65,7 +64,7 @@ class TestLibSnapshot:
 
 
 class TestCliSnapshot:
-    def test_sac_data(self, sac_file_good, db_url) -> None:  # type: ignore
+    def test_sac_data(self, test_data_string, db_url) -> None:  # type: ignore
         """Test AIMBAT cli with snapshot subcommand."""
 
         from aimbat.app import app
@@ -78,7 +77,9 @@ class TestCliSnapshot:
         result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
         assert result.exit_code == 0
 
-        result = runner.invoke(app, ["--db-url", db_url, "data", "add", sac_file_good])
+        args = ["--db-url", db_url, "data", "add"]
+        args.extend(test_data_string)
+        result = runner.invoke(app, args)
         assert result.exit_code == 0
 
         result = runner.invoke(app, ["--db-url", db_url, "snapshot", "create"])
