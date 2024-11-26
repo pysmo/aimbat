@@ -4,7 +4,6 @@ from aimbat.lib.common import AimbatDataError, ic
 from pysmo import SAC, Event, Seismogram, Station
 from datetime import datetime
 from sqlmodel import Session
-import aimbat.lib.defaults as defaults
 import numpy as np
 import numpy.typing as npt
 
@@ -55,11 +54,12 @@ def _read_metadata_from_sacfile(
     Returns:
         Seismogram metadata.
     """
+    from aimbat.lib.defaults import get_default
 
     ic()
     ic(sacfile)
 
-    initial_pick_header = defaults.get_default(session, "initial_pick_header")
+    initial_pick_header = get_default(session, "initial_pick_header")
     sac = SAC.from_file(str(sacfile))
     t0 = getattr(sac.timestamps, str(initial_pick_header))
     if t0 is None:

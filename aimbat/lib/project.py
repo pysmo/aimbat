@@ -48,6 +48,7 @@ def _project_file(engine: Engine) -> Path:
 
 def create_project(engine: Engine = engine) -> None:
     """Create a new AIMBAT project."""
+    # import this to create tables below
     import aimbat.lib.models  # noqa: F401
 
     ic()

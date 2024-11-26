@@ -1,8 +1,64 @@
-from aimbat.lib.types import AimbatFileType
+"""This module defines the "Aimbat" classes.
+
+These classes are ORMs that map present data stored in a database
+as classes to use with python in AIMBAT.
+"""
+
+from aimbat.lib.types import SeismogramFileType
+from aimbat.lib.common import string_to_type
+from aimbat.lib.io import read_seismogram_data_from_file, write_seismogram_data_to_file
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 import numpy as np
-import aimbat.lib.io as io
+
+
+class AimbatDefault(SQLModel, table=True):
+    """Class to store AIMBAT defaults."""
+
+    id: int | None = Field(primary_key=True)
+    name: str = Field(unique=True)
+    is_of_type: str = Field(allow_mutation=False)
+    description: str = Field(allow_mutation=False)
+    initial_value: str = Field(allow_mutation=False)
+    fvalue: float | None = None
+    ivalue: int | None = None
+    bvalue: bool | None = None
+    svalue: str | None = None
+
+    def __init__(self, **kwargs: str | float | int | bool) -> None:
+        super().__init__(**kwargs)
+        self.reset_value()
+
+    def reset_value(self) -> None:
+        self.value = string_to_type(self.is_of_type, self.initial_value)
+
+    @property
+    def value(self) -> str | float | int | bool:
+        if self.is_of_type == "float" and self.fvalue is not None:
+            return self.fvalue
+        elif self.is_of_type == "int" and self.ivalue is not None:
+            return self.ivalue
+        elif self.is_of_type == "bool" and self.bvalue is not None:
+            return self.bvalue
+        elif self.is_of_type == "str" and self.svalue is not None:
+            return self.svalue
+        raise RuntimeError("Unable to return value")  # pragma: no cover
+
+    @value.setter
+    def value(self, value: str | float | int | bool) -> None:
+        """Set a default value"""
+        if self.is_of_type == "float" and isinstance(value, float):
+            self.fvalue = value
+        elif self.is_of_type == "int" and isinstance(value, int):
+            self.ivalue = value
+        elif self.is_of_type == "bool" and isinstance(value, bool):
+            self.bvalue = value
+        elif self.is_of_type == "str" and isinstance(value, str):
+            self.svalue = value
+        else:
+            raise RuntimeError(
+                "Unable to assign {self.name} with value: {self.initial_value}."
+            )  # pragma: no cover
 
 
 class AimbatFileBase(SQLModel):
@@ -14,7 +70,7 @@ class AimbatFileBase(SQLModel):
 class AimbatFileCreate(AimbatFileBase):
     """Class to store data file information."""
 
-    filetype: AimbatFileType = "sac"
+    filetype: SeismogramFileType = "sac"
 
 
 class AimbatFile(AimbatFileBase, table=True):
@@ -161,18 +217,18 @@ class AimbatSeismogram(SQLModel, table=True):
     def data(self) -> np.ndarray:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to read data from")
-        return io.read_seismogram_data_from_file(self.file.filename, self.file.filetype)
+        return read_seismogram_data_from_file(self.file.filename, self.file.filetype)
 
     @data.setter
     def data(self, value: np.ndarray) -> None:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to write data to")
-        io.write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
+        write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
         self.cached_length = np.size(value)
 
 
 class AimbatSeismogramParametersBase(SQLModel):
-    """Base class that defines the seismogram parameters used in AIMBAT"""
+    """Base class that defines the seismogram parameters used in AIMBAT."""
 
     select: bool = True
     t1: datetime | None = None
@@ -207,7 +263,12 @@ class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=T
 
 
 class AimbatSnapshot(SQLModel, table=True):
-    """Class to store parameter snapshots."""
+    """Class to store AIMBAT snapshots.
+
+    The AimbatSnapshot class does not actually save any parameter data.
+    It is used to keep track of the AimbatEventParametersSnapshot and
+    AimbatSeismogramParametersSnapshot instances.
+    """
 
     id: int | None = Field(default=None, primary_key=True)
     date: datetime = Field(
@@ -216,8 +277,6 @@ class AimbatSnapshot(SQLModel, table=True):
         allow_mutation=False,
     )
     comment: str | None = None
-    # event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
-    # event: AimbatEvent = Relationship(back_populates="snapshots")
     event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
         back_populates="snapshot", cascade_delete=True
     )

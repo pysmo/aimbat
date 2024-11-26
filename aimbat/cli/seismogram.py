@@ -2,9 +2,9 @@
 
 from aimbat.lib.common import RegexEqual, debug_callback, ic
 from aimbat.lib.types import (
-    AimbatSeismogramParameterName,
-    AimbatSeismogramParameterType,
-    AIMBAT_SEISMOGRAM_PARAMETER_NAMES,
+    SeismogramParameterName,
+    SeismogramParameterType,
+    SEISMOGRAM_PARAMETER_NAMES,
 )
 from datetime import datetime
 from enum import StrEnum
@@ -14,15 +14,15 @@ import typer
 
 ParameterName = StrEnum(  # type: ignore
     "ParameterName",
-    [(i, i) for i in AIMBAT_SEISMOGRAM_PARAMETER_NAMES],
+    [(i, i) for i in SEISMOGRAM_PARAMETER_NAMES],
 )
 
 
 def _get_seismogram_parameter(
     seismogram_id: int,
-    parameter_name: AimbatSeismogramParameterName,
+    parameter_name: SeismogramParameterName,
     db_url: str | None,
-) -> AimbatSeismogramParameterType:
+) -> SeismogramParameterType:
     from aimbat.lib.seismogram import get_seismogram_parameter
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
@@ -33,7 +33,7 @@ def _get_seismogram_parameter(
 
 def _set_seismogram_parameter(
     seismogram_id: int,
-    parameter_name: AimbatSeismogramParameterName,
+    parameter_name: SeismogramParameterName,
     parameter_value: str,
     db_url: str | None,
 ) -> None:
@@ -41,7 +41,7 @@ def _set_seismogram_parameter(
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    value: AimbatSeismogramParameterType
+    value: SeismogramParameterType
 
     match [parameter_name, RegexEqual(parameter_value)]:
         case ["select", r"[T,t]rue$" | r"^[Y,y]es$" | r"^[Y,y]$" | r"^1$"]:

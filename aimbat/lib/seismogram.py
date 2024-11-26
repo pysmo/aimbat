@@ -3,8 +3,8 @@ from aimbat.lib.event import get_active_event
 from aimbat.lib.models import AimbatEvent, AimbatSeismogram, AimbatSeismogramParameters
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.types import (
-    AimbatSeismogramParameterName,
-    AimbatSeismogramParameterType,
+    SeismogramParameterName,
+    SeismogramParameterType,
 )
 from rich.console import Console
 from sqlmodel import Session, select
@@ -12,8 +12,8 @@ from typing import Sequence
 
 
 def get_seismogram_parameter(
-    session: Session, seismogram_id: int, parameter_name: AimbatSeismogramParameterName
-) -> AimbatSeismogramParameterType:
+    session: Session, seismogram_id: int, parameter_name: SeismogramParameterName
+) -> SeismogramParameterType:
     select_seismogram = select(AimbatSeismogram).where(
         AimbatSeismogram.id == seismogram_id
     )
@@ -39,8 +39,8 @@ def get_seismogram_parameter(
 def set_seismogram_parameter(
     session: Session,
     seismogram_id: int,
-    parameter_name: AimbatSeismogramParameterName,
-    parameter_value: AimbatSeismogramParameterType,
+    parameter_name: SeismogramParameterName,
+    parameter_value: SeismogramParameterType,
 ) -> None:
     """Set parameter value for an AimbatSeismogram instance.
 

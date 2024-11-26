@@ -2,9 +2,9 @@
 
 from aimbat.lib.common import RegexEqual, debug_callback, ic
 from aimbat.lib.types import (
-    AimbatEventParameterType,
-    AimbatEventParameterName,
-    AIMBAT_EVENT_PARAMETER_NAMES,
+    EventParameterType,
+    EventParameterName,
+    EVENT_PARAMETER_NAMES,
 )
 from typing import Annotated
 from datetime import timedelta
@@ -12,7 +12,7 @@ from enum import StrEnum
 import typer
 
 
-ParameterName = StrEnum("ParameterName", [(i, i) for i in AIMBAT_EVENT_PARAMETER_NAMES])  # type: ignore
+ParameterName = StrEnum("ParameterName", [(i, i) for i in EVENT_PARAMETER_NAMES])  # type: ignore
 
 
 def _print_event_table(db_url: str | None) -> None:
@@ -39,9 +39,9 @@ def _set_active_event(event_id: int, db_url: str | None) -> None:
 
 
 def _get_event_parameters(
-    parameter_name: AimbatEventParameterName,
+    parameter_name: EventParameterName,
     db_url: str | None,
-) -> AimbatEventParameterType:
+) -> EventParameterType:
     from aimbat.lib.event import get_active_event
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
@@ -52,7 +52,7 @@ def _get_event_parameters(
 
 
 def _set_event_parameters(
-    parameter_name: AimbatEventParameterName,
+    parameter_name: EventParameterName,
     parameter_value: str,
     db_url: str | None,
 ) -> None:
@@ -60,7 +60,7 @@ def _set_event_parameters(
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    value: AimbatEventParameterType
+    value: EventParameterType
 
     match [parameter_name, RegexEqual(parameter_value)]:
         case ["window_pre" | "window_post", r"\d+\.+\d*" | r"\d+"]:

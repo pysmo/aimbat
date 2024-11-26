@@ -1,19 +1,19 @@
-"""Module to add seismogram files to an AIMBAT project and view information about them."""
+"""Manage seismogram files in an AIMBAT project."""
 
 from aimbat.lib.common import debug_callback, ic
-from aimbat.lib.types import AimbatFileType, AIMBAT_FILE_TYPES
+from aimbat.lib.types import SeismogramFileType, SEISMOGRAM_FILE_TYPES
 from pathlib import Path
 from enum import StrEnum
 from typing import Annotated
 import typer
 
 
-FileType = StrEnum("FileType", [(i, str(i)) for i in AIMBAT_FILE_TYPES])  # type: ignore
+FileType = StrEnum("FileType", [(i, str(i)) for i in SEISMOGRAM_FILE_TYPES])  # type: ignore
 
 
 def _add_files_to_project(
     seismogram_files: list[Path],
-    filetype: AimbatFileType,
+    filetype: SeismogramFileType,
     db_url: str | None,
     disable_progress_bar: bool = True,
 ) -> None:
