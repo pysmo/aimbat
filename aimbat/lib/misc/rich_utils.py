@@ -7,7 +7,7 @@ def make_table(title: str | None = None) -> Table:
         title=title,
         box=box.ROUNDED,
         expand=False,
-        row_styles=["dim", ""],
+        # row_styles=["dim", ""],
         border_style="dim",
     )
     return table

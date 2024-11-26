@@ -7,6 +7,7 @@ from aimbat.lib.types import SeismogramFileType
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
+    AimbatActiveEvent,
     AimbatFile,
     AimbatFileCreate,
     AimbatStation,
@@ -167,7 +168,7 @@ def get_data_for_active_event(session: Session) -> Sequence[AimbatFile]:
         select(AimbatFile)
         .join(AimbatSeismogram)
         .join(AimbatEvent)
-        .where(AimbatEvent.is_active == 1)
+        .join(AimbatActiveEvent)
     )
     return session.exec(select_files).all()
 
@@ -194,7 +195,7 @@ def print_data_table(session: Session, all_events: bool = False) -> None:
 
     table = make_table(title=title)
 
-    table.add_column("ID", justify="center", style="cyan", no_wrap=True)
+    table.add_column("id", justify="right", style="cyan", no_wrap=True)
     table.add_column("Filetype", justify="center", style="magenta")
     table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
 

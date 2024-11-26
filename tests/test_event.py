@@ -1,7 +1,6 @@
 from sqlmodel import select
 from aimbat.lib.models import AimbatEvent
 from typer.testing import CliRunner
-import re
 import pytest
 
 
@@ -15,9 +14,9 @@ class TestLibEvent:
             event.get_active_event(db_session)
         select_aimbat_event = select(AimbatEvent).where(AimbatEvent.id == 1)
         aimbat_event = db_session.exec(select_aimbat_event).one()
-        assert aimbat_event.is_active is False
+        assert aimbat_event.active_event is None
         event.set_active_event(db_session, aimbat_event)
-        assert aimbat_event.is_active is True
+        assert aimbat_event.active_event is not None
         assert event.get_active_event(db_session) is aimbat_event
 
     def test_station_link(self, db_session, sac_file_good) -> None:  # type: ignore
@@ -58,7 +57,7 @@ class TestCliEvent:
         result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
         assert result.exit_code == 0
         result = runner.invoke(app, ["--db-url", db_url, "event", "list"])
-        assert re.search(r".*1\s+\│\s+True\s+\│\s+2011-09-15.*", result.output)
+        assert "\u2714" in result.output
 
         result = runner.invoke(
             app, ["--db-url", db_url, "event", "set", "window_pre", "--", "-2.3"]

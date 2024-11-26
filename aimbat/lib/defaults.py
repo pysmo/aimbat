@@ -2,10 +2,10 @@
 
 from aimbat import __file__ as aimbat_dir
 from aimbat.lib.common import ic, string_to_type
+from aimbat.lib.misc.rich_utils import make_table
+from aimbat.lib.models import AimbatDefault
 from sqlmodel import Session, select
 from rich.console import Console
-from rich.table import Table
-from aimbat.lib.models import AimbatDefault
 import os
 import yaml
 
@@ -89,7 +89,7 @@ def print_defaults_table(
 
     defaults = session.exec(select(AimbatDefault)).all()
 
-    table = Table(title="AIMBAT Defaults")
+    table = make_table(title="AIMBAT Defaults")
 
     table.add_column("Name", justify="left", style="cyan", no_wrap=True)
     table.add_column("Value", justify="center", style="magenta")
