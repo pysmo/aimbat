@@ -19,7 +19,7 @@ def _run_checks(sacfiles: list[Path]) -> None:
 
 
 def _plotseis(db_url: str | None, event_id: int, use_qt: bool = False) -> None:
-    from aimbat.lib.utils import plotseis
+    from aimbat.lib.utils.plotseis import plotseis
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
     import pyqtgraph as pg  # type: ignore

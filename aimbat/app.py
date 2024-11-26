@@ -43,6 +43,7 @@ def app_callback(
         ),
     ] = False,
 ) -> None:
+    """App callback function to add options and arguments to the main AIMBAT command."""
     ctx.ensure_object(dict)
     ctx.obj["DEBUG"] = debug
     ctx.obj["DB_URL"] = db_url

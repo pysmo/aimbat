@@ -32,6 +32,31 @@ class AimbatDataError(Exception):
     pass
 
 
+def string_to_bool(value: str) -> bool:
+    """Convert a string to a bool."""
+    if value.lower() in ["true", "yes", "1"]:
+        return True
+    elif value.lower() in ["false", "0", "no"]:
+        return False
+    raise ValueError(f"Unable to determine if {value=} is True or False.")
+
+
+def string_to_type(is_of_type: str, value: str) -> float | int | bool | str:
+    """Convert string to type."""
+    if is_of_type == "float":
+        return float(value)
+    elif is_of_type == "int":
+        return int(value)
+    elif is_of_type == "bool":
+        return string_to_bool(str(value))
+    elif is_of_type == "str":
+        return str(value)
+    else:
+        raise RuntimeError(
+            f"Unable to convert {value=} to {type=}."
+        )  # pragma: no cover
+
+
 # NOTE: https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
 def check_for_notebook() -> bool:
     """Check if we ware running inside a jupyter notebook."""

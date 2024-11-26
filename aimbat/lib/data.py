@@ -3,7 +3,7 @@
 from aimbat.lib.common import ic
 from aimbat.lib.defaults import get_default
 from aimbat.lib.event import get_active_event
-from aimbat.lib.types import AimbatFileType
+from aimbat.lib.types import SeismogramFileType
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -26,7 +26,7 @@ from rich.console import Console
 def add_files_to_project(
     session: Session,
     seismogram_files: list[Path],
-    filetype: AimbatFileType,
+    filetype: SeismogramFileType,
     disable_progress_bar: bool = True,
 ) -> None:
     """Add files to the AIMBAT database.
@@ -163,11 +163,11 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
 
 def get_data_for_active_event(session: Session) -> Sequence[AimbatFile]:
     """Returns the AimbatFiles belonging to the active event"""
-    active_event = get_active_event(session)
     select_files = (
         select(AimbatFile)
         .join(AimbatSeismogram)
-        .where(AimbatSeismogram.event_id == active_event.id)
+        .join(AimbatEvent)
+        .where(AimbatEvent.is_active == 1)
     )
     return session.exec(select_files).all()
 
