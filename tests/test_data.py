@@ -8,6 +8,7 @@ from aimbat.lib.models import (
     AimbatStation,
     AimbatEvent,
 )
+from aimbat.lib.types import SeismogramFileType
 from sqlmodel import select
 from typer.testing import CliRunner
 from pysmo import SAC
@@ -21,7 +22,9 @@ class TestLibData:
         sac_station = sac_instance_good.station
         sac_event = sac_instance_good.event
 
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+        data.add_files_to_project(
+            db_session, [sac_file_good], filetype=SeismogramFileType.SAC
+        )
 
         select_file = select(AimbatFile).where(AimbatFile.filename == sac_file_good)
         select_seismogram = select(AimbatSeismogram).where(
@@ -86,7 +89,9 @@ class TestLibData:
         assert sac.event.longitude == new_event_longitude
 
         sac.write(sac_file_good)
-        data.add_files_to_project(db_session, [sac_file_good], filetype="sac")
+        data.add_files_to_project(
+            db_session, [sac_file_good], filetype=SeismogramFileType.SAC
+        )
         aimbat_file = db_session.exec(select_file).one()
         assert sac_file_good == aimbat_file.filename
         assert 1 == aimbat_file.id

@@ -1,14 +1,10 @@
 """Manage seismogram files in an AIMBAT project."""
 
 from aimbat.lib.common import debug_callback, ic
-from aimbat.lib.types import SeismogramFileType, SEISMOGRAM_FILE_TYPES
+from aimbat.lib.types import SeismogramFileType
 from pathlib import Path
-from enum import StrEnum
 from typing import Annotated
 import typer
-
-
-FileType = StrEnum("FileType", [(i, str(i)) for i in SEISMOGRAM_FILE_TYPES])  # type: ignore
 
 
 def _add_files_to_project(
@@ -53,8 +49,8 @@ def cli_add(
     ctx: typer.Context,
     files: Annotated[list[Path], typer.Argument(help="Seismogram files to be added.")],
     filetype: Annotated[
-        FileType, typer.Option(help="Specify type of seismogram file.")
-    ] = FileType.sac,  # type: ignore
+        SeismogramFileType, typer.Option(help="Specify type of seismogram file.")
+    ] = SeismogramFileType.SAC,
 ) -> None:
     """Add or update data files in the AIMBAT project."""
     db_url = ctx.obj["DB_URL"]

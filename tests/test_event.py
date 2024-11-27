@@ -4,10 +4,14 @@ from aimbat.app import app
 from typer.testing import CliRunner
 import pytest
 
+from aimbat.lib.types import SeismogramFileType
+
 
 class TestLibEvent:
     def test_active_event(self, db_session, test_data) -> None:  # type: ignore
-        data.add_files_to_project(db_session, test_data, filetype="sac")
+        data.add_files_to_project(
+            db_session, test_data, filetype=SeismogramFileType.SAC
+        )
 
         with pytest.raises(RuntimeError):
             event.get_active_event(db_session)
@@ -21,7 +25,9 @@ class TestLibEvent:
         assert event.get_active_event(db_session) is aimbat_event
 
     def test_station_link(self, db_session, test_data) -> None:  # type: ignore
-        data.add_files_to_project(db_session, test_data, filetype="sac")
+        data.add_files_to_project(
+            db_session, test_data, filetype=SeismogramFileType.SAC
+        )
 
         aimbat_event = db_session.get(AimbatEvent, 1)
         assert aimbat_event.stations[0].id == 1

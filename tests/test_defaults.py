@@ -1,19 +1,19 @@
 from aimbat.lib import defaults
 from aimbat.app import app
-from aimbat.lib.types import AimbatDefaultAttribute
+from aimbat.lib.types import ProjectDefault
 from sqlmodel import Session
 from typer.testing import CliRunner
 
 
 class TestLibDefaults:
     def test_defaults(self, db_session: Session) -> None:
-        assert defaults.get_default(db_session, AimbatDefaultAttribute.aimbat) is True
+        assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is True
 
-        defaults.set_default(db_session, AimbatDefaultAttribute.aimbat, False)
-        assert defaults.get_default(db_session, AimbatDefaultAttribute.aimbat) is False
+        defaults.set_default(db_session, ProjectDefault.AIMBAT, False)
+        assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is False
 
-        defaults.reset_default(db_session, AimbatDefaultAttribute.aimbat)
-        assert defaults.get_default(db_session, AimbatDefaultAttribute.aimbat) is True
+        defaults.reset_default(db_session, ProjectDefault.AIMBAT)
+        assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is True
 
 
 class TestCliDefaults:
@@ -40,7 +40,7 @@ class TestCliDefaults:
                 db_url,
                 "defaults",
                 "get",
-                AimbatDefaultAttribute.initial_time_window_width,
+                ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
             ],
         )
         assert result.exit_code == 0
@@ -53,7 +53,7 @@ class TestCliDefaults:
                 db_url,
                 "defaults",
                 "set",
-                AimbatDefaultAttribute.initial_time_window_width,
+                ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
                 "11",
             ],
         )
@@ -66,14 +66,14 @@ class TestCliDefaults:
                 db_url,
                 "defaults",
                 "get",
-                AimbatDefaultAttribute.initial_time_window_width,
+                ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
             ],
         )
         assert result.exit_code == 0
         assert "11" in result.output
 
         result = runner.invoke(
-            app, ["--db-url", db_url, "defaults", "get", AimbatDefaultAttribute.aimbat]
+            app, ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT]
         )
         assert result.exit_code == 0
         assert "True" in result.output
@@ -89,14 +89,14 @@ class TestCliDefaults:
                     db_url,
                     "defaults",
                     "set",
-                    AimbatDefaultAttribute.aimbat,
+                    ProjectDefault.AIMBAT,
                     i,
                 ],
             )
             assert result.exit_code == 0
             result = runner.invoke(
                 app,
-                ["--db-url", db_url, "defaults", "get", AimbatDefaultAttribute.aimbat],
+                ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT],
             )
             assert result.exit_code == 0
             assert "True" in result.output
@@ -108,26 +108,26 @@ class TestCliDefaults:
                     db_url,
                     "defaults",
                     "set",
-                    AimbatDefaultAttribute.aimbat,
+                    ProjectDefault.AIMBAT,
                     i,
                 ],
             )
             assert result.exit_code == 0
             result = runner.invoke(
                 app,
-                ["--db-url", db_url, "defaults", "get", AimbatDefaultAttribute.aimbat],
+                ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT],
             )
             assert result.exit_code == 0
             assert "False" in result.output
 
         result = runner.invoke(
             app,
-            ["--db-url", db_url, "defaults", "reset", AimbatDefaultAttribute.aimbat],
+            ["--db-url", db_url, "defaults", "reset", ProjectDefault.AIMBAT],
         )
         assert result.exit_code == 0
 
         result = runner.invoke(
-            app, ["--db-url", db_url, "defaults", "get", AimbatDefaultAttribute.aimbat]
+            app, ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT]
         )
         assert result.exit_code == 0
         assert "True" in result.output

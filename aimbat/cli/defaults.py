@@ -5,12 +5,12 @@ Defaults shipped with AIMBAT may be overriden here too.
 """
 
 from aimbat.lib.common import debug_callback, string_to_type
-from aimbat.lib.types import AimbatDefaultAttribute
+from aimbat.lib.types import ProjectDefault
 import typer
 
 
 def _set_default(
-    name: AimbatDefaultAttribute, value: float | int | bool | str, db_url: str | None
+    name: ProjectDefault, value: float | int | bool | str, db_url: str | None
 ) -> None:
     from aimbat.lib.defaults import set_default
     from aimbat.lib.common import engine_from_url
@@ -21,19 +21,19 @@ def _set_default(
         print(value)
 
     with Session(engine_from_url(db_url)) as session:
-        set_default(session, name, value)
+        set_default(session, name, value)  # type: ignore
 
 
-def _get_default(name: AimbatDefaultAttribute, db_url: str) -> None:
+def _get_default(name: ProjectDefault, db_url: str) -> None:
     from aimbat.lib.defaults import get_default
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print(get_default(session, name))
+        print(get_default(session, name))  # type: ignore
 
 
-def _reset_default(name: AimbatDefaultAttribute, db_url: str | None) -> None:
+def _reset_default(name: ProjectDefault, db_url: str | None) -> None:
     from aimbat.lib.defaults import reset_default
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
@@ -61,23 +61,21 @@ app = typer.Typer(
 
 
 @app.command("get")
-def defaults_cli_get(ctx: typer.Context, name: AimbatDefaultAttribute) -> None:
+def defaults_cli_get(ctx: typer.Context, name: ProjectDefault) -> None:
     """Get an AIMBAT default value."""
     db_url = ctx.obj["DB_URL"]
     _get_default(name, db_url)
 
 
 @app.command("set")
-def defaults_cli_set(
-    ctx: typer.Context, name: AimbatDefaultAttribute, value: str
-) -> None:
+def defaults_cli_set(ctx: typer.Context, name: ProjectDefault, value: str) -> None:
     """Set an AIMBAT default to a new value."""
     db_url = ctx.obj["DB_URL"]
     _set_default(name, value, db_url)
 
 
 @app.command("reset")
-def defaults_cli_reset(ctx: typer.Context, name: AimbatDefaultAttribute) -> None:
+def defaults_cli_reset(ctx: typer.Context, name: ProjectDefault) -> None:
     """Reset an AIMBAT default to the initial value."""
     db_url = ctx.obj["DB_URL"]
     _reset_default(name, db_url)

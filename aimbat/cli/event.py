@@ -2,17 +2,13 @@
 
 from aimbat.lib.common import RegexEqual, debug_callback, ic
 from aimbat.lib.types import (
-    EventParameterType,
-    EventParameterName,
-    EVENT_PARAMETER_NAMES,
+    EventParameter,
+    TEventParameterBool,
+    TEventParameterTimedelta,
 )
-from typing import Annotated
+from typing import Annotated, overload
 from datetime import timedelta
-from enum import StrEnum
 import typer
-
-
-ParameterName = StrEnum("ParameterName", [(i, i) for i in EVENT_PARAMETER_NAMES])  # type: ignore
 
 
 def _print_event_table(db_url: str | None) -> None:
@@ -24,7 +20,7 @@ def _print_event_table(db_url: str | None) -> None:
         print_event_table(session)
 
 
-def _set_active_event(event_id: int, db_url: str | None) -> None:
+def _set_active_event(db_url: str | None, event_id: int) -> None:
     from aimbat.lib.event import set_active_event
     from aimbat.lib.common import engine_from_url
     from aimbat.lib.models import AimbatEvent
@@ -38,10 +34,18 @@ def _set_active_event(event_id: int, db_url: str | None) -> None:
         set_active_event(session, event)
 
 
+@overload
 def _get_event_parameters(
-    parameter_name: EventParameterName,
+    db_url: str | None, parameter_name: TEventParameterBool
+) -> bool: ...
+@overload
+def _get_event_parameters(
+    db_url: str | None, parameter_name: TEventParameterTimedelta
+) -> timedelta: ...
+def _get_event_parameters(
     db_url: str | None,
-) -> EventParameterType:
+    parameter_name: EventParameter,
+) -> bool | timedelta:
     from aimbat.lib.event import get_active_event
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
@@ -52,15 +56,15 @@ def _get_event_parameters(
 
 
 def _set_event_parameters(
-    parameter_name: EventParameterName,
-    parameter_value: str,
     db_url: str | None,
+    parameter_name: EventParameter,
+    parameter_value: str,
 ) -> None:
     from aimbat.lib.event import get_active_event
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    value: EventParameterType
+    value: float | timedelta
 
     match [parameter_name, RegexEqual(parameter_value)]:
         case ["window_pre" | "window_post", r"\d+\.+\d*" | r"\d+"]:
@@ -101,34 +105,35 @@ def event_cli_list(ctx: typer.Context) -> None:
 
 @app.command("activate")
 def event_cli_activate(
-    ctx: typer.Context, eid: Annotated[int, typer.Argument(help="Event ID number.")]
+    ctx: typer.Context,
+    event_id: Annotated[int, typer.Argument(help="Event ID number.")],
 ) -> None:
     """Select the event to be active for Processing."""
     db_url = ctx.obj["DB_URL"]
-    _set_active_event(eid, db_url)
+    _set_active_event(db_url=db_url, event_id=event_id)
 
 
 @app.command("get")
 def event_cli_parameter_get(
     ctx: typer.Context,
-    name: Annotated[ParameterName, typer.Argument(help="Event parameter name.")],
+    name: Annotated[EventParameter, typer.Argument(help="Event parameter name.")],
 ) -> None:
     """Get parameter value for the active event."""
 
     db_url = ctx.obj["DB_URL"]
-    print(_get_event_parameters(name.value, db_url))  # type: ignore
+    print(_get_event_parameters(db_url=db_url, parameter_name=name))  # type: ignore
 
 
 @app.command("set")
 def event_cli_paramater_set(
     ctx: typer.Context,
-    name: Annotated[ParameterName, typer.Argument(help="Event parameter name.")],
+    name: Annotated[EventParameter, typer.Argument(help="Event parameter name.")],
     value: str,
 ) -> None:
     """Set parameter value for the active event."""
 
     db_url = ctx.obj["DB_URL"]
-    _set_event_parameters(parameter_name=name, parameter_value=value, db_url=db_url)  # type: ignore
+    _set_event_parameters(db_url=db_url, parameter_name=name, parameter_value=value)
 
 
 if __name__ == "__main__":

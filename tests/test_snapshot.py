@@ -1,5 +1,6 @@
 from aimbat.lib import data, snapshot, event
 from aimbat.lib.models import AimbatSnapshot, AimbatEvent
+from aimbat.lib.types import SeismogramFileType
 from sqlmodel import select, Session
 from typer.testing import CliRunner
 from pathlib import Path
@@ -15,7 +16,9 @@ class TestLibSnapshot:
     select_snapshots = select(AimbatSnapshot)
 
     def test_snapshot_create_and_delete(self, test_data, db_session) -> None:  # type: ignore
-        data.add_files_to_project(db_session, test_data, filetype="sac")
+        data.add_files_to_project(
+            db_session, test_data, filetype=SeismogramFileType.SAC
+        )
 
         with pytest.raises(RuntimeError):
             snapshot.create_snapshot(db_session)
@@ -43,7 +46,9 @@ class TestLibSnapshot:
     def test_snapshot_rollback(
         self, test_data: list[Path], db_session: Session
     ) -> None:
-        data.add_files_to_project(db_session, test_data, filetype="sac")
+        data.add_files_to_project(
+            db_session, test_data, filetype=SeismogramFileType.SAC
+        )
 
         active_event = db_session.exec(self.select_event).one()
         event.set_active_event(db_session, active_event)

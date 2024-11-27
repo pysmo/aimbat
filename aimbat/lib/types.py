@@ -1,34 +1,63 @@
 """Custom types used in AIMBAT."""
 
-from datetime import datetime, timedelta
-from typing import Literal, get_args, Tuple
+from typing import Literal
 from enum import StrEnum
 
-SeismogramFileType = Literal["sac"]
-"""TypeAlias of filetypes that can be imported into AIMBAT."""
 
-SEISMOGRAM_FILE_TYPES: tuple[SeismogramFileType, ...] = get_args(SeismogramFileType)
-"""Tuple containing valid filetypes that can be imported into AIMBAT."""
+class SeismogramFileType(StrEnum):
+    SAC = "sac"
 
 
-# AIMBAT Defaults
-class AimbatDefaultAttribute(StrEnum):
-    aimbat = "aimbat"
-    sampledata_dir = "sampledata_dir"
-    sampledata_src = "sampledata_src"
-    delta_tolerance = "delta_tolerance"
-    initial_pick_header = "initial_pick_header"
-    initial_time_window_width = "initial_time_window_width"
+class AimbatFileAttribute(StrEnum):
+    FILENAME = "filename"
+    FILETYPE = "filetype"
 
 
-# Valid AIMBAT event parameter types and names
-EventParameterType = timedelta | bool
-EventParameterName = Literal["completed", "window_pre", "window_post"]
-EVENT_PARAMETER_NAMES: tuple[EventParameterName, ...] = get_args(EventParameterName)
+# ***
+# AimbatDefault related types
+# ***
+class ProjectDefault(StrEnum):
+    AIMBAT = "aimbat"
+    SAMPLEDATA_DIR = "sampledata_dir"
+    SAMPLEDATA_SRC = "sampledata_src"
+    DELTA_TOLERANCE = "delta_tolerance"
+    INITIAL_PICK_HEADER = "initial_pick_header"
+    INITIAL_TIME_WINDOW_WIDTH = "initial_time_window_width"
 
-# Valid AIMBAT seismogram  parameter types and names
-SeismogramParameterType = float | datetime | timedelta | str
-SeismogramParameterName = Literal["select", "t1", "t2"]
-SEISMOGRAM_PARAMETER_NAMES: Tuple[SeismogramParameterName, ...] = get_args(
-    SeismogramParameterName
-)
+
+TDefaultBool = Literal[ProjectDefault.AIMBAT]
+TDefaultStr = Literal[
+    ProjectDefault.INITIAL_PICK_HEADER,
+    ProjectDefault.SAMPLEDATA_SRC,
+    ProjectDefault.SAMPLEDATA_DIR,
+]
+TDefaultInt = Literal[ProjectDefault.DELTA_TOLERANCE]
+TDefaultFloat = Literal[ProjectDefault.INITIAL_TIME_WINDOW_WIDTH]
+
+
+# ***
+# AimbatEventParameters related types
+# ***
+class EventParameter(StrEnum):
+    COMPLETED = "completed"
+    WINDOW_PRE = "window_pre"
+    WINDOW_POST = "window_post"
+
+
+TEventParameterBool = Literal[EventParameter.COMPLETED]
+TEventParameterTimedelta = Literal[
+    EventParameter.WINDOW_PRE, EventParameter.WINDOW_POST
+]
+
+
+# ***
+# AimbatSeismogramParameters related types
+# ***
+class SeismogramParameter(StrEnum):
+    SELECT = "select"
+    T1 = "t1"
+    T2 = "t2"
+
+
+TSeismogramParameterBool = Literal[SeismogramParameter.SELECT]
+TSeismogramParameterDatetime = Literal[SeismogramParameter.T1, SeismogramParameter.T2]
