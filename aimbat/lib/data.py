@@ -3,7 +3,7 @@
 from aimbat.lib.common import ic
 from aimbat.lib.defaults import get_default
 from aimbat.lib.event import get_active_event
-from aimbat.lib.types import SeismogramFileType
+from aimbat.lib.types import SeismogramFileType, AimbatDefaultAttribute
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -138,7 +138,9 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
         )
         event_parameter = session.exec(select_event_parameter).first()
         if event_parameter is None:
-            window_width = get_default(session, "initial_time_window_width")
+            window_width = get_default(
+                session, AimbatDefaultAttribute.initial_time_window_width
+            )
             assert isinstance(window_width, float)
             event_parameter = AimbatEventParameters(
                 event_id=aimbatevent.id,

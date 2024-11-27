@@ -2,7 +2,6 @@ from aimbat.lib import data, event
 from aimbat.lib.models import AimbatEvent
 from aimbat.app import app
 from typer.testing import CliRunner
-from sqlmodel import select
 import pytest
 
 
@@ -12,18 +11,19 @@ class TestLibEvent:
 
         with pytest.raises(RuntimeError):
             event.get_active_event(db_session)
-        select_aimbat_event = select(AimbatEvent).where(AimbatEvent.id == 1)
-        aimbat_event = db_session.exec(select_aimbat_event).one()
+        aimbat_event = db_session.get(AimbatEvent, 1)
         assert aimbat_event.active_event is None
         event.set_active_event(db_session, aimbat_event)
         assert aimbat_event.active_event is not None
+        assert event.get_active_event(db_session) is aimbat_event
+        aimbat_event = db_session.get(AimbatEvent, 2)
+        event.set_active_event(db_session, aimbat_event)
         assert event.get_active_event(db_session) is aimbat_event
 
     def test_station_link(self, db_session, test_data) -> None:  # type: ignore
         data.add_files_to_project(db_session, test_data, filetype="sac")
 
-        select_event = select(AimbatEvent).where(AimbatEvent.id == 1)
-        aimbat_event = db_session.exec(select_event).one()
+        aimbat_event = db_session.get(AimbatEvent, 1)
         assert aimbat_event.stations[0].id == 1
 
 

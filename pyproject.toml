@@ -29,9 +29,7 @@ python = ">=3.11,<3.14"
 click = "^8.1.7"
 sqlmodel = "^0.0.22"
 pysmo = {git = "https://github.com/pysmo/pysmo.git", rev = "master"}
-pyyaml = "^6.0.1"
 rich = "^13.9.4"
-pyaml = "^24.9.0"
 matplotlib = "^3.9.2"
 pyside6 = "^6.8.0.2"
 pyqtgraph = "^0.13.7"
@@ -53,7 +51,6 @@ pytest-qt = "^4.4.0"
 
 
 [tool.poetry.group.dev.dependencies]
-types-pyyaml = "^6.0.12.20240917"
 black = {extras = ["jupyter"], version = "^24.10.0"}
 
 

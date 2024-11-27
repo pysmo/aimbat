@@ -1,6 +1,7 @@
 from typer.testing import CliRunner
 from aimbat.lib import data, seismogram
 from aimbat.app import app
+import pytest
 
 
 class TestLibSeismogram:
@@ -25,6 +26,10 @@ class TestLibSeismogram:
             )
             is None
         )
+        with pytest.raises(ValueError):
+            seismogram.get_seismogram_parameter(
+                session=db_session, seismogram_id=1000, parameter_name="select"
+            )
 
     def test_set_parameter(self, db_session, test_data) -> None:  # type: ignore
         data.add_files_to_project(db_session, test_data, filetype="sac")
@@ -41,6 +46,13 @@ class TestLibSeismogram:
             )
             is False
         )
+        with pytest.raises(ValueError):
+            seismogram.set_seismogram_parameter(
+                session=db_session,
+                seismogram_id=1000,  # this id doesn't exist
+                parameter_name="select",
+                parameter_value=False,
+            )
 
 
 class TestCliSeismogram:

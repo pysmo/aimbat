@@ -1,3 +1,5 @@
+from aimbat.lib import data
+from aimbat.app import app
 from aimbat.lib.models import (
     AimbatEventParameters,
     AimbatFile,
@@ -15,8 +17,6 @@ import numpy as np
 
 class TestLibData:
     def test_sac_data(self, sac_file_good, sac_instance_good, db_session) -> None:  # type: ignore
-        from aimbat.lib import data
-
         sac_seismogram = sac_instance_good.seismogram
         sac_station = sac_instance_good.station
         sac_event = sac_instance_good.event
@@ -116,8 +116,6 @@ class TestCliData:
         """Test AIMBAT cli with data subcommand."""
 
         monkeypatch.setenv("COLUMNS", "1000")
-
-        from aimbat.app import app
 
         runner = CliRunner()
 

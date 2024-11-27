@@ -1,11 +1,10 @@
 """This module defines the "Aimbat" classes.
 
-These classes are ORMs that map present data stored in a database
+These classes are ORMs that present data stored in a database
 as classes to use with python in AIMBAT.
 """
 
-from aimbat.lib.types import SeismogramFileType
-from aimbat.lib.common import string_to_type
+from aimbat.lib.types import SeismogramFileType, AimbatDefaultAttribute
 from aimbat.lib.io import read_seismogram_data_from_file, write_seismogram_data_to_file
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
@@ -15,50 +14,33 @@ import numpy as np
 class AimbatDefault(SQLModel, table=True):
     """Class to store AIMBAT defaults."""
 
-    id: int | None = Field(primary_key=True)
-    name: str = Field(unique=True)
-    is_of_type: str = Field(allow_mutation=False)
-    description: str = Field(allow_mutation=False)
-    initial_value: str = Field(allow_mutation=False)
-    fvalue: float | None = None
-    ivalue: int | None = None
-    bvalue: bool | None = None
-    svalue: str | None = None
+    id: int | None = Field(default=None, primary_key=True)
+    aimbat: bool = Field(default=True, description="AIMBAT is awesome!")
+    sampledata_dir: str = Field(
+        default="./sample-data",
+        description="Directory to store downloaded sample data.",
+    )
+    sampledata_src: str = Field(
+        default="https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip",
+        description="URL where sample data is downloaded from.",
+    )
+    delta_tolerance: int = Field(
+        default=9,
+        description="Round delta to N decimals when checking for different sampling rates in SAC files.",
+    )
+    initial_pick_header: str = Field(
+        default="t0", description="SAC header field where initial pick is stored."
+    )
+    initial_time_window_width: float = Field(
+        default=15, description="Width of initial timewindow in seconds."
+    )
 
-    def __init__(self, **kwargs: str | float | int | bool) -> None:
-        super().__init__(**kwargs)
-        self.reset_value()
+    def reset(self, name: AimbatDefaultAttribute) -> None:
+        default = self.model_fields.get(name).default  # type: ignore
+        setattr(self, name, default)
 
-    def reset_value(self) -> None:
-        self.value = string_to_type(self.is_of_type, self.initial_value)
-
-    @property
-    def value(self) -> str | float | int | bool:
-        if self.is_of_type == "float" and self.fvalue is not None:
-            return self.fvalue
-        elif self.is_of_type == "int" and self.ivalue is not None:
-            return self.ivalue
-        elif self.is_of_type == "bool" and self.bvalue is not None:
-            return self.bvalue
-        elif self.is_of_type == "str" and self.svalue is not None:
-            return self.svalue
-        raise RuntimeError("Unable to return value")  # pragma: no cover
-
-    @value.setter
-    def value(self, value: str | float | int | bool) -> None:
-        """Set a default value"""
-        if self.is_of_type == "float" and isinstance(value, float):
-            self.fvalue = value
-        elif self.is_of_type == "int" and isinstance(value, int):
-            self.ivalue = value
-        elif self.is_of_type == "bool" and isinstance(value, bool):
-            self.bvalue = value
-        elif self.is_of_type == "str" and isinstance(value, str):
-            self.svalue = value
-        else:
-            raise RuntimeError(
-                "Unable to assign {self.name} with value: {self.initial_value}."
-            )  # pragma: no cover
+    def description(self, name: AimbatDefaultAttribute) -> str:
+        return self.model_fields.get(name).description  # type: ignore
 
 
 class AimbatFileBase(SQLModel):
@@ -98,7 +80,7 @@ class EventStationLink(SQLModel, table=True):
 class AimbatActiveEvent(SQLModel, table=True):
     """Stores the active event id."""
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: int = Field(default=1, primary_key=True, const=True)
     event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
     event: "AimbatEvent" = Relationship(back_populates="active_event")
 

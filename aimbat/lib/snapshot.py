@@ -101,11 +101,12 @@ def delete_snapshot(session: Session, snapshot_id: int) -> None:
     ic()
     ic(snapshot_id, engine)
 
-    select_snapshot = select(AimbatSnapshot).where(AimbatSnapshot.id == snapshot_id)
-    snapshot = session.exec(select_snapshot).one_or_none()
+    snapshot = session.get(AimbatSnapshot, snapshot_id)
 
-    if not snapshot:
-        raise RuntimeError(
+    ic(snapshot)
+
+    if snapshot is None:
+        raise ValueError(
             f"Unable to delete snapshot: snapshot with id={snapshot_id} not found."
         )
 
