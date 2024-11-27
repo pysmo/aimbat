@@ -37,7 +37,7 @@ class TestLibSnapshot:
         assert len(db_session.exec(self.select_snapshots).all()) == 1
         test_snapshot = db_session.exec(self.select_snapshots).one()
         assert test_snapshot.id == 2
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             snapshot.delete_snapshot(db_session, 1)
 
     def test_snapshot_rollback(

@@ -1,6 +1,7 @@
 from aimbat.lib.common import ic
 from aimbat.lib.db import engine
-from aimbat.lib.defaults import load_global_defaults
+
+# from aimbat.lib.defaults import load_global_defaults
 from aimbat.lib.event import get_completed_events, get_active_event
 from aimbat.lib.seismogram import get_selected_seismograms
 from aimbat.lib.models import (
@@ -64,8 +65,8 @@ def create_project(engine: Engine = engine) -> None:
     if engine.driver == "pysqlite":
         with engine.connect() as connection:
             connection.execute(text("PRAGMA foreign_keys=ON"))  # for SQLite only
-    with Session(engine) as session:
-        load_global_defaults(session)
+    # with Session(engine) as session:
+    #     load_global_defaults(session)
 
 
 def delete_project(engine: Engine = engine) -> None:

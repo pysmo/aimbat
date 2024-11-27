@@ -19,9 +19,6 @@ from typing import Sequence
 def get_seismogram_parameter(
     session: Session, seismogram_id: int, parameter_name: SeismogramParameterName
 ) -> SeismogramParameterType:
-    select_seismogram = select(AimbatSeismogram).where(
-        AimbatSeismogram.id == seismogram_id
-    )
     """Get parameter value from an AimbatSeismogram instance.
 
     Parameters:
@@ -36,9 +33,14 @@ def get_seismogram_parameter(
     ic()
     ic(session, seismogram_id, parameter_name)
 
-    aimbatseismogram = session.exec(select_seismogram).one()
-    ic(aimbatseismogram)
-    return getattr(aimbatseismogram.parameters, parameter_name)
+    aimbat_seismogram = session.get(AimbatSeismogram, seismogram_id)
+
+    ic(aimbat_seismogram)
+
+    if aimbat_seismogram is None:
+        raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
+
+    return getattr(aimbat_seismogram.parameters, parameter_name)
 
 
 def set_seismogram_parameter(
@@ -60,17 +62,19 @@ def set_seismogram_parameter(
     ic()
     ic(session, seismogram_id, parameter_name, parameter_value)
 
-    select_seismogram = select(AimbatSeismogram).where(
-        AimbatSeismogram.id == seismogram_id
-    )
-    aimbatseismogram = session.exec(select_seismogram).one()
-    ic(aimbatseismogram)
+    aimbat_seismogram = session.get(AimbatSeismogram, seismogram_id)
+
+    ic(aimbat_seismogram)
+
+    if aimbat_seismogram is None:
+        raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
+
     setattr(
-        aimbatseismogram.parameters,
+        aimbat_seismogram.parameters,
         parameter_name,
         parameter_value,
     )
-    session.add(aimbatseismogram)
+    session.add(aimbat_seismogram)
     session.commit()
 
 
