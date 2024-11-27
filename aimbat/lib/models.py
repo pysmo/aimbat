@@ -4,7 +4,7 @@ These classes are ORMs that present data stored in a database
 as classes to use with python in AIMBAT.
 """
 
-from aimbat.lib.types import SeismogramFileType, AimbatDefaultAttribute
+from aimbat.lib.types import SeismogramFileType, ProjectDefault
 from aimbat.lib.io import read_seismogram_data_from_file, write_seismogram_data_to_file
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
@@ -35,11 +35,11 @@ class AimbatDefault(SQLModel, table=True):
         default=15, description="Width of initial timewindow in seconds."
     )
 
-    def reset(self, name: AimbatDefaultAttribute) -> None:
+    def reset(self, name: ProjectDefault) -> None:
         default = self.model_fields.get(name).default  # type: ignore
         setattr(self, name, default)
 
-    def description(self, name: AimbatDefaultAttribute) -> str:
+    def description(self, name: ProjectDefault) -> str:
         return self.model_fields.get(name).description  # type: ignore
 
 
@@ -52,7 +52,7 @@ class AimbatFileBase(SQLModel):
 class AimbatFileCreate(AimbatFileBase):
     """Class to store data file information."""
 
-    filetype: SeismogramFileType = "sac"
+    filetype: SeismogramFileType = SeismogramFileType.SAC
 
 
 class AimbatFile(AimbatFileBase, table=True):
@@ -89,7 +89,6 @@ class AimbatEvent(SQLModel, table=True):
     """Class to store event information."""
 
     id: int | None = Field(default=None, primary_key=True)
-    # is_active: bool = False
     time_db: datetime = Field(unique=True)
     latitude: float
     longitude: float

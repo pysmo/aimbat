@@ -1,48 +1,63 @@
 from typer.testing import CliRunner
 from aimbat.lib import data, seismogram
+from aimbat.lib.types import SeismogramFileType, SeismogramParameter
 from aimbat.app import app
 import pytest
 
 
 class TestLibSeismogram:
     def test_get_parameter(self, db_session, test_data) -> None:  # type: ignore
-        data.add_files_to_project(db_session, test_data, filetype="sac")
+        data.add_files_to_project(
+            db_session, test_data, filetype=SeismogramFileType.SAC
+        )
 
         assert (
             seismogram.get_seismogram_parameter(
-                session=db_session, seismogram_id=1, parameter_name="select"
+                session=db_session,
+                seismogram_id=1,
+                parameter_name=SeismogramParameter.SELECT,
             )
             is True
         )
         assert (
             seismogram.get_seismogram_parameter(
-                session=db_session, seismogram_id=1, parameter_name="t1"
+                session=db_session,
+                seismogram_id=1,
+                parameter_name=SeismogramParameter.T1,
             )
             is None
         )
         assert (
             seismogram.get_seismogram_parameter(
-                session=db_session, seismogram_id=1, parameter_name="t2"
+                session=db_session,
+                seismogram_id=1,
+                parameter_name=SeismogramParameter.T2,
             )
             is None
         )
         with pytest.raises(ValueError):
             seismogram.get_seismogram_parameter(
-                session=db_session, seismogram_id=1000, parameter_name="select"
+                session=db_session,
+                seismogram_id=1000,
+                parameter_name=SeismogramParameter.SELECT,
             )
 
     def test_set_parameter(self, db_session, test_data) -> None:  # type: ignore
-        data.add_files_to_project(db_session, test_data, filetype="sac")
+        data.add_files_to_project(
+            db_session, test_data, filetype=SeismogramFileType.SAC
+        )
 
         seismogram.set_seismogram_parameter(
             session=db_session,
             seismogram_id=1,
-            parameter_name="select",
+            parameter_name=SeismogramParameter.SELECT,
             parameter_value=False,
         )
         assert (
             seismogram.get_seismogram_parameter(
-                session=db_session, seismogram_id=1, parameter_name="select"
+                session=db_session,
+                seismogram_id=1,
+                parameter_name=SeismogramParameter.SELECT,
             )
             is False
         )
@@ -50,7 +65,7 @@ class TestLibSeismogram:
             seismogram.set_seismogram_parameter(
                 session=db_session,
                 seismogram_id=1000,  # this id doesn't exist
-                parameter_name="select",
+                parameter_name=SeismogramParameter.SELECT,
                 parameter_value=False,
             )
 
@@ -76,35 +91,64 @@ class TestCliSeismogram:
         assert result.exit_code == 0
 
         result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "get", "1", "select"]
+            app,
+            ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.SELECT],
         )
-        assert result.exit_code == 0
         assert "True" in result.output
-
-        result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "set", "1", "select", "False"]
-        )
         assert result.exit_code == 0
 
         result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "get", "1", "select"]
-        )
-        assert result.exit_code == 0
-        assert "False" in result.output
-
-        result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "set", "1", "select", "yes"]
+            app,
+            [
+                "--db-url",
+                db_url,
+                "seismogram",
+                "set",
+                "1",
+                SeismogramParameter.SELECT,
+                "False",
+            ],
         )
         assert result.exit_code == 0
 
         result = runner.invoke(
             app,
-            ["--db-url", db_url, "seismogram", "set", "1", "select", "noooooooooooooo"],
+            ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.SELECT],
+        )
+        assert result.exit_code == 0
+        assert "False" in result.output
+
+        result = runner.invoke(
+            app,
+            [
+                "--db-url",
+                db_url,
+                "seismogram",
+                "set",
+                "1",
+                SeismogramParameter.SELECT,
+                "yes",
+            ],
+        )
+        assert result.exit_code == 0
+
+        result = runner.invoke(
+            app,
+            [
+                "--db-url",
+                db_url,
+                "seismogram",
+                "set",
+                "1",
+                SeismogramParameter.SELECT,
+                "noooooooooooooo",
+            ],
         )
         assert result.exit_code == 1
 
         result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "get", "1", "select"]
+            app,
+            ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.SELECT],
         )
         assert result.exit_code == 0
         assert "True" in result.output
@@ -124,7 +168,7 @@ class TestCliSeismogram:
         assert result.exit_code == 0
 
         result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "get", "1", "t1"]
+            app, ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.T1]
         )
         assert result.exit_code == 0
         assert "2011-11-04 00:15:23.283" in result.output
@@ -137,14 +181,14 @@ class TestCliSeismogram:
                 "seismogram",
                 "set",
                 "1",
-                "t2",
+                SeismogramParameter.T2,
                 "2011-11-04 00:15:29.283",
             ],
         )
         assert result.exit_code == 0
 
         result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "get", "1", "t2"]
+            app, ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.T2]
         )
         assert result.exit_code == 0
         assert "2011-11-04 00:15:29.283" in result.output

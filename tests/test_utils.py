@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 import numpy as np
 import os
 
+from aimbat.lib.types import SeismogramFileType
+
 
 class TestLibUtils:
     def test_check_station_no_name(self, sac_instance_good: SAC) -> None:
@@ -72,7 +74,9 @@ class TestLibUtils:
     def test_plotseis(self, test_data, db_session, mock_show) -> None:  # type: ignore
         from aimbat.lib import data, utils
 
-        data.add_files_to_project(db_session, test_data, filetype="sac")
+        data.add_files_to_project(
+            db_session, test_data, filetype=SeismogramFileType.SAC
+        )
         utils.plotseis(db_session, 1)
 
 
