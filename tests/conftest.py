@@ -1,4 +1,4 @@
-from pysmo import SAC
+from pysmo.classes import SAC
 from sqlmodel import create_engine, Session
 from pathlib import Path
 import sqlalchemy as sa
@@ -56,19 +56,18 @@ def db_session(db_engine_with_proj):  # type: ignore
     """yield a session after 'project create' and rollback after test."""
     connection = db_engine_with_proj.connect()
     transaction = connection.begin()
-    session = Session(bind=connection)
+    with Session(bind=connection) as session:
+        nested = connection.begin_nested()
 
-    nested = connection.begin_nested()
+        @sa.event.listens_for(session, "after_transaction_end")
+        def end_savepoint(session, transaction):  # type: ignore
+            nonlocal nested
+            if not nested.is_active:
+                nested = connection.begin_nested()
 
-    @sa.event.listens_for(session, "after_transaction_end")
-    def end_savepoint(session, transaction):  # type: ignore
-        nonlocal nested
-        if not nested.is_active:
-            nested = connection.begin_nested()
+        yield session
+        session.close()
 
-    yield session
-
-    session.close()
     transaction.rollback()
     connection.close()
 

@@ -30,3 +30,4 @@ blah.py
 junit.xml
 .ipynb_checkpoints
 reset_project.sh
+.envrc

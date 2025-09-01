@@ -72,7 +72,11 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
 
 
 def print_event_table(session: Session) -> None:
-    """Print a pretty table with AIMBAT events."""
+    """Print a pretty table with AIMBAT events.
+
+    Parameters:
+        session: Database session.
+    """
 
     ic()
     ic(session)

@@ -100,7 +100,7 @@ def run_checks(sacfiles: list[Path]) -> None:
         sacfiles: SAC files to test.
     """
 
-    from pysmo import SAC
+    from pysmo.classes import SAC
 
     def checkmark() -> None:
         print("\N{CHECK MARK}", end="")

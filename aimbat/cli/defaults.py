@@ -1,27 +1,28 @@
 """Manage defaults used in an AIMBAT project.
 
-This command lists various settings that are used in Aimbat.
+This command lists various settings that are used in AIMBAT.
 Defaults shipped with AIMBAT may be overriden here too.
 """
 
-from aimbat.lib.common import debug_callback, string_to_type
-from aimbat.lib.types import ProjectDefault
-import typer
+from aimbat.cli.common import CommonParameters, convert_to_type
+from aimbat.lib.typing import ProjectDefault
+from datetime import timedelta
+from cyclopts import App
 
 
 def _set_default(
-    name: ProjectDefault, value: float | int | bool | str, db_url: str | None
+    default_name: ProjectDefault,
+    default_value: float | int | bool | str | timedelta,
+    db_url: str | None,
 ) -> None:
     from aimbat.lib.defaults import set_default
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    if isinstance(value, str):
-        value = string_to_type(value)
-        print(value)
+    converted_value = convert_to_type(default_name, default_value)
 
     with Session(engine_from_url(db_url)) as session:
-        set_default(session, name, value)  # type: ignore
+        set_default(session, default_name, converted_value)
 
 
 def _get_default(name: ProjectDefault, db_url: str) -> None:
@@ -30,7 +31,10 @@ def _get_default(name: ProjectDefault, db_url: str) -> None:
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print(get_default(session, name))  # type: ignore
+        value = get_default(session, name)
+        if isinstance(value, timedelta):
+            print(value.total_seconds())
+        print(value)
 
 
 def _reset_default(name: ProjectDefault, db_url: str | None) -> None:
@@ -51,43 +55,62 @@ def _print_defaults_table(db_url: str) -> None:
         print_defaults_table(session)
 
 
-app = typer.Typer(
-    name="defaults",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="defaults", help=__doc__, help_format="markdown")
 
 
-@app.command("get")
-def defaults_cli_get(ctx: typer.Context, name: ProjectDefault) -> None:
-    """Get an AIMBAT default value."""
-    db_url = ctx.obj["DB_URL"]
-    _get_default(name, db_url)
-
-
-@app.command("set")
-def defaults_cli_set(ctx: typer.Context, name: ProjectDefault, value: str) -> None:
-    """Set an AIMBAT default to a new value."""
-    db_url = ctx.obj["DB_URL"]
-    _set_default(name, value, db_url)
-
-
-@app.command("reset")
-def defaults_cli_reset(ctx: typer.Context, name: ProjectDefault) -> None:
-    """Reset an AIMBAT default to the initial value."""
-    db_url = ctx.obj["DB_URL"]
-    _reset_default(name, db_url)
-
-
-@app.command("list")
-def defaults_cli_list(
-    ctx: typer.Context,
+@app.command(name="get")
+def defaults_cli_get(
+    name: ProjectDefault, *, common: CommonParameters | None = None
 ) -> None:
+    """Get an AIMBAT default value.
+
+    Parameters:
+        name: Name of the default variable.
+    """
+
+    common = common or CommonParameters()
+
+    _get_default(name, common.db_url)
+
+
+@app.command(name="set")
+def defaults_cli_set(
+    name: ProjectDefault, value: str, *, common: CommonParameters | None = None
+) -> None:
+    """Set an AIMBAT default to a new value.
+
+    Parameters:
+        name: Name of the default variable.
+        value: Value of the default variable.
+    """
+
+    common = common or CommonParameters()
+
+    _set_default(name, value, common.db_url)
+
+
+@app.command(name="reset")
+def defaults_cli_reset(
+    name: ProjectDefault, *, common: CommonParameters | None = None
+) -> None:
+    """Reset an AIMBAT default to the initial value.
+
+    Parameters:
+        name: Name of the default variable.
+    """
+
+    common = common or CommonParameters()
+
+    _reset_default(name, common.db_url)
+
+
+@app.command(name="list")
+def defaults_cli_list(*, common: CommonParameters | None = None) -> None:
     """Print a table with defaults used in AIMBAT."""
-    db_url = ctx.obj["DB_URL"]
-    _print_defaults_table(db_url)
+
+    common = common or CommonParameters()
+
+    _print_defaults_table(common.db_url)
 
 
 if __name__ == "__main__":

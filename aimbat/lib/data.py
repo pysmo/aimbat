@@ -1,9 +1,9 @@
-"""Module to add seismogram files to an AIMBAT project and view information about them."""
+"""Manage seismogram files in a project."""
 
 from aimbat.lib.common import ic
 from aimbat.lib.defaults import get_default
 from aimbat.lib.event import get_active_event
-from aimbat.lib.types import SeismogramFileType, ProjectDefault
+from aimbat.lib.typing import SeismogramFileType, ProjectDefault
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -35,7 +35,7 @@ def add_files_to_project(
     Parameters:
         session: Database session.
         seismogram_files: List of filepaths of the data files.
-        filetype: Type of data file (e.g. sac).
+        filetype: Type of data file.
         disable_progress_bar: Do not display progress bar.
     """
     ic()
@@ -90,14 +90,10 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
             aimbatstation.elevation = station.elevation
         session.add(aimbatstation)
 
-        select_aimbatevent = select(AimbatEvent).where(
-            AimbatEvent.time_db == event.time
-        )
+        select_aimbatevent = select(AimbatEvent).where(AimbatEvent.time == event.time)
         aimbatevent = session.exec(select_aimbatevent).one_or_none()
         if aimbatevent is None:
-            aimbatevent = AimbatEvent.model_validate(
-                event, update={"time_db": event.time}
-            )
+            aimbatevent = AimbatEvent.model_validate(event, update={"time": event.time})
         else:
             aimbatevent.latitude = event.latitude
             aimbatevent.longitude = event.longitude
@@ -115,7 +111,7 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
         aimbatseismogram = session.exec(select_aimbatseismogram).first()
         if aimbatseismogram is None:
             aimbatseismogram = AimbatSeismogram(
-                begin_time_db=seismogram.begin_time,
+                begin_time=seismogram.begin_time,
                 delta=seismogram.delta,
                 t0=t0,
                 file_id=aimbatfile.id,
@@ -141,11 +137,11 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
             window_width = get_default(
                 session, ProjectDefault.INITIAL_TIME_WINDOW_WIDTH
             )
-            assert isinstance(window_width, float)
+            assert isinstance(window_width, timedelta)
             event_parameter = AimbatEventParameters(
                 event_id=aimbatevent.id,
-                window_pre=timedelta(seconds=window_width / -2),
-                window_post=timedelta(seconds=window_width / 2),
+                window_pre=window_width / -2,
+                window_post=window_width / 2,
             )
             session.add(event_parameter)
 
@@ -165,7 +161,11 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
 
 
 def get_data_for_active_event(session: Session) -> Sequence[AimbatFile]:
-    """Returns the AimbatFiles belonging to the active event"""
+    """Returns the AimbatFiles belonging to the active event.
+
+    Parameters:
+        session: Database session.
+    """
     select_files = (
         select(AimbatFile)
         .join(AimbatSeismogram)

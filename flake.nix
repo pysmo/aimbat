@@ -25,10 +25,9 @@
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
               poetry
-              python313
-              python311
               python312
-              python312Packages.tox
+              python313
+              python313Packages.tox
               gnumake
               autoPatchelfHook
               sqlitebrowser

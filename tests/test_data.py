@@ -8,10 +8,9 @@ from aimbat.lib.models import (
     AimbatStation,
     AimbatEvent,
 )
-from aimbat.lib.types import SeismogramFileType
+from aimbat.lib.typing import SeismogramFileType
+from pysmo.classes import SAC
 from sqlmodel import select
-from typer.testing import CliRunner
-from pysmo import SAC
 import pytest
 import numpy as np
 
@@ -117,36 +116,24 @@ class TestLibData:
 
 
 class TestCliData:
-    def test_sac_data(self, sac_file_good, db_url, monkeypatch) -> None:  # type: ignore
+    def test_sac_data(self, sac_file_good, db_url, monkeypatch, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with data subcommand."""
 
         monkeypatch.setenv("COLUMNS", "1000")
 
-        runner = CliRunner()
+        app(["project", "create", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 0
+        app(["data"])
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["data"])
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app(["data", "add", "--db-url", db_url, sac_file_good])
 
-        result = runner.invoke(app, ["--db-url", db_url, "data", "add"])
-        assert result.exit_code == 2
+        app(["data", "list", "--all", "--db-url", db_url])
+        assert sac_file_good in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "data", "add", sac_file_good])
-        assert result.exit_code == 0
+        with pytest.raises(RuntimeError):
+            app(["data", "list", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "data", "list", "--all"])
-        assert result.exit_code == 0
-        assert sac_file_good in result.output
-
-        result = runner.invoke(app, ["--db-url", db_url, "data", "list"])
-        assert result.exit_code == 1
-
-        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
-        assert result.exit_code == 0
-
-        result = runner.invoke(app, ["--db-url", db_url, "data", "list"])
-        assert result.exit_code == 0
-        assert sac_file_good in result.output
+        app(["event", "activate", "1", "--db-url", db_url])
+        app(["data", "list", "--db-url", db_url])
+        assert sac_file_good in capsys.readouterr().out

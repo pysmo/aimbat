@@ -1,8 +1,9 @@
-"""The `io` module provides functions to read and write data files used with AIMBAT"""
+"""Functions to read and write data files used with AIMBAT"""
 
-from aimbat.lib.common import AimbatDataError, ic
-from pysmo import SAC, Event, Seismogram, Station
-from aimbat.lib.types import ProjectDefault
+from aimbat.lib.common import ic
+from pysmo import Event, Seismogram, Station
+from pysmo.classes import SAC
+from aimbat.lib.typing import ProjectDefault
 from datetime import datetime
 from sqlmodel import Session
 import numpy as np
@@ -64,8 +65,8 @@ def _read_metadata_from_sacfile(
     sac = SAC.from_file(str(sacfile))
     t0 = getattr(sac.timestamps, str(initial_pick_header))
     if t0 is None:
-        raise AimbatDataError(
-            "Unable to add {sacfile=}: header '{initial_pick_header}' contains no value"
+        raise TypeError(
+            "Unable to add {sacfile=}: header '{initial_pick_header}' is NoneType"
         )
     return sac.seismogram, sac.station, sac.event, t0
 

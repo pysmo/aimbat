@@ -1,10 +1,9 @@
-from typer.testing import CliRunner
-from pysmo import SAC
+from pysmo.classes import SAC
 from datetime import datetime, timezone
+from aimbat.lib.typing import SeismogramFileType
 import numpy as np
 import os
-
-from aimbat.lib.types import SeismogramFileType
+import pytest
 
 
 class TestLibUtils:
@@ -81,7 +80,7 @@ class TestLibUtils:
 
 
 class TestCliUtils:
-    def test_sampledata(self, tmp_path_factory, db_url, monkeypatch) -> None:  # type: ignore
+    def test_sampledata(self, tmp_path_factory, db_url, monkeypatch, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with utils sampledata subcommand."""
 
         monkeypatch.setenv("COLUMNS", "1000")
@@ -90,64 +89,40 @@ class TestCliUtils:
 
         sampledata_dir = tmp_path_factory.mktemp("sampledata")
 
-        runner = CliRunner()
-        result = runner.invoke(app, "utils", "sampledata")
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app(["utils", "sampledata"])
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 0
+        app(["project", "create", "--db-url", db_url])
 
-        result = runner.invoke(
-            app,
+        app(
             [
-                "--db-url",
-                db_url,
                 "defaults",
                 "set",
                 "sampledata_dir",
                 str(sampledata_dir),
-            ],
-        )
-        assert result.exit_code == 0
-
-        result = runner.invoke(
-            app,
-            [
                 "--db-url",
                 db_url,
-                "defaults",
-                "list",
-            ],
+            ]
         )
-        assert str(sampledata_dir) in result.output
+
+        app(["defaults", "list", "--db-url", db_url])
+        assert str(sampledata_dir) in capsys.readouterr().out
 
         assert len(os.listdir((sampledata_dir))) == 0
-        result = runner.invoke(
-            app, ["--db-url", db_url, "utils", "sampledata", "download"]
-        )
-        assert result.exit_code == 0
+        app(["utils", "sampledata", "download", "--db-url", db_url])
         assert len(os.listdir((sampledata_dir))) > 0
-        #
+
         # can't download if it is already there
-        result = runner.invoke(
-            app, ["--db-url", db_url, "utils", "sampledata", "download"]
-        )
-        assert result.exit_code == 1
+        with pytest.raises(RuntimeError):
+            app(["utils", "sampledata", "download", "--db-url", db_url])
 
         # unless we use force
-        result = runner.invoke(
-            app, ["--db-url", db_url, "utils", "sampledata", "download", "--force"]
-        )
-        assert result.exit_code == 0
+        app(["utils", "sampledata", "download", "--force", "--db-url", db_url])
 
-        result = runner.invoke(
-            app, ["--db-url", db_url, "utils", "sampledata", "delete"]
-        )
-        assert result.exit_code == 0
+        app(["utils", "sampledata", "delete", "--db-url", db_url])
         assert not sampledata_dir.exists()
 
-    def test_checkdata(self, tmp_path_factory) -> None:  # type: ignore
+    def test_checkdata(self, tmp_path_factory, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with checkdata subcommand."""
         from aimbat.app import app
 
@@ -156,17 +131,13 @@ class TestCliUtils:
         sac = SAC()
         sac.write(testfile)
 
-        runner = CliRunner()
-        result = runner.invoke(app, ["utils", "checkdata"])
-        assert result.exit_code == 2
-
-        result = runner.invoke(app, ["utils", "checkdata", testfile])
-        assert result.exit_code == 0
+        app(["utils", "checkdata", testfile])
+        output = capsys.readouterr().out
         for item in ["name", "latitude", "longitude"]:
-            assert f"No station {item} found in file" in result.output
+            assert f"No station {item} found in file" in output
         for item in ["time", "latitude", "longitude"]:
-            assert f"No event {item} found in file" in result.output
-        assert "No seismogram data found in file" in result.output
+            assert f"No event {item} found in file" in output
+        assert "No seismogram data found in file" in output
 
         sac.station.name = "test"
         sac.station.latitude = 1.1
@@ -176,37 +147,28 @@ class TestCliUtils:
         sac.event.longitude = 19.1
         sac.seismogram.data = np.random.rand(100)
         sac.write(testfile)
-        result = runner.invoke(app, ["utils", "checkdata", testfile])
-        assert result.exit_code == 0
+        app(["utils", "checkdata", testfile])
+        output = capsys.readouterr().out
         for item in ["name", "latitude", "longitude"]:
-            assert f"No station {item} found in file" not in result.output
+            assert f"No station {item} found in file" not in output
         for item in ["time", "latitude", "longitude"]:
-            assert f"No event {item} found in file" not in result.output
-        assert "No seismogram data found in file" not in result.output
+            assert f"No event {item} found in file" not in output
+        assert "No seismogram data found in file" not in output
 
-    def test_plotseis(self, test_data_string, db_url, mock_show) -> None:  # type: ignore
+    def test_plotseis(self, test_data_string, db_url, mock_show, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with utils subcommand."""
 
         from aimbat.app import app
 
-        runner = CliRunner()
+        app(["utils"])
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["utils"])
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app(["project", "create", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 0
-
-        args = ["--db-url", db_url, "data", "add"]
+        args = ["data", "add", "--db-url", db_url]
         args.extend(test_data_string)
-        result = runner.invoke(app, args)
-        assert result.exit_code == 0
+        app(args)
 
-        result = runner.invoke(app, ["--db-url", db_url, "utils", "plotseis", "1"])
-        assert result.exit_code == 0
+        app(["utils", "plotseis", "1", "--db-url", db_url])
 
-        # result = runner.invoke(
-        #     app, ["--db-url", db_url, "--use-qt", "utils", "plotseis", "1"]
-        # )
-        # assert result.exit_code == 0
+        # app(["utils", "plotseis", "1", "--db-url", db_url, "--use-qt"])

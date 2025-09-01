@@ -1,50 +1,72 @@
-"""Module to manage defaults used in an AIMBAT project."""
+"""Manage defaults used in an AIMBAT project."""
 
 from aimbat.lib.common import ic
-from aimbat.lib.types import (
-    ProjectDefault,
-    TDefaultFloat,
-    TDefaultStr,
-    TDefaultBool,
-    TDefaultInt,
-)
 from aimbat.lib.misc.rich_utils import make_table
-from aimbat.lib.models import AimbatDefault
+from aimbat.lib.typing import (
+    ProjectDefault,
+    ProjectDefaultBool,
+    ProjectDefaultStr,
+    ProjectDefaultInt,
+    ProjectDefaultTimedelta,
+)
+from aimbat.lib.models import AimbatDefaults
 from sqlmodel import Session, select
 from typing import overload
+from datetime import timedelta
 from rich.console import Console
 
 
-def _get_instance(session: Session) -> AimbatDefault:
-    """Return the AimbatDefault instance."""
+def _get_instance(session: Session) -> AimbatDefaults:
+    """Return the AimbatDefault instance.
+
+    Parameters:
+        session: Database session.
+
+    Returns:
+        AimbatDefaults instance.
+    """
 
     ic()
 
-    aimbat_default = session.exec(select(AimbatDefault)).one_or_none()
+    aimbat_default = session.exec(select(AimbatDefaults)).one_or_none()
     if aimbat_default is None:
-        aimbat_default = AimbatDefault()
+        aimbat_default = AimbatDefaults()
         session.add(aimbat_default)
     return aimbat_default
 
 
 @overload
-def get_default(session: Session, name: TDefaultInt) -> int: ...
+def get_default(session: Session, name: ProjectDefaultInt) -> int: ...
 
 
 @overload
-def get_default(session: Session, name: TDefaultBool) -> bool: ...
+def get_default(session: Session, name: ProjectDefaultBool) -> bool: ...
 
 
 @overload
-def get_default(session: Session, name: TDefaultStr) -> str: ...
+def get_default(session: Session, name: ProjectDefaultStr) -> str: ...
 
 
 @overload
-def get_default(session: Session, name: TDefaultFloat) -> float: ...
+def get_default(session: Session, name: ProjectDefaultTimedelta) -> timedelta: ...
 
 
-def get_default(session: Session, name: ProjectDefault) -> str | float | int | bool:
-    """Return the value of an AIMBAT default."""
+@overload
+def get_default(
+    session: Session, name: ProjectDefault
+) -> str | int | bool | timedelta: ...
+
+
+def get_default(session: Session, name: ProjectDefault) -> str | int | bool | timedelta:
+    """Return the value of an AIMBAT default.
+
+    Parameters:
+        session: Database session.
+        name: Name of the default.
+
+    Returns:
+        Value of the default.
+    """
 
     ic()
     ic(name)
@@ -53,25 +75,39 @@ def get_default(session: Session, name: ProjectDefault) -> str | float | int | b
 
 
 @overload
-def set_default(session: Session, name: TDefaultInt, value: int) -> None: ...
+def set_default(session: Session, name: ProjectDefaultInt, value: int) -> None: ...
 
 
 @overload
-def set_default(session: Session, name: TDefaultBool, value: bool) -> None: ...
+def set_default(session: Session, name: ProjectDefaultBool, value: bool) -> None: ...
 
 
 @overload
-def set_default(session: Session, name: TDefaultStr, value: str) -> None: ...
+def set_default(session: Session, name: ProjectDefaultStr, value: str) -> None: ...
 
 
 @overload
-def set_default(session: Session, name: TDefaultFloat, value: float) -> None: ...
+def set_default(
+    session: Session, name: ProjectDefaultTimedelta, value: timedelta
+) -> None: ...
+
+
+@overload
+def set_default(
+    session: Session, name: ProjectDefault, value: str | int | bool | timedelta
+) -> None: ...
 
 
 def set_default(
-    session: Session, name: ProjectDefault, value: str | float | int | bool
+    session: Session, name: ProjectDefault, value: str | int | bool | timedelta
 ) -> None:
-    """Set the value of an AIMBAT default."""
+    """Set the value of an AIMBAT default.
+
+    Parameters:
+        session: Database session.
+        name: Name of the default.
+        value: Value to set the default to.
+    """
 
     ic()
     ic(name, value)
@@ -83,7 +119,12 @@ def set_default(
 
 
 def reset_default(session: Session, name: ProjectDefault) -> None:
-    """Reset the value of an AIMBAT default."""
+    """Reset the value of an AIMBAT default.
+
+    Parameters:
+        session: Database session.
+        name: Name of the default.
+    """
 
     ic()
     ic(name)
@@ -96,7 +137,11 @@ def reset_default(session: Session, name: ProjectDefault) -> None:
 
 
 def print_defaults_table(session: Session) -> None:
-    """Print a pretty table with AIMBAT configuration options."""
+    """Print a pretty table with AIMBAT configuration options.
+
+    Parameters:
+        session: Database session.
+    """
 
     ic()
 
@@ -108,12 +153,15 @@ def print_defaults_table(session: Session) -> None:
     table.add_column("Value", justify="center", style="magenta")
     table.add_column("Description", justify="left", style="green")
 
-    for key in AimbatDefault.model_fields.keys():
+    for key in AimbatDefaults.model_fields.keys():
+        value = getattr(aimbat_defaults, key)
+        if isinstance(value, timedelta):
+            value = value.total_seconds()
         if key == "id":
             continue
         table.add_row(
             key,
-            str(getattr(aimbat_defaults, key)),
+            str(value),
             aimbat_defaults.description(ProjectDefault[key.upper()]),
         )
 

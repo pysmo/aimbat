@@ -1,6 +1,5 @@
-from typer.testing import CliRunner
 from aimbat.lib import data, seismogram
-from aimbat.lib.types import SeismogramFileType, SeismogramParameter
+from aimbat.lib.typing import SeismogramFileType, SeismogramParameter
 from aimbat.app import app
 import pytest
 
@@ -24,14 +23,6 @@ class TestLibSeismogram:
                 session=db_session,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.T1,
-            )
-            is None
-        )
-        assert (
-            seismogram.get_seismogram_parameter(
-                session=db_session,
-                seismogram_id=1,
-                parameter_name=SeismogramParameter.T2,
             )
             is None
         )
@@ -71,137 +62,88 @@ class TestLibSeismogram:
 
 
 class TestCliSeismogram:
-    def test_sac_data(self, db_url, test_data_string, monkeypatch) -> None:  # type: ignore
+    def test_sac_data(self, db_url, test_data_string, monkeypatch, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with seismogram subcommand."""
 
         monkeypatch.setenv("COLUMNS", "1000")
 
-        runner = CliRunner()
+        app("seismogram")
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, "seismogram")
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app(["project", "create", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 0
-
-        args = ["--db-url", db_url, "data", "add"]
+        args = ["data", "add", "--db-url", db_url]
         args.extend(test_data_string)
-        result = runner.invoke(app, args)
-        assert result.exit_code == 0
+        app(args)
 
-        result = runner.invoke(
-            app,
-            ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.SELECT],
+        app(
+            ["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url],
         )
-        assert "True" in result.output
-        assert result.exit_code == 0
+        assert "True" in capsys.readouterr().out
 
-        result = runner.invoke(
-            app,
+        app(
             [
-                "--db-url",
-                db_url,
                 "seismogram",
                 "set",
                 "1",
                 SeismogramParameter.SELECT,
                 "False",
-            ],
-        )
-        assert result.exit_code == 0
-
-        result = runner.invoke(
-            app,
-            ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.SELECT],
-        )
-        assert result.exit_code == 0
-        assert "False" in result.output
-
-        result = runner.invoke(
-            app,
-            [
                 "--db-url",
                 db_url,
+            ]
+        )
+
+        app(["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url])
+        assert "False" in capsys.readouterr().out
+
+        app(
+            [
                 "seismogram",
                 "set",
                 "1",
                 SeismogramParameter.SELECT,
                 "yes",
-            ],
-        )
-        assert result.exit_code == 0
-
-        result = runner.invoke(
-            app,
-            [
                 "--db-url",
                 db_url,
-                "seismogram",
-                "set",
-                "1",
-                SeismogramParameter.SELECT,
-                "noooooooooooooo",
-            ],
+            ]
         )
-        assert result.exit_code == 1
 
-        result = runner.invoke(
-            app,
-            ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.SELECT],
-        )
-        assert result.exit_code == 0
-        assert "True" in result.output
+        with pytest.raises(ValueError):
+            app(
+                [
+                    "seismogram",
+                    "set",
+                    "1",
+                    SeismogramParameter.SELECT,
+                    "noooooooooooooo",
+                    "--db-url",
+                    db_url,
+                ],
+            )
 
-        result = runner.invoke(
-            app,
+        app(["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url])
+        assert "True" in capsys.readouterr().out
+
+        app(
             [
-                "--db-url",
-                db_url,
                 "seismogram",
                 "set",
                 "1",
                 "t1",
                 "2011-11-04 00:15:23.283",
-            ],
-        )
-        assert result.exit_code == 0
-
-        result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.T1]
-        )
-        assert result.exit_code == 0
-        assert "2011-11-04 00:15:23.283" in result.output
-
-        result = runner.invoke(
-            app,
-            [
                 "--db-url",
                 db_url,
-                "seismogram",
-                "set",
-                "1",
-                SeismogramParameter.T2,
-                "2011-11-04 00:15:29.283",
-            ],
+            ]
         )
-        assert result.exit_code == 0
 
-        result = runner.invoke(
-            app, ["--db-url", db_url, "seismogram", "get", "1", SeismogramParameter.T2]
-        )
-        assert result.exit_code == 0
-        assert "2011-11-04 00:15:29.283" in result.output
+        app(["seismogram", "get", "1", SeismogramParameter.T1, "--db-url", db_url])
+        assert "2011-11-04 00:15:23.283" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list"])
-        assert result.exit_code == 1
+        with pytest.raises(RuntimeError):
+            app(["seismogram", "list", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list", "--all"])
-        assert result.exit_code == 0
-        assert test_data_string[0] in result.output
+        app(["seismogram", "list", "--all", "--db-url", db_url])
+        assert test_data_string[0] in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
-        assert result.exit_code == 0
-
-        result = runner.invoke(app, ["--db-url", db_url, "seismogram", "list"])
-        assert result.exit_code == 0
+        app(["event", "activate", "1", "--db-url", db_url])
+        app(["seismogram", "list", "--db-url", db_url])

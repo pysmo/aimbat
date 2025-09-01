@@ -1,9 +1,8 @@
 from aimbat.lib import project, data, event
 from aimbat.lib.models import AimbatEvent
-from aimbat.lib.types import SeismogramFileType
+from aimbat.lib.typing import SeismogramFileType
 from aimbat.app import app
 from sqlmodel import Session
-from typer.testing import CliRunner
 import platform
 import pytest
 import re
@@ -42,33 +41,26 @@ class TestLibProject:
 
 
 class TestCliProject:
-    def test_project(self, db_url: str) -> None:
+    def test_project(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
         """Test AIMBAT cli with project subcommand."""
 
-        runner = CliRunner()
-        result = runner.invoke(app)
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app(["project"])
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        print(result.output)
-        assert result.exit_code == 0
+        app(["project", "create", "--db-url", db_url])
+        with pytest.raises(RuntimeError):
+            app(["project", "create", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 1
-
-        result = runner.invoke(app, ["--db-url", db_url, "project", "info"])
-        assert result.exit_code == 0
-        assert "AIMBAT Project File:" in result.stdout
+        app(["project", "info", "--db-url", db_url])
+        assert "AIMBAT Project File:" in capsys.readouterr().out
 
         # HACK - this does run on windows, but not on
         # github actions for some reason.
         if platform.system() != "Windows":
-            result = runner.invoke(app, ["--db-url", db_url, "project", "delete"])
-            assert result.exit_code == 0
+            app(["project", "delete", "--db-url", db_url])
 
-            result = runner.invoke(app, ["--db-url", db_url, "project", "delete"])
-            assert result.exit_code == 1
+            with pytest.raises(RuntimeError):
+                app(["project", "delete", "--db-url", db_url])
 
-            result = runner.invoke(app, ["--db-url", db_url, "project", "info"])
-            assert result.exit_code == 1
+            with pytest.raises(RuntimeError):
+                app(["project", "info", "--db-url", db_url])

@@ -1,14 +1,10 @@
 """View and manage events in the AIMBAT project."""
 
-from aimbat.lib.common import RegexEqual, debug_callback, ic
-from aimbat.lib.types import (
-    EventParameter,
-    TEventParameterBool,
-    TEventParameterTimedelta,
-)
-from typing import Annotated, overload
+from aimbat.cli.common import CommonParameters, convert_to_type
+from aimbat.lib.typing import EventParameter
+from typing import Annotated
 from datetime import timedelta
-import typer
+from cyclopts import App, Parameter
 
 
 def _print_event_table(db_url: str | None) -> None:
@@ -34,25 +30,21 @@ def _set_active_event(db_url: str | None, event_id: int) -> None:
         set_active_event(session, event)
 
 
-@overload
-def _get_event_parameters(
-    db_url: str | None, parameter_name: TEventParameterBool
-) -> bool: ...
-@overload
-def _get_event_parameters(
-    db_url: str | None, parameter_name: TEventParameterTimedelta
-) -> timedelta: ...
 def _get_event_parameters(
     db_url: str | None,
     parameter_name: EventParameter,
-) -> bool | timedelta:
+) -> None:
     from aimbat.lib.event import get_active_event
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
         event = get_active_event(session)
-        return getattr(event.parameters, parameter_name)
+        value = getattr(event.parameters, parameter_name)
+        if isinstance(value, timedelta):
+            print(value.total_seconds())
+        else:
+            print(value)
 
 
 def _set_event_parameters(
@@ -64,76 +56,80 @@ def _set_event_parameters(
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    value: float | timedelta
-
-    match [parameter_name, RegexEqual(parameter_value)]:
-        case ["window_pre" | "window_post", r"\d+\.+\d*" | r"\d+"]:
-            value = timedelta(seconds=float(parameter_value))
-        case ["completed", r"^[T,t]rue$" | r"^[Y,y]es$" | r"^[Y,y]$" | r"^1$"]:
-            value = True
-        case ["completed", r"^[F,f]alse$" | r"^[N,n]o$" | r"^[N,n]$" | r"^0$"]:
-            value = False
-        case _:
-            raise RuntimeError(
-                f"Unknown parameter {parameter_name=} or incorrect {parameter_value=}."
-            )
-
-    ic(parameter_name, parameter_value, value)
+    converted_value = convert_to_type(parameter_name, parameter_value)
 
     with Session(engine_from_url(db_url)) as session:
         event = get_active_event(session)
-        setattr(event.parameters, parameter_name, value)
+        setattr(event.parameters, parameter_name, converted_value)
         session.add(event)
         session.commit()
 
 
-app = typer.Typer(
-    name="event",
-    callback=debug_callback,
-    no_args_is_help=True,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="event", help=__doc__, help_format="markdown")
 
 
-@app.command("list")
-def event_cli_list(ctx: typer.Context) -> None:
+@app.command(name="list")
+def event_cli_list(*, common: CommonParameters | None = None) -> None:
     """Print information on the events stored in AIMBAT."""
-    db_url = ctx.obj["DB_URL"]
-    _print_event_table(db_url=db_url)
+
+    common = common or CommonParameters()
+
+    _print_event_table(common.db_url)
 
 
-@app.command("activate")
+@app.command(name="activate")
 def event_cli_activate(
-    ctx: typer.Context,
-    event_id: Annotated[int, typer.Argument(help="Event ID number.")],
+    event_id: Annotated[int, Parameter(name="id")],
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Select the event to be active for Processing."""
-    db_url = ctx.obj["DB_URL"]
-    _set_active_event(db_url=db_url, event_id=event_id)
+    """Select the event to be active for Processing.
+
+    Parameters:
+        event_id: Event ID number.
+    """
+
+    common = common or CommonParameters()
+
+    _set_active_event(common.db_url, event_id=event_id)
 
 
-@app.command("get")
+@app.command(name="get")
 def event_cli_parameter_get(
-    ctx: typer.Context,
-    name: Annotated[EventParameter, typer.Argument(help="Event parameter name.")],
+    name: EventParameter,
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Get parameter value for the active event."""
+    """Get parameter value for the active event.
 
-    db_url = ctx.obj["DB_URL"]
-    print(_get_event_parameters(db_url=db_url, parameter_name=name))  # type: ignore
+    Parameters:
+        name: Event parameter name.
+    """
+
+    common = common or CommonParameters()
+
+    _get_event_parameters(db_url=common.db_url, parameter_name=name)
 
 
-@app.command("set")
+@app.command(name="set")
 def event_cli_paramater_set(
-    ctx: typer.Context,
-    name: Annotated[EventParameter, typer.Argument(help="Event parameter name.")],
+    name: EventParameter,
     value: str,
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Set parameter value for the active event."""
+    """Set parameter value for the active event.
 
-    db_url = ctx.obj["DB_URL"]
-    _set_event_parameters(db_url=db_url, parameter_name=name, parameter_value=value)
+    Parameters:
+        name: Event parameter name.
+        value: Event parameter value.
+    """
+
+    common = common or CommonParameters()
+
+    _set_event_parameters(
+        db_url=common.db_url, parameter_name=name, parameter_value=value
+    )
 
 
 if __name__ == "__main__":

@@ -1,39 +1,22 @@
 """View and manage seismograms in the AIMBAT project."""
 
-from aimbat.lib.common import RegexEqual, debug_callback, ic
-from aimbat.lib.types import (
-    SeismogramParameter,
-    TSeismogramParameterBool,
-    TSeismogramParameterDatetime,
-)
-from datetime import datetime
-from typing import Annotated, overload
-import typer
-
-
-@overload
-def _get_seismogram_parameter(
-    db_url: str | None, seismogram_id: int, parameter_name: TSeismogramParameterBool
-) -> bool: ...
-
-
-@overload
-def _get_seismogram_parameter(
-    db_url: str | None, seismogram_id: int, parameter_name: TSeismogramParameterDatetime
-) -> datetime: ...
+from aimbat.cli.common import CommonParameters, convert_to_type
+from aimbat.lib.typing import SeismogramParameter
+from typing import Annotated
+from cyclopts import App, Parameter
 
 
 def _get_seismogram_parameter(
     db_url: str | None,
     seismogram_id: int,
     parameter_name: SeismogramParameter,
-) -> bool | datetime:
+) -> None:
     from aimbat.lib.seismogram import get_seismogram_parameter
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        return get_seismogram_parameter(session, seismogram_id, parameter_name)  # type: ignore
+        print(get_seismogram_parameter(session, seismogram_id, parameter_name))
 
 
 def _set_seismogram_parameter(
@@ -46,23 +29,12 @@ def _set_seismogram_parameter(
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    value: bool | datetime
-
-    match [parameter_name, RegexEqual(parameter_value)]:
-        case ["select", r"[T,t]rue$" | r"^[Y,y]es$" | r"^[Y,y]$" | r"^1$"]:
-            value = True
-        case ["select", r"^[F,f]alse$" | r"^[N,n]o$" | r"^[N,n]$" | r"^0$"]:
-            value = False
-        case ["t1" | "t2", r"\d\d\d\d[W,T,0-9,\-,:,\.,\s]+"]:
-            value = datetime.fromisoformat(parameter_value)
-        case _:
-            raise RuntimeError(
-                f"Unknown parameter name '{parameter_name}' or incorrect value '{parameter_value}'."
-            )
-    ic(parameter_name, parameter_value, value)
+    converted_value = convert_to_type(parameter_name, parameter_value)
 
     with Session(engine_from_url(db_url)) as session:
-        set_seismogram_parameter(session, seismogram_id, parameter_name, value)  # type: ignore
+        set_seismogram_parameter(
+            session, seismogram_id, parameter_name, converted_value
+        )
 
 
 def _print_seismogram_table(db_url: str | None, all_events: bool) -> None:
@@ -74,58 +46,68 @@ def _print_seismogram_table(db_url: str | None, all_events: bool) -> None:
         print_seismogram_table(session, all_events)
 
 
-app = typer.Typer(
-    name="seismogram",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="seismogram", help=__doc__, help_format="markdown")
 
 
-@app.command("list")
+@app.command(name="list")
 def seismogram_cli_list(
-    ctx: typer.Context,
-    all_events: Annotated[
-        bool, typer.Option("--all", help="Select seismograms for all events.")
-    ] = False,
+    *,
+    all_events: Annotated[bool, Parameter("all")] = False,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Print information on the seismograms in the active event."""
-    db_url = ctx.obj["DB_URL"]
-    _print_seismogram_table(db_url, all_events)
+    """Print information on the seismograms in the active event.
+
+    Parameters:
+        all_events: Select seismograms for all events."""
+
+    common = common or CommonParameters()
+
+    _print_seismogram_table(common.db_url, all_events)
 
 
-@app.command("get")
+@app.command(name="get")
 def seismogram_cli_get(
-    ctx: typer.Context,
-    seismogram_id: Annotated[int, typer.Argument(help="Seismogram ID number.")],
-    name: Annotated[
-        SeismogramParameter, typer.Argument(help="Name of the seismogram parameter.")
-    ],
+    seismogram_id: Annotated[int, Parameter(name="id")],
+    name: SeismogramParameter,
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Get the value of a processing parameter."""
-    db_url = ctx.obj["DB_URL"]
-    seismogram_parameter = _get_seismogram_parameter(
-        db_url=db_url,
+    """Get the value of a processing parameter.
+
+    Parameters:
+        seismogram_id: Seismogram ID number.
+        name: Name of the seismogram parameter.
+    """
+
+    common = common or CommonParameters()
+
+    _get_seismogram_parameter(
+        db_url=common.db_url,
         seismogram_id=seismogram_id,
-        parameter_name=name,  # type: ignore
+        parameter_name=name,
     )
-    print(seismogram_parameter)
 
 
-@app.command("set")
+@app.command(name="set")
 def seismogram_cli_set(
-    ctx: typer.Context,
-    seismogram_id: Annotated[int, typer.Argument(help="Seismogram ID number.")],
-    name: Annotated[
-        SeismogramParameter, typer.Argument(help="Name of the seismogram parameter.")
-    ],
+    seismogram_id: Annotated[int, Parameter(name="id")],
+    name: SeismogramParameter,
     value: str,
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Set value of a processing parameter."""
-    db_url = ctx.obj["DB_URL"]
+    """Set value of a processing parameter.
+
+    Parameters:
+        seismogram_id: Seismogram ID number.
+        name: Name of the seismogram parameter.
+        value: Value of the seismogram parameter.
+    """
+
+    common = common or CommonParameters()
+
     _set_seismogram_parameter(
-        db_url=db_url,
+        db_url=common.db_url,
         seismogram_id=seismogram_id,
         parameter_name=name,
         parameter_value=value,

@@ -1,5 +1,5 @@
 site_name: AIMBAT
-copyright: Copyright &copy; 2024 Simon Lloyd
+copyright: Copyright &copy; 2024-2025 Simon Lloyd
 
 # Repository
 repo_name: pysmo/aimbat
@@ -10,13 +10,14 @@ theme:
   name: material
   features:
     # - announce.dismiss
-    # - content.action.edit
-    # - content.action.view
+    - content.action.edit
+    - content.action.view
     - content.code.annotate
     - content.code.copy
     - content.tooltips
+    - content.tabs.link
     - navigation.footer
-    # - navigation.indexes
+    - navigation.indexes
     # - navigation.sections
     # - navigation.tabs
     - navigation.top
@@ -45,6 +46,11 @@ theme:
         icon: material/brightness-4
         name: Switch to system preference
 
+extra_css:
+  - css/material.css
+  - css/mkdocstrings.css
+  - css/mermaid.css
+
 extra:
   version:
     provider: mike
@@ -54,6 +60,8 @@ markdown_extensions:
   - attr_list
   - footnotes
   - md_in_html
+  - toc:
+      permalink: "#"
   - pymdownx.details
   - pymdownx.superfences:
       custom_fences:
@@ -77,22 +85,44 @@ markdown_extensions:
 
 plugins:
   - search
+  - bibtex:
+      bib_file: docs/refs.bib
+  - autorefs
   - mkdocs-jupyter:
       ignore:
-        - docs/user-guide/gen_ref_pages.py
-  - gen-files:
-      scripts:
-        - docs/user-guide/gen_ref_pages.py
-  - literate-nav:
-      nav_file: SUMMARY.md
+        - docs/gen_ref_pages.py
+        - docs/snippets/*.py
+  # - gen-files:
+  #     scripts:
+  #       - docs/user-guide/gen_ref_pages.py
+  # - literate-nav:
+  #     nav_file: SUMMARY.md
   - section-index
   - mkdocstrings:
       handlers:
         python:
           options:
+            allow_inspection: true
+            backlinks: tree
+            # docstring_section_style: spacy
             docstring_style: google
+            # extensions:
+            #   - griffe_fieldz
+            # force_inspection: true
+            inherited_members: true
+            modernize_annotations: true
+            parameter_headings: true
+            separate_signature: true
+            # show_if_no_docstring: false
+            show_inheritance_diagram: true
+            show_overloads: false
+            show_signature_annotations: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+            # with_preloaded_modules: true
           import:
-            - https://docs.pysmo.org/en/latest/objects.inv
+            - https://docs.pysmo.org/objects.inv
             - https://docs.python.org/3/objects.inv
             - https://numpy.org/doc/stable/objects.inv
             - https://docs.scipy.org/doc/scipy/objects.inv
@@ -102,15 +132,17 @@ plugins:
 nav:
   - Home: index.md
   - First Steps:
-      - Installation: user-guide/installation.md
-      - Data & Conventions: user-guide/data.md
-      - Workflow & Strategy: user-guide/workflow.md
+      - Installation: first-steps/installation.md
+      - Data & Conventions: first-steps/data.md
+      - Workflow & Strategy: first-steps/workflow.md
   - User Guide:
       - user-guide/overview.md
       - user-guide/cli.md
       - examples/tutorial.ipynb
       - user-guide/gui.md
   - Getting Help: user-guide/help.md
-  - API: reference/
+  - API Reference:
+      - aimbat.cli: reference/cli.md
+      - aimbat.lib: reference/lib.md
   - Contributors: user-guide/contributors.md
   - Changelog: user-guide/changelog.md
