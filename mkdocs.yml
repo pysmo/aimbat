@@ -46,10 +46,16 @@ theme:
         icon: material/brightness-4
         name: Switch to system preference
 
+extra_javascript:
+  - javascripts/katex.js
+  - https://unpkg.com/katex@0/dist/katex.min.js
+  - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
+
 extra_css:
   - css/material.css
-  - css/mkdocstrings.css
   - css/mermaid.css
+  - css/mkdocstrings.css
+  - https://unpkg.com/katex@0/dist/katex.min.css
 
 extra:
   version:
@@ -63,6 +69,8 @@ markdown_extensions:
   - toc:
       permalink: "#"
   - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -74,6 +82,9 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.arithmatex:
+      generic:
+        true
         # - markdown_include.include:
         #     base_path: docs
         # - termynal:
@@ -82,12 +93,11 @@ markdown_extensions:
         #       - ">"
         #       - ">>>"
 
-
 plugins:
   - search
+  - autorefs
   - bibtex:
       bib_file: docs/refs.bib
-  - autorefs
   - mkdocs-jupyter:
       ignore:
         - docs/gen_ref_pages.py
@@ -121,6 +131,7 @@ plugins:
             show_symbol_type_toc: true
             signature_crossrefs: true
             # with_preloaded_modules: true
+            trim_doctest_flags: true
           import:
             - https://docs.pysmo.org/objects.inv
             - https://docs.python.org/3/objects.inv
