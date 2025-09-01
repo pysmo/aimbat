@@ -29,14 +29,14 @@ def print_station_table(session: Session, all_events: bool = False) -> None:
     table.add_column("Latitude", justify="center", style="magenta")
     table.add_column("Longitude", justify="center", style="magenta")
     table.add_column("Elevation", justify="center", style="magenta")
-    table.add_column("# Seismograms", justify="center", style="green")
     if all_events:
+        table.add_column("# Seismograms", justify="center", style="green")
         table.add_column("# Events", justify="center", style="green")
 
     for aimbat_station in aimbat_stations:
         assert aimbat_station.id is not None
-        events = {i.event_id for i in aimbat_station.seismograms}
         if all_events:
+            events = {i.event_id for i in aimbat_station.seismograms}
             table.add_row(
                 str(aimbat_station.id),
                 f"{aimbat_station.name} - {aimbat_station.network}",
@@ -53,7 +53,6 @@ def print_station_table(session: Session, all_events: bool = False) -> None:
                 str(aimbat_station.latitude),
                 str(aimbat_station.longitude),
                 str(aimbat_station.elevation),
-                str(len(aimbat_station.seismograms)),
             )
 
     console = Console()

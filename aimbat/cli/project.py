@@ -3,16 +3,14 @@ Manage AIMBAT projects.
 
 This command manages projects. By default, the project consists
 of a file called `aimbat.db` in the current working directory. All aimbat
-commands must be executed from the same directory.
-
-The location (and name) of the project file may also be specified by
-setting the AIMBAT_PROJECT environment variable to the desired filename.
-
-Alternatively aimbat can be executed with a database url directly.
+commands must be executed from the same directory. The location (and name) of
+the project file may also be specified by setting the `AIMBAT_PROJECT`
+environment variable to the desired filename. Alternatively, `aimbat` can be
+executed with a database url directly.
 """
 
-from aimbat.lib.common import debug_callback
-import typer
+from aimbat.cli.common import CommonParameters
+from cyclopts import App
 
 
 def _create_project(db_url: str | None) -> None:
@@ -36,31 +34,34 @@ def _print_project_info(db_url: str | None) -> None:
     print_project_info(engine_from_url(db_url))
 
 
-app = typer.Typer(
-    name="project",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="project", help=__doc__, help_format="markdown")
 
 
-@app.command("create")
-def project_cli_create(ctx: typer.Context) -> None:
+@app.command(name="create")
+def project_cli_create(*, common: CommonParameters | None = None) -> None:
     """Create new AIMBAT project."""
-    _create_project(ctx.obj["DB_URL"])
+
+    common = common or CommonParameters()
+
+    _create_project(common.db_url)
 
 
-@app.command("delete")
-def project_cli_delete(ctx: typer.Context) -> None:
-    """Delete project (note: this does not delete seismogram data)."""
-    _delete_project(ctx.obj["DB_URL"])
+@app.command(name="delete")
+def project_cli_delete(*, common: CommonParameters | None = None) -> None:
+    """Delete project (note: this does *not* delete seismogram files)."""
+
+    common = common or CommonParameters()
+
+    _delete_project(common.db_url)
 
 
-@app.command("info")
-def project_cli_info(ctx: typer.Context) -> None:
+@app.command(name="info")
+def project_cli_info(*, common: CommonParameters | None = None) -> None:
     """Show information on an exisiting project."""
-    _print_project_info(ctx.obj["DB_URL"])
+
+    common = common or CommonParameters()
+
+    _print_project_info(common.db_url)
 
 
 if __name__ == "__main__":

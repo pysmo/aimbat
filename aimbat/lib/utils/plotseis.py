@@ -1,11 +1,9 @@
 from aimbat.lib.models import AimbatSeismogram
 from aimbat.lib.common import ic, check_for_notebook
-from pysmo import (
-    MiniSeismogram,
-    distance,
-    time_array,
-    unix_time_array,
-)
+from pysmo import MiniSeismogram
+from pysmo.functions import detrend, normalize, clone_to_mini
+from pysmo.tools.plotutils import time_array, unix_time_array
+from pysmo.tools.azdist import distance
 from sqlmodel import Session, select
 from pyqtgraph.jupyter import PlotWidget  # type: ignore
 import matplotlib.pyplot as plt
@@ -58,15 +56,15 @@ def plotseis(
         plot_widget.setLabel("left", ylabel)
 
     for seismogram in seismograms:
-        miniseis = MiniSeismogram.clone(seismogram)
-        miniseis.detrend()
-        miniseis.normalize()
-        plot_data = miniseis.data * scaling_factor + distance_dict[seismogram.id]
+        clone = clone_to_mini(MiniSeismogram, seismogram)
+        detrend(clone)
+        normalize(clone)
+        plot_data = clone.data * scaling_factor + distance_dict[seismogram.id]
         if use_qt and plot_widget is not None:
-            times = unix_time_array(miniseis)
+            times = unix_time_array(clone)
             plot_widget.plot(times, plot_data)
         else:
-            times = time_array(miniseis)
+            times = time_array(clone)
             plt.plot(
                 times,
                 plot_data,

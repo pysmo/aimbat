@@ -1,5 +1,5 @@
 from aimbat.lib.common import ic
-from aimbat.lib.types import ProjectDefault
+from aimbat.lib.typing import ProjectDefault
 from aimbat.lib.defaults import get_default
 from sqlmodel import Session
 from urllib.request import urlopen

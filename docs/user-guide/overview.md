@@ -1,6 +1,6 @@
 # Using AIMBAT
 
-Once [installed](installation.md), AIMBAT can be used in several ways:
+Once [installed](../first-steps/installation.md), AIMBAT can be used in several ways:
 
 - As a [command line](cli.md) application.
 - Within a [notebook](/examples/tutorial)[^notebook].

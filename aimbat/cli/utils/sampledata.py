@@ -8,9 +8,8 @@ The sample data source url can be viewed or changed via `aimbat default
 be viewed or changed via `aimbat default <list/set> sampledata_dir`.
 """
 
-from aimbat.lib.common import debug_callback
-from typing import Annotated
-import typer
+from aimbat.cli.common import CommonParameters
+from cyclopts import App
 
 
 def _delete_sampledata(db_url: str | None) -> None:
@@ -31,38 +30,34 @@ def _download_sampledata(db_url: str | None, force: bool = False) -> None:
         download_sampledata(session, force)
 
 
-app = typer.Typer(
-    name="sampledata",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="sampledata", help=__doc__, help_format="markdown")
 
 
-@app.command("download")
+@app.command(name="download")
 def sampledata_cli_download(
-    ctx: typer.Context,
-    force: Annotated[
-        bool,
-        typer.Option("--force", help="Delete the download directory and re-download"),
-    ] = False,
+    *, force: bool = False, common: CommonParameters | None = None
 ) -> None:
-    """Download aimbat sample data."""
+    """Download AIMBAT sample data.
 
-    db_url = ctx.obj["DB_URL"]
+    Downloads an example dataset to the directory specified in the
+    `sampledata_dir` AIMBAT default variable.
 
-    _download_sampledata(db_url, force)
+    Parameters:
+        force: Delete the download directory and re-download."
+    """
+
+    common = common or CommonParameters()
+
+    _download_sampledata(common.db_url, force)
 
 
-@app.command("delete")
-def sampledata_cli_delete(
-    ctx: typer.Context,
-) -> None:
+@app.command(name="delete")
+def sampledata_cli_delete(*, common: CommonParameters | None = None) -> None:
     """Recursively delete sample data directory."""
 
-    db_url = ctx.obj["DB_URL"]
-    _delete_sampledata(db_url)
+    common = common or CommonParameters()
+
+    _delete_sampledata(common.db_url)
 
 
 if __name__ == "__main__":

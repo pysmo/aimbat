@@ -1,8 +1,8 @@
 """View and manage stations."""
 
-from aimbat.lib.common import debug_callback
+from aimbat.cli.common import CommonParameters
 from typing import Annotated
-import typer
+from cyclopts import App, Parameter
 
 
 def _print_station_table(db_url: str | None, all_events: bool) -> None:
@@ -14,25 +14,24 @@ def _print_station_table(db_url: str | None, all_events: bool) -> None:
         print_station_table(session, all_events)
 
 
-app = typer.Typer(
-    name="station",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="station", help=__doc__, help_format="markdown")
 
 
-@app.command("list")
+@app.command(name="list")
 def station_cli_list(
-    ctx: typer.Context,
-    all_events: Annotated[
-        bool, typer.Option("--all", help="Select stations for all events.")
-    ] = False,
+    *,
+    all_events: Annotated[bool, Parameter(name="all")] = False,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Print information on the stations used in the active event."""
-    db_url = ctx.obj["DB_URL"]
-    _print_station_table(db_url, all_events)
+    """Print information on the stations used in the active event.
+
+    Parameters:
+        all_events: Select stations for all events.
+    """
+
+    common = common or CommonParameters()
+
+    _print_station_table(common.db_url, all_events)
 
 
 if __name__ == "__main__":

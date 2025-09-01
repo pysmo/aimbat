@@ -19,14 +19,14 @@ from rich.panel import Panel
 
 
 def _project_exists(engine: Engine) -> bool:
-    """Check if AIMBAT project exists."""
+    """Check if AIMBAT project exists by checking if aimbatdefaults table exists."""
 
     ic()
     ic(engine)
 
     if engine.driver == "pysqlite":
         with engine.connect() as connection:
-            result = connection.execute(text("PRAGMA table_info(aimbatdefault)")).all()
+            result = connection.execute(text("PRAGMA table_info(aimbatdefaults)")).all()
             if result == []:
                 return False
             return True

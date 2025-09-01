@@ -1,8 +1,7 @@
 from aimbat.lib import defaults
 from aimbat.app import app
-from aimbat.lib.types import ProjectDefault
+from aimbat.lib.typing import ProjectDefault
 from sqlmodel import Session
-from typer.testing import CliRunner
 
 
 class TestLibDefaults:
@@ -17,117 +16,117 @@ class TestLibDefaults:
 
 
 class TestCliDefaults:
-    def test_defaults(self, db_url) -> None:  # type: ignore
+    def test_defaults(self, db_url, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with defaults subcommand."""
 
-        runner = CliRunner()
-        result = runner.invoke(app, ["--db-url", db_url, "defaults"])
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app(["defaults"])
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 0
+        app(["project", "create", "--db-url", db_url])
+        app(["defaults", "list", "--db-url", db_url])
+        assert "Description" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "defaults", "list"])
-        assert result.exit_code == 0
-        for val in ["Name", "Value", "Description"]:
-            assert val in result.output
-
-        result = runner.invoke(
-            app,
+        app(
             [
+                "defaults",
+                "get",
+                ProjectDefault.DELTA_TOLERANCE,
                 "--db-url",
                 db_url,
+            ],
+        )
+        assert "9" in capsys.readouterr().out
+
+        app(
+            [
+                "defaults",
+                "set",
+                ProjectDefault.DELTA_TOLERANCE,
+                "10",
+                "--db-url",
+                db_url,
+            ],
+        )
+
+        app(
+            [
                 "defaults",
                 "get",
                 ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
-            ],
-        )
-        assert result.exit_code == 0
-        assert "15" in result.output
-
-        result = runner.invoke(
-            app,
-            [
                 "--db-url",
                 db_url,
+            ],
+        )
+        assert "30" in capsys.readouterr().out
+
+        app(
+            [
                 "defaults",
                 "set",
                 ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
                 "11",
-            ],
-        )
-        assert result.exit_code == 0
-
-        result = runner.invoke(
-            app,
-            [
                 "--db-url",
                 db_url,
+            ],
+        )
+
+        app(
+            [
                 "defaults",
                 "get",
                 ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
+                "--db-url",
+                db_url,
             ],
         )
-        assert result.exit_code == 0
-        assert "11" in result.output
+        assert "11" in capsys.readouterr().out
 
-        result = runner.invoke(
-            app, ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT]
-        )
-        assert result.exit_code == 0
-        assert "True" in result.output
+        app(["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url])
+        assert "True" in capsys.readouterr().out
 
         # booleans are a bit more flexible...
         test_bool_true = ["True", "true", "yes", "Y"]
         test_bool_false = ["False", "no"]
         for i in test_bool_true:
-            result = runner.invoke(
-                app,
+            app(
                 [
-                    "--db-url",
-                    db_url,
                     "defaults",
                     "set",
                     ProjectDefault.AIMBAT,
                     i,
+                    "--db-url",
+                    db_url,
                 ],
             )
-            assert result.exit_code == 0
-            result = runner.invoke(
-                app,
-                ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT],
+
+            app(
+                ["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url],
             )
-            assert result.exit_code == 0
-            assert "True" in result.output
+            assert "True" in capsys.readouterr().out
         for i in test_bool_false:
-            result = runner.invoke(
-                app,
+            app(
                 [
-                    "--db-url",
-                    db_url,
                     "defaults",
                     "set",
                     ProjectDefault.AIMBAT,
                     i,
+                    "--db-url",
+                    db_url,
                 ],
             )
-            assert result.exit_code == 0
-            result = runner.invoke(
-                app,
-                ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT],
+            app(
+                ["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url],
             )
-            assert result.exit_code == 0
-            assert "False" in result.output
+            assert "False" in capsys.readouterr().out
 
-        result = runner.invoke(
-            app,
-            ["--db-url", db_url, "defaults", "reset", ProjectDefault.AIMBAT],
+        app(
+            [
+                "defaults",
+                "reset",
+                ProjectDefault.AIMBAT,
+                "--db-url",
+                db_url,
+            ],
         )
-        assert result.exit_code == 0
-
-        result = runner.invoke(
-            app, ["--db-url", db_url, "defaults", "get", ProjectDefault.AIMBAT]
-        )
-        assert result.exit_code == 0
-        assert "True" in result.output
+        app(["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url])
+        assert "True" in capsys.readouterr().out

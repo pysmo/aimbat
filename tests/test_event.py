@@ -1,10 +1,8 @@
 from aimbat.lib import data, event
 from aimbat.lib.models import AimbatEvent
 from aimbat.app import app
-from typer.testing import CliRunner
 import pytest
-
-from aimbat.lib.types import SeismogramFileType
+from aimbat.lib.typing import SeismogramFileType
 
 
 class TestLibEvent:
@@ -34,82 +32,71 @@ class TestLibEvent:
 
 
 class TestCliEvent:
-    def test_sac_data(self, db_url, test_data_string) -> None:  # type: ignore
+    def test_sac_data(self, db_url, test_data_string, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with event subcommand."""
 
-        runner = CliRunner()
+        app(["event"])
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["event"])
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app(["project", "create", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 0
-
-        args = ["--db-url", db_url, "data", "add"]
+        args = ["data", "add", "--db-url", db_url]
         args.extend(test_data_string)
-        result = runner.invoke(app, args)
-        assert result.exit_code == 0
+        app(args)
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "list"])
-        assert result.exit_code == 0
-        assert "2011-09-15 19:31:04.080000" in result.output
+        app(["event", "list", "--db-url", db_url])
+        assert "2011-09-15 19:31:04.080000" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "100000"])
-        assert result.exit_code == 1
+        with pytest.raises(RuntimeError):
+            app(["event", "activate", "100000", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
-        assert result.exit_code == 0
-        result = runner.invoke(app, ["--db-url", db_url, "event", "list"])
-        assert "\u2714" in result.output
+        app(["event", "activate", "1", "--db-url", db_url])
+        app(["event", "list", "--db-url", db_url])
+        assert "\u2714" in capsys.readouterr().out
 
-        result = runner.invoke(
-            app, ["--db-url", db_url, "event", "set", "window_pre", "--", "-2.3"]
-        )
-        assert result.exit_code == 0
+        app(["event", "set", "--db-url", db_url, "window_pre", "--", "-2.3"])
+        app(["event", "get", "window_pre", "--db-url", db_url])
+        assert "-2.3" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "get", "window_pre"])
-        assert result.exit_code == 0
-        assert "-1 day, 23:59:57.7" in result.output
+        app(["event", "set", "--db-url", db_url, "window_post", "--", "5.3"])
+        app(["event", "get", "window_post", "--db-url", db_url])
+        assert "5.3" in capsys.readouterr().out
 
-        result = runner.invoke(
-            app, ["--db-url", db_url, "event", "set", "window_post", "--", "5.3"]
-        )
-        assert result.exit_code == 0
+        with pytest.raises(ValueError):
+            app(
+                [
+                    "event",
+                    "set",
+                    "--db-url",
+                    db_url,
+                    "window_pre",
+                    "--",
+                    "cannot_convert_this_to_float",
+                ]
+            )
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "get", "window_post"])
-        assert result.exit_code == 0
-        assert "0:00:05.3" in result.output
-
-        result = runner.invoke(
-            app,
+        app(
             [
-                "--db-url",
-                db_url,
                 "event",
                 "set",
-                "window_pre",
+                "--db-url",
+                db_url,
+                "completed",
                 "--",
-                "cannot_convert_this_to_float",
-            ],
+                "True",
+            ]
         )
-        assert result.exit_code == 1
-        assert result.exception
-
-        result = runner.invoke(
-            app, ["--db-url", db_url, "event", "set", "completed", "--", "True"]
+        app(
+            [
+                "event",
+                "get",
+                "--db-url",
+                db_url,
+                "completed",
+            ]
         )
-        assert result.exit_code == 0
+        assert "True" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "get", "completed"])
-        assert result.exit_code == 0
-        assert "True" in result.output
-
-        result = runner.invoke(
-            app, ["--db-url", db_url, "event", "set", "completed", "--", "False"]
-        )
-        assert result.exit_code == 0
-
-        result = runner.invoke(app, ["--db-url", db_url, "event", "get", "completed"])
-        assert result.exit_code == 0
-        assert "False" in result.output
+        app(["event", "set", "--db-url", db_url, "completed", "--", "False"])
+        app(["event", "get", "--db-url", db_url, "completed"])
+        assert "False" in capsys.readouterr().out

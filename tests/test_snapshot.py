@@ -1,8 +1,7 @@
 from aimbat.lib import data, snapshot, event
 from aimbat.lib.models import AimbatSnapshot, AimbatEvent
-from aimbat.lib.types import SeismogramFileType
+from aimbat.lib.typing import SeismogramFileType
 from sqlmodel import select, Session
-from typer.testing import CliRunner
 from pathlib import Path
 import pytest
 import uuid
@@ -69,76 +68,50 @@ class TestLibSnapshot:
 
 
 class TestCliSnapshot:
-    def test_sac_data(self, test_data_string, db_url) -> None:  # type: ignore
+    def test_sac_data(self, test_data_string, db_url, capsys) -> None:  # type: ignore
         """Test AIMBAT cli with snapshot subcommand."""
 
         from aimbat.app import app
 
-        runner = CliRunner()
-        result = runner.invoke(app, ["snapshot"])
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+        app("snapshot")
+        assert "Usage" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "project", "create"])
-        assert result.exit_code == 0
+        app(["project", "create", "--db-url", db_url])
 
-        args = ["--db-url", db_url, "data", "add"]
+        args = ["data", "add", "--db-url", db_url]
         args.extend(test_data_string)
-        result = runner.invoke(app, args)
-        assert result.exit_code == 0
+        app(args)
 
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "create"])
-        assert result.exit_code == 1
+        with pytest.raises(RuntimeError):
+            app(["snapshot", "create", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list"])
-        assert result.exit_code == 1
+        with pytest.raises(RuntimeError):
+            app(["snapshot", "list", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "activate", "1"])
-        assert result.exit_code == 0
+        app(["event", "activate", "1", "--db-url", db_url])
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "get", "completed"])
-        assert result.exit_code == 0
-        assert "False" in result.output
+        app(["event", "get", "completed", "--db-url", db_url])
+        assert "False" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "create"])
-        assert result.exit_code == 0
+        app(["snapshot", "create", "--db-url", db_url])
+        app(["event", "set", "completed", "True", "--db-url", db_url])
+        app(["event", "get", "completed", "--db-url", db_url])
+        assert "True" in capsys.readouterr().out
 
-        result = runner.invoke(
-            app, ["--db-url", db_url, "event", "set", "completed", "True"]
-        )
-        assert result.exit_code == 0
+        app(["snapshot", "rollback", "1", "--db-url", db_url])
+        app(["event", "get", "completed", "--db-url", db_url])
+        assert "False" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "get", "completed"])
-        assert result.exit_code == 0
-        assert "True" in result.output
+        app(["snapshot", "list", "--db-url", db_url])
+        assert "AIMBAT snapshots for event" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "rollback", "1"])
-        assert result.exit_code == 0
+        app(["snapshot", "list", "--all", "--db-url", db_url])
+        assert "AIMBAT snapshots for all events" in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "event", "get", "completed"])
-        assert result.exit_code == 0
-        assert "False" in result.output
+        app(["snapshot", "create", "--comment", RANDOM_COMMENT, "--db-url", db_url])
+        app(["snapshot", "list", "--db-url", db_url])
+        assert RANDOM_COMMENT in capsys.readouterr().out
 
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list"])
-        assert result.exit_code == 0
-        assert "AIMBAT snapshots for event" in result.output
-
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list", "--all"])
-        assert result.exit_code == 0
-        assert "AIMBAT snapshots for all events" in result.output
-
-        result = runner.invoke(
-            app, ["--db-url", db_url, "snapshot", "create", "--comment", RANDOM_COMMENT]
-        )
-        assert result.exit_code == 0
-
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list"])
-        assert result.exit_code == 0
-        assert RANDOM_COMMENT in result.output
-
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "delete", "2"])
-        assert result.exit_code == 0
-
-        result = runner.invoke(app, ["--db-url", db_url, "snapshot", "list"])
-        assert result.exit_code == 0
-        assert RANDOM_COMMENT not in result.output
+        app(["snapshot", "delete", "2", "--db-url", db_url])
+        app(["snapshot", "list", "--db-url", db_url])
+        assert RANDOM_COMMENT not in capsys.readouterr().out

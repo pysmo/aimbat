@@ -2,24 +2,22 @@ from sqlmodel import SQLModel
 from enum import StrEnum
 from typing import TypeAlias, get_args
 from aimbat.lib.models import (
-    AimbatDefault,
+    AimbatDefaults,
     AimbatEventParametersBase,
-    AimbatFile,
     AimbatSeismogramParametersBase,
 )
-from aimbat.lib.types import (
+from aimbat.lib.typing import (
     EventParameter,
-    ProjectDefault,
-    AimbatFileAttribute,
     SeismogramParameter,
-    TDefaultStr,
-    TDefaultInt,
-    TDefaultBool,
-    TDefaultFloat,
-    TEventParameterBool,
-    TEventParameterTimedelta,
-    TSeismogramParameterBool,
-    TSeismogramParameterDatetime,
+    EventParameterBool,
+    EventParameterTimedelta,
+    SeismogramParameterBool,
+    SeismogramParameterDatetime,
+    ProjectDefault,
+    ProjectDefaultStr,
+    ProjectDefaultBool,
+    ProjectDefaultInt,
+    ProjectDefaultTimedelta,
 )
 
 
@@ -34,7 +32,7 @@ def set_from_strenum(enum: StrEnum) -> set[str]:
     return set([member.value for member in enum])  # type: ignore
 
 
-def set_from_type_aliases(*aliases: TypeAlias) -> set[str]:
+def set_from_typealiases(*aliases: list[TypeAlias]) -> set[str]:
     my_list = []
     for alias in aliases:
         my_list.extend([v for v in get_args(alias)])
@@ -46,33 +44,30 @@ class TestLibTypes:
     """Ensure Default models and types are consistent."""
 
     def test_default_types(self) -> None:
-        assert set_from_basemodel(AimbatDefault) == set_from_strenum(  # type: ignore
+        assert set_from_basemodel(AimbatDefaults) == set_from_strenum(  # type: ignore
             ProjectDefault  # type: ignore
         )
-        assert set_from_strenum(ProjectDefault) == set_from_type_aliases(  # type: ignore
-            TDefaultFloat,
-            TDefaultBool,
-            TDefaultInt,
-            TDefaultStr,
-        )
-
-    def test_aimbatfile_types(self) -> None:
-        assert set_from_basemodel(AimbatFile) == set_from_strenum(  # type: ignore
-            AimbatFileAttribute  # type: ignore
+        assert set_from_strenum(ProjectDefault) == set_from_typealiases(  # type: ignore
+            ProjectDefaultTimedelta,  # type: ignore
+            ProjectDefaultBool,  # type: ignore
+            ProjectDefaultInt,  # type: ignore
+            ProjectDefaultStr,  # type: ignore
         )
 
     def test_event_parameter_types(self) -> None:
         assert set_from_basemodel(AimbatEventParametersBase) == set_from_strenum(  # type: ignore
             EventParameter  # type: ignore
         )
-        assert set_from_strenum(EventParameter) == set_from_type_aliases(  # type: ignore
-            TEventParameterBool, TEventParameterTimedelta
+        assert set_from_strenum(EventParameter) == set_from_typealiases(  # type: ignore
+            EventParameterBool,  # type: ignore
+            EventParameterTimedelta,  # type: ignore
         )
 
     def test_seismogram_parameter_types(self) -> None:
         assert set_from_basemodel(AimbatSeismogramParametersBase) == set_from_strenum(  # type: ignore
             SeismogramParameter  # type: ignore
         )
-        assert set_from_strenum(SeismogramParameter) == set_from_type_aliases(  # type: ignore
-            TSeismogramParameterBool, TSeismogramParameterDatetime
+        assert set_from_strenum(SeismogramParameter) == set_from_typealiases(  # type: ignore
+            SeismogramParameterBool,  # type: ignore
+            SeismogramParameterDatetime,  # type: ignore
         )

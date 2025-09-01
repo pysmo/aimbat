@@ -7,10 +7,10 @@ from aimbat.lib.models import (
     AimbatSeismogramParameters,
 )
 from aimbat.lib.misc.rich_utils import make_table
-from aimbat.lib.types import (
+from aimbat.lib.typing import (
     SeismogramParameter,
-    TSeismogramParameterBool,
-    TSeismogramParameterDatetime,
+    SeismogramParameterBool,
+    SeismogramParameterDatetime,
 )
 from datetime import datetime
 from rich.console import Console
@@ -20,14 +20,20 @@ from typing import Sequence, overload
 
 @overload
 def get_seismogram_parameter(
-    session: Session, seismogram_id: int, parameter_name: TSeismogramParameterBool
+    session: Session, seismogram_id: int, parameter_name: SeismogramParameterBool
 ) -> bool: ...
 
 
 @overload
 def get_seismogram_parameter(
-    session: Session, seismogram_id: int, parameter_name: TSeismogramParameterDatetime
+    session: Session, seismogram_id: int, parameter_name: SeismogramParameterDatetime
 ) -> datetime: ...
+
+
+@overload
+def get_seismogram_parameter(
+    session: Session, seismogram_id: int, parameter_name: SeismogramParameter
+) -> bool | datetime: ...
 
 
 def get_seismogram_parameter(
@@ -61,7 +67,7 @@ def get_seismogram_parameter(
 def set_seismogram_parameter(
     session: Session,
     seismogram_id: int,
-    parameter_name: TSeismogramParameterBool,
+    parameter_name: SeismogramParameterBool,
     parameter_value: bool,
 ) -> None: ...
 
@@ -70,8 +76,17 @@ def set_seismogram_parameter(
 def set_seismogram_parameter(
     session: Session,
     seismogram_id: int,
-    parameter_name: TSeismogramParameterDatetime,
+    parameter_name: SeismogramParameterDatetime,
     parameter_value: datetime,
+) -> None: ...
+
+
+@overload
+def set_seismogram_parameter(
+    session: Session,
+    seismogram_id: int,
+    parameter_name: SeismogramParameter,
+    parameter_value: bool | datetime,
 ) -> None: ...
 
 

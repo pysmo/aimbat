@@ -1,8 +1,8 @@
 """Add a random delay to a random choice of seismograms to create random events."""
 
+from pysmo.classes import SAC
 from pathlib import Path
 from random import choices, randint
-from pysmo import SAC
 from datetime import timedelta
 
 

@@ -1,10 +1,11 @@
 """Manage seismogram files in an AIMBAT project."""
 
-from aimbat.lib.common import debug_callback, ic
-from aimbat.lib.types import SeismogramFileType
+from aimbat.lib.common import ic
+from aimbat.cli.common import CommonParameters
+from aimbat.lib.typing import SeismogramFileType
 from pathlib import Path
+from cyclopts import App, Parameter
 from typing import Annotated
-import typer
 
 
 def _add_files_to_project(
@@ -35,43 +36,50 @@ def _print_data_table(db_url: str | None, all_events: bool) -> None:
         print_data_table(session, all_events)
 
 
-app = typer.Typer(
-    name="data",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="data", help=__doc__, help_format="markdown")
 
 
-@app.command("add")
-def cli_add(
-    ctx: typer.Context,
-    files: Annotated[list[Path], typer.Argument(help="Seismogram files to be added.")],
-    filetype: Annotated[
-        SeismogramFileType, typer.Option(help="Specify type of seismogram file.")
-    ] = SeismogramFileType.SAC,
+@app.command(name="add")
+def data_cli_add(
+    seismogram_files: Annotated[
+        list[Path], Parameter(name="files", consume_multiple=True)
+    ],
+    *,
+    filetype: SeismogramFileType = SeismogramFileType.SAC,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Add or update data files in the AIMBAT project."""
-    db_url = ctx.obj["DB_URL"]
+    """Add or update data files in the AIMBAT project.
+
+    Parameters:
+        seismogram_files: Seismogram files to be added.
+        filetype: Specify type of seismogram file.
+    """
+
+    common = common or CommonParameters()
+
     _add_files_to_project(
-        seismogram_files=files,
-        filetype=filetype.value,  # type: ignore
-        db_url=db_url,
+        seismogram_files=seismogram_files,
+        filetype=filetype,
+        db_url=common.db_url,
         disable_progress_bar=ic.enabled,
     )
 
 
-@app.command("list")
-def cli_list(
-    ctx: typer.Context,
-    all_events: Annotated[
-        bool, typer.Option("--all", help="Select data for all events.")
-    ] = False,
+@app.command(name="list")
+def data_cli_list(
+    *,
+    all_events: Annotated[bool, Parameter(name="all")] = False,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Print information on the data stored in AIMBAT."""
-    db_url = ctx.obj["DB_URL"]
-    _print_data_table(db_url, all_events)
+    """Print information on the data stored in AIMBAT.
+
+    Parameters:
+        all_events: Select data for all events.
+    """
+
+    common = common or CommonParameters()
+
+    _print_data_table(common.db_url, all_events)
 
 
 if __name__ == "__main__":

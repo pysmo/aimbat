@@ -1,15 +1,15 @@
 """
-Utilities for AIMBAT
+Utilities for AIMBAT.
 
 The utils subcommand contains useful tools that
 are not strictly part of an AIMBAT workflow.
 """
 
-from aimbat.lib.common import debug_callback
+from aimbat.cli.common import CommonParameters
 from aimbat.cli.utils.sampledata import app as sampledata_app
 from pathlib import Path
 from typing import Annotated
-import typer
+from cyclopts import App, Parameter
 
 
 def _run_checks(sacfiles: list[Path]) -> None:
@@ -34,36 +34,37 @@ def _plotseis(db_url: str | None, event_id: int, use_qt: bool = False) -> None:
         pg.exec()
 
 
-app = typer.Typer(
-    name="utils",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
-app.add_typer(sampledata_app, name="sampledata")
+app = App(name="utils", help=__doc__, help_format="markdown")
+app.command(sampledata_app, name="sampledata")
 
 
-@app.command("checkdata")
+@app.command(name="checkdata")
 def checkdata_cli(
-    sacfiles: Annotated[list[Path], typer.Argument(help="One or more SAC files.")],
+    sacfiles: Annotated[list[Path], Parameter(name="data", consume_multiple=True)],
 ) -> None:
-    """Check if there are any problems with SAC files before adding them to a project."""
+    """Check if there are any problems with SAC files before adding them to a project.
+
+    Parameters:
+        sacfiles: One or more SAC files.
+    """
     _run_checks(sacfiles)
 
 
-@app.command("plotseis")
+@app.command(name="plotseis")
 def utils_cli_plotseis(
-    ctx: typer.Context,
-    event_id: Annotated[
-        int, typer.Argument(help="Event ID as stored in the AIMBAT project.")
-    ],
+    event_id: Annotated[int, Parameter(name="id")],
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Plot seismograms for an event."""
+    """Plot seismograms for an event.
 
-    db_url: str = ctx.obj.get("DB_URL")
-    use_qt: bool = ctx.obj.get("USE_QT", False)
-    _plotseis(db_url, event_id, use_qt)
+    Parameters:
+        event_id: Event ID as stored in the AIMBAT project.
+    """
+
+    common = common or CommonParameters()
+
+    _plotseis(common.db_url, event_id, common.use_qt)
 
 
 if __name__ == "__main__":

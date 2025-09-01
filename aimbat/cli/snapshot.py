@@ -1,10 +1,9 @@
 """View and manage snapshots."""
 
-from aimbat.lib.common import debug_callback
-from typing import Annotated, Optional
-import typer
-
+from aimbat.cli.common import CommonParameters
 from aimbat.lib.models import AimbatSnapshot
+from typing import Annotated
+from cyclopts import App, Parameter
 
 
 def _create_snapshot(db_url: str | None, comment: str | None = None) -> None:
@@ -28,7 +27,7 @@ def _rollback_to_snapshot(db_url: str | None, snapshot_id: int) -> None:
         rollback_to_snapshot(session, snapshot)
 
 
-def _delete_snapshot(snapshot_id: int, db_url: str | None) -> None:
+def _delete_snapshot(db_url: str | None, snapshot_id: int) -> None:
     from aimbat.lib.snapshot import delete_snapshot
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
@@ -46,57 +45,73 @@ def _print_snapshot_table(db_url: str | None, all_events: bool) -> None:
         print_snapshot_table(session, all_events)
 
 
-app = typer.Typer(
-    name="snapshot",
-    no_args_is_help=True,
-    callback=debug_callback,
-    short_help=__doc__.partition("\n")[0],
-    help=__doc__,
-)
+app = App(name="snapshot", help=__doc__, help_format="markdown")
 
 
-@app.command("create")
+@app.command(name="create")
 def snapshot_cli_create(
-    ctx: typer.Context,
-    comment: Annotated[
-        Optional[str], typer.Option(help="Create snapshot with optional comment.")
-    ] = None,
+    comment: str | None = None, *, common: CommonParameters | None = None
 ) -> None:
-    """Create new snapshot."""
-    db_url = ctx.obj["DB_URL"]
-    _create_snapshot(db_url=db_url, comment=comment)
+    """Create new snapshot.
+
+    Parameters:
+        comment: Create snapshot with optional comment.
+    """
+
+    common = common or CommonParameters()
+
+    _create_snapshot(db_url=common.db_url, comment=comment)
 
 
-@app.command("rollback")
+@app.command(name="rollback")
 def snapshot_cli_rollback(
-    id: Annotated[int, typer.Argument(help="Snapshot ID Number.")],
-    ctx: typer.Context,
+    snapshot_id: Annotated[int, Parameter(name="id")],
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Rollback to snapshot."""
-    db_url = ctx.obj["DB_URL"]
-    _rollback_to_snapshot(db_url=db_url, snapshot_id=id)
+    """Rollback to snapshot.
+
+    Parameters:
+        snapshot_id: Snapshot ID Number.
+    """
+
+    common = common or CommonParameters()
+
+    _rollback_to_snapshot(common.db_url, snapshot_id)
 
 
-@app.command("delete")
+@app.command(name="delete")
 def snapshot_cli_delete(
-    ctx: typer.Context,
-    id: Annotated[int, typer.Argument(help="Snapshot ID Number.")],
+    snapshot_id: Annotated[int, Parameter(name="id")],
+    *,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Delete existing snapshot."""
-    db_url = ctx.obj["DB_URL"]
-    _delete_snapshot(snapshot_id=id, db_url=db_url)
+    """Delete existing snapshot.
+
+    Parameters:
+        snapshot_id: Snapshot ID Number.
+    """
+
+    common = common or CommonParameters()
+
+    _delete_snapshot(common.db_url, snapshot_id)
 
 
-@app.command("list")
+@app.command(name="list")
 def snapshot_cli_list(
-    ctx: typer.Context,
-    all_events: Annotated[
-        bool, typer.Option("--all", help="Select snapshots for all events.")
-    ] = False,
+    *,
+    all_events: Annotated[bool, Parameter("all")] = False,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Print information on the snapshots for the active event."""
-    db_url = ctx.obj["DB_URL"]
-    _print_snapshot_table(db_url, all_events)
+    """Print information on the snapshots for the active event.
+
+    Parameters:
+        all_events: Select snapshots for all events.
+    """
+
+    common = common or CommonParameters()
+
+    _print_snapshot_table(common.db_url, all_events)
 
 
 if __name__ == "__main__":
