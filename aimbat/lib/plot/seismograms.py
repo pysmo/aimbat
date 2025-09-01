@@ -1,44 +1,34 @@
-from aimbat.lib.models import AimbatSeismogram
-from aimbat.lib.common import ic, check_for_notebook
+from aimbat.lib.common import check_for_notebook
+from aimbat.lib.event import get_active_event
 from pysmo import MiniSeismogram
 from pysmo.functions import detrend, normalize, clone_to_mini
 from pysmo.tools.plotutils import time_array, unix_time_array
 from pysmo.tools.azdist import distance
-from sqlmodel import Session, select
+from sqlmodel import Session
 from pyqtgraph.jupyter import PlotWidget  # type: ignore
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pyqtgraph as pg  # type: ignore
 
 
-def plotseis(
-    session: Session, event_id: int, use_qt: bool = False
-) -> None | PlotWidget:
+def plot_seismograms(session: Session, use_qt: bool = False) -> None | PlotWidget:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Parameters:
         session: Database session.
-        event_id: event id number seismograms are plotted for.
     """
 
-    ic()
-    ic(event_id, use_qt)
+    active_event = get_active_event(session)
 
-    select_seismograms = select(AimbatSeismogram).where(
-        AimbatSeismogram.event_id == event_id
-    )
-    seismograms = session.exec(select_seismograms).all()
-    ic(seismograms)
+    seismograms = active_event.seismograms
 
     distance_dict = {
         seismogram.id: distance(seismogram.station, seismogram.event) / 1000
         for seismogram in seismograms
     }
-    ic(distance_dict)
     distance_min = min(distance_dict.values())
     distance_max = max(distance_dict.values())
     scaling_factor = (distance_max - distance_min) / len(seismograms) * 5
-    ic(distance_min, distance_max, scaling_factor)
 
     title = seismograms[0].event.time.strftime("Event %Y-%m-%d %H:%M:%S")
     xlabel = "Time of day"
