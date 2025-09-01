@@ -1,15 +1,14 @@
-[tool.poetry]
+[project]
 name = "aimbat"
 version = "2.0.0-dev0"
 description = "AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times."
-readme = "README.md"
-authors = ["Xiaoting Lou <xlou@u.northwestern.edu>", "Simon M. Lloyd <simon@slloyd.net>"]
-license = "GPL-3.0-or-later"
-documentation = "https://pysmo.readthedocs.io"
-exclude = [
-    "tests",
-    "docs",
+authors = [
+    { name = "Xiaoting Lou", email = "xlou@u.northwestern.edu" },
+    { name = "Simon M. Lloyd", email = "simon@slloyd.net" },
 ]
+requires-python = ">=3.12,<3.14"
+readme = "README.md"
+license = "GPL-3.0-or-later"
 classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
@@ -17,57 +16,77 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
+dependencies = [
+    "sqlmodel>=0.0.24,<0.0.25",
+    "rich>=13.9.4,<14",
+    "matplotlib>=3.10.1,<4",
+    "pyside6>=6.8.2.1,<7",
+    "pyqtgraph>=0.13.7,<0.14",
+    "icecream>=2.1.4,<3",
+    "jupyter-rfb>=0.5.1,<0.6",
+    "cyclopts>=3.22.5,<4",
+    "pysmo",
+]
 
+[project.urls]
+Documentation = "https://aimbat.pysmo.org"
 
-[tool.poetry.scripts]
-aimbat = 'aimbat.app:app'
-aimbat_old = 'aimbat.app_old:cli'
+[project.scripts]
+aimbat = "aimbat.app:app"
+aimbat_old = "aimbat.app_old:cli"
 
+[dependency-groups]
+test = [
+    "pytest>=8.3.5,<9",
+    "pytest-mpl>=0.17.0,<0.18",
+    "pytest-cov>=6.0.0,<7",
+    "pytest-mypy>=0.10.3,<0.11",
+    "pytest-sugar>=1.0.0,<2",
+    "ruff>=0.11.2,<0.12",
+    "pytest-depends>=1.0.1,<2",
+    "nbmake>=1.5.5,<2",
+    "pytest-qt>=4.4.0,<5",
+]
+dev = ["black[jupyter]>=25.1.0,<26"]
+docs = [
+    "mkdocs-material>=9.6.9,<10",
+    "mkdocstrings[python]>=0.29.0,<0.30",
+    "markdown-include>=0.8.1,<0.9",
+    "mkdocs-gen-files>=0.5.0,<0.6",
+    "mkdocs-literate-nav>=0.6.2,<0.7",
+    "mkdocs-section-index>=0.3.9,<0.4",
+    "termynal>=0.13.0,<0.14",
+    "jupyterlab>=4.3.6,<5",
+    "mkdocs-jupyter>=0.25.1,<0.26",
+    "ipympl>=0.9.7,<0.10",
+    "mkdocs-bibtex>=4.2.5,<5",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.12,<3.14"
-sqlmodel = "^0.0.24"
-pysmo = {git = "https://github.com/pysmo/pysmo.git", rev = "master"}
-rich = "^13.9.4"
-matplotlib = "^3.10.1"
-pyside6 = "^6.8.2.1"
-pyqtgraph = "^0.13.7"
-icecream = "^2.1.4"
-jupyter-rfb = "^0.5.1"
-cyclopts = "^3.22.5"
+[tool.uv]
+default-groups = [
+    "test",
+    "dev",
+    "docs",
+]
 
+[tool.uv.sources]
+pysmo = { git = "https://github.com/pysmo/pysmo", rev = "master" }
 
-[tool.poetry.group.test.dependencies]
-pytest = "^8.3.5"
-pytest-mpl = "^0.17.0"
-pytest-cov = "^6.0.0"
-pytest-mypy = "^0.10.3"
-pytest-sugar = "^1.0.0"
-ruff = "^0.11.2"
-pytest-depends = "^1.0.1"
-nbmake = "^1.5.5"
-pytest-qt = "^4.4.0"
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "tests",
+    "docs",
+]
 
+[tool.hatch.build.targets.wheel]
+exclude = [
+    "tests",
+    "docs",
+]
 
-[tool.poetry.group.dev.dependencies]
-black = {extras = ["jupyter"], version = "^25.1.0"}
-
-
-[tool.poetry.group.docs.dependencies]
-mkdocs-material = "^9.6.9"
-mkdocstrings = {extras = ["python"], version = "^0.29.0"}
-markdown-include = "^0.8.1"
-mkdocs-gen-files = "^0.5.0"
-mkdocs-literate-nav = "^0.6.2"
-mkdocs-section-index = "^0.3.9"
-termynal = "^0.13.0"
-jupyterlab = "^4.3.6"
-mkdocs-jupyter = "^0.25.1"
-ipympl = "^0.9.7"
-mkdocs-bibtex = "^4.2.5"
-
-
-
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 # xvfb_width = 1920
@@ -81,7 +100,6 @@ namespace_packages = true
 disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
-
 
 [tool.coverage.report]
 exclude_also = [
@@ -113,7 +131,3 @@ extend-exclude = [
     "docs",
     "site",
 ]
-
-[build-system]
-requires = ["poetry_core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"

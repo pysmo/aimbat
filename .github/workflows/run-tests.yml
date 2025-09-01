@@ -16,21 +16,22 @@ jobs:
           packages: freeglut3-dev
         if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install poetry tox tox-gh-actions
-      - name: Test with tox
+      - name: run tests
         env:
           COVERAGE_FILE: coverage/.coverage.${{ matrix.os }}-py${{ matrix.python-version }}
           CONTEXT: ${{ matrix.os }}-py${{ matrix.python-version }}
         run: |
           mkdir coverage
-          tox
+          uv sync --locked --all-extras --no-group docs
+          uv run black . --check --diff --color
+          uv run ruff check
+          uv run py.test --mpl --mypy --cov=aimbat --cov-append --cov-report=term-missing  --junitxml=junit.xml
+
       - name: Store coverage results as artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -48,20 +49,14 @@ jobs:
     needs:
       - test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version:
-          - "3.13"
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: pip install coverage[toml]
-      - name: Get coverage results
+          python-version-file: ".python-version"
+      - name: Download coverage results
         uses: actions/download-artifact@v4
         with:
           path: coverage
@@ -69,8 +64,8 @@ jobs:
           merge-multiple: true
       - name: combine reports
         run: |
-          coverage combine coverage
-          coverage xml
+          uvx "coverage[toml]" combine coverage
+          uvx "coverage[toml]" xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

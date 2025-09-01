@@ -24,7 +24,8 @@
         devShells = {
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
-              poetry
+              uv
+              ruff
               python312
               python313
               python313Packages.tox
@@ -48,12 +49,9 @@
                   dbus
                   wayland
                 ]}:$LD_LIBRARY_PATH
+              uv sync
               VENV=.venv
-              export POETRY_ACTIVE="true"
-              export POETRY_VIRTUALENVS_IN_PROJECT="true"
               export MPLBACKEND=QtAgg
-              poetry env use -- 3.13
-              poetry install
 
               # Tox might fail on the first run if the bins aren't already there...
               autoPatchelf .tox/lint/bin/
