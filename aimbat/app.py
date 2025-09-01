@@ -14,6 +14,7 @@ from aimbat.cli import (
     event,
     processing,
     project,
+    plot,
     seismogram,
     snapshot,
     station,
@@ -35,6 +36,7 @@ app.command(defaults.app)
 app.command(event.app)
 app.command(processing.app)
 app.command(project.app)
+app.command(plot.app)
 app.command(seismogram.app)
 app.command(snapshot.app)
 app.command(station.app)

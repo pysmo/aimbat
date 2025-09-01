@@ -30,7 +30,6 @@
               python313
               python313Packages.tox
               gnumake
-              autoPatchelfHook
               sqlitebrowser
             ];
 
@@ -52,10 +51,6 @@
               uv sync
               VENV=.venv
               export MPLBACKEND=QtAgg
-
-              # Tox might fail on the first run if the bins aren't already there...
-              autoPatchelf .tox/lint/bin/
-
               source $VENV/bin/activate
             '';
           };

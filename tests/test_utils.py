@@ -1,6 +1,5 @@
 from pysmo.classes import SAC
 from datetime import datetime, timezone
-from aimbat.lib.typing import SeismogramFileType
 import numpy as np
 import os
 import pytest
@@ -69,14 +68,6 @@ class TestLibUtils:
         sac_instance_good.seismogram.data = np.array([])
         issues = checkdata_seismogram(sac_instance_good.seismogram)
         assert "No seismogram data" in issues[0]
-
-    def test_plotseis(self, test_data, db_session, mock_show) -> None:  # type: ignore
-        from aimbat.lib import data, utils
-
-        data.add_files_to_project(
-            db_session, test_data, filetype=SeismogramFileType.SAC
-        )
-        utils.plotseis(db_session, 1)
 
 
 class TestCliUtils:
@@ -154,21 +145,3 @@ class TestCliUtils:
         for item in ["time", "latitude", "longitude"]:
             assert f"No event {item} found in file" not in output
         assert "No seismogram data found in file" not in output
-
-    def test_plotseis(self, test_data_string, db_url, mock_show, capsys) -> None:  # type: ignore
-        """Test AIMBAT cli with utils subcommand."""
-
-        from aimbat.app import app
-
-        app(["utils"])
-        assert "Usage" in capsys.readouterr().out
-
-        app(["project", "create", "--db-url", db_url])
-
-        args = ["data", "add", "--db-url", db_url]
-        args.extend(test_data_string)
-        app(args)
-
-        app(["utils", "plotseis", "1", "--db-url", db_url])
-
-        # app(["utils", "plotseis", "1", "--db-url", db_url, "--use-qt"])

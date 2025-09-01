@@ -1,19 +1,10 @@
-"""Processing of data.
+"""Processing tools.
 
 This command launches various processing tools.
 """
 
 from aimbat.cli.common import CommonParameters
 from cyclopts import App
-
-
-def _processing_plot_stack(db_url: str | None) -> None:
-    from aimbat.lib.processing import plot_stack
-    from aimbat.lib.common import engine_from_url
-    from sqlmodel import Session
-
-    with Session(engine_from_url(db_url)) as session:
-        plot_stack(session)
 
 
 def _processing_run_iccs(db_url: str | None) -> None:
@@ -35,15 +26,6 @@ def _processing_stack_pick(db_url: str | None) -> None:
 
 
 app = App(name="processing", help=__doc__, help_format="markdown")
-
-
-@app.command(name="plotstack")
-def processing_plot_stack(*, common: CommonParameters | None = None) -> None:
-    """Plot iccs stack."""
-
-    common = common or CommonParameters()
-
-    _processing_plot_stack(common.db_url)
 
 
 @app.command(name="iccs")
