@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12, <3.14"
 
 [[package]]
@@ -2149,7 +2149,7 @@ wheels = [
 [[package]]
 name = "pysmo"
 version = "1.0.0.dev1"
-source = { git = "https://github.com/pysmo/pysmo?rev=master#4711ffed0fdb40270ed5fc0b1ab09076e16e087a" }
+source = { git = "https://github.com/pysmo/pysmo?rev=master#297fec9017693f66f7b725802de1f68925ccff63" }
 dependencies = [
     { name = "attrs" },
     { name = "attrs-strict" },
