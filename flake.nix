@@ -48,7 +48,7 @@
                   dbus
                   wayland
                 ]}:$LD_LIBRARY_PATH
-              uv sync
+              uv sync --locked --all-extras
               VENV=.venv
               export MPLBACKEND=QtAgg
               source $VENV/bin/activate

@@ -16,13 +16,22 @@ def _processing_run_iccs(db_url: str | None) -> None:
         run_iccs(session)
 
 
-def _processing_stack_pick(db_url: str | None) -> None:
+def _processing_stack_pick(db_url: str | None, padded: bool) -> None:
     from aimbat.lib.processing import stack_pick
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        stack_pick(session)
+        stack_pick(session, padded)
+
+
+def _processing_stack_tw_pick(db_url: str | None, padded: bool) -> None:
+    from aimbat.lib.processing import stack_tw_pick
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        stack_tw_pick(session, padded)
 
 
 app = App(name="processing", help=__doc__, help_format="markdown")
@@ -38,12 +47,33 @@ def processing_iccs(*, common: CommonParameters | None = None) -> None:
 
 
 @app.command(name="pick")
-def processing_cli_pick(*, common: CommonParameters | None = None) -> None:
-    """Pick arrival time in stack."""
+def processing_cli_pick(
+    *, padded: bool = True, common: CommonParameters | None = None
+) -> None:
+    """Pick arrival time in stack.
+
+    Parameters:
+        padded: Pad the time window for plotting.
+    """
 
     common = common or CommonParameters()
 
-    _processing_stack_pick(common.db_url)
+    _processing_stack_pick(common.db_url, padded)
+
+
+@app.command(name="tw")
+def processing_cli_tw_pick(
+    *, padded: bool = True, common: CommonParameters | None = None
+) -> None:
+    """Pick time window in stack.
+
+    Parameters:
+        padded: Pad the time window for plotting.
+    """
+
+    common = common or CommonParameters()
+
+    _processing_stack_tw_pick(common.db_url, padded)
 
 
 if __name__ == "__main__":

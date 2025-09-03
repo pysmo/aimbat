@@ -33,7 +33,6 @@ Documentation = "https://aimbat.pysmo.org"
 
 [project.scripts]
 aimbat = "aimbat.app:app"
-aimbat_old = "aimbat.app_old:cli"
 
 [dependency-groups]
 test = [

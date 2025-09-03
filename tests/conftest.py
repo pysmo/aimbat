@@ -46,9 +46,10 @@ def db_engine_with_proj():  # type: ignore
 
     create_project(engine_)
 
-    yield engine_
-
-    engine_.dispose()
+    try:
+        yield engine_
+    finally:
+        engine_.dispose()
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -65,8 +66,10 @@ def db_session(db_engine_with_proj):  # type: ignore
             if not nested.is_active:
                 nested = connection.begin_nested()
 
-        yield session
-        session.close()
+        try:
+            yield session
+        finally:
+            session.close()
 
     transaction.rollback()
     connection.close()

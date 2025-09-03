@@ -20,13 +20,13 @@ def _plot_seismograms(db_url: str | None, use_qt: bool = False) -> None:
         pg.exec()
 
 
-def _plot_stack(db_url: str | None) -> None:
+def _plot_stack(db_url: str | None, padded: bool) -> None:
     from aimbat.lib.plot import plot_stack
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        plot_stack(session)
+        plot_stack(session, padded)
 
 
 app = App(name="plot", help=__doc__, help_format="markdown")
@@ -42,12 +42,18 @@ def plot_cli_seismograms(*, common: CommonParameters | None = None) -> None:
 
 
 @app.command(name="stack")
-def plot_cli_stack(*, common: CommonParameters | None = None) -> None:
-    """Plot the ICCS stack of the active event."""
+def plot_cli_stack(
+    *, padded: bool = True, common: CommonParameters | None = None
+) -> None:
+    """Plot the ICCS stack of the active event.
+
+    Parameters:
+        padded: Pad the time window for plotting.
+    """
 
     common = common or CommonParameters()
 
-    _plot_stack(common.db_url)
+    _plot_stack(common.db_url, padded)
 
 
 if __name__ == "__main__":
