@@ -1,0 +1,13 @@
+h1, h2, h3 {
+	color: rgba(124,11,149,1);
+}
+
+.wy-side-nav-search {
+	background-color: #520063;
+}
+
+div[role='main'] img {
+	display: block;
+	margin-right: auto;
+	margin-left: auto;
+}
