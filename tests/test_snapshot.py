@@ -35,12 +35,12 @@ class TestLibSnapshot:
         assert test_snapshot1.comment is None
         assert test_snapshot2.comment == RANDOM_COMMENT
 
-        snapshot.delete_snapshot(db_session, 1)
+        snapshot.delete_snapshot_by_id(db_session, 1)
         assert len(db_session.exec(self.select_snapshots).all()) == 1
         test_snapshot = db_session.exec(self.select_snapshots).one()
         assert test_snapshot.id == 2
         with pytest.raises(ValueError):
-            snapshot.delete_snapshot(db_session, 1)
+            snapshot.delete_snapshot_by_id(db_session, 1)
 
     def test_snapshot_rollback(
         self, test_data: list[Path], db_session: Session

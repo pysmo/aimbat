@@ -22,11 +22,13 @@ def _plot_seismograms(db_url: str | None, use_qt: bool = False) -> None:
 
 def _plot_stack(db_url: str | None, padded: bool) -> None:
     from aimbat.lib.plot import plot_stack
+    from aimbat.lib.processing import create_iccs_instance
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        plot_stack(session, padded)
+        iccs = create_iccs_instance(session)
+        plot_stack(iccs, padded)
 
 
 app = App(name="plot", help=__doc__, help_format="markdown")

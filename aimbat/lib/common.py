@@ -1,12 +1,17 @@
 """Common functions for AIMBAT."""
 
 from typing import TYPE_CHECKING
-from icecream import ic  # type: ignore
+from loguru import logger
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
 
-ic.disable()
+AIMBAT_LOGFILE = "aimbat.log"
+
+__all__ = ["engine_from_url", "check_for_notebook", "logger"]
+
+logger.remove(0)
+_ = logger.add(AIMBAT_LOGFILE, rotation="100 MB", level="INFO")
 
 
 def engine_from_url(url: str | None = None) -> "Engine":
@@ -18,7 +23,11 @@ def engine_from_url(url: str | None = None) -> "Engine":
     from sqlmodel import create_engine
 
     if url is not None:
+        logger.debug(f"Creating database engine from {url}")
         engine = create_engine(url)
+    else:
+        logger.debug("No database url provided, using default engine.")
+
     return engine
 
 

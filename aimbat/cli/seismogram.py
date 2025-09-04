@@ -11,12 +11,12 @@ def _get_seismogram_parameter(
     seismogram_id: int,
     parameter_name: SeismogramParameter,
 ) -> None:
-    from aimbat.lib.seismogram import get_seismogram_parameter
+    from aimbat.lib.seismogram import get_seismogram_parameter_by_id
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print(get_seismogram_parameter(session, seismogram_id, parameter_name))
+        print(get_seismogram_parameter_by_id(session, seismogram_id, parameter_name))
 
 
 def _set_seismogram_parameter(
@@ -25,14 +25,14 @@ def _set_seismogram_parameter(
     parameter_name: SeismogramParameter,
     parameter_value: str,
 ) -> None:
-    from aimbat.lib.seismogram import set_seismogram_parameter
+    from aimbat.lib.seismogram import set_seismogram_parameter_by_id
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     converted_value = convert_to_type(parameter_name, parameter_value)
 
     with Session(engine_from_url(db_url)) as session:
-        set_seismogram_parameter(
+        set_seismogram_parameter_by_id(
             session, seismogram_id, parameter_name, converted_value
         )
 

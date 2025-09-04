@@ -14,9 +14,9 @@ class TestLibEvent:
         with pytest.raises(RuntimeError):
             event.get_active_event(db_session)
         aimbat_event = db_session.get(AimbatEvent, 1)
-        assert aimbat_event.active_event is None
+        assert aimbat_event.active is None
         event.set_active_event(db_session, aimbat_event)
-        assert aimbat_event.active_event is not None
+        assert aimbat_event.active is not None
         assert event.get_active_event(db_session) is aimbat_event
         aimbat_event = db_session.get(AimbatEvent, 2)
         event.set_active_event(db_session, aimbat_event)
@@ -47,7 +47,7 @@ class TestCliEvent:
         app(["event", "list", "--db-url", db_url])
         assert "2011-09-15 19:31:04.080000" in capsys.readouterr().out
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             app(["event", "activate", "100000", "--db-url", db_url])
 
         app(["event", "activate", "1", "--db-url", db_url])

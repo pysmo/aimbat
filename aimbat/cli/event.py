@@ -16,18 +16,13 @@ def _print_event_table(db_url: str | None) -> None:
         print_event_table(session)
 
 
-def _set_active_event(db_url: str | None, event_id: int) -> None:
-    from aimbat.lib.event import set_active_event
+def _set_active_event_by_id(db_url: str | None, event_id: int) -> None:
+    from aimbat.lib.event import set_active_event_by_id
     from aimbat.lib.common import engine_from_url
-    from aimbat.lib.models import AimbatEvent
-    from sqlmodel import Session, select
+    from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        select_event = select(AimbatEvent).where(AimbatEvent.id == event_id)
-        event = session.exec(select_event).one_or_none()
-        if event is None:
-            raise RuntimeError(f"No event with {event_id=} found.")
-        set_active_event(session, event)
+        set_active_event_by_id(session, event_id)
 
 
 def _get_event_parameters(
@@ -91,7 +86,7 @@ def event_cli_activate(
 
     common = common or CommonParameters()
 
-    _set_active_event(common.db_url, event_id=event_id)
+    _set_active_event_by_id(common.db_url, event_id=event_id)
 
 
 @app.command(name="get")

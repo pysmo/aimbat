@@ -28,12 +28,12 @@ def _rollback_to_snapshot(db_url: str | None, snapshot_id: int) -> None:
 
 
 def _delete_snapshot(db_url: str | None, snapshot_id: int) -> None:
-    from aimbat.lib.snapshot import delete_snapshot
+    from aimbat.lib.snapshot import delete_snapshot_by_id
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        delete_snapshot(session, snapshot_id)
+        delete_snapshot_by_id(session, snapshot_id)
 
 
 def _print_snapshot_table(db_url: str | None, all_events: bool) -> None:

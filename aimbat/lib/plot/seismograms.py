@@ -20,6 +20,9 @@ def plot_seismograms(session: Session, use_qt: bool = False) -> None | PlotWidge
 
     active_event = get_active_event(session)
 
+    if active_event is None:
+        raise RuntimeError("No active event set.")
+
     seismograms = active_event.seismograms
 
     distance_dict = {

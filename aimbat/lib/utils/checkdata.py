@@ -1,4 +1,4 @@
-from aimbat.lib.common import ic
+from aimbat.lib.common import logger
 from pysmo import (
     Station,
     Event,
@@ -13,7 +13,8 @@ def checkdata_station(station: Station) -> list[str]:
     Parameters:
         station: station object to test.
     """
-    ic()
+
+    logger.info("Checking station information.")
 
     issues = list()
 
@@ -35,7 +36,6 @@ def checkdata_station(station: Station) -> list[str]:
         issue = "No station longitude found in file."
         issues.append(issue)
 
-    ic(issues)
     return issues
 
 
@@ -46,7 +46,7 @@ def checkdata_event(event: Event) -> list[str]:
         event: event object to test.
     """
 
-    ic()
+    logger.info("Checking event information.")
 
     issues = list()
 
@@ -68,7 +68,6 @@ def checkdata_event(event: Event) -> list[str]:
         issue = "No event time found in file."
         issues.append(issue)
 
-    ic(issues)
     return issues
 
 
@@ -79,7 +78,7 @@ def checkdata_seismogram(seismogram: Seismogram) -> list[str]:
         seismogram: seismogram object to test.
     """
 
-    ic()
+    logger.info("Checking seismogram information.")
 
     issues = list()
     try:
@@ -89,7 +88,6 @@ def checkdata_seismogram(seismogram: Seismogram) -> list[str]:
         issue = "No seismogram data found in file."
         issues.append(issue)
 
-    ic(issues)
     return issues
 
 
@@ -99,6 +97,8 @@ def run_checks(sacfiles: list[Path]) -> None:
     Parameters:
         sacfiles: SAC files to test.
     """
+
+    logger.info("Running all checks.")
 
     from pysmo.classes import SAC
 

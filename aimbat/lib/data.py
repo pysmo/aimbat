@@ -1,13 +1,12 @@
 """Manage seismogram files in a project."""
 
-from aimbat.lib.common import ic
+from aimbat.lib.common import logger
 from aimbat.lib.defaults import get_default
 from aimbat.lib.event import get_active_event
 from aimbat.lib.typing import SeismogramFileType, ProjectDefault
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
-    AimbatActiveEvent,
     AimbatFile,
     AimbatFileCreate,
     AimbatStation,
@@ -19,7 +18,7 @@ from aimbat.lib.models import (
 from datetime import timedelta
 from pathlib import Path
 from sqlmodel import Session, select
-from typing import Sequence
+from collections.abc import Sequence
 from rich.progress import track
 from rich.console import Console
 
@@ -38,8 +37,8 @@ def add_files_to_project(
         filetype: Type of data file.
         disable_progress_bar: Do not display progress bar.
     """
-    ic()
-    ic(session)
+
+    logger.info(f"Adding {len(seismogram_files)} {filetype} files to project.")
 
     for filename in track(
         sequence=seismogram_files,
@@ -50,8 +49,10 @@ def add_files_to_project(
         aimbatfile = AimbatFile.model_validate(aimbatfilecreate)
         statement = select(AimbatFile).where(AimbatFile.filename == aimbatfile.filename)
         if session.exec(statement).first() is None:
+            logger.debug(f"Adding file {aimbatfile.filename} to database.")
             session.add(aimbatfile)
-        ic(aimbatfile)
+        else:
+            logger.debug(f"File {aimbatfile.filename} already in database. Skipping.")
 
     session.commit()
 
@@ -63,53 +64,73 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
     in the AIMBAT project.
 
     Parameters:
+        session: Database session.
         disable_progress_bar: Do not display progress bar.
     """
-    ic()
-    ic(session)
+
+    logger.info("Updating metadata for all files in project.")
 
     for aimbatfile in track(
         sequence=session.exec(select(AimbatFile)).all(),
         description="Parsing data ...",
         disable=disable_progress_bar,
     ):
+        logger.debug(f"Reading metadata from file {aimbatfile.filename}")
         seismogram, station, event, t0 = read_metadata_from_file(
             session, aimbatfile.filename, aimbatfile.filetype
         )
 
-        select_aimbatstation = select(AimbatStation).where(
-            AimbatStation.name == station.name
-            and AimbatStation.network == station.network
+        logger.debug(
+            f"Adding or updating station {station.name=}.{station.network=}..."
+        )
+        select_aimbatstation = (
+            select(AimbatStation)
+            .where(AimbatStation.name == station.name)
+            .where(AimbatStation.network == station.network)
         )
         aimbatstation = session.exec(select_aimbatstation).one_or_none()
         if aimbatstation is None:
+            logger.debug(
+                f"Adding station {station.name=}.{station.network=} to database."
+            )
             aimbatstation = AimbatStation.model_validate(station)
         else:
+            logger.debug(
+                f"Updating existing station {station.name=}.{station.network=}."
+            )
             aimbatstation.latitude = station.latitude
             aimbatstation.longitude = station.longitude
             aimbatstation.elevation = station.elevation
         session.add(aimbatstation)
 
+        logger.debug(f"Adding or updating event {event.time}...")
         select_aimbatevent = select(AimbatEvent).where(AimbatEvent.time == event.time)
         aimbatevent = session.exec(select_aimbatevent).one_or_none()
         if aimbatevent is None:
+            logger.debug(f"Adding event {event.time} to database.")
             aimbatevent = AimbatEvent.model_validate(event, update={"time": event.time})
         else:
+            logger.debug(f"Updating existing event {event.time}.")
             aimbatevent.latitude = event.latitude
             aimbatevent.longitude = event.longitude
             aimbatevent.depth = event.depth
 
         if aimbatstation not in aimbatevent.stations:
+            logger.debug(
+                f"Registering station {aimbatstation} with event {aimbatevent}."
+            )
             aimbatevent.stations.append(aimbatstation)
 
         session.add(aimbatevent)
         session.commit()
 
+        logger.debug(f"Adding or updating seismogram for {aimbatfile.id=}...")
         select_aimbatseismogram = select(AimbatSeismogram).where(
             AimbatSeismogram.file_id == aimbatfile.id
         )
         aimbatseismogram = session.exec(select_aimbatseismogram).first()
         if aimbatseismogram is None:
+            logger.debug(f"Adding seismogram for {aimbatfile.id=} to database.")
             aimbatseismogram = AimbatSeismogram(
                 begin_time=seismogram.begin_time,
                 delta=seismogram.delta,
@@ -119,6 +140,7 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
                 event_id=aimbatevent.id,
             )
         else:
+            logger.debug(f"Updating existing seismogram for {aimbatfile.id=}.")
             aimbatseismogram.begin_time = seismogram.begin_time
             aimbatseismogram.delta = seismogram.delta
             aimbatseismogram.t0 = t0
@@ -129,11 +151,15 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
         session.add(aimbatseismogram)
         session.commit()
 
+        logger.debug("Setting default paramaeters for new events and seismograms.")
         select_event_parameter = select(AimbatEventParameters).where(
             AimbatEventParameters.event_id == aimbatevent.id
         )
         event_parameter = session.exec(select_event_parameter).first()
         if event_parameter is None:
+            logger.debug(
+                f"Adding default parameters for event with id={aimbatevent.id}."
+            )
             window_width = get_default(
                 session, ProjectDefault.INITIAL_TIME_WINDOW_WIDTH
             )
@@ -150,12 +176,13 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
         )
         seismogram_parameter = session.exec(select_seismogram_parameter).first()
         if seismogram_parameter is None:
+            logger.debug(
+                f"Adding default parameters for seismogram with id={aimbatseismogram.id}."
+            )
             seismogram_parameter = AimbatSeismogramParameters(
                 seismogram_id=aimbatseismogram.id
             )
             session.add(seismogram_parameter)
-
-        ic(aimbatfile.id, aimbatevent.id, aimbatstation.id)
 
     session.commit()
 
@@ -165,12 +192,18 @@ def get_data_for_active_event(session: Session) -> Sequence[AimbatFile]:
 
     Parameters:
         session: Database session.
+
+    Returns:
+        List of AimbatFiles.
     """
+
+    logger.info("Getting aimbatfiles in active event.")
+
     select_files = (
         select(AimbatFile)
         .join(AimbatSeismogram)
         .join(AimbatEvent)
-        .join(AimbatActiveEvent)
+        .where(AimbatEvent.active == 1)
     )
     return session.exec(select_files).all()
 
@@ -183,8 +216,7 @@ def print_data_table(session: Session, all_events: bool = False) -> None:
         all_events: Print all files instead of limiting to the active event.
     """
 
-    ic()
-    ic(session)
+    logger.info("Printing AIMBAT data table.")
 
     title = "AIMBAT data for all events"
     aimbat_files = None
@@ -194,6 +226,8 @@ def print_data_table(session: Session, all_events: bool = False) -> None:
         active_event = get_active_event(session)
         aimbat_files = get_data_for_active_event(session)
         title = f"AIMBAT data for event {active_event.time} (ID={active_event.id})"
+
+    logger.debug(f"Found {len(aimbat_files)} files in total.")
 
     table = make_table(title=title)
 

@@ -30,12 +30,12 @@ def test_data(test_data_dir):  # type: ignore
         testfile = test_data_dir / f"{uuid4()}.sac"
         shutil.copy(orgfile, testfile)
         data_list.append(testfile)
-    return data_list
+    yield data_list
 
 
 @pytest.fixture(scope="session")
 def test_data_string(test_data):  # type: ignore
-    return [str(data) for data in test_data]
+    yield [str(data) for data in test_data]
 
 
 @pytest.fixture(scope="session")
@@ -46,33 +46,27 @@ def db_engine_with_proj():  # type: ignore
 
     create_project(engine_)
 
-    try:
-        yield engine_
-    finally:
-        engine_.dispose()
+    yield engine_
+    engine_.dispose()
 
 
 @pytest.fixture(scope="function", autouse=True)
 def db_session(db_engine_with_proj):  # type: ignore
     """yield a session after 'project create' and rollback after test."""
-    connection = db_engine_with_proj.connect()
-    transaction = connection.begin()
-    with Session(bind=connection) as session:
-        nested = connection.begin_nested()
-
-        @sa.event.listens_for(session, "after_transaction_end")
-        def end_savepoint(session, transaction):  # type: ignore
-            nonlocal nested
-            if not nested.is_active:
+    with db_engine_with_proj.connect() as connection:
+        with connection.begin() as transaction:
+            with Session(bind=connection) as session:
                 nested = connection.begin_nested()
 
-        try:
-            yield session
-        finally:
-            session.close()
+                @sa.event.listens_for(session, "after_transaction_end")
+                def end_savepoint(session, transaction):  # type: ignore
+                    nonlocal nested
+                    if not nested.is_active:
+                        nested = connection.begin_nested()
 
-    transaction.rollback()
-    connection.close()
+                yield session
+
+            transaction.rollback()
 
 
 @pytest.fixture(scope="function", autouse=True)
