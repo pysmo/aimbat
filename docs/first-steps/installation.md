@@ -101,6 +101,12 @@ $ aimbat --version
 2.0.0
 ```
 
+!!! tip
+
+    If the above command fails (because your shell can't find the `aimbat`
+    command), you may need to add `~/.local/bin` to your `PATH`. This can be
+    done automatically by running `#!bash uv tool update-shell`.
+
 Upgrading or uninstalling AIMBAT is just as easy:
 
 <!-- termynal -->
