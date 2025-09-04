@@ -14,6 +14,8 @@ def checkdata_station(station: Station) -> list[str]:
         station: station object to test.
     """
 
+    logger.info("Checking station information.")
+
     issues = list()
 
     try:
@@ -43,6 +45,8 @@ def checkdata_event(event: Event) -> list[str]:
     Parameters:
         event: event object to test.
     """
+
+    logger.info("Checking event information.")
 
     issues = list()
 
@@ -74,6 +78,8 @@ def checkdata_seismogram(seismogram: Seismogram) -> list[str]:
         seismogram: seismogram object to test.
     """
 
+    logger.info("Checking seismogram information.")
+
     issues = list()
     try:
         assert seismogram.data is not None
@@ -91,6 +97,8 @@ def run_checks(sacfiles: list[Path]) -> None:
     Parameters:
         sacfiles: SAC files to test.
     """
+
+    logger.info("Running all checks.")
 
     from pysmo.classes import SAC
 
