@@ -22,10 +22,10 @@ dependencies = [
     "matplotlib>=3.10.1,<4",
     "pyside6>=6.8.2.1,<7",
     "pyqtgraph>=0.13.7,<0.14",
-    "icecream>=2.1.4,<3",
     "jupyter-rfb>=0.5.1,<0.6",
     "cyclopts>=3.22.5,<4",
     "pysmo",
+    "loguru>=0.7.3",
 ]
 
 [project.urls]

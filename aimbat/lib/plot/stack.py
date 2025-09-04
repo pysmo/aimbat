@@ -1,12 +1,5 @@
-from __future__ import annotations
-from aimbat.lib.processing import create_iccs_instance
-from typing import TYPE_CHECKING
-from pysmo.tools.iccs import plotstack as _plotstack
-
-if TYPE_CHECKING:
-    from sqlmodel import Session
+from pysmo.tools.iccs import ICCS, plotstack as _plotstack
 
 
-def plot_stack(session: Session, padded: bool) -> None:
-    iccs = create_iccs_instance(session)
+def plot_stack(iccs: ICCS, padded: bool) -> None:
     _plotstack(iccs, padded)

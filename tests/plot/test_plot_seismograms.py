@@ -11,7 +11,7 @@ class TestLibUtils:
         )
 
         aimbat_event = db_session.get(AimbatEvent, 1)
-        assert aimbat_event.active_event is None
+        assert aimbat_event.active is None
         event.set_active_event(db_session, aimbat_event)
         plot.plot_seismograms(db_session)
 

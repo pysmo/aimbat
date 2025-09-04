@@ -1,6 +1,6 @@
 """Manage defaults used in an AIMBAT project."""
 
-from aimbat.lib.common import ic
+from aimbat.lib.common import logger
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.typing import (
     ProjectDefault,
@@ -26,7 +26,7 @@ def _get_instance(session: Session) -> AimbatDefaults:
         AimbatDefaults instance.
     """
 
-    ic()
+    logger.info("Retrieving AimbatDefaults instance.")
 
     aimbat_default = session.exec(select(AimbatDefaults)).one_or_none()
     if aimbat_default is None:
@@ -68,8 +68,7 @@ def get_default(session: Session, name: ProjectDefault) -> str | int | bool | ti
         Value of the default.
     """
 
-    ic()
-    ic(name)
+    logger.info(f"Getting value of {name} default.")
 
     return getattr(_get_instance(session), name)
 
@@ -109,8 +108,7 @@ def set_default(
         value: Value to set the default to.
     """
 
-    ic()
-    ic(name, value)
+    logger.info(f"Setting {name} default to {value}.")
 
     aimbat_default = _get_instance(session)
     setattr(aimbat_default, name, value)
@@ -126,8 +124,7 @@ def reset_default(session: Session, name: ProjectDefault) -> None:
         name: Name of the default.
     """
 
-    ic()
-    ic(name)
+    logger.info(f"Resetting {name} default.")
 
     aimbat_default = _get_instance(session)
     aimbat_default.reset(name)
@@ -143,7 +140,7 @@ def print_defaults_table(session: Session) -> None:
         session: Database session.
     """
 
-    ic()
+    logger.info("Printing AIMBAT defaults table.")
 
     aimbat_defaults = _get_instance(session)
 

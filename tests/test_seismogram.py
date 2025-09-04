@@ -11,7 +11,7 @@ class TestLibSeismogram:
         )
 
         assert (
-            seismogram.get_seismogram_parameter(
+            seismogram.get_seismogram_parameter_by_id(
                 session=db_session,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.SELECT,
@@ -19,7 +19,7 @@ class TestLibSeismogram:
             is True
         )
         assert (
-            seismogram.get_seismogram_parameter(
+            seismogram.get_seismogram_parameter_by_id(
                 session=db_session,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.T1,
@@ -27,7 +27,7 @@ class TestLibSeismogram:
             is None
         )
         with pytest.raises(ValueError):
-            seismogram.get_seismogram_parameter(
+            seismogram.get_seismogram_parameter_by_id(
                 session=db_session,
                 seismogram_id=1000,
                 parameter_name=SeismogramParameter.SELECT,
@@ -38,14 +38,14 @@ class TestLibSeismogram:
             db_session, test_data, filetype=SeismogramFileType.SAC
         )
 
-        seismogram.set_seismogram_parameter(
+        seismogram.set_seismogram_parameter_by_id(
             session=db_session,
             seismogram_id=1,
             parameter_name=SeismogramParameter.SELECT,
             parameter_value=False,
         )
         assert (
-            seismogram.get_seismogram_parameter(
+            seismogram.get_seismogram_parameter_by_id(
                 session=db_session,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.SELECT,
@@ -53,7 +53,7 @@ class TestLibSeismogram:
             is False
         )
         with pytest.raises(ValueError):
-            seismogram.set_seismogram_parameter(
+            seismogram.set_seismogram_parameter_by_id(
                 session=db_session,
                 seismogram_id=1000,  # this id doesn't exist
                 parameter_name=SeismogramParameter.SELECT,

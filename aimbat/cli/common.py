@@ -1,4 +1,4 @@
-from aimbat.lib.common import ic
+from aimbat.lib.common import logger, AIMBAT_LOGFILE
 from aimbat.lib.db import AIMBAT_DB_URL
 from aimbat.lib.typing import (
     ProjectDefault,
@@ -33,7 +33,7 @@ class CommonParameters:
 
     def __post_init__(self) -> None:
         if self.debug:
-            ic.enable()
+            logger.add(AIMBAT_LOGFILE, level="DEBUG")
 
 
 def _should_be_type(name: ProjectDefault | EventParameter | SeismogramParameter) -> str:

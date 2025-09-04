@@ -9,6 +9,7 @@ from aimbat.lib.io import read_seismogram_data_from_file, write_seismogram_data_
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
+from typing import Literal
 import numpy as np
 
 
@@ -128,22 +129,13 @@ class EventStationLink(SQLModel, table=True):
     )
 
 
-class AimbatActiveEvent(SQLModel, table=True):
-    """Stores the active event id."""
-
-    id: int = Field(default=1, primary_key=True, const=True)
-    "Unique ID."
-    event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
-    "ID of active `AimbatEvent`."
-    event: "AimbatEvent" = Relationship(back_populates="active_event")
-    "Active `AimbatEvent`."
-
-
 class AimbatEvent(SQLModel, table=True):
     """Store event information."""
 
     id: int | None = Field(default=None, primary_key=True)
     "Unique ID."
+    active: bool | None = Field(default=None, unique=True)
+    "Indicates if an event is the active event."
     time: datetime = Field(unique=True, sa_type=_DateTimeUTC)
     "Event time."
     latitude: float
@@ -164,9 +156,6 @@ class AimbatEvent(SQLModel, table=True):
         back_populates="event", cascade_delete=True
     )
     "Event parameters."
-    active_event: AimbatActiveEvent = Relationship(
-        back_populates="event", cascade_delete=True
-    )
 
 
 class AimbatEventParametersBase(SQLModel):

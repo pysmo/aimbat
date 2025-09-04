@@ -1,5 +1,4 @@
-from aimbat.lib.common import ic
-from aimbat.lib.db import engine
+from aimbat.lib.common import logger
 from aimbat.lib.event import get_active_event
 from aimbat.lib.models import AimbatStation
 from aimbat.lib.misc.rich_utils import make_table
@@ -9,18 +8,21 @@ from sqlmodel import Session, select
 
 def print_station_table(session: Session, all_events: bool = False) -> None:
     """Prints a pretty table with AIMBAT stations."""
-    ic()
-    ic(engine)
+
+    logger.info("Printing station table.")
 
     title = "AIMBAT stations for all events"
     aimbat_stations = None
 
     if all_events:
+        logger.debug("Selecting all AIMBAT stations.")
         aimbat_stations = session.exec(select(AimbatStation)).all()
     else:
+        logger.debug("Selecting AIMBAT stations for active event.")
         active_event = get_active_event(session)
         aimbat_stations = active_event.stations
         title = f"AIMBAT stations for event {active_event.time} (ID={active_event.id})"
+    logger.debug("Found {len(aimbat_stations)} stations for the table.")
 
     table = make_table(title=title)
 
@@ -34,7 +36,7 @@ def print_station_table(session: Session, all_events: bool = False) -> None:
         table.add_column("# Events", justify="center", style="green")
 
     for aimbat_station in aimbat_stations:
-        assert aimbat_station.id is not None
+        logger.debug(f"Adding {aimbat_station.name} to the table.")
         if all_events:
             events = {i.event_id for i in aimbat_station.seismograms}
             table.add_row(

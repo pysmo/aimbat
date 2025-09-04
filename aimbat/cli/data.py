@@ -1,6 +1,5 @@
 """Manage seismogram files in an AIMBAT project."""
 
-from aimbat.lib.common import ic
 from aimbat.cli.common import CommonParameters
 from aimbat.lib.typing import SeismogramFileType
 from pathlib import Path
@@ -12,7 +11,7 @@ def _add_files_to_project(
     seismogram_files: list[Path],
     filetype: SeismogramFileType,
     db_url: str | None,
-    disable_progress_bar: bool = True,
+    disable_progress_bar: bool = False,
 ) -> None:
     from aimbat.lib.data import add_files_to_project
     from aimbat.lib.common import engine_from_url
@@ -61,7 +60,6 @@ def data_cli_add(
         seismogram_files=seismogram_files,
         filetype=filetype,
         db_url=common.db_url,
-        disable_progress_bar=ic.enabled,
     )
 
 

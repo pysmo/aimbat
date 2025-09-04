@@ -1,6 +1,7 @@
 """Processing of data for AIMBAT."""
 
 from __future__ import annotations
+from aimbat.lib.common import logger
 from aimbat.lib.defaults import get_default
 from aimbat.lib.event import get_active_event
 from aimbat.lib.typing import ProjectDefault
@@ -16,7 +17,19 @@ if TYPE_CHECKING:
 
 
 def create_iccs_instance(session: Session) -> ICCS:
+    """Create an ICCS instance for the active event.
+
+    Parameters:
+        session: Database session.
+
+    Returns:
+        ICCS instance.
+    """
+
+    logger.info("Creating ICCS instance for active event.")
+
     active_event = get_active_event(session)
+
     return ICCS(
         seismograms=active_event.seismograms,
         window_pre=active_event.parameters.window_pre,
@@ -25,21 +38,27 @@ def create_iccs_instance(session: Session) -> ICCS:
     )
 
 
-def run_iccs(session: Session) -> None:
-    iccs = create_iccs_instance(session)
+def run_iccs(session: Session, iccs: ICCS) -> None:
+    """Run ICCS algorithm.
+
+    Parameters:
+        session: Database session.
+        iccs: ICCS instance.
+    """
+
+    logger.info("Running ICCS.")
+
     iccs()
     session.commit()
 
 
-def stack_pick(session: Session, padded: bool) -> None:
-    iccs = create_iccs_instance(session)
+def stack_pick(session: Session, iccs: ICCS, padded: bool) -> None:
     _stack_pick(iccs, padded)
     session.commit()
 
 
-def stack_tw_pick(session: Session, padded: bool) -> None:
-    iccs = create_iccs_instance(session)
-    _stack_tw_pick(iccs, padded)
+def stack_tw_pick(session: Session, iccs: ICCS, padded: bool) -> None:
+    _ = _stack_tw_pick(iccs, padded)
     active_event = get_active_event(session)
     active_event.parameters.window_pre = iccs.window_pre
     active_event.parameters.window_post = iccs.window_post

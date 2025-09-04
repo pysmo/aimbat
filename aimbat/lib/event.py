@@ -1,11 +1,11 @@
 """Module to manage and view events in AIMBAT."""
 
-from aimbat.lib.common import ic
-from aimbat.lib.models import AimbatEvent, AimbatEventParameters, AimbatActiveEvent
+from aimbat.lib.common import logger
+from aimbat.lib.models import AimbatEvent, AimbatEventParameters
 from aimbat.lib.misc.rich_utils import make_table
 from rich.console import Console
 from sqlmodel import Session, select
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def get_active_event(session: Session) -> AimbatEvent:
@@ -17,16 +17,43 @@ def get_active_event(session: Session) -> AimbatEvent:
 
     Returns:
         Active Event
+
+    Raises:
+        RuntimeError: If no active event is found.
     """
 
-    ic()
-    ic(session)
-
-    select_active_event = select(AimbatEvent).join(AimbatActiveEvent)
+    select_active_event = select(AimbatEvent).where(AimbatEvent.active == 1)
     active_event = session.exec(select_active_event).one_or_none()
+
+    logger.debug(f"Active event: {active_event}")
+
     if active_event is None:
-        raise RuntimeError("Active event not found or none selected.")
+        raise RuntimeError("No active event found.")
+
     return active_event
+
+
+def set_active_event_by_id(session: Session, event_id: int) -> None:
+    """
+    Set the currently selected event (i.e. the one being processed) by its ID.
+
+    Parameters:
+        session: SQL session.
+        id: ID of AIMBAT Event to set as active one.
+
+    Raises:
+        ValueError: If no event with the given ID is found.
+    """
+
+    logger.info(f"Setting active event to event with id={event_id}.")
+
+    if event_id not in session.exec(select(AimbatEvent.id)).all():
+        raise ValueError(f"No event with id={event_id} found.")
+
+    aimbat_event = session.exec(
+        select(AimbatEvent).where(AimbatEvent.id == event_id)
+    ).one()
+    set_active_event(session, aimbat_event)
 
 
 def set_active_event(session: Session, event: AimbatEvent) -> None:
@@ -38,17 +65,30 @@ def set_active_event(session: Session, event: AimbatEvent) -> None:
         event: AIMBAT Event to set as active one.
     """
 
-    ic()
-    ic(session)
+    logger.info(f"Activating {event=}")
 
-    aimbat_active_event = session.exec(select(AimbatActiveEvent)).one_or_none()
+    # Because it is possible that no event has been activated yet, we do _not_
+    # use get_active_event(), and instead check if there is an active event
+    # directly.
 
-    if aimbat_active_event is None:
-        aimbat_active_event = AimbatActiveEvent(event_id=event.id)
+    active_event = session.exec(
+        select(AimbatEvent).where(AimbatEvent.active == 1)
+    ).one_or_none()
+
+    if active_event is None:
+        logger.debug(f"No active event yet, activating {event=}.")
     else:
-        aimbat_active_event.event_id = event.id
-
-    session.add(aimbat_active_event)
+        if active_event.id == event.id:
+            logger.debug(f"Event {event} is already active, skipping update.")
+            return
+        logger.debug(
+            f"Updating active event from id={active_event.id} to id={event.id}."
+        )
+        active_event.active = None
+        session.add(active_event)
+        session.commit()
+    event.active = True
+    session.add(event)
     session.commit()
 
 
@@ -58,9 +98,6 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
     Parameters:
         session: SQL session.
     """
-
-    ic()
-    ic(session)
 
     select_completed_events = (
         select(AimbatEvent)
@@ -78,9 +115,6 @@ def print_event_table(session: Session) -> None:
         session: Database session.
     """
 
-    ic()
-    ic(session)
-
     table = make_table(title="AIMBAT Events")
     table.add_column("id", justify="right", style="cyan", no_wrap=True)
     table.add_column("Active", justify="center", style="cyan", no_wrap=True)
@@ -92,11 +126,9 @@ def print_event_table(session: Session) -> None:
     table.add_column("# Seismograms", justify="center", style="green")
     table.add_column("# Stations", justify="center", style="green")
 
-    for event, active_event in session.exec(
-        select(AimbatEvent, AimbatActiveEvent).join(AimbatActiveEvent, isouter=True)
-    ).all():
+    for event in session.exec(select(AimbatEvent)).all():
         active = ""
-        if active_event is not None:
+        if event.active is True:
             active = ":heavy_check_mark:"
         table.add_row(
             str(event.id),

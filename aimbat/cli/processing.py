@@ -8,30 +8,33 @@ from cyclopts import App
 
 
 def _processing_run_iccs(db_url: str | None) -> None:
-    from aimbat.lib.processing import run_iccs
+    from aimbat.lib.processing import create_iccs_instance, run_iccs
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        run_iccs(session)
+        iccs = create_iccs_instance(session)
+        run_iccs(session, iccs)
 
 
 def _processing_stack_pick(db_url: str | None, padded: bool) -> None:
-    from aimbat.lib.processing import stack_pick
+    from aimbat.lib.processing import create_iccs_instance, stack_pick
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        stack_pick(session, padded)
+        iccs = create_iccs_instance(session)
+        stack_pick(session, iccs, padded)
 
 
 def _processing_stack_tw_pick(db_url: str | None, padded: bool) -> None:
-    from aimbat.lib.processing import stack_tw_pick
+    from aimbat.lib.processing import create_iccs_instance, stack_tw_pick
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        stack_tw_pick(session, padded)
+        iccs = create_iccs_instance(session)
+        stack_tw_pick(session, iccs, padded)
 
 
 app = App(name="processing", help=__doc__, help_format="markdown")

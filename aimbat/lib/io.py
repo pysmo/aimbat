@@ -1,6 +1,6 @@
 """Functions to read and write data files used with AIMBAT"""
 
-from aimbat.lib.common import ic
+from aimbat.lib.common import logger
 from pysmo import Event, Seismogram, Station
 from pysmo.classes import SAC
 from aimbat.lib.typing import ProjectDefault
@@ -20,7 +20,7 @@ def _read_seismogram_data_from_sacfile(sacfile: str) -> npt.NDArray[np.float64]:
         Seismogram data.
     """
 
-    ic()
+    logger.info(f"Reading seismogram data from {sacfile}.")
 
     return SAC.from_file(sacfile).seismogram.data
 
@@ -35,8 +35,7 @@ def _write_seismogram_data_to_sacfile(
         data: Seismogram data.
     """
 
-    ic()
-    ic(sacfile, data)
+    logger.info(f"Writing seismogram data to {sacfile}.")
 
     sac = SAC.from_file(sacfile)
     sac.seismogram.data = data
@@ -55,18 +54,22 @@ def _read_metadata_from_sacfile(
 
     Returns:
         Seismogram metadata.
+
+    Raises:
+        TypeError: If the initial pick header is NoneType.
     """
+
+    logger.info(f"Reading seismogram metadata from {sacfile}.")
+
     from aimbat.lib.defaults import get_default
 
-    ic()
-    ic(sacfile)
-
     initial_pick_header = get_default(session, ProjectDefault.INITIAL_PICK_HEADER)
+    logger.debug(f"Using SAC header {initial_pick_header} as t0.")
     sac = SAC.from_file(str(sacfile))
     t0 = getattr(sac.timestamps, str(initial_pick_header))
     if t0 is None:
         raise TypeError(
-            "Unable to add {sacfile=}: header '{initial_pick_header}' is NoneType"
+            "Unable to get {sacfile=}: header '{initial_pick_header}' is NoneType"
         )
     return sac.seismogram, sac.station, sac.event, t0
 
@@ -84,8 +87,7 @@ def read_seismogram_data_from_file(
         Seismogram data.
     """
 
-    ic()
-    ic(filename, filetype)
+    logger.info(f"Reading seismogram data from {filename}.")
 
     if filetype == "sac":
         return _read_seismogram_data_from_sacfile(filename)
@@ -101,10 +103,12 @@ def write_seismogram_data_to_file(
         filename: Name of the seismogram file.
         filetype: AIMBAT compatible filetype.
         data: Seismogram data
+
+    Raises:
+        NotImplementedError: If the filetype is not supported.
     """
 
-    ic()
-    ic(filename, filetype, data)
+    logger.info(f"Writing seismogram data to {filename}.")
 
     if filetype == "sac":
         _write_seismogram_data_to_sacfile(filename, data)
@@ -123,10 +127,12 @@ def read_metadata_from_file(
         session: Database session.
         filename: Input filename.
         filetype: Type of input file.
+
+    Raises:
+        NotImplementedError: If the filetype is not supported.
     """
 
-    ic()
-    ic(filename, filetype)
+    logger.info(f"Reading seismogram metadata from {filename}.")
 
     if filetype == "sac":
         return _read_metadata_from_sacfile(session, filename)
