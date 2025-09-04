@@ -9,7 +9,6 @@ from aimbat.lib.io import read_seismogram_data_from_file, write_seismogram_data_
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
-from typing import Literal
 import numpy as np
 
 
