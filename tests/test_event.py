@@ -11,33 +11,29 @@ import pytest
 
 class TestLibEventBase:
     @pytest.fixture(autouse=True)
-    def setup(self, db_session: Session, test_data: list[Path]) -> None:
+    def setup(self, db_session_with_project: Session, test_data: list[Path]) -> None:
         data.add_files_to_project(
-            db_session, test_data, filetype=SeismogramFileType.SAC
+            db_session_with_project, test_data, filetype=SeismogramFileType.SAC
         )
-        # try:
-        #     yield
-        # finally:
-        #     db_session.close()
 
 
 class TestLibEvent(TestLibEventBase):
-    def test_active_event(self, db_session: Session) -> None:
+    def test_active_event(self, db_session_with_project: Session) -> None:
         with pytest.raises(RuntimeError):
-            event.get_active_event(db_session)
-        aimbat_event = db_session.get(AimbatEvent, 1)
+            event.get_active_event(db_session_with_project)
+        aimbat_event = db_session_with_project.get(AimbatEvent, 1)
         assert aimbat_event is not None
         assert aimbat_event.active is None
-        event.set_active_event(db_session, aimbat_event)
+        event.set_active_event(db_session_with_project, aimbat_event)
         assert aimbat_event.active is not None
-        assert event.get_active_event(db_session) is aimbat_event
-        aimbat_event = db_session.get(AimbatEvent, 2)
+        assert event.get_active_event(db_session_with_project) is aimbat_event
+        aimbat_event = db_session_with_project.get(AimbatEvent, 2)
         assert aimbat_event is not None
-        event.set_active_event(db_session, aimbat_event)
-        assert event.get_active_event(db_session) is aimbat_event
+        event.set_active_event(db_session_with_project, aimbat_event)
+        assert event.get_active_event(db_session_with_project) is aimbat_event
 
-    def test_station_link(self, db_session: Session) -> None:
-        aimbat_event = db_session.get(AimbatEvent, 1)
+    def test_station_link(self, db_session_with_project: Session) -> None:
+        aimbat_event = db_session_with_project.get(AimbatEvent, 1)
         assert aimbat_event is not None
         assert aimbat_event.stations[0].id == 1
 

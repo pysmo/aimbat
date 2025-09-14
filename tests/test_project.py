@@ -13,20 +13,20 @@ import re
 class TestLibProject:
     def test_project(
         self,
-        db_engine_in_file: Engine,
+        db_engine: Engine,
         test_data: list[Path],
         capsys: pytest.CaptureFixture,
     ) -> None:
-        project.create_project(db_engine_in_file)
+        project.create_project(db_engine)
 
         with pytest.raises(RuntimeError):
-            project.create_project(db_engine_in_file)
+            project.create_project(db_engine)
 
-        project.print_project_info(db_engine_in_file)
+        project.print_project_info(db_engine)
         captured = capsys.readouterr()
         assert "Project Info" in captured.out
 
-        with Session(db_engine_in_file) as session:
+        with Session(db_engine) as session:
             data.add_files_to_project(
                 session, test_data, filetype=SeismogramFileType.SAC
             )
@@ -34,17 +34,17 @@ class TestLibProject:
             assert aimbat_event is not None
             event.set_active_event(session, aimbat_event)
 
-        project.print_project_info(db_engine_in_file)
+        project.print_project_info(db_engine)
         captured = capsys.readouterr()
         assert re.search(r"Active Event ID:\s+1", captured.out)
 
         # HACK - this does run on windows, but not on
         # github actions for some reason.
         if platform.system() != "Windows":
-            project.delete_project(db_engine_in_file)
+            project.delete_project(db_engine)
 
             with pytest.raises(RuntimeError):
-                project.delete_project(db_engine_in_file)
+                project.delete_project(db_engine)
 
 
 class TestCliProject:

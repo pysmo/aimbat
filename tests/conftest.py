@@ -9,6 +9,7 @@ import shutil
 import pytest
 import matplotlib.pyplot as plt
 import gc
+import os
 from uuid import uuid4
 
 
@@ -51,25 +52,23 @@ def test_data_string(test_data: list[Path]) -> Generator[list[str], Any, Any]:
     yield [str(data) for data in test_data]
 
 
-@pytest.fixture(scope="class", autouse=True)
-def db_url(tmp_path_factory: pytest.TempPathFactory) -> Generator[str, Any, Any]:
+@pytest.fixture(scope="class")
+def db_url(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Generator[str, Any, Any]:
     project = tmp_path_factory.mktemp("aimbat") / "mock.db"
     url: str = rf"sqlite+pysqlite:///{project}"
-    yield url
-
-
-@pytest.fixture(scope="class")
-def db_engine_in_memory() -> Generator[Engine, Any, Any]:
-    engine = create_engine("sqlite+pysqlite:///:memory:", echo=False)
-
     try:
-        yield engine
+        yield url
     finally:
-        engine.dispose()
+        try:
+            os.remove(project)
+        except FileNotFoundError:
+            pass
 
 
 @pytest.fixture(scope="class")
-def db_engine_in_file(db_url: str) -> Generator[Engine, Any, Any]:
+def db_engine(db_url: str) -> Generator[Engine, Any, Any]:
     engine = create_engine(db_url, echo=False)
 
     try:
@@ -79,17 +78,20 @@ def db_engine_in_file(db_url: str) -> Generator[Engine, Any, Any]:
 
 
 @pytest.fixture(scope="class")
-def db_session(
-    db_engine_in_memory: Engine,
-) -> Generator[Session, Any, Any]:
+def db_session_with_project() -> Generator[Session, Any, Any]:
     from aimbat.lib.project import create_project
 
-    with Session(db_engine_in_memory) as session:
+    url: str = r"sqlite+pysqlite:///:memory:"
+
+    engine = create_engine(url, echo=False)
+
+    with Session(engine) as session:
         try:
-            create_project(db_engine_in_memory)
+            create_project(engine)
             yield session
         finally:
             session.close()
+            engine.dispose()
 
 
 @pytest.fixture()

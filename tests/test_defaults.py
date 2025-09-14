@@ -8,14 +8,21 @@ import pytest
 
 
 class TestLibDefaults:
-    def test_change_defaults(self, db_session: Session) -> None:
-        assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is True
+    def test_change_defaults(self, db_session_with_project: Session) -> None:
+        assert (
+            defaults.get_default(db_session_with_project, ProjectDefault.AIMBAT) is True
+        )
 
-        defaults.set_default(db_session, ProjectDefault.AIMBAT, False)
-        assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is False
+        defaults.set_default(db_session_with_project, ProjectDefault.AIMBAT, False)
+        assert (
+            defaults.get_default(db_session_with_project, ProjectDefault.AIMBAT)
+            is False
+        )
 
-        defaults.reset_default(db_session, ProjectDefault.AIMBAT)
-        assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is True
+        defaults.reset_default(db_session_with_project, ProjectDefault.AIMBAT)
+        assert (
+            defaults.get_default(db_session_with_project, ProjectDefault.AIMBAT) is True
+        )
 
 
 class TestCliDefaultsBase:

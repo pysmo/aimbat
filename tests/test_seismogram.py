@@ -10,17 +10,17 @@ import pytest
 
 class TestLibSeismogramBase:
     @pytest.fixture(autouse=True)
-    def setup(self, db_session: Session, test_data: list[Path]) -> None:
+    def setup(self, db_session_with_project: Session, test_data: list[Path]) -> None:
         data.add_files_to_project(
-            db_session, test_data, filetype=SeismogramFileType.SAC
+            db_session_with_project, test_data, filetype=SeismogramFileType.SAC
         )
 
 
 class TestLibSeismogramParameter(TestLibSeismogramBase):
-    def test_get_parameter(self, db_session: Session) -> None:
+    def test_get_parameter(self, db_session_with_project: Session) -> None:
         assert (
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.SELECT,
             )
@@ -28,7 +28,7 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
         )
         assert (
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.T1,
             )
@@ -36,21 +36,21 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
         )
         with pytest.raises(ValueError):
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1000,
                 parameter_name=SeismogramParameter.SELECT,
             )
 
-    def test_set_parameter(self, db_session: Session) -> None:
+    def test_set_parameter(self, db_session_with_project: Session) -> None:
         seismogram.set_seismogram_parameter_by_id(
-            session=db_session,
+            session=db_session_with_project,
             seismogram_id=1,
             parameter_name=SeismogramParameter.SELECT,
             parameter_value=False,
         )
         assert (
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.SELECT,
             )
@@ -58,7 +58,7 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
         )
         with pytest.raises(ValueError):
             seismogram.set_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1000,  # this id doesn't exist
                 parameter_name=SeismogramParameter.SELECT,
                 parameter_value=False,
@@ -66,15 +66,17 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
 
 
 class TestLibSeismogramPlot(TestLibSeismogramBase):
-    def test_plotseis(self, db_session: Session, mock_show: pytest.FixtureDef) -> None:
+    def test_plotseis(
+        self, db_session_with_project: Session, mock_show: pytest.FixtureDef
+    ) -> None:
         from aimbat.lib import event
         from aimbat.lib.models import AimbatEvent
 
-        aimbat_event = db_session.get(AimbatEvent, 1)
+        aimbat_event = db_session_with_project.get(AimbatEvent, 1)
         assert aimbat_event is not None
         assert aimbat_event.active is None
-        event.set_active_event(db_session, aimbat_event)
-        seismogram.plot_seismograms(db_session)
+        event.set_active_event(db_session_with_project, aimbat_event)
+        seismogram.plot_seismograms(db_session_with_project)
 
 
 class TestCliSeismogramBase:
