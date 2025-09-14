@@ -12,9 +12,8 @@ from aimbat.cli import (
     data,
     defaults,
     event,
-    processing,
+    iccs,
     project,
-    plot,
     seismogram,
     snapshot,
     station,
@@ -34,9 +33,8 @@ app = App(version=__version__, help=__doc__, help_format="markdown", console=con
 app.command(data.app)
 app.command(defaults.app)
 app.command(event.app)
-app.command(processing.app)
+app.command(iccs.app)
 app.command(project.app)
-app.command(plot.app)
 app.command(seismogram.app)
 app.command(snapshot.app)
 app.command(station.app)

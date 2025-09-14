@@ -38,7 +38,7 @@ app = App(name="project", help=__doc__, help_format="markdown")
 
 
 @app.command(name="create")
-def project_cli_create(*, common: CommonParameters | None = None) -> None:
+def cli_project_create(*, common: CommonParameters | None = None) -> None:
     """Create new AIMBAT project."""
 
     common = common or CommonParameters()
@@ -47,7 +47,7 @@ def project_cli_create(*, common: CommonParameters | None = None) -> None:
 
 
 @app.command(name="delete")
-def project_cli_delete(*, common: CommonParameters | None = None) -> None:
+def cli_project_delete(*, common: CommonParameters | None = None) -> None:
     """Delete project (note: this does *not* delete seismogram files)."""
 
     common = common or CommonParameters()
@@ -56,7 +56,7 @@ def project_cli_delete(*, common: CommonParameters | None = None) -> None:
 
 
 @app.command(name="info")
-def project_cli_info(*, common: CommonParameters | None = None) -> None:
+def cli_project_info(*, common: CommonParameters | None = None) -> None:
     """Show information on an exisiting project."""
 
     common = common or CommonParameters()

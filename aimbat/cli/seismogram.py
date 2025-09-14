@@ -46,11 +46,27 @@ def _print_seismogram_table(db_url: str | None, all_events: bool) -> None:
         print_seismogram_table(session, all_events)
 
 
+def _plot_seismograms(db_url: str | None, use_qt: bool = False) -> None:
+    from aimbat.lib.seismogram import plot_seismograms
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
+    import pyqtgraph as pg  # type: ignore
+
+    if use_qt:
+        pg.mkQApp()
+
+    with Session(engine_from_url(db_url)) as session:
+        plot_seismograms(session, use_qt)
+
+    if use_qt:
+        pg.exec()
+
+
 app = App(name="seismogram", help=__doc__, help_format="markdown")
 
 
 @app.command(name="list")
-def seismogram_cli_list(
+def cli_seismogram_list(
     *,
     all_events: Annotated[bool, Parameter("all")] = False,
     common: CommonParameters | None = None,
@@ -65,8 +81,17 @@ def seismogram_cli_list(
     _print_seismogram_table(common.db_url, all_events)
 
 
+@app.command(name="plot")
+def cli_seismogram_plot(*, common: CommonParameters | None = None) -> None:
+    """Plot seismograms for the active event."""
+
+    common = common or CommonParameters()
+
+    _plot_seismograms(common.db_url, common.use_qt)
+
+
 @app.command(name="get")
-def seismogram_cli_get(
+def cli_seismogram_get(
     seismogram_id: Annotated[int, Parameter(name="id")],
     name: SeismogramParameter,
     *,
@@ -89,7 +114,7 @@ def seismogram_cli_get(
 
 
 @app.command(name="set")
-def seismogram_cli_set(
+def cli_seismogram_set(
     seismogram_id: Annotated[int, Parameter(name="id")],
     name: SeismogramParameter,
     value: str,
