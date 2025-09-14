@@ -29,10 +29,7 @@ class TestCliDefaultsBase:
     @pytest.fixture(autouse=True)
     def setup(self, db_url: str) -> Generator[None, Any, Any]:
         app(["project", "create", "--db-url", db_url])
-        try:
-            yield
-        finally:
-            app(["project", "delete", "--db-url", db_url])
+        yield
 
 
 class TestCliDefaults(TestCliDefaultsBase):
