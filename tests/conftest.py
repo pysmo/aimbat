@@ -9,7 +9,6 @@ import shutil
 import pytest
 import matplotlib.pyplot as plt
 import gc
-import os
 from uuid import uuid4
 
 
