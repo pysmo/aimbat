@@ -16,10 +16,7 @@ class TestCliStationBase:
         args = ["data", "add", "--db-url", db_url]
         args.extend(test_data_string)
         app(args)
-
         yield
-
-        app(["project", "delete", "--db-url", db_url])
 
 
 class TestCliStation(TestCliStationBase):

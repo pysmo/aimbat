@@ -88,10 +88,7 @@ class TestCliSeismogramBase:
         args = ["data", "add", "--db-url", db_url]
         args.extend(test_data_string)
         app(args)
-        try:
-            yield
-        finally:
-            app(["project", "delete", "--db-url", db_url])
+        yield
 
     def test_usage(self, capsys: pytest.CaptureFixture) -> None:
         app("seismogram")
