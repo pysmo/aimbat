@@ -52,11 +52,27 @@ def test_data_string(test_data: list[Path]) -> Generator[list[str], Any, Any]:
 
 
 @pytest.fixture(scope="class")
-def db_url(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> Generator[str, Any, Any]:
-    project = tmp_path_factory.mktemp("aimbat") / "mock.db"
+def db_url(tmp_path_factory: pytest.TempPathFactory) -> Generator[str, Any, Any]:
+    tmp_dir = Path(tmp_path_factory.mktemp("test_db"))
+    project = tmp_dir / "mock.db"
     url: str = rf"sqlite+pysqlite:///{project}"
+    yield url
+
+
+@pytest.fixture(scope="class")
+def db_url_with_data(
+    tmp_path_factory: pytest.TempPathFactory, test_data_string: list[str]
+) -> Generator[str, Any, Any]:
+    from aimbat.cli.project import app as project
+    from aimbat.cli.data import app as data
+
+    tmp_dir = Path(tmp_path_factory.mktemp("test_db"))
+    project_path = tmp_dir / "mock.db"
+    url: str = rf"sqlite+pysqlite:///{project_path}"
+    project(["create", "--db-url", url])
+    args = ["add", "--db-url", url]
+    args.extend(test_data_string)
+    data(args)
     yield url
 
 

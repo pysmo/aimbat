@@ -3,8 +3,6 @@ from aimbat.lib import data, snapshot, event
 from aimbat.lib.models import AimbatSnapshot, AimbatEvent
 from aimbat.lib.typing import SeismogramFileType
 from sqlmodel import select, Session
-from collections.abc import Generator
-from typing import Any
 from pathlib import Path
 import pytest
 import uuid
@@ -69,69 +67,58 @@ class TestLibSnapshotRollback(TestLibSnapshotCreate):
         assert active_event.parameters.completed is False
 
 
-class TestCliSnapshotBase:
-    @pytest.fixture(autouse=True)
-    def setup(self, db_url: str, test_data_string: str) -> Generator[None, Any, Any]:
-        app(["project", "create", "--db-url", db_url])
-        args = ["data", "add", "--db-url", db_url]
-        args.extend(test_data_string)
-        app(args)
-        yield
-
-
-class TestCliSnapshotUsage(TestCliSnapshotBase):
+class TestCliSnapshot:
     def test_usage(self, capsys: pytest.CaptureFixture) -> None:
         app("snapshot")
         assert "Usage" in capsys.readouterr().out
 
-
-class TestCliSnapshotCreate(TestCliSnapshotBase):
-    def test_with_no_active_event(self, db_url: str) -> None:
+    def test_with_no_active_event(self, db_url_with_data: str) -> None:
         with pytest.raises(RuntimeError):
-            app(["snapshot", "create", "--db-url", db_url])
+            app(["snapshot", "create", "--db-url", db_url_with_data])
 
         with pytest.raises(RuntimeError):
-            app(["snapshot", "list", "--db-url", db_url])
+            app(["snapshot", "list", "--db-url", db_url_with_data])
 
     def test_with_active_event(
-        self, db_url: str, capsys: pytest.CaptureFixture
+        self, db_url_with_data: str, capsys: pytest.CaptureFixture
     ) -> None:
-        app(["event", "activate", "1", "--db-url", db_url])
+        app(["event", "activate", "1", "--db-url", db_url_with_data])
 
-        app(["event", "get", "completed", "--db-url", db_url])
+        app(["event", "get", "completed", "--db-url", db_url_with_data])
         assert "False" in capsys.readouterr().out
 
-        app(["snapshot", "create", "--db-url", db_url])
-        app(["event", "set", "completed", "True", "--db-url", db_url])
-        app(["event", "get", "completed", "--db-url", db_url])
+        app(["snapshot", "create", "--db-url", db_url_with_data])
+        app(["event", "set", "completed", "True", "--db-url", db_url_with_data])
+        app(["event", "get", "completed", "--db-url", db_url_with_data])
         assert "True" in capsys.readouterr().out
 
-    def test_with_comment(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
-        app(["event", "activate", "1", "--db-url", db_url])
-        app(["snapshot", "create", "--comment", RANDOM_COMMENT, "--db-url", db_url])
-        app(["snapshot", "list", "--db-url", db_url])
+    def test_with_comment(
+        self, db_url_with_data: str, capsys: pytest.CaptureFixture
+    ) -> None:
+        app(
+            [
+                "snapshot",
+                "create",
+                "--comment",
+                RANDOM_COMMENT,
+                "--db-url",
+                db_url_with_data,
+            ]
+        )
+        app(["snapshot", "list", "--db-url", db_url_with_data])
         assert RANDOM_COMMENT in capsys.readouterr().out
 
+    def test_rollback(
+        self, db_url_with_data: str, capsys: pytest.CaptureFixture
+    ) -> None:
+        app(["event", "get", "completed", "--db-url", db_url_with_data])
+        assert "True" in capsys.readouterr().out
+        app(["snapshot", "rollback", "1", "--db-url", db_url_with_data])
+        app(["event", "get", "completed", "--db-url", db_url_with_data])
+        assert "False" in capsys.readouterr().out
 
-class TestCliSnapshotDelete(TestCliSnapshotBase):
-    def test_with_comment(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
-        app(["event", "activate", "1", "--db-url", db_url])
-        app(["snapshot", "create", "--comment", RANDOM_COMMENT, "--db-url", db_url])
-        app(["snapshot", "list", "--db-url", db_url])
-        assert RANDOM_COMMENT in capsys.readouterr().out
-        app(["snapshot", "delete", "1", "--db-url", db_url])
+    def test_delete_snapshot(
+        self, db_url_with_data: str, capsys: pytest.CaptureFixture
+    ) -> None:
+        app(["snapshot", "delete", "1", "--db-url", db_url_with_data])
         assert RANDOM_COMMENT not in capsys.readouterr().out
-
-
-class TestCliSnapshotRollback(TestCliSnapshotBase):
-    def test_rollback(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
-        app(["event", "activate", "1", "--db-url", db_url])
-        app(["event", "get", "completed", "--db-url", db_url])
-        assert "False" in capsys.readouterr().out
-        app(["snapshot", "create", "--db-url", db_url])
-        app(["event", "set", "completed", "True", "--db-url", db_url])
-        app(["event", "get", "completed", "--db-url", db_url])
-        assert "True" in capsys.readouterr().out
-        app(["snapshot", "rollback", "1", "--db-url", db_url])
-        app(["event", "get", "completed", "--db-url", db_url])
-        assert "False" in capsys.readouterr().out

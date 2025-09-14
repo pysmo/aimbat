@@ -2,8 +2,6 @@ from aimbat.lib import defaults
 from aimbat.app import app
 from aimbat.lib.typing import ProjectDefault
 from sqlmodel import Session
-from collections.abc import Generator
-from typing import Any
 import pytest
 
 
@@ -25,21 +23,16 @@ class TestLibDefaults:
         )
 
 
-class TestCliDefaultsBase:
-    @pytest.fixture(autouse=True)
-    def setup(self, db_url: str) -> Generator[None, Any, Any]:
-        app(["project", "create", "--db-url", db_url])
-        yield
-
-
-class TestCliDefaults(TestCliDefaultsBase):
-    def test_defaults(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
+class TestCliDefaults:
+    def test_defaults(
+        self, db_url_with_data: str, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test AIMBAT cli with defaults subcommand."""
 
         app(["defaults"])
         assert "Usage" in capsys.readouterr().out
 
-        app(["defaults", "list", "--db-url", db_url])
+        app(["defaults", "list", "--db-url", db_url_with_data])
         assert "Description" in capsys.readouterr().out
 
         app(
@@ -48,7 +41,7 @@ class TestCliDefaults(TestCliDefaultsBase):
                 "get",
                 ProjectDefault.DELTA_TOLERANCE,
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ],
         )
         assert "9" in capsys.readouterr().out
@@ -60,7 +53,7 @@ class TestCliDefaults(TestCliDefaultsBase):
                 ProjectDefault.DELTA_TOLERANCE,
                 "10",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ],
         )
 
@@ -70,7 +63,7 @@ class TestCliDefaults(TestCliDefaultsBase):
                 "get",
                 ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ],
         )
         assert "30" in capsys.readouterr().out
@@ -82,7 +75,7 @@ class TestCliDefaults(TestCliDefaultsBase):
                 ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
                 "11",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ],
         )
 
@@ -92,12 +85,12 @@ class TestCliDefaults(TestCliDefaultsBase):
                 "get",
                 ProjectDefault.INITIAL_TIME_WINDOW_WIDTH,
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ],
         )
         assert "11" in capsys.readouterr().out
 
-        app(["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url])
+        app(["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url_with_data])
         assert "True" in capsys.readouterr().out
 
         # booleans are a bit more flexible...
@@ -111,12 +104,18 @@ class TestCliDefaults(TestCliDefaultsBase):
                     ProjectDefault.AIMBAT,
                     i,
                     "--db-url",
-                    db_url,
+                    db_url_with_data,
                 ],
             )
 
             app(
-                ["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url],
+                [
+                    "defaults",
+                    "get",
+                    ProjectDefault.AIMBAT,
+                    "--db-url",
+                    db_url_with_data,
+                ],
             )
             assert "True" in capsys.readouterr().out
         for i in test_bool_false:
@@ -127,11 +126,17 @@ class TestCliDefaults(TestCliDefaultsBase):
                     ProjectDefault.AIMBAT,
                     i,
                     "--db-url",
-                    db_url,
+                    db_url_with_data,
                 ],
             )
             app(
-                ["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url],
+                [
+                    "defaults",
+                    "get",
+                    ProjectDefault.AIMBAT,
+                    "--db-url",
+                    db_url_with_data,
+                ],
             )
             assert "False" in capsys.readouterr().out
 
@@ -141,8 +146,8 @@ class TestCliDefaults(TestCliDefaultsBase):
                 "reset",
                 ProjectDefault.AIMBAT,
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ],
         )
-        app(["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url])
+        app(["defaults", "get", ProjectDefault.AIMBAT, "--db-url", db_url_with_data])
         assert "True" in capsys.readouterr().out

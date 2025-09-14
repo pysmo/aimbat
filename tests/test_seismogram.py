@@ -1,8 +1,6 @@
 from aimbat.lib import data, seismogram
 from aimbat.lib.typing import SeismogramFileType, SeismogramParameter
 from aimbat.app import app
-from collections.abc import Generator
-from typing import Any
 from pathlib import Path
 from sqlmodel import Session
 import pytest
@@ -79,39 +77,34 @@ class TestLibSeismogramPlot(TestLibSeismogramBase):
         seismogram.plot_seismograms(db_session_with_project)
 
 
-class TestCliSeismogramBase:
-    @pytest.fixture(autouse=True)
-    def setup(
-        self, db_url: str, test_data_string: list[str]
-    ) -> Generator[None, Any, Any]:
-        app(["project", "create", "--db-url", db_url])
-        args = ["data", "add", "--db-url", db_url]
-        args.extend(test_data_string)
-        app(args)
-        yield
-
+class TestCliSeismogramParameter:
     def test_usage(self, capsys: pytest.CaptureFixture) -> None:
         app("seismogram")
         assert "Usage" in capsys.readouterr().out
 
-
-class TestCliSeismogramParameter(TestCliSeismogramBase):
     def test_get_parameter(
         self,
-        db_url: str,
+        db_url_with_data: str,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
     ) -> None:
         monkeypatch.setenv("COLUMNS", "1000")
 
         app(
-            ["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url],
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.SELECT,
+                "--db-url",
+                db_url_with_data,
+            ],
         )
         assert "True" in capsys.readouterr().out
 
     def test_set_parameter(
         self,
-        db_url: str,
+        db_url_with_data: str,
         test_data_string: list[str],
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
@@ -126,10 +119,19 @@ class TestCliSeismogramParameter(TestCliSeismogramBase):
                 SeismogramParameter.SELECT,
                 "False",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ]
         )
-        app(["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url])
+        app(
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.SELECT,
+                "--db-url",
+                db_url_with_data,
+            ]
+        )
         assert "False" in capsys.readouterr().out
 
         app(
@@ -140,10 +142,19 @@ class TestCliSeismogramParameter(TestCliSeismogramBase):
                 SeismogramParameter.SELECT,
                 "yes",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ]
         )
-        app(["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url])
+        app(
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.SELECT,
+                "--db-url",
+                db_url_with_data,
+            ]
+        )
         assert "True" in capsys.readouterr().out
 
         with pytest.raises(ValueError):
@@ -155,7 +166,7 @@ class TestCliSeismogramParameter(TestCliSeismogramBase):
                     SeismogramParameter.SELECT,
                     "noooooooooooooo",
                     "--db-url",
-                    db_url,
+                    db_url_with_data,
                 ],
             )
 
@@ -167,29 +178,40 @@ class TestCliSeismogramParameter(TestCliSeismogramBase):
                 "t1",
                 "2011-11-04 00:15:23.283",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ]
         )
 
-        app(["seismogram", "get", "1", SeismogramParameter.T1, "--db-url", db_url])
+        app(
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.T1,
+                "--db-url",
+                db_url_with_data,
+            ]
+        )
         assert "2011-11-04 00:15:23.283" in capsys.readouterr().out
 
         with pytest.raises(RuntimeError):
-            app(["seismogram", "list", "--db-url", db_url])
+            app(["seismogram", "list", "--db-url", db_url_with_data])
 
-        app(["seismogram", "list", "--all", "--db-url", db_url])
+        app(["seismogram", "list", "--all", "--db-url", db_url_with_data])
         assert test_data_string[0] in capsys.readouterr().out
 
-        app(["event", "activate", "1", "--db-url", db_url])
-        app(["seismogram", "list", "--db-url", db_url])
+        app(["event", "activate", "1", "--db-url", db_url_with_data])
+        app(["seismogram", "list", "--db-url", db_url_with_data])
 
 
-class TestCliSeismogramPlot(TestCliSeismogramBase):
-    def test_plotseis(self, db_url: str, mock_show: pytest.FixtureDef) -> None:
+class TestCliSeismogramPlot:
+    def test_plotseis(
+        self, db_url_with_data: str, mock_show: pytest.FixtureDef
+    ) -> None:
         """Test AIMBAT cli with utils subcommand."""
 
-        app(["event", "activate", "1", "--db-url", db_url])
+        app(["event", "activate", "1", "--db-url", db_url_with_data])
 
-        app(["seismogram", "plot", "--db-url", db_url])
+        app(["seismogram", "plot", "--db-url", db_url_with_data])
 
         # app(["seismogram", "plot", "--db-url", db_url, "--use-qt"])

@@ -2,8 +2,6 @@ from aimbat.app import app
 from aimbat.lib import data, event
 from aimbat.lib.models import AimbatEvent
 from aimbat.lib.typing import SeismogramFileType
-from collections.abc import Generator
-from typing import Any
 from sqlmodel import Session
 from pathlib import Path
 import pytest
@@ -38,42 +36,32 @@ class TestLibEvent(TestLibEventBase):
         assert aimbat_event.stations[0].id == 1
 
 
-class TestCliEventBase:
-    @pytest.fixture(autouse=True)
-    def setup(
-        self, db_url: str, test_data_string: list[str]
-    ) -> Generator[None, Any, Any]:
-        app(["project", "create", "--db-url", db_url])
-        args = ["data", "add", "--db-url", db_url]
-        args.extend(test_data_string)
-        app(args)
-        yield
-
-
-class TestCliEvent(TestCliEventBase):
+class TestCliEvent:
     def test_usage(self, capsys: pytest.CaptureFixture) -> None:
         app(["event"])
         assert "Usage" in capsys.readouterr().out
 
-    def test_sac_data(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
+    def test_sac_data(
+        self, db_url_with_data: str, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test AIMBAT cli with event subcommand."""
 
-        app(["event", "list", "--db-url", db_url])
+        app(["event", "list", "--db-url", db_url_with_data])
         assert "2011-09-15 19:31:04.080000" in capsys.readouterr().out
 
         with pytest.raises(ValueError):
-            app(["event", "activate", "100000", "--db-url", db_url])
+            app(["event", "activate", "100000", "--db-url", db_url_with_data])
 
-        app(["event", "activate", "1", "--db-url", db_url])
-        app(["event", "list", "--db-url", db_url])
+        app(["event", "activate", "1", "--db-url", db_url_with_data])
+        app(["event", "list", "--db-url", db_url_with_data])
         assert "\u2714" in capsys.readouterr().out
 
-        app(["event", "set", "--db-url", db_url, "window_pre", "--", "-2.3"])
-        app(["event", "get", "window_pre", "--db-url", db_url])
+        app(["event", "set", "--db-url", db_url_with_data, "window_pre", "--", "-2.3"])
+        app(["event", "get", "window_pre", "--db-url", db_url_with_data])
         assert "-2.3" in capsys.readouterr().out
 
-        app(["event", "set", "--db-url", db_url, "window_post", "--", "5.3"])
-        app(["event", "get", "window_post", "--db-url", db_url])
+        app(["event", "set", "--db-url", db_url_with_data, "window_post", "--", "5.3"])
+        app(["event", "get", "window_post", "--db-url", db_url_with_data])
         assert "5.3" in capsys.readouterr().out
 
         with pytest.raises(ValueError):
@@ -82,7 +70,7 @@ class TestCliEvent(TestCliEventBase):
                     "event",
                     "set",
                     "--db-url",
-                    db_url,
+                    db_url_with_data,
                     "window_pre",
                     "--",
                     "cannot_convert_this_to_float",
@@ -94,7 +82,7 @@ class TestCliEvent(TestCliEventBase):
                 "event",
                 "set",
                 "--db-url",
-                db_url,
+                db_url_with_data,
                 "completed",
                 "--",
                 "True",
@@ -105,12 +93,12 @@ class TestCliEvent(TestCliEventBase):
                 "event",
                 "get",
                 "--db-url",
-                db_url,
+                db_url_with_data,
                 "completed",
             ]
         )
         assert "True" in capsys.readouterr().out
 
-        app(["event", "set", "--db-url", db_url, "completed", "--", "False"])
-        app(["event", "get", "--db-url", db_url, "completed"])
+        app(["event", "set", "--db-url", db_url_with_data, "completed", "--", "False"])
+        app(["event", "get", "--db-url", db_url_with_data, "completed"])
         assert "False" in capsys.readouterr().out
