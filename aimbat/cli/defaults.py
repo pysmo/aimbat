@@ -59,7 +59,7 @@ app = App(name="defaults", help=__doc__, help_format="markdown")
 
 
 @app.command(name="get")
-def defaults_cli_get(
+def cli_defaults_get(
     name: ProjectDefault, *, common: CommonParameters | None = None
 ) -> None:
     """Get an AIMBAT default value.
@@ -74,7 +74,7 @@ def defaults_cli_get(
 
 
 @app.command(name="set")
-def defaults_cli_set(
+def cli_defaults_set(
     name: ProjectDefault, value: str, *, common: CommonParameters | None = None
 ) -> None:
     """Set an AIMBAT default to a new value.
@@ -90,7 +90,7 @@ def defaults_cli_set(
 
 
 @app.command(name="reset")
-def defaults_cli_reset(
+def cli_defaults_reset(
     name: ProjectDefault, *, common: CommonParameters | None = None
 ) -> None:
     """Reset an AIMBAT default to the initial value.
@@ -105,7 +105,7 @@ def defaults_cli_reset(
 
 
 @app.command(name="list")
-def defaults_cli_list(*, common: CommonParameters | None = None) -> None:
+def cli_defaults_list(*, common: CommonParameters | None = None) -> None:
     """Print a table with defaults used in AIMBAT."""
 
     common = common or CommonParameters()

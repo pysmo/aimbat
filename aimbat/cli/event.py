@@ -64,7 +64,7 @@ app = App(name="event", help=__doc__, help_format="markdown")
 
 
 @app.command(name="list")
-def event_cli_list(*, common: CommonParameters | None = None) -> None:
+def cli_event_list(*, common: CommonParameters | None = None) -> None:
     """Print information on the events stored in AIMBAT."""
 
     common = common or CommonParameters()
@@ -73,7 +73,7 @@ def event_cli_list(*, common: CommonParameters | None = None) -> None:
 
 
 @app.command(name="activate")
-def event_cli_activate(
+def cli_event_activate(
     event_id: Annotated[int, Parameter(name="id")],
     *,
     common: CommonParameters | None = None,
@@ -90,7 +90,7 @@ def event_cli_activate(
 
 
 @app.command(name="get")
-def event_cli_parameter_get(
+def cli_event_parameter_get(
     name: EventParameter,
     *,
     common: CommonParameters | None = None,
@@ -107,7 +107,7 @@ def event_cli_parameter_get(
 
 
 @app.command(name="set")
-def event_cli_paramater_set(
+def cli_event_paramater_set(
     name: EventParameter,
     value: str,
     *,

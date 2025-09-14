@@ -39,7 +39,7 @@ app = App(name="data", help=__doc__, help_format="markdown")
 
 
 @app.command(name="add")
-def data_cli_add(
+def cli_data_add(
     seismogram_files: Annotated[
         list[Path], Parameter(name="files", consume_multiple=True)
     ],
@@ -64,7 +64,7 @@ def data_cli_add(
 
 
 @app.command(name="list")
-def data_cli_list(
+def cli_data_list(
     *,
     all_events: Annotated[bool, Parameter(name="all")] = False,
     common: CommonParameters | None = None,

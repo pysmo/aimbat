@@ -18,7 +18,7 @@ app = App(name="station", help=__doc__, help_format="markdown")
 
 
 @app.command(name="list")
-def station_cli_list(
+def cli_station_list(
     *,
     all_events: Annotated[bool, Parameter(name="all")] = False,
     common: CommonParameters | None = None,

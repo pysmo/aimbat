@@ -8,7 +8,8 @@ from aimbat.lib.typing import ProjectDefault
 from pysmo.tools.iccs import (
     ICCS,
     stack_pick as _stack_pick,
-    stack_tw_pick as _stack_tw_pick,
+    stack_timewindow as _stack_timewindow,
+    plotstack as _plotstack,
 )
 from typing import TYPE_CHECKING
 
@@ -38,18 +39,24 @@ def create_iccs_instance(session: Session) -> ICCS:
     )
 
 
-def run_iccs(session: Session, iccs: ICCS) -> None:
+def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselec: bool) -> None:
     """Run ICCS algorithm.
 
     Parameters:
         session: Database session.
         iccs: ICCS instance.
+        autoflip: Whether to automatically flip seismograms.
+        autoselec: Whether to automatically select seismograms.
     """
 
-    logger.info("Running ICCS.")
+    logger.info(f"Running ICCS with {autoflip=}, {autoselec=}.")
 
-    iccs()
+    iccs(autoflip=autoflip, autoselect=autoselec)
     session.commit()
+
+
+def plot_stack(iccs: ICCS, padded: bool) -> None:
+    _plotstack(iccs, padded)
 
 
 def stack_pick(session: Session, iccs: ICCS, padded: bool) -> None:
@@ -57,8 +64,8 @@ def stack_pick(session: Session, iccs: ICCS, padded: bool) -> None:
     session.commit()
 
 
-def stack_tw_pick(session: Session, iccs: ICCS, padded: bool) -> None:
-    _ = _stack_tw_pick(iccs, padded)
+def stack_timewindow(session: Session, iccs: ICCS, padded: bool) -> None:
+    _ = _stack_timewindow(iccs, padded)
     active_event = get_active_event(session)
     active_event.parameters.window_pre = iccs.window_pre
     active_event.parameters.window_post = iccs.window_post

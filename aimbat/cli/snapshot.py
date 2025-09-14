@@ -49,7 +49,7 @@ app = App(name="snapshot", help=__doc__, help_format="markdown")
 
 
 @app.command(name="create")
-def snapshot_cli_create(
+def cli_snapshot_create(
     comment: str | None = None, *, common: CommonParameters | None = None
 ) -> None:
     """Create new snapshot.
@@ -64,7 +64,7 @@ def snapshot_cli_create(
 
 
 @app.command(name="rollback")
-def snapshot_cli_rollback(
+def cli_snapshot_rollback(
     snapshot_id: Annotated[int, Parameter(name="id")],
     *,
     common: CommonParameters | None = None,
@@ -81,7 +81,7 @@ def snapshot_cli_rollback(
 
 
 @app.command(name="delete")
-def snapshot_cli_delete(
+def cli_snapshop_delete(
     snapshot_id: Annotated[int, Parameter(name="id")],
     *,
     common: CommonParameters | None = None,
@@ -98,7 +98,7 @@ def snapshot_cli_delete(
 
 
 @app.command(name="list")
-def snapshot_cli_list(
+def cli_snapshot_list(
     *,
     all_events: Annotated[bool, Parameter("all")] = False,
     common: CommonParameters | None = None,
