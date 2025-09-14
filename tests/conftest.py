@@ -1,22 +1,35 @@
 from pysmo.classes import SAC
 from sqlmodel import create_engine, Session
 from pathlib import Path
-import sqlalchemy as sa
+from sqlalchemy.engine import Engine
+from collections.abc import Generator
+from typing import Any
+from dataclasses import dataclass, field
 import shutil
 import pytest
-import os
 import matplotlib.pyplot as plt
+import gc
 from uuid import uuid4
 
-TESTDATA = dict(
-    multi_event=sorted(Path(os.path.dirname(__file__)).glob("assets/event_*/*.bhz")),
-    sacfile_good=Path(os.path.dirname(__file__)) / "assets/goodfile.sac",
-)
+
+@dataclass
+class TestData:
+    multi_event: list[Path] = field(
+        default_factory=lambda: sorted(
+            Path(__file__).parent.glob("assets/event_*/*.bhz")
+        )
+    )
+    sacfile_good = Path(__file__).parent / "assets/goodfile.sac"
+
+
+TESTDATA = TestData()
 
 
 @pytest.fixture(scope="session")
-def test_data_dir(tmp_path_factory):  # type: ignore
-    tmp_dir = tmp_path_factory.mktemp("test_data")
+def test_data_dir(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Generator[Path, Any, Any]:
+    tmp_dir = Path(tmp_path_factory.mktemp("test_data"))
 
     yield tmp_dir
 
@@ -24,9 +37,9 @@ def test_data_dir(tmp_path_factory):  # type: ignore
 
 
 @pytest.fixture(scope="session")
-def test_data(test_data_dir):  # type: ignore
-    data_list = []
-    for orgfile in TESTDATA["multi_event"]:
+def test_data(test_data_dir: Path) -> Generator[list[Path], Any, Any]:
+    data_list: list[Path] = []
+    for orgfile in TESTDATA.multi_event:
         testfile = test_data_dir / f"{uuid4()}.sac"
         shutil.copy(orgfile, testfile)
         data_list.append(testfile)
@@ -34,73 +47,74 @@ def test_data(test_data_dir):  # type: ignore
 
 
 @pytest.fixture(scope="session")
-def test_data_string(test_data):  # type: ignore
+def test_data_string(test_data: list[Path]) -> Generator[list[str], Any, Any]:
     yield [str(data) for data in test_data]
 
 
-@pytest.fixture(scope="session")
-def db_engine_with_proj():  # type: ignore
-    from aimbat.lib.project import create_project
-
-    engine_ = create_engine("sqlite+pysqlite:///:memory:", echo=False)
-
-    create_project(engine_)
-
-    yield engine_
-    engine_.dispose()
-
-
-@pytest.fixture(scope="function", autouse=True)
-def db_session(db_engine_with_proj):  # type: ignore
-    """yield a session after 'project create' and rollback after test."""
-    with db_engine_with_proj.connect() as connection:
-        with connection.begin() as transaction:
-            with Session(bind=connection) as session:
-                nested = connection.begin_nested()
-
-                @sa.event.listens_for(session, "after_transaction_end")
-                def end_savepoint(session, transaction):  # type: ignore
-                    nonlocal nested
-                    if not nested.is_active:
-                        nested = connection.begin_nested()
-
-                yield session
-
-            transaction.rollback()
-
-
-@pytest.fixture(scope="function", autouse=True)
-def db_url(tmp_path_factory):  # type: ignore
+@pytest.fixture(scope="class", autouse=True)
+def db_url(tmp_path_factory: pytest.TempPathFactory) -> Generator[str, Any, Any]:
     project = tmp_path_factory.mktemp("aimbat") / "mock.db"
     url: str = rf"sqlite+pysqlite:///{project}"
     yield url
 
 
-@pytest.fixture(scope="function", autouse=True)
-def db_engine(db_url):  # type: ignore
+@pytest.fixture(scope="class")
+def db_engine_in_memory() -> Generator[Engine, Any, Any]:
+    engine = create_engine("sqlite+pysqlite:///:memory:", echo=False)
+
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture(scope="class")
+def db_engine_in_file(db_url: str) -> Generator[Engine, Any, Any]:
     engine = create_engine(db_url, echo=False)
 
-    yield engine
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
-    engine.dispose()
+
+@pytest.fixture(scope="class")
+def db_session(
+    db_engine_in_memory: Engine,
+) -> Generator[Session, Any, Any]:
+    from aimbat.lib.project import create_project
+
+    with Session(db_engine_in_memory) as session:
+        try:
+            create_project(db_engine_in_memory)
+            yield session
+        finally:
+            session.close()
 
 
 @pytest.fixture()
-def sac_file_good(tmp_path_factory):  # type: ignore
-    orgfile = TESTDATA["sacfile_good"]
+def sac_file_good(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    orgfile = TESTDATA.sacfile_good
     tmpdir = tmp_path_factory.mktemp("aimbat")
-    testfile = os.path.join(tmpdir, "good.sac")
+    testfile = tmpdir / "good.sac"
     shutil.copy(orgfile, testfile)
     return testfile
 
 
 @pytest.fixture()
-def sac_instance_good(sac_file_good):  # type: ignore
+def sac_instance_good(sac_file_good: Path) -> Generator[SAC, Any, Any]:
     my_sac = SAC.from_file(sac_file_good)
-    yield my_sac
-    del my_sac
+    try:
+        yield my_sac
+    finally:
+        del my_sac
 
 
 @pytest.fixture()
-def mock_show(monkeypatch):  # type: ignore
+def mock_show(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(plt, "show", lambda: None)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session: Session, exitstatus: pytest.ExitCode) -> None:
+    gc.collect()

@@ -10,28 +10,37 @@ from aimbat.lib.models import (
 )
 from aimbat.lib.typing import SeismogramFileType
 from pysmo.classes import SAC
-from sqlmodel import select
+from sqlmodel import select, Session
+from collections.abc import Generator
+from typing import Any
+from pathlib import Path
 import pytest
 import numpy as np
 
 
 class TestLibData:
-    def test_sac_data(self, sac_file_good, sac_instance_good, db_session) -> None:  # type: ignore
+    def test_sac_data(
+        self, sac_file_good: Path, sac_instance_good: SAC, db_session: Session
+    ) -> None:
         sac_seismogram = sac_instance_good.seismogram
         sac_station = sac_instance_good.station
         sac_event = sac_instance_good.event
+
+        sac_file_good_as_string = str(sac_file_good)
 
         data.add_files_to_project(
             db_session, [sac_file_good], filetype=SeismogramFileType.SAC
         )
 
-        select_file = select(AimbatFile).where(AimbatFile.filename == sac_file_good)
+        select_file = select(AimbatFile).where(
+            AimbatFile.filename == sac_file_good_as_string
+        )
         select_seismogram = select(AimbatSeismogram).where(
             AimbatSeismogram.file_id == 1
         )
 
         aimbat_file = db_session.exec(select_file).one()
-        assert sac_file_good == aimbat_file.filename
+        assert sac_file_good_as_string == aimbat_file.filename
         assert 1 == aimbat_file.id
 
         aimbat_seismogram = db_session.exec(select_seismogram).one()
@@ -92,7 +101,7 @@ class TestLibData:
             db_session, [sac_file_good], filetype=SeismogramFileType.SAC
         )
         aimbat_file = db_session.exec(select_file).one()
-        assert sac_file_good == aimbat_file.filename
+        assert sac_file_good_as_string == aimbat_file.filename
         assert 1 == aimbat_file.id
         select_seismogram = select(AimbatSeismogram).where(
             AimbatSeismogram.file_id == aimbat_file.id
@@ -115,25 +124,44 @@ class TestLibData:
         assert aimbat_event.longitude == pytest.approx(new_event_longitude)
 
 
-class TestCliData:
-    def test_sac_data(self, sac_file_good, db_url, monkeypatch, capsys) -> None:  # type: ignore
+class TestCliDataBase:
+    @pytest.fixture(autouse=True)
+    def project_create(self, db_url: str) -> Generator[None, Any, Any]:
+        app(["project", "create", "--db-url", db_url])
+        try:
+            yield
+        finally:
+            try:
+                app(["project", "delete", "--db-url", db_url])
+            except FileNotFoundError:
+                pass
+
+
+class TestCliData(TestCliDataBase):
+    def test_sac_data(
+        self,
+        sac_file_good: Path,
+        db_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
         """Test AIMBAT cli with data subcommand."""
 
         monkeypatch.setenv("COLUMNS", "1000")
 
-        app(["project", "create", "--db-url", db_url])
+        sac_file_good_as_string = str(sac_file_good)
 
         app(["data"])
         assert "Usage" in capsys.readouterr().out
 
-        app(["data", "add", "--db-url", db_url, sac_file_good])
+        app(["data", "add", "--db-url", db_url, sac_file_good_as_string])
 
         app(["data", "list", "--all", "--db-url", db_url])
-        assert sac_file_good in capsys.readouterr().out
+        assert sac_file_good_as_string in capsys.readouterr().out
 
         with pytest.raises(RuntimeError):
             app(["data", "list", "--db-url", db_url])
 
         app(["event", "activate", "1", "--db-url", db_url])
         app(["data", "list", "--db-url", db_url])
-        assert sac_file_good in capsys.readouterr().out
+        assert sac_file_good_as_string in capsys.readouterr().out

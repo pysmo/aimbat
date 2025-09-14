@@ -17,15 +17,15 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
 dependencies = [
-    "sqlmodel>=0.0.24,<0.0.25",
-    "rich>=13.9.4,<14",
-    "matplotlib>=3.10.1,<4",
-    "pyside6>=6.8.2.1,<7",
-    "pyqtgraph>=0.13.7,<0.14",
-    "jupyter-rfb>=0.5.1,<0.6",
-    "cyclopts>=3.22.5,<4",
     "pysmo",
     "loguru>=0.7.3",
+    "sqlmodel>=0.0.24",
+    "rich>=13.9.4",
+    "matplotlib>=3.10.6",
+    "pyside6>=6.9.2",
+    "pyqtgraph>=0.13.7",
+    "jupyter-rfb>=0.5.3",
+    "cyclopts>=3.24.0",
 ]
 
 [project.urls]
@@ -36,29 +36,31 @@ aimbat = "aimbat.app:app"
 
 [dependency-groups]
 test = [
-    "pytest>=8.3.5,<9",
-    "pytest-mpl>=0.17.0,<0.18",
-    "pytest-cov>=6.0.0,<7",
-    "pytest-mypy>=0.10.3,<0.11",
-    "pytest-sugar>=1.0.0,<2",
-    "ruff>=0.11.2,<0.12",
-    "pytest-depends>=1.0.1,<2",
-    "nbmake>=1.5.5,<2",
-    "pytest-qt>=4.4.0,<5",
+    "nbmake>=1.5.5",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-depends>=1.0.1",
+    "pytest-mpl>=0.17.0",
+    "pytest-mypy>=1.0.1",
+    "pytest-qt>=4.5.0",
+    "pytest-sugar>=1.1.1",
+    "ruff>=0.13.0",
 ]
-dev = ["black[jupyter]>=25.1.0,<26"]
+dev = [
+    "black[jupyter]>=25.1.0",
+]
 docs = [
-    "mkdocs-material>=9.6.9,<10",
-    "mkdocstrings[python]>=0.29.0,<0.30",
-    "markdown-include>=0.8.1,<0.9",
-    "mkdocs-gen-files>=0.5.0,<0.6",
-    "mkdocs-literate-nav>=0.6.2,<0.7",
-    "mkdocs-section-index>=0.3.9,<0.4",
-    "termynal>=0.13.0,<0.14",
-    "jupyterlab>=4.3.6,<5",
-    "mkdocs-jupyter>=0.25.1,<0.26",
-    "ipympl>=0.9.7,<0.10",
-    "mkdocs-bibtex>=4.2.5,<5",
+    "ipympl>=0.9.7",
+    "jupyterlab>=4.4.7",
+    "markdown-include>=0.8.1",
+    "mkdocs-bibtex>=4.4.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-jupyter>=0.25.1",
+    "mkdocs-literate-nav>=0.6.2",
+    "mkdocs-material>=9.6.19",
+    "mkdocs-section-index>=0.3.10",
+    "mkdocstrings[python]>=0.30.0",
+    "termynal>=0.13.1",
 ]
 
 [tool.uv]

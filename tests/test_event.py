@@ -1,48 +1,69 @@
+from aimbat.app import app
 from aimbat.lib import data, event
 from aimbat.lib.models import AimbatEvent
-from aimbat.app import app
-import pytest
 from aimbat.lib.typing import SeismogramFileType
+from collections.abc import Generator
+from typing import Any
+from sqlmodel import Session
+from pathlib import Path
+import pytest
 
 
-class TestLibEvent:
-    def test_active_event(self, db_session, test_data) -> None:  # type: ignore
+class TestLibEventBase:
+    @pytest.fixture(autouse=True)
+    def setup(self, db_session: Session, test_data: list[Path]) -> None:
         data.add_files_to_project(
             db_session, test_data, filetype=SeismogramFileType.SAC
         )
+        # try:
+        #     yield
+        # finally:
+        #     db_session.close()
 
+
+class TestLibEvent(TestLibEventBase):
+    def test_active_event(self, db_session: Session) -> None:
         with pytest.raises(RuntimeError):
             event.get_active_event(db_session)
         aimbat_event = db_session.get(AimbatEvent, 1)
+        assert aimbat_event is not None
         assert aimbat_event.active is None
         event.set_active_event(db_session, aimbat_event)
         assert aimbat_event.active is not None
         assert event.get_active_event(db_session) is aimbat_event
         aimbat_event = db_session.get(AimbatEvent, 2)
+        assert aimbat_event is not None
         event.set_active_event(db_session, aimbat_event)
         assert event.get_active_event(db_session) is aimbat_event
 
-    def test_station_link(self, db_session, test_data) -> None:  # type: ignore
-        data.add_files_to_project(
-            db_session, test_data, filetype=SeismogramFileType.SAC
-        )
-
+    def test_station_link(self, db_session: Session) -> None:
         aimbat_event = db_session.get(AimbatEvent, 1)
+        assert aimbat_event is not None
         assert aimbat_event.stations[0].id == 1
 
 
-class TestCliEvent:
-    def test_sac_data(self, db_url, test_data_string, capsys) -> None:  # type: ignore
-        """Test AIMBAT cli with event subcommand."""
-
-        app(["event"])
-        assert "Usage" in capsys.readouterr().out
-
+class TestCliEventBase:
+    @pytest.fixture(autouse=True)
+    def setup(
+        self, db_url: str, test_data_string: list[str]
+    ) -> Generator[None, Any, Any]:
         app(["project", "create", "--db-url", db_url])
-
         args = ["data", "add", "--db-url", db_url]
         args.extend(test_data_string)
         app(args)
+        try:
+            yield
+        finally:
+            app(["project", "delete", "--db-url", db_url])
+
+
+class TestCliEvent(TestCliEventBase):
+    def test_usage(self, capsys: pytest.CaptureFixture) -> None:
+        app(["event"])
+        assert "Usage" in capsys.readouterr().out
+
+    def test_sac_data(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
+        """Test AIMBAT cli with event subcommand."""
 
         app(["event", "list", "--db-url", db_url])
         assert "2011-09-15 19:31:04.080000" in capsys.readouterr().out

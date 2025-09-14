@@ -3,7 +3,7 @@
 from aimbat.cli.common import CommonParameters
 from aimbat.lib.typing import SeismogramFileType
 from pathlib import Path
-from cyclopts import App, Parameter
+from cyclopts import App, Parameter, validators
 from typing import Annotated
 
 
@@ -41,7 +41,10 @@ app = App(name="data", help=__doc__, help_format="markdown")
 @app.command(name="add")
 def cli_data_add(
     seismogram_files: Annotated[
-        list[Path], Parameter(name="files", consume_multiple=True)
+        list[Path],
+        Parameter(
+            name="files", consume_multiple=True, validator=validators.Path(exists=True)
+        ),
     ],
     *,
     filetype: SeismogramFileType = SeismogramFileType.SAC,

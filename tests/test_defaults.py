@@ -2,10 +2,13 @@ from aimbat.lib import defaults
 from aimbat.app import app
 from aimbat.lib.typing import ProjectDefault
 from sqlmodel import Session
+from collections.abc import Generator
+from typing import Any
+import pytest
 
 
 class TestLibDefaults:
-    def test_defaults(self, db_session: Session) -> None:
+    def test_change_defaults(self, db_session: Session) -> None:
         assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is True
 
         defaults.set_default(db_session, ProjectDefault.AIMBAT, False)
@@ -15,14 +18,23 @@ class TestLibDefaults:
         assert defaults.get_default(db_session, ProjectDefault.AIMBAT) is True
 
 
-class TestCliDefaults:
-    def test_defaults(self, db_url, capsys) -> None:  # type: ignore
+class TestCliDefaultsBase:
+    @pytest.fixture(autouse=True)
+    def setup(self, db_url: str) -> Generator[None, Any, Any]:
+        app(["project", "create", "--db-url", db_url])
+        try:
+            yield
+        finally:
+            app(["project", "delete", "--db-url", db_url])
+
+
+class TestCliDefaults(TestCliDefaultsBase):
+    def test_defaults(self, db_url: str, capsys: pytest.CaptureFixture) -> None:
         """Test AIMBAT cli with defaults subcommand."""
 
         app(["defaults"])
         assert "Usage" in capsys.readouterr().out
 
-        app(["project", "create", "--db-url", db_url])
         app(["defaults", "list", "--db-url", db_url])
         assert "Description" in capsys.readouterr().out
 
