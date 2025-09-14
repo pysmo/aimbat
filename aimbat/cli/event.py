@@ -107,7 +107,7 @@ def cli_event_parameter_get(
 
 
 @app.command(name="set")
-def cli_event_paramater_set(
+def cli_event_parameter_set(
     name: EventParameter,
     value: str,
     *,

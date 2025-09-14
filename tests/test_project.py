@@ -3,13 +3,20 @@ from aimbat.lib.models import AimbatEvent
 from aimbat.lib.typing import SeismogramFileType
 from aimbat.app import app
 from sqlmodel import Session
+from sqlalchemy.engine import Engine
+from pathlib import Path
 import platform
 import pytest
 import re
 
 
 class TestLibProject:
-    def test_project(self, db_engine, test_data, capsys) -> None:  # type: ignore
+    def test_project(
+        self,
+        db_engine: Engine,
+        test_data: list[Path],
+        capsys: pytest.CaptureFixture,
+    ) -> None:
         project.create_project(db_engine)
 
         with pytest.raises(RuntimeError):

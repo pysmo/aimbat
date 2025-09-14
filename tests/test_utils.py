@@ -71,7 +71,13 @@ class TestLibUtils:
 
 
 class TestCliUtils:
-    def test_sampledata(self, tmp_path_factory, db_url, monkeypatch, capsys) -> None:  # type: ignore
+    def test_sampledata(
+        self,
+        tmp_path_factory: pytest.TempPathFactory,
+        db_url: str,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
         """Test AIMBAT cli with utils sampledata subcommand."""
 
         monkeypatch.setenv("COLUMNS", "1000")
@@ -113,7 +119,9 @@ class TestCliUtils:
         app(["utils", "sampledata", "delete", "--db-url", db_url])
         assert not sampledata_dir.exists()
 
-    def test_checkdata(self, tmp_path_factory, capsys) -> None:  # type: ignore
+    def test_checkdata(
+        self, tmp_path_factory: pytest.TempPathFactory, capsys: pytest.CaptureFixture
+    ) -> None:
         """Test AIMBAT cli with checkdata subcommand."""
         from aimbat.app import app
 

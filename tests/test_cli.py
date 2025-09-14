@@ -1,15 +1,17 @@
 from importlib import metadata, reload
+from typing import Any
+import pytest
 
 
-def mock_return_str(*args, **kwargs):  # type: ignore
+def mock_return_str(*args: list[Any], **kwargs: dict[str, Any]) -> str:
     return "1.2.3"
 
 
-def mock_raise(*args, **kwargs):  # type: ignore
+def mock_raise(*args: list[Any], **kwargs: dict[str, Any]) -> None:
     raise Exception
 
 
-def test_cli(capsys, monkeypatch):  # type: ignore
+def test_cli(capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test aimbat cli without any subcommands."""
     from aimbat import app
 

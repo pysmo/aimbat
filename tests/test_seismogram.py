@@ -1,18 +1,24 @@
 from aimbat.lib import data, seismogram
 from aimbat.lib.typing import SeismogramFileType, SeismogramParameter
 from aimbat.app import app
+from pathlib import Path
+from sqlmodel import Session
 import pytest
 
 
-class TestLibSeismogram:
-    def test_get_parameter(self, db_session, test_data) -> None:  # type: ignore
+class TestLibSeismogramBase:
+    @pytest.fixture(autouse=True)
+    def setup(self, db_session_with_project: Session, test_data: list[Path]) -> None:
         data.add_files_to_project(
-            db_session, test_data, filetype=SeismogramFileType.SAC
+            db_session_with_project, test_data, filetype=SeismogramFileType.SAC
         )
 
+
+class TestLibSeismogramParameter(TestLibSeismogramBase):
+    def test_get_parameter(self, db_session_with_project: Session) -> None:
         assert (
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.SELECT,
             )
@@ -20,7 +26,7 @@ class TestLibSeismogram:
         )
         assert (
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.T1,
             )
@@ -28,25 +34,21 @@ class TestLibSeismogram:
         )
         with pytest.raises(ValueError):
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1000,
                 parameter_name=SeismogramParameter.SELECT,
             )
 
-    def test_set_parameter(self, db_session, test_data) -> None:  # type: ignore
-        data.add_files_to_project(
-            db_session, test_data, filetype=SeismogramFileType.SAC
-        )
-
+    def test_set_parameter(self, db_session_with_project: Session) -> None:
         seismogram.set_seismogram_parameter_by_id(
-            session=db_session,
+            session=db_session_with_project,
             seismogram_id=1,
             parameter_name=SeismogramParameter.SELECT,
             parameter_value=False,
         )
         assert (
             seismogram.get_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1,
                 parameter_name=SeismogramParameter.SELECT,
             )
@@ -54,45 +56,60 @@ class TestLibSeismogram:
         )
         with pytest.raises(ValueError):
             seismogram.set_seismogram_parameter_by_id(
-                session=db_session,
+                session=db_session_with_project,
                 seismogram_id=1000,  # this id doesn't exist
                 parameter_name=SeismogramParameter.SELECT,
                 parameter_value=False,
             )
 
-    def test_plotseis(self, test_data, db_session, mock_show) -> None:  # type: ignore
-        from aimbat.lib import data, event
+
+class TestLibSeismogramPlot(TestLibSeismogramBase):
+    def test_plotseis(
+        self, db_session_with_project: Session, mock_show: pytest.FixtureDef
+    ) -> None:
+        from aimbat.lib import event
         from aimbat.lib.models import AimbatEvent
 
-        data.add_files_to_project(
-            db_session, test_data, filetype=SeismogramFileType.SAC
-        )
-
-        aimbat_event = db_session.get(AimbatEvent, 1)
+        aimbat_event = db_session_with_project.get(AimbatEvent, 1)
+        assert aimbat_event is not None
         assert aimbat_event.active is None
-        event.set_active_event(db_session, aimbat_event)
-        seismogram.plot_seismograms(db_session)
+        event.set_active_event(db_session_with_project, aimbat_event)
+        seismogram.plot_seismograms(db_session_with_project)
 
 
-class TestCliSeismogram:
-    def test_sac_data(self, db_url, test_data_string, monkeypatch, capsys) -> None:  # type: ignore
-        """Test AIMBAT cli with seismogram subcommand."""
-
-        monkeypatch.setenv("COLUMNS", "1000")
-
+class TestCliSeismogramParameter:
+    def test_usage(self, capsys: pytest.CaptureFixture) -> None:
         app("seismogram")
         assert "Usage" in capsys.readouterr().out
 
-        app(["project", "create", "--db-url", db_url])
-
-        args = ["data", "add", "--db-url", db_url]
-        args.extend(test_data_string)
-        app(args)
+    def test_get_parameter(
+        self,
+        db_url_with_data: str,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        monkeypatch.setenv("COLUMNS", "1000")
 
         app(
-            ["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url],
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.SELECT,
+                "--db-url",
+                db_url_with_data,
+            ],
         )
         assert "True" in capsys.readouterr().out
+
+    def test_set_parameter(
+        self,
+        db_url_with_data: str,
+        test_data_string: list[str],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        monkeypatch.setenv("COLUMNS", "1000")
 
         app(
             [
@@ -102,11 +119,19 @@ class TestCliSeismogram:
                 SeismogramParameter.SELECT,
                 "False",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ]
         )
-
-        app(["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url])
+        app(
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.SELECT,
+                "--db-url",
+                db_url_with_data,
+            ]
+        )
         assert "False" in capsys.readouterr().out
 
         app(
@@ -117,9 +142,20 @@ class TestCliSeismogram:
                 SeismogramParameter.SELECT,
                 "yes",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ]
         )
+        app(
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.SELECT,
+                "--db-url",
+                db_url_with_data,
+            ]
+        )
+        assert "True" in capsys.readouterr().out
 
         with pytest.raises(ValueError):
             app(
@@ -130,12 +166,9 @@ class TestCliSeismogram:
                     SeismogramParameter.SELECT,
                     "noooooooooooooo",
                     "--db-url",
-                    db_url,
+                    db_url_with_data,
                 ],
             )
-
-        app(["seismogram", "get", "1", SeismogramParameter.SELECT, "--db-url", db_url])
-        assert "True" in capsys.readouterr().out
 
         app(
             [
@@ -145,38 +178,40 @@ class TestCliSeismogram:
                 "t1",
                 "2011-11-04 00:15:23.283",
                 "--db-url",
-                db_url,
+                db_url_with_data,
             ]
         )
 
-        app(["seismogram", "get", "1", SeismogramParameter.T1, "--db-url", db_url])
+        app(
+            [
+                "seismogram",
+                "get",
+                "1",
+                SeismogramParameter.T1,
+                "--db-url",
+                db_url_with_data,
+            ]
+        )
         assert "2011-11-04 00:15:23.283" in capsys.readouterr().out
 
         with pytest.raises(RuntimeError):
-            app(["seismogram", "list", "--db-url", db_url])
+            app(["seismogram", "list", "--db-url", db_url_with_data])
 
-        app(["seismogram", "list", "--all", "--db-url", db_url])
+        app(["seismogram", "list", "--all", "--db-url", db_url_with_data])
         assert test_data_string[0] in capsys.readouterr().out
 
-        app(["event", "activate", "1", "--db-url", db_url])
-        app(["seismogram", "list", "--db-url", db_url])
+        app(["event", "activate", "1", "--db-url", db_url_with_data])
+        app(["seismogram", "list", "--db-url", db_url_with_data])
 
-    def test_plotseis(self, test_data_string, db_url, mock_show, capsys) -> None:  # type: ignore
+
+class TestCliSeismogramPlot:
+    def test_plotseis(
+        self, db_url_with_data: str, mock_show: pytest.FixtureDef
+    ) -> None:
         """Test AIMBAT cli with utils subcommand."""
 
-        from aimbat.app import app
+        app(["event", "activate", "1", "--db-url", db_url_with_data])
 
-        app(["utils"])
-        assert "Usage" in capsys.readouterr().out
-
-        app(["project", "create", "--db-url", db_url])
-
-        args = ["data", "add", "--db-url", db_url]
-        args.extend(test_data_string)
-        app(args)
-
-        app(["event", "activate", "1", "--db-url", db_url])
-
-        app(["seismogram", "plot", "--db-url", db_url])
+        app(["seismogram", "plot", "--db-url", db_url_with_data])
 
         # app(["seismogram", "plot", "--db-url", db_url, "--use-qt"])
