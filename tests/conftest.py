@@ -58,13 +58,7 @@ def db_url(
 ) -> Generator[str, Any, Any]:
     project = tmp_path_factory.mktemp("aimbat") / "mock.db"
     url: str = rf"sqlite+pysqlite:///{project}"
-    try:
-        yield url
-    finally:
-        try:
-            os.remove(project)
-        except FileNotFoundError:
-            pass
+    yield url
 
 
 @pytest.fixture(scope="class")
