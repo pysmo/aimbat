@@ -97,7 +97,7 @@ class TestCliUtils:
                 "defaults",
                 "set",
                 "sampledata_dir",
-                str(sampledata_dir),
+                rf"{sampledata_dir}",
                 "--db-url",
                 db_url,
             ]
