@@ -74,11 +74,17 @@ def get_default(session: Session, name: ProjectDefault) -> str | int | bool | ti
 
 
 @overload
-def set_default(session: Session, name: ProjectDefaultInt, value: int) -> None: ...
+def set_default(
+    session: Session, name: ProjectDefaultTimedelta, value: timedelta
+) -> None: ...
 
 
 @overload
 def set_default(session: Session, name: ProjectDefaultBool, value: bool) -> None: ...
+
+
+@overload
+def set_default(session: Session, name: ProjectDefaultInt, value: int) -> None: ...
 
 
 @overload
@@ -87,18 +93,12 @@ def set_default(session: Session, name: ProjectDefaultStr, value: str) -> None: 
 
 @overload
 def set_default(
-    session: Session, name: ProjectDefaultTimedelta, value: timedelta
-) -> None: ...
-
-
-@overload
-def set_default(
-    session: Session, name: ProjectDefault, value: str | int | bool | timedelta
+    session: Session, name: ProjectDefault, value: timedelta | bool | int | str
 ) -> None: ...
 
 
 def set_default(
-    session: Session, name: ProjectDefault, value: str | int | bool | timedelta
+    session: Session, name: ProjectDefault, value: timedelta | bool | int | str
 ) -> None:
     """Set the value of an AIMBAT default.
 
