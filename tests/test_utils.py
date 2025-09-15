@@ -74,7 +74,7 @@ class TestLibUtils:
 class TestCliUtils:
     def test_sampledata(
         self,
-        tmp_path: Path,
+        tmp_path_factory: pytest.TempPathFactory,
         db_url: str,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
@@ -85,9 +85,8 @@ class TestCliUtils:
 
         from aimbat.app import app
 
-        # sampledata_dir = Path(tmp_path_factory.mktemp("sampledata"))
-        sampledata_dir = tmp_path / "sampledata"
-        sampledata_dir.mkdir(parents=True, exist_ok=True)
+        sampledata_dir = Path(tmp_path_factory.mktemp("sampledata"))
+        print(f"AAAAAAAAAAAA {sampledata_dir=}")
 
         app(["utils", "sampledata"])
         assert "Usage" in capsys.readouterr().out
