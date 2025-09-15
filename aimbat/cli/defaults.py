@@ -4,25 +4,24 @@ This command lists various settings that are used in AIMBAT.
 Defaults shipped with AIMBAT may be overriden here too.
 """
 
-from aimbat.cli.common import CommonParameters, convert_to_type
+from aimbat.cli.common import CommonParameters
 from aimbat.lib.typing import ProjectDefault
 from datetime import timedelta
-from cyclopts import App
+from cyclopts import App, Parameter
+from typing import Annotated
 
 
 def _set_default(
-    default_name: ProjectDefault,
-    default_value: float | int | bool | str | timedelta,
+    name: ProjectDefault,
+    value: bool | timedelta | int | str,
     db_url: str | None,
 ) -> None:
     from aimbat.lib.defaults import set_default
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    converted_value = convert_to_type(default_name, default_value)
-
     with Session(engine_from_url(db_url)) as session:
-        set_default(session, default_name, converted_value)
+        set_default(session, name, value)
 
 
 def _get_default(name: ProjectDefault, db_url: str) -> None:
@@ -75,7 +74,10 @@ def cli_defaults_get(
 
 @app.command(name="set")
 def cli_defaults_set(
-    name: ProjectDefault, value: str, *, common: CommonParameters | None = None
+    name: ProjectDefault,
+    value: timedelta | int | str,
+    *,
+    common: Annotated[CommonParameters | None, Parameter(name="*")] = None,
 ) -> None:
     """Set an AIMBAT default to a new value.
 

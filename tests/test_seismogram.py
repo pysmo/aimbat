@@ -1,5 +1,6 @@
 from aimbat.lib import data, seismogram
-from aimbat.lib.typing import SeismogramFileType, SeismogramParameter
+from aimbat.lib.seismogram import SeismogramParameter
+from aimbat.lib.typing import SeismogramFileType
 from aimbat.app import app
 from pathlib import Path
 from sqlmodel import Session
@@ -20,7 +21,7 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
             seismogram.get_seismogram_parameter_by_id(
                 session=db_session_with_project,
                 seismogram_id=1,
-                parameter_name=SeismogramParameter.SELECT,
+                name=SeismogramParameter.SELECT,
             )
             is True
         )
@@ -28,7 +29,7 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
             seismogram.get_seismogram_parameter_by_id(
                 session=db_session_with_project,
                 seismogram_id=1,
-                parameter_name=SeismogramParameter.T1,
+                name=SeismogramParameter.T1,
             )
             is None
         )
@@ -36,21 +37,21 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
             seismogram.get_seismogram_parameter_by_id(
                 session=db_session_with_project,
                 seismogram_id=1000,
-                parameter_name=SeismogramParameter.SELECT,
+                name=SeismogramParameter.SELECT,
             )
 
     def test_set_parameter(self, db_session_with_project: Session) -> None:
         seismogram.set_seismogram_parameter_by_id(
             session=db_session_with_project,
             seismogram_id=1,
-            parameter_name=SeismogramParameter.SELECT,
-            parameter_value=False,
+            name=SeismogramParameter.SELECT,
+            value=False,
         )
         assert (
             seismogram.get_seismogram_parameter_by_id(
                 session=db_session_with_project,
                 seismogram_id=1,
-                parameter_name=SeismogramParameter.SELECT,
+                name=SeismogramParameter.SELECT,
             )
             is False
         )
@@ -58,8 +59,8 @@ class TestLibSeismogramParameter(TestLibSeismogramBase):
             seismogram.set_seismogram_parameter_by_id(
                 session=db_session_with_project,
                 seismogram_id=1000,  # this id doesn't exist
-                parameter_name=SeismogramParameter.SELECT,
-                parameter_value=False,
+                name=SeismogramParameter.SELECT,
+                value=False,
             )
 
 

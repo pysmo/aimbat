@@ -4,13 +4,14 @@ from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,
     AimbatSeismogramParameters,
+    AimbatSeismogramParametersBase,
 )
-from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.typing import (
     SeismogramParameter,
     SeismogramParameterBool,
     SeismogramParameterDatetime,
 )
+from aimbat.lib.misc.rich_utils import make_table
 from pysmo import MiniSeismogram
 from pysmo.functions import detrend, normalize, clone_to_mini
 from pysmo.tools.plotutils import time_array, unix_time_array
@@ -27,14 +28,14 @@ import pyqtgraph as pg  # type: ignore
 
 
 def get_seismogram_parameter_by_id(
-    session: Session, seismogram_id: int, parameter_name: SeismogramParameter
+    session: Session, seismogram_id: int, name: SeismogramParameter
 ) -> bool | datetime:
     """Get parameter value from an AimbatSeismogram by ID.
 
     Parameters:
         session: Database session.
         seismogram_id: Seismogram ID.
-        parameter_name: Name of the parameter value to return.
+        name: Name of the parameter value to return.
 
     Returns:
         Seismogram parameter value.
@@ -43,74 +44,72 @@ def get_seismogram_parameter_by_id(
         ValueError: If no AimbatSeismogram is found with the given ID.
     """
 
-    logger.info(
-        f"Getting seismogram {parameter_name=} for seismogram with id={seismogram_id}."
-    )
+    logger.info(f"Getting seismogram {name=} for seismogram with id={seismogram_id}.")
 
     aimbat_seismogram = session.get(AimbatSeismogram, seismogram_id)
 
     if aimbat_seismogram is None:
         raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
 
-    return get_seismogram_parameter(aimbat_seismogram, parameter_name)
+    return get_seismogram_parameter(aimbat_seismogram, name)
 
 
 @overload
 def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, parameter_name: SeismogramParameterBool
+    seismogram: AimbatSeismogram, name: SeismogramParameterBool
 ) -> bool: ...
 
 
 @overload
 def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, parameter_name: SeismogramParameterDatetime
+    seismogram: AimbatSeismogram, name: SeismogramParameterDatetime
 ) -> datetime: ...
 
 
 @overload
 def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, parameter_name: SeismogramParameter
+    seismogram: AimbatSeismogram, name: SeismogramParameter
 ) -> bool | datetime: ...
 
 
 def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, parameter_name: SeismogramParameter
+    seismogram: AimbatSeismogram, name: SeismogramParameter
 ) -> bool | datetime:
     """Get parameter value from an AimbatSeismogram instance.
 
     Parameters:
         seismogram: Seismogram.
-        parameter_name: Name of the parameter value to return.
+        name: Name of the parameter value to return.
 
     Returns:
         Seismogram parameter value.
     """
 
-    logger.info(f"Getting seismogram {parameter_name=} value for {seismogram=}.")
+    logger.info(f"Getting seismogram {name=} value for {seismogram=}.")
 
-    return getattr(seismogram.parameters, parameter_name)
+    return getattr(seismogram.parameters, name)
 
 
 def set_seismogram_parameter_by_id(
     session: Session,
     seismogram_id: int,
-    parameter_name: SeismogramParameter,
-    parameter_value: bool | datetime,
+    name: SeismogramParameter,
+    value: datetime | bool | str,
 ) -> None:
     """Set parameter value for an AimbatSeismogram by ID.
 
     Parameters:
         session: Database session
         seismogram_id: Seismogram id.
-        parameter_name: Name of the parameter.
-        parameter_value: Value to set.
+        name: Name of the parameter.
+        value: Value to set.
 
     Raises:
         ValueError: If no AimbatSeismogram is found with the given ID.
     """
 
     logger.info(
-        f"Setting seismogram {parameter_name=} to {parameter_value=} for seismogram with id={seismogram_id}."
+        f"Setting seismogram {name=} to {value=} for seismogram with id={seismogram_id}."
     )
 
     aimbat_seismogram = session.get(AimbatSeismogram, seismogram_id)
@@ -118,17 +117,15 @@ def set_seismogram_parameter_by_id(
     if aimbat_seismogram is None:
         raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
 
-    set_seismogram_parameter(
-        session, aimbat_seismogram, parameter_name, parameter_value
-    )
+    set_seismogram_parameter(session, aimbat_seismogram, name, value)
 
 
 @overload
 def set_seismogram_parameter(
     session: Session,
     seismogram: AimbatSeismogram,
-    parameter_name: SeismogramParameterBool,
-    parameter_value: bool,
+    name: SeismogramParameterBool,
+    value: bool | str,
 ) -> None: ...
 
 
@@ -136,8 +133,8 @@ def set_seismogram_parameter(
 def set_seismogram_parameter(
     session: Session,
     seismogram: AimbatSeismogram,
-    parameter_name: SeismogramParameterDatetime,
-    parameter_value: datetime,
+    name: SeismogramParameterDatetime,
+    value: datetime,
 ) -> None: ...
 
 
@@ -145,36 +142,33 @@ def set_seismogram_parameter(
 def set_seismogram_parameter(
     session: Session,
     seismogram: AimbatSeismogram,
-    parameter_name: SeismogramParameter,
-    parameter_value: bool | datetime,
+    name: SeismogramParameter,
+    value: datetime | bool | str,
 ) -> None: ...
 
 
 def set_seismogram_parameter(
     session: Session,
     seismogram: AimbatSeismogram,
-    parameter_name: SeismogramParameter,
-    parameter_value: bool | datetime,
+    name: SeismogramParameter,
+    value: datetime | bool | str,
 ) -> None:
     """Set parameter value for an AimbatSeismogram instance.
 
     Parameters:
         session: Database session
         seismogram: Seismogram to set parameter for.
-        parameter_name: Name of the parameter.
-        parameter_value: Value to set parameter to.
+        name: Name of the parameter.
+        value: Value to set parameter to.
 
     """
 
-    logger.info(
-        f"Setting seismogram {parameter_name=} to {parameter_value=} in {seismogram=}."
-    )
+    logger.info(f"Setting seismogram {name=} to {value=} in {seismogram=}.")
 
-    setattr(
-        seismogram.parameters,
-        parameter_name,
-        parameter_value,
+    parameters = AimbatSeismogramParametersBase.model_validate(
+        seismogram.parameters, update={name: value}
     )
+    setattr(seismogram.parameters, name, getattr(parameters, name))
     session.add(seismogram)
     session.commit()
 

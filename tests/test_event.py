@@ -56,13 +56,13 @@ class TestCliEvent:
         app(["event", "list", "--db-url", db_url_with_data])
         assert "\u2714" in capsys.readouterr().out
 
-        app(["event", "set", "--db-url", db_url_with_data, "window_pre", "--", "-2.3"])
+        app(["event", "set", "--db-url", db_url_with_data, "window_pre", "--", "-2.3s"])
         app(["event", "get", "window_pre", "--db-url", db_url_with_data])
-        assert "-2.3" in capsys.readouterr().out
+        assert "-2.3s" in capsys.readouterr().out
 
-        app(["event", "set", "--db-url", db_url_with_data, "window_post", "--", "5.3"])
+        app(["event", "set", "--db-url", db_url_with_data, "window_post", "--", "5.3s"])
         app(["event", "get", "window_post", "--db-url", db_url_with_data])
-        assert "5.3" in capsys.readouterr().out
+        assert "5.3s" in capsys.readouterr().out
 
         with pytest.raises(ValueError):
             app(

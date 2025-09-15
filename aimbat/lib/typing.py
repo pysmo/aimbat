@@ -27,14 +27,16 @@ class ProjectDefault(StrEnum):
 
 
 ProjectDefaultBool: TypeAlias = Literal[ProjectDefault.AIMBAT]
-"[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] attributes with [`bool`][bool] values."
+"""[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults]
+attributes with [`bool`][bool] values."""
 
 ProjectDefaultStr: TypeAlias = Literal[
     ProjectDefault.INITIAL_PICK_HEADER,
     ProjectDefault.SAMPLEDATA_SRC,
     ProjectDefault.SAMPLEDATA_DIR,
 ]
-"[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] attributes with [`str`][str] values."
+"""[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults]
+attributes with [`str`][str] values."""
 
 ProjectDefaultInt: TypeAlias = Literal[ProjectDefault.DELTA_TOLERANCE]
 "[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] attributes with [`int`][int] values."

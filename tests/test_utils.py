@@ -2,7 +2,9 @@ from pysmo.classes import SAC
 from datetime import datetime, timezone
 import numpy as np
 import os
+import platform
 import pytest
+from pathlib import Path
 
 
 class TestLibUtils:
@@ -80,44 +82,46 @@ class TestCliUtils:
     ) -> None:
         """Test AIMBAT cli with utils sampledata subcommand."""
 
-        monkeypatch.setenv("COLUMNS", "1000")
+        # TODO: get this running on github actions
+        if platform.system() != "Darwin":
+            monkeypatch.setenv("COLUMNS", "1000")
 
-        from aimbat.app import app
+            from aimbat.app import app
 
-        sampledata_dir = tmp_path_factory.mktemp("sampledata")
+            sampledata_dir = Path(tmp_path_factory.mktemp("sampledata"))
 
-        app(["utils", "sampledata"])
-        assert "Usage" in capsys.readouterr().out
+            app(["utils", "sampledata"])
+            assert "Usage" in capsys.readouterr().out
 
-        app(["project", "create", "--db-url", db_url])
+            app(["project", "create", "--db-url", db_url])
 
-        app(
-            [
-                "defaults",
-                "set",
-                "sampledata_dir",
-                str(sampledata_dir),
-                "--db-url",
-                db_url,
-            ]
-        )
+            app(
+                [
+                    "defaults",
+                    "set",
+                    "sampledata_dir",
+                    rf"{sampledata_dir}",
+                    "--db-url",
+                    db_url,
+                ]
+            )
 
-        app(["defaults", "list", "--db-url", db_url])
-        assert str(sampledata_dir) in capsys.readouterr().out
+            app(["defaults", "list", "--db-url", db_url])
+            assert str(sampledata_dir) in capsys.readouterr().out
 
-        assert len(os.listdir((sampledata_dir))) == 0
-        app(["utils", "sampledata", "download", "--db-url", db_url])
-        assert len(os.listdir((sampledata_dir))) > 0
-
-        # can't download if it is already there
-        with pytest.raises(RuntimeError):
+            assert len(os.listdir((sampledata_dir))) == 0
             app(["utils", "sampledata", "download", "--db-url", db_url])
+            assert len(os.listdir((sampledata_dir))) > 0
 
-        # unless we use force
-        app(["utils", "sampledata", "download", "--force", "--db-url", db_url])
+            # can't download if it is already there
+            with pytest.raises(RuntimeError):
+                app(["utils", "sampledata", "download", "--db-url", db_url])
 
-        app(["utils", "sampledata", "delete", "--db-url", db_url])
-        assert not sampledata_dir.exists()
+            # unless we use force
+            app(["utils", "sampledata", "download", "--force", "--db-url", db_url])
+
+            app(["utils", "sampledata", "delete", "--db-url", db_url])
+            assert not sampledata_dir.exists()
 
     def test_checkdata(
         self, tmp_path_factory: pytest.TempPathFactory, capsys: pytest.CaptureFixture

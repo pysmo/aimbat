@@ -4,8 +4,8 @@ These classes are ORMs that present data stored in a database
 as classes to use with python in AIMBAT.
 """
 
-from aimbat.lib.typing import SeismogramFileType, ProjectDefault
 from aimbat.lib.io import read_seismogram_data_from_file, write_seismogram_data_to_file
+from aimbat.lib.typing import SeismogramFileType, ProjectDefault
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
@@ -36,7 +36,7 @@ class AimbatDefaults(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     aimbat: bool = Field(default=True, description="AIMBAT is awesome!")
     sampledata_dir: str = Field(
-        default="./sample-data",
+        default="sample-data",
         description="Directory to store downloaded sample data.",
     )
     "Directory to store downloaded sample data."
@@ -61,14 +61,18 @@ class AimbatDefaults(SQLModel, table=True):
     initial_time_window_width: timedelta = Field(
         default=timedelta(seconds=30),
         description="Width of initial timewindow (center is initial pick).",
+        gt=0,
     )
     "Width of initial timewindow (center is initial pick)."
 
     time_window_padding: timedelta = Field(
-        default=timedelta(seconds=20),
-        description="Padding around timewindow in seconds.",
+        default=timedelta(seconds=20), description="Padding around time window.", gt=0
     )
-    "Padding around timewindow in seconds."
+    """Padding around time window in seconds.
+
+    This is used to add padding to the time window for plotting. It is *not*
+    used in the cross-correlation itself.
+    """
 
     def reset(self, name: ProjectDefault) -> None:
         """Reset an AIMBAT default to the initial value.
@@ -167,9 +171,9 @@ class AimbatEventParametersBase(SQLModel):
 
     completed: bool = False
     "Mark an event as completed."
-    window_pre: timedelta
+    window_pre: timedelta = Field(lt=0)
     "Pre-pick window length."
-    window_post: timedelta
+    window_post: timedelta = Field(gt=0)
     "Post-pick window length."
 
 
