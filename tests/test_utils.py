@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import numpy as np
 import os
 import pytest
+from pathlib import Path
 
 
 class TestLibUtils:
@@ -84,7 +85,7 @@ class TestCliUtils:
 
         from aimbat.app import app
 
-        sampledata_dir = tmp_path_factory.mktemp("sampledata")
+        sampledata_dir = Path(tmp_path_factory.mktemp("sampledata"))
 
         app(["utils", "sampledata"])
         assert "Usage" in capsys.readouterr().out
