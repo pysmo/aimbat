@@ -1,11 +1,22 @@
 """Module to manage and view events in AIMBAT."""
 
 from aimbat.lib.common import logger
-from aimbat.lib.models import AimbatEvent, AimbatEventParameters
 from aimbat.lib.misc.rich_utils import make_table
+from aimbat.lib.models import (
+    AimbatEvent,
+    AimbatEventParameters,
+    AimbatEventParametersBase,
+)
+from aimbat.lib.typing import (
+    EventParameter,
+    EventParameterBool,
+    EventParameterTimedelta,
+)
 from rich.console import Console
-from sqlmodel import Session, select
+from sqlmodel import select, Session
+from typing import overload
 from collections.abc import Sequence
+from datetime import timedelta
 
 
 def get_active_event(session: Session) -> AimbatEvent:
@@ -106,6 +117,76 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
     )
 
     return session.exec(select_completed_events).all()
+
+
+@overload
+def get_event_parameter(
+    session: Session, name: EventParameterTimedelta
+) -> timedelta: ...
+
+
+@overload
+def get_event_parameter(session: Session, name: EventParameterBool) -> bool: ...
+
+
+@overload
+def get_event_parameter(session: Session, name: EventParameter) -> timedelta | bool: ...
+
+
+def get_event_parameter(session: Session, name: EventParameter) -> timedelta | bool:
+    """Get event parameter value for the active event.
+
+    Parameters:
+        session: Database session.
+        name: Name of the parameter.
+    """
+
+    active_event = get_active_event(session)
+
+    logger.info(f"Getting {name=} value for {active_event=}.")
+
+    return getattr(active_event.parameters, name)
+
+
+@overload
+def set_event_parameter(
+    session: Session, name: EventParameterTimedelta, value: timedelta
+) -> None: ...
+
+
+@overload
+def set_event_parameter(
+    session: Session, name: EventParameterBool, value: bool | str
+) -> None: ...
+
+
+@overload
+def set_event_parameter(
+    session: Session, name: EventParameter, value: timedelta | bool | str
+) -> None: ...
+
+
+def set_event_parameter(
+    session: Session, name: EventParameter, value: timedelta | bool | str
+) -> None:
+    """Set event parameter value for the active event.
+
+    Parameters:
+        session: Database session.
+        name: Name of the parameter.
+        value: Value to set.
+    """
+
+    active_event = get_active_event(session)
+
+    logger.info(f"Setting {name=} to {value} for {active_event=}.")
+
+    parameters = AimbatEventParametersBase.model_validate(
+        active_event.parameters, update={name: value}
+    )
+    setattr(active_event.parameters, name, getattr(parameters, name))
+    session.add(active_event)
+    session.commit()
 
 
 def print_event_table(session: Session) -> None:

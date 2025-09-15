@@ -1,6 +1,6 @@
 """View and manage events in the AIMBAT project."""
 
-from aimbat.cli.common import CommonParameters, convert_to_type
+from aimbat.cli.common import CommonParameters
 from aimbat.lib.typing import EventParameter
 from typing import Annotated
 from datetime import timedelta
@@ -27,37 +27,31 @@ def _set_active_event_by_id(db_url: str | None, event_id: int) -> None:
 
 def _get_event_parameters(
     db_url: str | None,
-    parameter_name: EventParameter,
+    name: EventParameter,
 ) -> None:
-    from aimbat.lib.event import get_active_event
+    from aimbat.lib.event import get_event_parameter
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        event = get_active_event(session)
-        value = getattr(event.parameters, parameter_name)
+        value = get_event_parameter(session, name)
         if isinstance(value, timedelta):
-            print(value.total_seconds())
+            print(f"{value.total_seconds()}s")
         else:
             print(value)
 
 
 def _set_event_parameters(
     db_url: str | None,
-    parameter_name: EventParameter,
-    parameter_value: str,
+    name: EventParameter,
+    value: timedelta | bool | str,
 ) -> None:
-    from aimbat.lib.event import get_active_event
+    from aimbat.lib.event import set_event_parameter
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    converted_value = convert_to_type(parameter_name, parameter_value)
-
     with Session(engine_from_url(db_url)) as session:
-        event = get_active_event(session)
-        setattr(event.parameters, parameter_name, converted_value)
-        session.add(event)
-        session.commit()
+        set_event_parameter(session, name, value)
 
 
 app = App(name="event", help=__doc__, help_format="markdown")
@@ -103,13 +97,13 @@ def cli_event_parameter_get(
 
     common = common or CommonParameters()
 
-    _get_event_parameters(db_url=common.db_url, parameter_name=name)
+    _get_event_parameters(db_url=common.db_url, name=name)
 
 
 @app.command(name="set")
 def cli_event_parameter_set(
     name: EventParameter,
-    value: str,
+    value: timedelta | str,
     *,
     common: CommonParameters | None = None,
 ) -> None:
@@ -122,9 +116,7 @@ def cli_event_parameter_set(
 
     common = common or CommonParameters()
 
-    _set_event_parameters(
-        db_url=common.db_url, parameter_name=name, parameter_value=value
-    )
+    _set_event_parameters(db_url=common.db_url, name=name, value=value)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 """Functions to read and write data files used with AIMBAT"""
 
 from aimbat.lib.common import logger
+from aimbat.lib.typing import ProjectDefault
 from pysmo import Event, Seismogram, Station
 from pysmo.classes import SAC
-from aimbat.lib.typing import ProjectDefault
 from datetime import datetime
 from sqlmodel import Session
 import numpy as np

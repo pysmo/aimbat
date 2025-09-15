@@ -2,14 +2,14 @@
 
 from aimbat.lib.common import logger
 from aimbat.lib.misc.rich_utils import make_table
+from aimbat.lib.models import AimbatDefaults
 from aimbat.lib.typing import (
     ProjectDefault,
     ProjectDefaultBool,
-    ProjectDefaultStr,
     ProjectDefaultInt,
+    ProjectDefaultStr,
     ProjectDefaultTimedelta,
 )
-from aimbat.lib.models import AimbatDefaults
 from sqlmodel import Session, select
 from typing import overload
 from datetime import timedelta
@@ -111,6 +111,9 @@ def set_default(
     logger.info(f"Setting {name} default to {value}.")
 
     aimbat_default = _get_instance(session)
+    value = getattr(
+        AimbatDefaults.model_validate(aimbat_default, update={name: value}), name
+    )
     setattr(aimbat_default, name, value)
     session.add(aimbat_default)
     session.commit()
@@ -153,7 +156,7 @@ def print_defaults_table(session: Session) -> None:
     for key in AimbatDefaults.model_fields.keys():
         value = getattr(aimbat_defaults, key)
         if isinstance(value, timedelta):
-            value = value.total_seconds()
+            value = f"{value.total_seconds()}s"
         if key == "id":
             continue
         table.add_row(

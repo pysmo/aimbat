@@ -1,6 +1,6 @@
 """View and manage seismograms in the AIMBAT project."""
 
-from aimbat.cli.common import CommonParameters, convert_to_type
+from aimbat.cli.common import CommonParameters
 from aimbat.lib.typing import SeismogramParameter
 from typing import Annotated
 from cyclopts import App, Parameter
@@ -9,32 +9,28 @@ from cyclopts import App, Parameter
 def _get_seismogram_parameter(
     db_url: str | None,
     seismogram_id: int,
-    parameter_name: SeismogramParameter,
+    name: SeismogramParameter,
 ) -> None:
     from aimbat.lib.seismogram import get_seismogram_parameter_by_id
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print(get_seismogram_parameter_by_id(session, seismogram_id, parameter_name))
+        print(get_seismogram_parameter_by_id(session, seismogram_id, name))
 
 
 def _set_seismogram_parameter(
     db_url: str | None,
     seismogram_id: int,
-    parameter_name: SeismogramParameter,
-    parameter_value: str,
+    name: SeismogramParameter,
+    value: str,
 ) -> None:
     from aimbat.lib.seismogram import set_seismogram_parameter_by_id
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    converted_value = convert_to_type(parameter_name, parameter_value)
-
     with Session(engine_from_url(db_url)) as session:
-        set_seismogram_parameter_by_id(
-            session, seismogram_id, parameter_name, converted_value
-        )
+        set_seismogram_parameter_by_id(session, seismogram_id, name, value)
 
 
 def _print_seismogram_table(db_url: str | None, all_events: bool) -> None:
@@ -109,7 +105,7 @@ def cli_seismogram_get(
     _get_seismogram_parameter(
         db_url=common.db_url,
         seismogram_id=seismogram_id,
-        parameter_name=name,
+        name=name,
     )
 
 
@@ -134,8 +130,8 @@ def cli_seismogram_set(
     _set_seismogram_parameter(
         db_url=common.db_url,
         seismogram_id=seismogram_id,
-        parameter_name=name,
-        parameter_value=value,
+        name=name,
+        value=value,
     )
 
 

@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from aimbat.lib.common import logger
 from aimbat.lib.event import get_active_event
 from aimbat.lib.misc.rich_utils import make_table
@@ -13,6 +12,7 @@ from aimbat.lib.models import (
 )
 from sqlmodel import Session, select
 from rich.console import Console
+from collections.abc import Sequence
 
 
 def create_snapshot(session: Session, comment: str | None = None) -> None:

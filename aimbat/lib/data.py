@@ -3,7 +3,6 @@
 from aimbat.lib.common import logger
 from aimbat.lib.defaults import get_default
 from aimbat.lib.event import get_active_event
-from aimbat.lib.typing import SeismogramFileType, ProjectDefault
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -15,6 +14,7 @@ from aimbat.lib.models import (
     AimbatSeismogram,
     AimbatSeismogramParameters,
 )
+from aimbat.lib.typing import ProjectDefault, SeismogramFileType
 from datetime import timedelta
 from pathlib import Path
 from sqlmodel import Session, select

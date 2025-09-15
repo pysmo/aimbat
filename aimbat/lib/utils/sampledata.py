@@ -1,5 +1,5 @@
-from aimbat.lib.typing import ProjectDefault
 from aimbat.lib.defaults import get_default
+from aimbat.lib.typing import ProjectDefault
 from sqlmodel import Session
 from urllib.request import urlopen
 from io import BytesIO
