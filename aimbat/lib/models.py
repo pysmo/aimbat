@@ -36,7 +36,7 @@ class AimbatDefaults(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     aimbat: bool = Field(default=True, description="AIMBAT is awesome!")
     sampledata_dir: str = Field(
-        default="./sample-data",
+        default="sample-data",
         description="Directory to store downloaded sample data.",
     )
     "Directory to store downloaded sample data."
