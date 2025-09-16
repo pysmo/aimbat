@@ -171,8 +171,13 @@ class AimbatEventParametersBase(SQLModel):
 
     completed: bool = False
     "Mark an event as completed."
+
+    min_ccnorm: float = Field(ge=0.0, le=1.0, default=0.4)
+    "Minimum cross-correlation used when automatically de-selecting seismograms."
+
     window_pre: timedelta = Field(lt=0)
     "Pre-pick window length."
+
     window_post: timedelta = Field(gt=0)
     "Post-pick window length."
 
@@ -182,8 +187,10 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     "Unique ID."
+
     event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
     "Event ID these parameters are associated with."
+
     event: AimbatEvent = Relationship(back_populates="parameters")
     "Event these parameters are associated with."
 

@@ -50,6 +50,16 @@ def _stack_timewindow(db_url: str | None, padded: bool) -> None:
         stack_timewindow(session, iccs, padded)
 
 
+def _select_min_ccnorm(db_url: str | None, padded: bool) -> None:
+    from aimbat.lib.iccs import create_iccs_instance, select_min_ccnorm
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        iccs = create_iccs_instance(session)
+        select_min_ccnorm(session, iccs, padded)
+
+
 app = App(name="iccs", help=__doc__, help_format="markdown")
 
 
@@ -115,6 +125,21 @@ def cli_iccs_stack_timewindow(
     common = common or CommonParameters()
 
     _stack_timewindow(common.db_url, pad)
+
+
+@app.command(name="ccnorm")
+def cli_iccs_select_min_ccnorm(
+    *, pad: bool = True, common: CommonParameters | None = None
+) -> None:
+    """Pick a new minimum cross-correlation norm for auto-selection.
+
+    Parameters:
+        pad: Add extra padding to the time window for plotting.
+    """
+
+    common = common or CommonParameters()
+
+    _select_min_ccnorm(common.db_url, pad)
 
 
 if __name__ == "__main__":

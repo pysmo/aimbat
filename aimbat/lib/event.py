@@ -10,6 +10,7 @@ from aimbat.lib.models import (
 from aimbat.lib.typing import (
     EventParameter,
     EventParameterBool,
+    EventParameterFloat,
     EventParameterTimedelta,
 )
 from rich.console import Console
@@ -130,10 +131,18 @@ def get_event_parameter(session: Session, name: EventParameterBool) -> bool: ...
 
 
 @overload
-def get_event_parameter(session: Session, name: EventParameter) -> timedelta | bool: ...
+def get_event_parameter(session: Session, name: EventParameterFloat) -> float: ...
 
 
-def get_event_parameter(session: Session, name: EventParameter) -> timedelta | bool:
+@overload
+def get_event_parameter(
+    session: Session, name: EventParameter
+) -> timedelta | bool | float: ...
+
+
+def get_event_parameter(
+    session: Session, name: EventParameter
+) -> timedelta | bool | float:
     """Get event parameter value for the active event.
 
     Parameters:
@@ -156,18 +165,24 @@ def set_event_parameter(
 
 @overload
 def set_event_parameter(
+    session: Session, name: EventParameterFloat, value: float
+) -> None: ...
+
+
+@overload
+def set_event_parameter(
     session: Session, name: EventParameterBool, value: bool | str
 ) -> None: ...
 
 
 @overload
 def set_event_parameter(
-    session: Session, name: EventParameter, value: timedelta | bool | str
+    session: Session, name: EventParameter, value: timedelta | bool | float | str
 ) -> None: ...
 
 
 def set_event_parameter(
-    session: Session, name: EventParameter, value: timedelta | bool | str
+    session: Session, name: EventParameter, value: timedelta | bool | float | str
 ) -> None:
     """Set event parameter value for the active event.
 

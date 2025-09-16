@@ -7,6 +7,7 @@ from aimbat.lib.event import get_active_event
 from aimbat.lib.typing import ProjectDefault
 from pysmo.tools.iccs import (
     ICCS,
+    select_min_ccnorm as _select_min_ccnorm,
     stack_pick as _stack_pick,
     stack_timewindow as _stack_timewindow,
     plotstack as _plotstack,
@@ -39,19 +40,19 @@ def create_iccs_instance(session: Session) -> ICCS:
     )
 
 
-def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselec: bool) -> None:
+def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> None:
     """Run ICCS algorithm.
 
     Parameters:
         session: Database session.
         iccs: ICCS instance.
         autoflip: Whether to automatically flip seismograms.
-        autoselec: Whether to automatically select seismograms.
+        autoselect: Whether to automatically select seismograms.
     """
 
-    logger.info(f"Running ICCS with {autoflip=}, {autoselec=}.")
+    logger.info(f"Running ICCS with {autoflip=}, {autoselect=}.")
 
-    iccs(autoflip=autoflip, autoselect=autoselec)
+    iccs(autoflip=autoflip, autoselect=autoselect)
     session.commit()
 
 
@@ -69,4 +70,11 @@ def stack_timewindow(session: Session, iccs: ICCS, padded: bool) -> None:
     active_event = get_active_event(session)
     active_event.parameters.window_pre = iccs.window_pre
     active_event.parameters.window_post = iccs.window_post
+    session.commit()
+
+
+def select_min_ccnorm(session: Session, iccs: ICCS, padded: bool) -> None:
+    _ = _select_min_ccnorm(iccs, padded)
+    active_event = get_active_event(session)
+    active_event.parameters.min_ccnorm = float(iccs.min_ccnorm)
     session.commit()

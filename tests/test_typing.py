@@ -10,6 +10,7 @@ from aimbat.lib.typing import (
     EventParameter,
     SeismogramParameter,
     EventParameterBool,
+    EventParameterFloat,
     EventParameterTimedelta,
     SeismogramParameterBool,
     SeismogramParameterDatetime,
@@ -60,6 +61,7 @@ class TestLibTypes:
         )
         assert set_from_strenum(EventParameter) == set_from_typealiases(  # type: ignore
             EventParameterBool,  # type: ignore
+            EventParameterFloat,  # type: ignore
             EventParameterTimedelta,  # type: ignore
         )
 
