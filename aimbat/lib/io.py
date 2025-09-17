@@ -20,7 +20,7 @@ def _read_seismogram_data_from_sacfile(sacfile: str) -> npt.NDArray[np.float64]:
         Seismogram data.
     """
 
-    logger.info(f"Reading seismogram data from {sacfile}.")
+    logger.debug(f"Reading seismogram data from {sacfile}.")
 
     return SAC.from_file(sacfile).seismogram.data
 
@@ -35,7 +35,7 @@ def _write_seismogram_data_to_sacfile(
         data: Seismogram data.
     """
 
-    logger.info(f"Writing seismogram data to {sacfile}.")
+    logger.debug(f"Writing seismogram data to {sacfile}.")
 
     sac = SAC.from_file(sacfile)
     sac.seismogram.data = data
@@ -59,7 +59,7 @@ def _read_metadata_from_sacfile(
         TypeError: If the initial pick header is NoneType.
     """
 
-    logger.info(f"Reading seismogram metadata from {sacfile}.")
+    logger.debug(f"Reading seismogram metadata from {sacfile}.")
 
     from aimbat.lib.defaults import get_default
 
@@ -87,7 +87,7 @@ def read_seismogram_data_from_file(
         Seismogram data.
     """
 
-    logger.info(f"Reading seismogram data from {filename}.")
+    logger.debug(f"Reading seismogram data from {filename}.")
 
     if filetype == "sac":
         return _read_seismogram_data_from_sacfile(filename)
@@ -108,7 +108,7 @@ def write_seismogram_data_to_file(
         NotImplementedError: If the filetype is not supported.
     """
 
-    logger.info(f"Writing seismogram data to {filename}.")
+    logger.debug(f"Writing seismogram data to {filename}.")
 
     if filetype == "sac":
         _write_seismogram_data_to_sacfile(filename, data)
@@ -132,7 +132,7 @@ def read_metadata_from_file(
         NotImplementedError: If the filetype is not supported.
     """
 
-    logger.info(f"Reading seismogram metadata from {filename}.")
+    logger.debug(f"Reading seismogram metadata from {filename}.")
 
     if filetype == "sac":
         return _read_metadata_from_sacfile(session, filename)
