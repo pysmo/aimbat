@@ -3,19 +3,29 @@
 Launches various processing tools related to ICCS.
 """
 
+from typing import Annotated
 from aimbat.cli.common import CommonParameters
-from cyclopts import App
+from cyclopts import App, Parameter
 
 
 def _plot_stack(db_url: str | None, padded: bool) -> None:
-    from aimbat.lib.iccs import plot_stack
-    from aimbat.lib.iccs import create_iccs_instance
+    from aimbat.lib.iccs import create_iccs_instance, plot_stack
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
         iccs = create_iccs_instance(session)
         plot_stack(iccs, padded)
+
+
+def _plot_seismograms(db_url: str | None, padded: bool) -> None:
+    from aimbat.lib.iccs import create_iccs_instance, plot_seismograms
+    from aimbat.lib.common import engine_from_url
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        iccs = create_iccs_instance(session)
+        plot_seismograms(iccs, padded)
 
 
 def _run_iccs(
@@ -30,40 +40,50 @@ def _run_iccs(
         run_iccs(session, iccs, autoflip, autoselect)
 
 
-def _stack_pick(db_url: str | None, padded: bool) -> None:
-    from aimbat.lib.iccs import create_iccs_instance, stack_pick
+def _update_pick(db_url: str | None, padded: bool, use_seismogram_image: bool) -> None:
+    from aimbat.lib.iccs import create_iccs_instance, update_pick
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
         iccs = create_iccs_instance(session)
-        stack_pick(session, iccs, padded)
+        update_pick(session, iccs, padded, use_seismogram_image)
 
 
-def _stack_timewindow(db_url: str | None, padded: bool) -> None:
-    from aimbat.lib.iccs import create_iccs_instance, stack_timewindow
+def _update_timewindow(
+    db_url: str | None, padded: bool, use_seismogram_image: bool
+) -> None:
+    from aimbat.lib.iccs import create_iccs_instance, update_timewindow
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
         iccs = create_iccs_instance(session)
-        stack_timewindow(session, iccs, padded)
+        update_timewindow(session, iccs, padded, use_seismogram_image)
 
 
-def _select_min_ccnorm(db_url: str | None, padded: bool) -> None:
-    from aimbat.lib.iccs import create_iccs_instance, select_min_ccnorm
+def _update_min_ccnorm(db_url: str | None, padded: bool) -> None:
+    from aimbat.lib.iccs import create_iccs_instance, update_min_ccnorm
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
         iccs = create_iccs_instance(session)
-        select_min_ccnorm(session, iccs, padded)
+        update_min_ccnorm(session, iccs, padded)
 
 
 app = App(name="iccs", help=__doc__, help_format="markdown")
+plot = App(name="plot", help="Plot ICCS data and results.", help_format="markdown")
+update = App(
+    name="update",
+    help="Update parameters controlling the ICCS algorithm.",
+    help_format="markdown",
+)
+app.command(plot)
+app.command(update)
 
 
-@app.command(name="stack")
+@plot.command(name="stack")
 def cli_iccs_plot_stack(
     *, pad: bool = True, common: CommonParameters | None = None
 ) -> None:
@@ -76,6 +96,21 @@ def cli_iccs_plot_stack(
     common = common or CommonParameters()
 
     _plot_stack(common.db_url, pad)
+
+
+@plot.command(name="seismograms")
+def cli_iccs_plot_seismograms(
+    *, pad: bool = True, common: CommonParameters | None = None
+) -> None:
+    """Plot the ICCS seismograms of the active event.
+
+    Parameters:
+        pad: Add extra padding to the time window for plotting.
+    """
+
+    common = common or CommonParameters()
+
+    _plot_seismograms(common.db_url, pad)
 
 
 @app.command(name="run")
@@ -97,38 +132,46 @@ def cli_iccs_run(
     _run_iccs(common.db_url, autoflip, autoselect)
 
 
-@app.command(name="pick")
-def cli_iccs_stack_pick(
-    *, pad: bool = True, common: CommonParameters | None = None
+@update.command(name="pick")
+def cli_iccs_update_pick(
+    *,
+    pad: bool = True,
+    use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Pick a new arrival time in stack.
+    """Pick a new arrival time.
 
     Parameters:
         pad: Add extra padding to the time window for plotting.
+        use_seismogram_image: Use the seismogram image to update pick.
     """
 
     common = common or CommonParameters()
 
-    _stack_pick(common.db_url, pad)
+    _update_pick(common.db_url, pad, use_seismogram_image)
 
 
-@app.command(name="timewindow")
-def cli_iccs_stack_timewindow(
-    *, pad: bool = True, common: CommonParameters | None = None
+@update.command(name="timewindow")
+def cli_iccs_update_timewindow(
+    *,
+    pad: bool = True,
+    use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
+    common: CommonParameters | None = None,
 ) -> None:
-    """Pick a new time window in stack.
+    """Pick a new time window.
 
     Parameters:
         pad: Add extra padding to the time window for plotting.
+        use_seismogram_image: Use the seismogram image to pick the time window.
     """
 
     common = common or CommonParameters()
 
-    _stack_timewindow(common.db_url, pad)
+    _update_timewindow(common.db_url, pad, use_seismogram_image)
 
 
-@app.command(name="ccnorm")
-def cli_iccs_select_min_ccnorm(
+@update.command(name="ccnorm")
+def cli_iccs_update_min_ccnorm(
     *, pad: bool = True, common: CommonParameters | None = None
 ) -> None:
     """Pick a new minimum cross-correlation norm for auto-selection.
@@ -139,7 +182,7 @@ def cli_iccs_select_min_ccnorm(
 
     common = common or CommonParameters()
 
-    _select_min_ccnorm(common.db_url, pad)
+    _update_min_ccnorm(common.db_url, pad)
 
 
 if __name__ == "__main__":
