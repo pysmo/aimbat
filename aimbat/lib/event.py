@@ -70,7 +70,7 @@ def set_active_event_by_id(session: Session, event_id: int) -> None:
 
 def set_active_event(session: Session, event: AimbatEvent) -> None:
     """
-    Set the currently selected event (i.e. the one being processed).
+    Set the currently active event (i.e. the one being processed).
 
     Parameters:
         session: SQL session.
@@ -79,26 +79,6 @@ def set_active_event(session: Session, event: AimbatEvent) -> None:
 
     logger.info(f"Activating {event=}")
 
-    # Because it is possible that no event has been activated yet, we do _not_
-    # use get_active_event(), and instead check if there is an active event
-    # directly.
-
-    active_event = session.exec(
-        select(AimbatEvent).where(AimbatEvent.active == 1)
-    ).one_or_none()
-
-    if active_event is None:
-        logger.debug(f"No active event yet, activating {event=}.")
-    else:
-        if active_event.id == event.id:
-            logger.debug(f"Event {event} is already active, skipping update.")
-            return
-        logger.debug(
-            f"Updating active event from id={active_event.id} to id={event.id}."
-        )
-        active_event.active = None
-        session.add(active_event)
-        session.commit()
     event.active = True
     session.add(event)
     session.commit()
