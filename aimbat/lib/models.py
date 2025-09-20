@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
 import numpy as np
+import uuid
 
 
 class _DateTimeUTC(TypeDecorator):
@@ -33,7 +34,7 @@ class AimbatDefaults(SQLModel, table=True):
     values for all attributes are defined in the model directly.
     """
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     aimbat: bool = Field(default=True, description="AIMBAT is awesome!")
     sampledata_dir: str = Field(
         default="sample-data",
@@ -113,7 +114,7 @@ class AimbatFileCreate(AimbatFileBase):
 class AimbatFile(AimbatFileBase, table=True):
     """Class to store data file information."""
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     filetype: str
     seismogram: "AimbatSeismogram" = Relationship(
         back_populates="file", cascade_delete=True
@@ -121,11 +122,14 @@ class AimbatFile(AimbatFileBase, table=True):
 
 
 class EventStationLink(SQLModel, table=True):
-    event_id: int | None = Field(
-        default=None, foreign_key="aimbatevent.id", primary_key=True, ondelete="CASCADE"
+    event_id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        foreign_key="aimbatevent.id",
+        primary_key=True,
+        ondelete="CASCADE",
     )
-    station_id: int | None = Field(
-        default=None,
+    station_id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
         foreign_key="aimbatstation.id",
         primary_key=True,
         ondelete="CASCADE",
@@ -135,7 +139,7 @@ class EventStationLink(SQLModel, table=True):
 class AimbatEvent(SQLModel, table=True):
     """Store event information."""
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
     active: bool | None = Field(default=None, unique=True)
     "Indicates if an event is the active event."
@@ -185,10 +189,10 @@ class AimbatEventParametersBase(SQLModel):
 class AimbatEventParameters(AimbatEventParametersBase, table=True):
     """Processing parameters common to all seismograms of a particular event."""
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
 
-    event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
+    event_id: uuid.UUID = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
     "Event ID these parameters are associated with."
 
     event: AimbatEvent = Relationship(back_populates="parameters")
@@ -203,13 +207,13 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
 class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
     """Event parameter snapshot."""
 
-    id: int | None = Field(default=None, primary_key=True)
-    snapshot_id: int | None = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    snapshot_id: uuid.UUID = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
     snapshot: "AimbatSnapshot" = Relationship(
         back_populates="event_parameters_snapshot"
     )
     parameters: AimbatEventParameters = Relationship(back_populates="snapshots")
-    parameters_id: int | None = Field(
+    parameters_id: uuid.UUID = Field(
         foreign_key="aimbateventparameters.id", ondelete="CASCADE"
     )
 
@@ -217,7 +221,7 @@ class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
 class AimbatStation(SQLModel, table=True):
     """Class to store station information."""
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
     name: str = Field(allow_mutation=False)
     "Station name."
@@ -242,7 +246,7 @@ class AimbatStation(SQLModel, table=True):
 class AimbatSeismogram(SQLModel, table=True):
     """Class to store seismogram data"""
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
     begin_time: datetime = Field(sa_type=_DateTimeUTC)
     "Begin time of seismogram."
@@ -252,13 +256,11 @@ class AimbatSeismogram(SQLModel, table=True):
     "Initial pick."
     cached_length: int | None = None
 
-    file_id: int | None = Field(
-        default=None, foreign_key="aimbatfile.id", ondelete="CASCADE"
-    )
+    file_id: uuid.UUID = Field(foreign_key="aimbatfile.id", ondelete="CASCADE")
     file: AimbatFile = Relationship(back_populates="seismogram")
-    station_id: int | None = Field(foreign_key="aimbatstation.id", ondelete="CASCADE")
+    station_id: uuid.UUID = Field(foreign_key="aimbatstation.id", ondelete="CASCADE")
     station: AimbatStation = Relationship(back_populates="seismograms")
-    event_id: int | None = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
+    event_id: uuid.UUID = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
     event: AimbatEvent = Relationship(back_populates="seismograms")
     parameters: "AimbatSeismogramParameters" = Relationship(
         back_populates="seismogram",
@@ -335,8 +337,8 @@ class AimbatSeismogramParametersBase(SQLModel):
 class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
     """Class to store ICCS processing parameters of a single seismogram."""
 
-    id: int | None = Field(default=None, primary_key=True)
-    seismogram_id: int | None = Field(
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    seismogram_id: uuid.UUID = Field(
         foreign_key="aimbatseismogram.id", ondelete="CASCADE"
     )
     seismogram: AimbatSeismogram = Relationship(back_populates="parameters")
@@ -348,12 +350,12 @@ class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
 class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=True):
     """Class to store a snapshot of ICCS processing parameters of a single seismogram."""
 
-    id: int | None = Field(default=None, primary_key=True)
-    seismogram_parameters_id: int | None = Field(
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    seismogram_parameters_id: uuid.UUID = Field(
         foreign_key="aimbatseismogramparameters.id", ondelete="CASCADE"
     )
     parameters: AimbatSeismogramParameters = Relationship(back_populates="snapshots")
-    snapshot_id: int | None = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
+    snapshot_id: uuid.UUID = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
     snapshot: "AimbatSnapshot" = Relationship(
         back_populates="seismogram_parameters_snapshots"
     )
@@ -367,7 +369,7 @@ class AimbatSnapshot(SQLModel, table=True):
     AimbatSeismogramParametersSnapshot instances.
     """
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     date: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         unique=True,

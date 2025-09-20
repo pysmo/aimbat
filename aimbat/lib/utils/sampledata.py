@@ -26,7 +26,7 @@ def download_sampledata(session: Session, force: bool = False) -> None:
         if force is True:
             delete_sampledata(session)
         else:
-            raise RuntimeError(
+            raise FileExistsError(
                 f"The directory {sampledata_dir} already exists and is non-empty."
             )
 

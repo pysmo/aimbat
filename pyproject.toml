@@ -39,7 +39,7 @@ test = [
     "nbmake>=1.5.5",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
-    "pytest-depends>=1.0.1",
+    "pytest-dependency>=0.6.0",
     "pytest-mpl>=0.17.0",
     "pytest-mypy>=1.0.1",
     "pytest-qt>=4.5.0",
@@ -95,6 +95,8 @@ build-backend = "hatchling.build"
 testpaths = [
   "tests",
 ]
+mpl-generate-summary = "html"
+mpl-use-full-test-name = true
 
 [tool.mypy]
 namespace_packages = true

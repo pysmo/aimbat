@@ -31,7 +31,7 @@ def _project_exists(engine: Engine) -> bool:
     )
 
 
-def _project_file(engine: Engine) -> Path:
+def _project_file_from_engine(engine: Engine) -> Path:
     """Get filename from sqlite engine
 
     Parameters:
@@ -108,19 +108,16 @@ def delete_project(engine: Engine = engine) -> None:
 
     if _project_exists(engine):
         if engine.driver == "pysqlite":
-            project = _project_file(engine)
+            project = _project_file_from_engine(engine)
+            engine.dispose()
             try:
-                Path(project).unlink()
+                logger.info(f"Deleting project file: {project=}")
+                project.unlink()
+                return
             except IsADirectoryError:
-                logger.debug("No file found - possibly running in-memory database?")
-            except FileNotFoundError:
-                raise FileNotFoundError(
-                    f"Unable to delete project file: {project=} not found."
-                )
-            finally:
-                engine.dispose()
-            return
-    raise RuntimeError("Unable to delete project.")
+                logger.info("No file found - possibly running in-memory database?")
+                return
+    raise RuntimeError("Unable to find/delete project.")
 
 
 def print_project_info(engine: Engine = engine) -> None:
@@ -143,7 +140,7 @@ def print_project_info(engine: Engine = engine) -> None:
         grid.add_column()
         grid.add_column(justify="left")
         if engine.driver == "pysqlite":
-            project = str(_project_file(engine))
+            project = str(_project_file_from_engine(engine))
             grid.add_row("AIMBAT Project File: ", project)
 
         events = len(session.exec(select(AimbatEvent)).all())

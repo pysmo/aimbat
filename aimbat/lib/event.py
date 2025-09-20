@@ -1,6 +1,6 @@
 """Module to manage and view events in AIMBAT."""
 
-from aimbat.lib.common import logger
+from aimbat.lib.common import logger, reverse_uuid_shortener
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatEvent,
@@ -18,6 +18,15 @@ from sqlmodel import select, Session
 from typing import overload
 from collections.abc import Sequence
 from datetime import timedelta
+import uuid
+
+
+def event_uuid_dict_reversed(
+    session: Session, min_length: int = 2
+) -> dict[uuid.UUID, str]:
+    return reverse_uuid_shortener(
+        session.exec(select(AimbatEvent.id)).all(), min_length
+    )
 
 
 def get_active_event(session: Session) -> AimbatEvent:
@@ -45,7 +54,7 @@ def get_active_event(session: Session) -> AimbatEvent:
     return active_event
 
 
-def set_active_event_by_id(session: Session, event_id: int) -> None:
+def set_active_event_by_id(session: Session, event_id: uuid.UUID) -> None:
     """
     Set the currently selected event (i.e. the one being processed) by its ID.
 
@@ -56,7 +65,6 @@ def set_active_event_by_id(session: Session, event_id: int) -> None:
     Raises:
         ValueError: If no event with the given ID is found.
     """
-
     logger.info(f"Setting active event to event with id={event_id}.")
 
     if event_id not in session.exec(select(AimbatEvent.id)).all():
@@ -184,15 +192,21 @@ def set_event_parameter(
     session.commit()
 
 
-def print_event_table(session: Session) -> None:
+def print_event_table(session: Session, format: bool = True) -> None:
     """Print a pretty table with AIMBAT events.
 
     Parameters:
         session: Database session.
+        format: Format the output to be more human-readable.
     """
 
+    logger.info("Printing AIMBAT events table.")
+
     table = make_table(title="AIMBAT Events")
-    table.add_column("id", justify="right", style="cyan", no_wrap=True)
+    if format:
+        table.add_column("id (shortened)", justify="center", style="cyan", no_wrap=True)
+    else:
+        table.add_column("id", justify="center", style="cyan", no_wrap=True)
     table.add_column("Active", justify="center", style="cyan", no_wrap=True)
     table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
     table.add_column("Latitude", justify="center", style="magenta")
@@ -203,16 +217,14 @@ def print_event_table(session: Session) -> None:
     table.add_column("# Stations", justify="center", style="green")
 
     for event in session.exec(select(AimbatEvent)).all():
-        active = ""
-        if event.active is True:
-            active = ":heavy_check_mark:"
+        logger.debug(f"Adding event with id={event.id} to the table.")
         table.add_row(
-            str(event.id),
-            active,
-            str(event.time),
-            str(event.latitude),
-            str(event.longitude),
-            str(event.depth),
+            event_uuid_dict_reversed(session)[event.id] if format else str(event.id),
+            ":heavy_check_mark:" if event.active is True else "",
+            event.time.strftime("%Y-%m-%d %H:%M:%S") if format else str(event.time),
+            f"{event.latitude:.3f}" if format else str(event.latitude),
+            f"{event.longitude:.3f}" if format else str(event.longitude),
+            f"{event.depth:.0f}" if format else str(event.depth),
             str(event.parameters.completed),
             str(len(event.seismograms)),
             str(len(event.stations)),

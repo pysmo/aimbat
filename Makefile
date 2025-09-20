@@ -40,7 +40,7 @@ test-tutorial: check-uv ## Check if the tutorial notebook runs error-free.
 	uv run py.test --nbmake docs/examples/tutorial.ipynb
 
 tests: check-uv mypy test-tutorial ## Run all tests with pytest.
-	uv run pytest --mypy --cov=aimbat --cov-report=term-missing --mpl -v
+	uv run pytest --mypy --cov=aimbat --cov-report=term-missing --cov-report=html --mpl -v
 
 mypy: check-uv ## Run typing tests with pytest.
 	uv run pytest --mypy -m mypy -v aimbat

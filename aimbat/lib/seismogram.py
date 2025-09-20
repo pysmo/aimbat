@@ -1,5 +1,11 @@
-from aimbat.lib.common import logger, check_for_notebook
-from aimbat.lib.event import get_active_event
+from aimbat.lib.common import (
+    logger,
+    check_for_notebook,
+    reverse_uuid_shortener,
+)
+from aimbat.lib.data import file_uuid_dict_reversed
+from aimbat.lib.event import get_active_event, event_uuid_dict_reversed
+from aimbat.lib.station import station_uuid_dict_reversed
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -19,16 +25,26 @@ from pysmo.tools.azdist import distance
 from datetime import datetime
 from rich.console import Console
 from sqlmodel import Session, select
-from typing import overload
+from typing import overload, Literal
 from collections.abc import Sequence
 from pyqtgraph.jupyter import PlotWidget  # type: ignore
+from matplotlib.figure import Figure
+import uuid
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pyqtgraph as pg  # type: ignore
 
 
+def seismogram_uuid_dict_reversed(
+    session: Session, min_length: int = 2
+) -> dict[uuid.UUID, str]:
+    return reverse_uuid_shortener(
+        session.exec(select(AimbatSeismogram.id)).all(), min_length
+    )
+
+
 def get_seismogram_parameter_by_id(
-    session: Session, seismogram_id: int, name: SeismogramParameter
+    session: Session, seismogram_id: uuid.UUID, name: SeismogramParameter
 ) -> bool | datetime:
     """Get parameter value from an AimbatSeismogram by ID.
 
@@ -85,14 +101,14 @@ def get_seismogram_parameter(
         Seismogram parameter value.
     """
 
-    logger.info(f"Getting seismogram {name=} value for {seismogram=}.")
+    logger.info(f"Getting seismogram parameter {name=} value for {seismogram=}.")
 
     return getattr(seismogram.parameters, name)
 
 
 def set_seismogram_parameter_by_id(
     session: Session,
-    seismogram_id: int,
+    seismogram_id: uuid.UUID,
     name: SeismogramParameter,
     value: datetime | bool | str,
 ) -> None:
@@ -211,17 +227,20 @@ def get_selected_seismograms(
     return seismograms
 
 
-def print_seismogram_table(session: Session, all_events: bool = False) -> None:
+def print_seismogram_table(
+    session: Session, format: bool, all_events: bool = False
+) -> None:
     """Prints a pretty table with AIMBAT seismograms.
 
     Parameters:
         session: Database session.
+        format: Print the output in a more human-readable format.
         all_events: Print seismograms for all events.
     """
 
     logger.info("Printing AIMBAT seismogram table.")
 
-    title = "AIMBAT Seismograms"
+    title = "AIMBAT seismograms for all events"
     seismograms = None
 
     if all_events:
@@ -231,41 +250,70 @@ def print_seismogram_table(session: Session, all_events: bool = False) -> None:
         logger.debug("Selecting seismograms for active event only.")
         active_event = get_active_event(session)
         seismograms = active_event.seismograms
-        title = (
-            f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
-        )
+        if format:
+            title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict_reversed(session)[active_event.id]})"
+        else:
+            title = f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
 
     logger.debug(f"Found {len(seismograms)} seismograms for the table.")
 
     table = make_table(title=title)
-
-    table.add_column("id", justify="right", style="cyan", no_wrap=True)
-    table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
+    if format:
+        table.add_column("id (shortened)", justify="center", style="cyan", no_wrap=True)
+    else:
+        table.add_column("id", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Selected", justify="center", style="cyan", no_wrap=True)
+    table.add_column("File ID", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Delta", justify="center", style="cyan", no_wrap=True)
+    table.add_column("NPTS", justify="center", style="cyan", no_wrap=True)
     table.add_column("Station ID", justify="center", style="magenta")
+    table.add_column("Station Name", justify="center", style="magenta")
     if all_events:
         table.add_column("Event ID", justify="center", style="magenta")
 
     for seismogram in seismograms:
         logger.debug(f"Adding seismogram with ID {seismogram.id} to the table.")
+        row = [
+            (
+                seismogram_uuid_dict_reversed(session)[seismogram.id]
+                if format
+                else str(seismogram.id)
+            ),
+            ":heavy_check_mark:" if seismogram.parameters.select is True else "",
+            (
+                file_uuid_dict_reversed(session)[seismogram.file.id]
+                if format
+                else str(seismogram.file.id)
+            ),
+            str(seismogram.delta.total_seconds()),
+            str(len(seismogram)),
+            (
+                station_uuid_dict_reversed(session)[seismogram.station.id]
+                if format
+                else str(seismogram.station.id)
+            ),
+            f"{seismogram.station.name} - {seismogram.station.network}",
+        ]
+
         if all_events:
-            table.add_row(
-                str(seismogram.id),
-                str(seismogram.file.filename),
-                str(seismogram.station.id),
-                str(seismogram.event.id),
+            row.append(
+                event_uuid_dict_reversed(session)[seismogram.event.id]
+                if format
+                else str(seismogram.event.id)
             )
-        else:
-            table.add_row(
-                str(seismogram.id),
-                str(seismogram.file.filename),
-                str(seismogram.station.id),
-            )
+        table.add_row(*row)
 
     console = Console()
     console.print(table)
 
 
-def plot_seismograms(session: Session, use_qt: bool = False) -> None | PlotWidget:
+@overload
+def plot_seismograms(session: Session, use_qt: Literal[True]) -> PlotWidget: ...
+@overload
+def plot_seismograms(session: Session, use_qt: Literal[False] = False) -> Figure: ...
+@overload
+def plot_seismograms(session: Session, use_qt: bool = False) -> Figure | PlotWidget: ...
+def plot_seismograms(session: Session, use_qt: bool = False) -> Figure | PlotWidget:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Parameters:
@@ -301,6 +349,8 @@ def plot_seismograms(session: Session, use_qt: bool = False) -> None | PlotWidge
         plot_widget.setAxisItems({"bottom": axis})
         plot_widget.setLabel("bottom", xlabel)
         plot_widget.setLabel("left", ylabel)
+    else:
+        fig, ax = plt.subplots()
 
     for seismogram in seismograms:
         clone = clone_to_mini(MiniSeismogram, seismogram)
@@ -312,7 +362,7 @@ def plot_seismograms(session: Session, use_qt: bool = False) -> None | PlotWidge
             plot_widget.plot(times, plot_data)
         else:
             times = time_array(clone)
-            plt.plot(
+            ax.plot(
                 times,
                 plot_data,
                 scalex=True,
@@ -328,4 +378,4 @@ def plot_seismograms(session: Session, use_qt: bool = False) -> None | PlotWidge
         plt.gca().xaxis.set_major_formatter(fmt)
         plt.title(title)
         plt.show()
-    return None
+    return fig

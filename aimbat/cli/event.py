@@ -1,27 +1,31 @@
 """View and manage events in the AIMBAT project."""
 
-from aimbat.cli.common import CommonParameters
+from aimbat.cli.common import GlobalParameters, TableParameters
 from aimbat.lib.typing import EventParameter
 from typing import Annotated
 from datetime import timedelta
 from cyclopts import App, Parameter
+import uuid
 
 
-def _print_event_table(db_url: str | None) -> None:
+def _print_event_table(db_url: str | None, format: bool) -> None:
     from aimbat.lib.event import print_event_table
     from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
-        print_event_table(session)
+        print_event_table(session, format)
 
 
-def _set_active_event_by_id(db_url: str | None, event_id: int) -> None:
+def _set_active_event_by_id(db_url: str | None, event_id: uuid.UUID | str) -> None:
     from aimbat.lib.event import set_active_event_by_id
-    from aimbat.lib.common import engine_from_url
+    from aimbat.lib.common import engine_from_url, string_to_uuid
+    from aimbat.lib.models import AimbatEvent
     from sqlmodel import Session
 
     with Session(engine_from_url(db_url)) as session:
+        if not isinstance(event_id, uuid.UUID):
+            event_id = string_to_uuid(session, event_id, AimbatEvent)
         set_active_event_by_id(session, event_id)
 
 
@@ -58,19 +62,24 @@ app = App(name="event", help=__doc__, help_format="markdown")
 
 
 @app.command(name="list")
-def cli_event_list(*, common: CommonParameters | None = None) -> None:
+def cli_event_list(
+    *,
+    table_parameters: TableParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
     """Print information on the events stored in AIMBAT."""
 
-    common = common or CommonParameters()
+    table_parameters = table_parameters or TableParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _print_event_table(common.db_url)
+    _print_event_table(global_parameters.db_url, table_parameters.format)
 
 
 @app.command(name="activate")
 def cli_event_activate(
-    event_id: Annotated[int, Parameter(name="id")],
+    event_id: Annotated[uuid.UUID | str, Parameter(name="id")],
     *,
-    common: CommonParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Select the event to be active for Processing.
 
@@ -78,16 +87,16 @@ def cli_event_activate(
         event_id: Event ID number.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _set_active_event_by_id(common.db_url, event_id=event_id)
+    _set_active_event_by_id(global_parameters.db_url, event_id=event_id)
 
 
 @app.command(name="get")
 def cli_event_parameter_get(
     name: EventParameter,
     *,
-    common: CommonParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Get parameter value for the active event.
 
@@ -95,9 +104,9 @@ def cli_event_parameter_get(
         name: Event parameter name.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _get_event_parameters(db_url=common.db_url, name=name)
+    _get_event_parameters(db_url=global_parameters.db_url, name=name)
 
 
 @app.command(name="set")
@@ -105,7 +114,7 @@ def cli_event_parameter_set(
     name: EventParameter,
     value: timedelta | str,
     *,
-    common: CommonParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Set parameter value for the active event.
 
@@ -114,9 +123,9 @@ def cli_event_parameter_set(
         value: Event parameter value.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _set_event_parameters(db_url=common.db_url, name=name, value=value)
+    _set_event_parameters(db_url=global_parameters.db_url, name=name, value=value)
 
 
 if __name__ == "__main__":
