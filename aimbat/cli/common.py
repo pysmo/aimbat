@@ -28,3 +28,12 @@ class GlobalParameters:
 class TableParameters:
     format: bool = True
     "Format the output to be more human-readable."
+
+
+@Parameter(name="*")
+@dataclass
+class IccsPlotParameters:
+    pad: bool = True
+    "Add extra padding to the time window for plotting."
+    all: bool = False
+    "Include all seismograms in the plot, even if not used in stack."
