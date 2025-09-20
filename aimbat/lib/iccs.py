@@ -58,63 +58,67 @@ def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> 
     session.commit()
 
 
-def plot_stack(iccs: ICCS, padded: bool) -> None:
+def plot_stack(iccs: ICCS, padded: bool, all: bool) -> None:
     """Plot the ICCS stack.
 
     Parameters:
         iccs: ICCS instance.
         padded: Whether to pad the stack.
+        all: Whether to plot all seismograms.
     """
 
     logger.info("Plotting ICCS stack for active event.")
-    _plot_stack(iccs, padded)
+    _plot_stack(iccs, padded, all)
 
 
-def plot_seismograms(iccs: ICCS, padded: bool) -> None:
+def plot_seismograms(iccs: ICCS, padded: bool, all: bool) -> None:
     """Plot the ICCS seismograms.
 
     Parameters:
         iccs: ICCS instance.
         padded: Whether to pad the seismograms.
+        all: Whether to plot all seismograms.
     """
 
     logger.info("Plotting ICCS seismograms for active event.")
 
-    _plot_seismograms(iccs, padded)
+    _plot_seismograms(iccs, padded, all)
 
 
 def update_pick(
-    session: Session, iccs: ICCS, padded: bool, use_seismogram_image: bool
+    session: Session, iccs: ICCS, padded: bool, all: bool, use_seismogram_image: bool
 ) -> None:
     """Update the pick for the active event.
 
     Parameters:
         iccs: ICCS instance.
         padded: Whether to pad the seismograms.
+        all: Whether to plot all seismograms.
         use_seismogram_image: Whether to use the seismogram image to update pick.
     """
 
     logger.info("Updating pick for active event.")
 
-    _update_pick(iccs, padded, use_seismogram_image)
+    _update_pick(iccs, padded, all, use_seismogram_image)
     session.commit()
 
 
 def update_timewindow(
-    session: Session, iccs: ICCS, padded: bool, use_seismogram_image: bool
+    session: Session, iccs: ICCS, padded: bool, all: bool, use_seismogram_image: bool
 ) -> None:
     """Update the time window for the active event.
 
     Parameters:
         iccs: ICCS instance.
         padded: Whether to pad the seismograms.
+        all: Whether to plot all seismograms.
         use_seismogram_image: Whether to use the seismogram image to update pick.
     """
 
     logger.info("Updating time window for active event.")
 
     logger.debug(f"Current {iccs.window_pre = }, {iccs.window_post = }.")
-    _update_timewindow(iccs, padded, use_seismogram_image)
+    _update_timewindow(iccs, padded, all, use_seismogram_image)
     logger.debug(f"Updated {iccs.window_pre = }, {iccs.window_post = }.")
 
     active_event = get_active_event(session)
@@ -123,18 +127,19 @@ def update_timewindow(
     session.commit()
 
 
-def update_min_ccnorm(session: Session, iccs: ICCS, padded: bool) -> None:
+def update_min_ccnorm(session: Session, iccs: ICCS, padded: bool, all: bool) -> None:
     """Update the minimum cross correlation coefficient for the active event.
 
     Parameters:
         iccs: ICCS instance.
         padded: Whether to pad the seismograms.
+        all: Whether to plot all seismograms.
     """
 
     logger.info("Updating minimum cross correlation coefficient for active event.")
 
     logger.debug(f"Current {iccs.min_ccnorm = }.")
-    _update_min_ccnorm(iccs, padded)
+    _update_min_ccnorm(iccs, padded, all)
     logger.debug(f"Updated {iccs.min_ccnorm = }.")
 
     active_event = get_active_event(session)

@@ -2133,7 +2133,7 @@ wheels = [
 [[package]]
 name = "pysmo"
 version = "1.0.0.dev1"
-source = { git = "https://github.com/pysmo/pysmo?rev=master#fd11dd89b825723967ce042a9739bef0dcdbcf69" }
+source = { git = "https://github.com/pysmo/pysmo?rev=master#b1d8aae60b72a5e0369ae62670c5028f2e38748e" }
 dependencies = [
     { name = "attrs" },
     { name = "attrs-strict" },
