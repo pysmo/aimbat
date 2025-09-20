@@ -5,7 +5,7 @@ The utils subcommand contains useful tools that
 are not strictly part of an AIMBAT workflow.
 """
 
-from aimbat.cli.common import CommonParameters
+from aimbat.cli.common import GlobalParameters
 from aimbat.cli.utils.sampledata import app as sampledata_app
 from pathlib import Path
 from typing import Annotated
@@ -26,7 +26,7 @@ app.command(sampledata_app, name="sampledata")
 def checkdata_cli(
     sacfiles: Annotated[list[Path], Parameter(name="data", consume_multiple=True)],
     *,
-    common: CommonParameters | None = None,
+    common: GlobalParameters | None = None,
 ) -> None:
     """Check if there are any problems with SAC files before adding them to a project.
 
@@ -34,7 +34,7 @@ def checkdata_cli(
         sacfiles: One or more SAC files.
     """
 
-    common = common or CommonParameters()
+    common = common or GlobalParameters()
 
     _run_checks(sacfiles)
 

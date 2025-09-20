@@ -9,7 +9,7 @@ environment variable to the desired filename. Alternatively, `aimbat` can be
 executed with a database url directly.
 """
 
-from aimbat.cli.common import CommonParameters
+from aimbat.cli.common import GlobalParameters
 from cyclopts import App
 
 
@@ -38,30 +38,30 @@ app = App(name="project", help=__doc__, help_format="markdown")
 
 
 @app.command(name="create")
-def cli_project_create(*, common: CommonParameters | None = None) -> None:
+def cli_project_create(*, global_parameters: GlobalParameters | None = None) -> None:
     """Create new AIMBAT project."""
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _create_project(common.db_url)
+    _create_project(global_parameters.db_url)
 
 
 @app.command(name="delete")
-def cli_project_delete(*, common: CommonParameters | None = None) -> None:
+def cli_project_delete(*, global_parameters: GlobalParameters | None = None) -> None:
     """Delete project (note: this does *not* delete seismogram files)."""
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _delete_project(common.db_url)
+    _delete_project(global_parameters.db_url)
 
 
 @app.command(name="info")
-def cli_project_info(*, common: CommonParameters | None = None) -> None:
+def cli_project_info(*, global_parameters: GlobalParameters | None = None) -> None:
     """Show information on an exisiting project."""
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _print_project_info(common.db_url)
+    _print_project_info(global_parameters.db_url)
 
 
 if __name__ == "__main__":

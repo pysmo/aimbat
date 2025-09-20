@@ -1,13 +1,36 @@
+from __future__ import annotations
 from pysmo.classes import SAC
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 import numpy as np
 import os
 import platform
 import pytest
 from pathlib import Path
 
+if TYPE_CHECKING:
+    from pytest import CaptureFixture, TempPathFactory
+    from sqlmodel import Session
+    from sqlalchemy.engine import Engine
+    from collections.abc import Generator
+    from typing import Any
 
-class TestLibUtils:
+
+class TestLibUtilsBase:
+    @pytest.fixture
+    def session(
+        self, test_db_with_project: tuple[Path, str, Engine, Session]
+    ) -> Generator[Session, Any, Any]:
+        yield test_db_with_project[3]
+
+    @pytest.fixture
+    def download_dir(
+        self, tmp_path_factory: TempPathFactory
+    ) -> Generator[Path, Any, Any]:
+        yield Path(tmp_path_factory.mktemp("download"))
+
+
+class TestLibUtilsCheckData(TestLibUtilsBase):
     def test_check_station_no_name(self, sac_instance_good: SAC) -> None:
         from aimbat.lib.utils.checkdata import checkdata_station
 
@@ -72,56 +95,109 @@ class TestLibUtils:
         assert "No seismogram data" in issues[0]
 
 
-class TestCliUtils:
-    def test_sampledata(
+@pytest.mark.dependency(depends=["create_project"], scope="session")
+class TestLibUtilsSampleData(TestLibUtilsBase):
+    @pytest.mark.dependency(
+        name="download_sampledata", depends=["set_default"], scope="session"
+    )
+    def test_download_sampledata(self, session: Session, download_dir: Path) -> None:
+        from aimbat.lib.utils.sampledata import download_sampledata
+        from aimbat.lib.defaults import set_default, ProjectDefault
+
+        set_default(session, ProjectDefault.SAMPLEDATA_DIR, str(download_dir))
+        assert len(os.listdir(download_dir)) == 0
+        download_sampledata(session)
+        assert len(os.listdir(download_dir)) > 0
+        with pytest.raises(FileExistsError):
+            download_sampledata(session)
+        download_sampledata(session, force=True)
+
+    @pytest.mark.dependency(depends=["download_sampledata"])
+    def test_delete_sampledata(self, session: Session, download_dir: Path) -> None:
+        from aimbat.lib.utils.sampledata import delete_sampledata, download_sampledata
+        from aimbat.lib.defaults import set_default, ProjectDefault
+
+        set_default(session, ProjectDefault.SAMPLEDATA_DIR, str(download_dir))
+        download_sampledata(session)
+        assert len(os.listdir(download_dir)) > 0
+        delete_sampledata(session)
+        assert download_dir.exists() is False
+
+
+class TestCliUtilsBase:
+    @pytest.fixture
+    def db_url(self, test_db_with_project: tuple[Path, str, Engine, Session]) -> str:
+        url = test_db_with_project[1]
+        return url
+
+    @pytest.fixture
+    def session(
+        self, test_db_with_project: tuple[Path, str, Engine, Session]
+    ) -> Session:
+        return test_db_with_project[3]
+
+    @pytest.fixture
+    def download_dir(self, tmp_path_factory: TempPathFactory) -> Path:
+        return Path(tmp_path_factory.mktemp("download"))
+
+
+class TestCliUtilsSampleData(TestCliUtilsBase):
+    def test_usage(self, capsys: CaptureFixture) -> None:
+        from aimbat.app import app
+
+        app(["utils", "sampledata"])
+        assert "Usage" in capsys.readouterr().out
+
+    @pytest.mark.skipif(
+        platform.system() == "Darwin", reason="Doesn't run on github actions"
+    )
+    def test_download_sampledata(
         self,
-        tmp_path_factory: pytest.TempPathFactory,
         db_url: str,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture,
+        session: Session,
+        download_dir: Path,
     ) -> None:
-        """Test AIMBAT cli with utils sampledata subcommand."""
+        from aimbat.app import app
+        from aimbat.lib.defaults import set_default, ProjectDefault
 
-        # TODO: get this running on github actions
-        if platform.system() != "Darwin":
-            monkeypatch.setenv("COLUMNS", "1000")
+        set_default(session, ProjectDefault.SAMPLEDATA_DIR, str(download_dir))
 
-            from aimbat.app import app
+        assert len(os.listdir((download_dir))) == 0
+        app(["utils", "sampledata", "download", "--db-url", db_url])
+        assert len(os.listdir((download_dir))) > 0
 
-            sampledata_dir = Path(tmp_path_factory.mktemp("sampledata"))
-
-            app(["utils", "sampledata"])
-            assert "Usage" in capsys.readouterr().out
-
-            app(["project", "create", "--db-url", db_url])
-
-            app(
-                [
-                    "defaults",
-                    "set",
-                    "sampledata_dir",
-                    rf"{sampledata_dir}",
-                    "--db-url",
-                    db_url,
-                ]
-            )
-
-            app(["defaults", "list", "--db-url", db_url])
-            assert str(sampledata_dir) in capsys.readouterr().out
-
-            assert len(os.listdir((sampledata_dir))) == 0
+        # can't download if it is already there
+        with pytest.raises(FileExistsError):
             app(["utils", "sampledata", "download", "--db-url", db_url])
-            assert len(os.listdir((sampledata_dir))) > 0
 
-            # can't download if it is already there
-            with pytest.raises(RuntimeError):
-                app(["utils", "sampledata", "download", "--db-url", db_url])
+        # unless we use force
+        app(["utils", "sampledata", "download", "--force", "--db-url", db_url])
 
-            # unless we use force
-            app(["utils", "sampledata", "download", "--force", "--db-url", db_url])
+    def test_delete_sampledata(
+        self,
+        db_url: str,
+        session: Session,
+        download_dir: Path,
+    ) -> None:
+        from aimbat.app import app
+        from aimbat.lib.defaults import set_default, ProjectDefault
 
-            app(["utils", "sampledata", "delete", "--db-url", db_url])
-            assert not sampledata_dir.exists()
+        set_default(session, ProjectDefault.SAMPLEDATA_DIR, str(download_dir))
+
+        assert len(os.listdir((download_dir))) == 0
+        app(["utils", "sampledata", "download", "--db-url", db_url])
+        assert len(os.listdir((download_dir))) > 0
+
+        app(["utils", "sampledata", "delete", "--db-url", db_url])
+        assert not download_dir.exists()
+
+
+class TestCliUtilsCheckData(TestCliUtilsBase):
+    def test_usage(self, capsys: CaptureFixture) -> None:
+        from aimbat.app import app
+
+        app(["utils", "checkdata", "--help"])
+        assert "Usage" in capsys.readouterr().out
 
     def test_checkdata(
         self, tmp_path_factory: pytest.TempPathFactory, capsys: pytest.CaptureFixture

@@ -4,7 +4,7 @@ This command lists various settings that are used in AIMBAT.
 Defaults shipped with AIMBAT may be overriden here too.
 """
 
-from aimbat.cli.common import CommonParameters
+from aimbat.cli.common import GlobalParameters
 from aimbat.lib.typing import ProjectDefault
 from datetime import timedelta
 from cyclopts import App, Parameter
@@ -32,7 +32,7 @@ def _get_default(name: ProjectDefault, db_url: str) -> None:
     with Session(engine_from_url(db_url)) as session:
         value = get_default(session, name)
         if isinstance(value, timedelta):
-            print(value.total_seconds())
+            value = f"{value.total_seconds()}s"
         print(value)
 
 
@@ -59,7 +59,7 @@ app = App(name="defaults", help=__doc__, help_format="markdown")
 
 @app.command(name="get")
 def cli_defaults_get(
-    name: ProjectDefault, *, common: CommonParameters | None = None
+    name: ProjectDefault, *, global_parameters: GlobalParameters | None = None
 ) -> None:
     """Get an AIMBAT default value.
 
@@ -67,9 +67,9 @@ def cli_defaults_get(
         name: Name of the default variable.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _get_default(name, common.db_url)
+    _get_default(name, global_parameters.db_url)
 
 
 @app.command(name="set")
@@ -77,7 +77,7 @@ def cli_defaults_set(
     name: ProjectDefault,
     value: timedelta | int | str,
     *,
-    common: Annotated[CommonParameters | None, Parameter(name="*")] = None,
+    global_parameters: Annotated[GlobalParameters | None, Parameter(name="*")] = None,
 ) -> None:
     """Set an AIMBAT default to a new value.
 
@@ -86,14 +86,14 @@ def cli_defaults_set(
         value: Value of the default variable.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _set_default(name, value, common.db_url)
+    _set_default(name, value, global_parameters.db_url)
 
 
 @app.command(name="reset")
 def cli_defaults_reset(
-    name: ProjectDefault, *, common: CommonParameters | None = None
+    name: ProjectDefault, *, global_parameters: GlobalParameters | None = None
 ) -> None:
     """Reset an AIMBAT default to the initial value.
 
@@ -101,18 +101,18 @@ def cli_defaults_reset(
         name: Name of the default variable.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _reset_default(name, common.db_url)
+    _reset_default(name, global_parameters.db_url)
 
 
 @app.command(name="list")
-def cli_defaults_list(*, common: CommonParameters | None = None) -> None:
+def cli_defaults_list(*, global_parameters: GlobalParameters | None = None) -> None:
     """Print a table with defaults used in AIMBAT."""
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _print_defaults_table(common.db_url)
+    _print_defaults_table(global_parameters.db_url)
 
 
 if __name__ == "__main__":

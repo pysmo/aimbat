@@ -8,7 +8,7 @@ The sample data source url can be viewed or changed via `aimbat default
 be viewed or changed via `aimbat default <list/set> sampledata_dir`.
 """
 
-from aimbat.cli.common import CommonParameters
+from aimbat.cli.common import GlobalParameters
 from cyclopts import App
 
 
@@ -35,7 +35,7 @@ app = App(name="sampledata", help=__doc__, help_format="markdown")
 
 @app.command(name="download")
 def sampledata_cli_download(
-    *, force: bool = False, common: CommonParameters | None = None
+    *, force: bool = False, global_parameters: GlobalParameters | None = None
 ) -> None:
     """Download AIMBAT sample data.
 
@@ -46,18 +46,18 @@ def sampledata_cli_download(
         force: Delete the download directory and re-download."
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _download_sampledata(common.db_url, force)
+    _download_sampledata(global_parameters.db_url, force)
 
 
 @app.command(name="delete")
-def sampledata_cli_delete(*, common: CommonParameters | None = None) -> None:
+def sampledata_cli_delete(*, global_parameters: GlobalParameters | None = None) -> None:
     """Recursively delete sample data directory."""
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _delete_sampledata(common.db_url)
+    _delete_sampledata(global_parameters.db_url)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ Launches various processing tools related to ICCS.
 """
 
 from typing import Annotated
-from aimbat.cli.common import CommonParameters
+from aimbat.cli.common import GlobalParameters
 from cyclopts import App, Parameter
 
 
@@ -85,7 +85,7 @@ app.command(update)
 
 @plot.command(name="stack")
 def cli_iccs_plot_stack(
-    *, pad: bool = True, common: CommonParameters | None = None
+    *, pad: bool = True, global_parameters: GlobalParameters | None = None
 ) -> None:
     """Plot the ICCS stack of the active event.
 
@@ -93,14 +93,14 @@ def cli_iccs_plot_stack(
         pad: Add extra padding to the time window for plotting.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _plot_stack(common.db_url, pad)
+    _plot_stack(global_parameters.db_url, pad)
 
 
 @plot.command(name="seismograms")
 def cli_iccs_plot_seismograms(
-    *, pad: bool = True, common: CommonParameters | None = None
+    *, pad: bool = True, global_parameters: GlobalParameters | None = None
 ) -> None:
     """Plot the ICCS seismograms of the active event.
 
@@ -108,9 +108,9 @@ def cli_iccs_plot_seismograms(
         pad: Add extra padding to the time window for plotting.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _plot_seismograms(common.db_url, pad)
+    _plot_seismograms(global_parameters.db_url, pad)
 
 
 @app.command(name="run")
@@ -118,7 +118,7 @@ def cli_iccs_run(
     *,
     autoflip: bool = False,
     autoselect: bool = False,
-    common: CommonParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Run the ICCS algorithm.
 
@@ -127,9 +127,9 @@ def cli_iccs_run(
         autoselect: Whether to automatically de-select seismograms.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _run_iccs(common.db_url, autoflip, autoselect)
+    _run_iccs(global_parameters.db_url, autoflip, autoselect)
 
 
 @update.command(name="pick")
@@ -137,7 +137,7 @@ def cli_iccs_update_pick(
     *,
     pad: bool = True,
     use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
-    common: CommonParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Pick a new arrival time.
 
@@ -146,9 +146,9 @@ def cli_iccs_update_pick(
         use_seismogram_image: Use the seismogram image to update pick.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _update_pick(common.db_url, pad, use_seismogram_image)
+    _update_pick(global_parameters.db_url, pad, use_seismogram_image)
 
 
 @update.command(name="timewindow")
@@ -156,7 +156,7 @@ def cli_iccs_update_timewindow(
     *,
     pad: bool = True,
     use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
-    common: CommonParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Pick a new time window.
 
@@ -165,14 +165,14 @@ def cli_iccs_update_timewindow(
         use_seismogram_image: Use the seismogram image to pick the time window.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _update_timewindow(common.db_url, pad, use_seismogram_image)
+    _update_timewindow(global_parameters.db_url, pad, use_seismogram_image)
 
 
 @update.command(name="ccnorm")
 def cli_iccs_update_min_ccnorm(
-    *, pad: bool = True, common: CommonParameters | None = None
+    *, pad: bool = True, global_parameters: GlobalParameters | None = None
 ) -> None:
     """Pick a new minimum cross-correlation norm for auto-selection.
 
@@ -180,9 +180,9 @@ def cli_iccs_update_min_ccnorm(
         pad: Add extra padding to the time window for plotting.
     """
 
-    common = common or CommonParameters()
+    global_parameters = global_parameters or GlobalParameters()
 
-    _update_min_ccnorm(common.db_url, pad)
+    _update_min_ccnorm(global_parameters.db_url, pad)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 """Manage seismogram files in a project."""
 
-from aimbat.lib.common import logger
+from aimbat.lib.common import logger, reverse_uuid_shortener
 from aimbat.lib.defaults import get_default
-from aimbat.lib.event import get_active_event
+from aimbat.lib.event import get_active_event, event_uuid_dict_reversed
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -21,6 +21,13 @@ from sqlmodel import Session, select
 from collections.abc import Sequence
 from rich.progress import track
 from rich.console import Console
+import uuid
+
+
+def file_uuid_dict_reversed(
+    session: Session, min_length: int = 2
+) -> dict[uuid.UUID, str]:
+    return reverse_uuid_shortener(session.exec(select(AimbatFile.id)).all(), min_length)
 
 
 def add_files_to_project(
@@ -208,11 +215,12 @@ def get_data_for_active_event(session: Session) -> Sequence[AimbatFile]:
     return session.exec(select_files).all()
 
 
-def print_data_table(session: Session, all_events: bool = False) -> None:
+def print_data_table(session: Session, format: bool, all_events: bool = False) -> None:
     """Print a pretty table with AIMBAT data.
 
     Parameters:
         session: Database session.
+        format: Print the output in a more human-readable format.
         all_events: Print all files instead of limiting to the active event.
     """
 
@@ -225,18 +233,25 @@ def print_data_table(session: Session, all_events: bool = False) -> None:
     else:
         active_event = get_active_event(session)
         aimbat_files = get_data_for_active_event(session)
-        title = f"AIMBAT data for event {active_event.time} (ID={active_event.id})"
+        if format:
+            title = f"AIMBAT data for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict_reversed(session)[active_event.id]})"
+        else:
+            title = f"AIMBAT data for event {active_event.time} (ID={active_event.id})"
 
     logger.debug(f"Found {len(aimbat_files)} files in total.")
 
     table = make_table(title=title)
 
-    table.add_column("id", justify="right", style="cyan", no_wrap=True)
+    table.add_column("id", justify="center", style="cyan", no_wrap=True)
     table.add_column("Filetype", justify="center", style="magenta")
     table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
 
     for file in aimbat_files:
-        table.add_row(str(file.id), str(file.filetype), str(file.filename))
+        table.add_row(
+            file_uuid_dict_reversed(session)[file.id] if format else str(file.id),
+            str(file.filetype),
+            str(file.filename),
+        )
 
     console = Console()
     console.print(table)
