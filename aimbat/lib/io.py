@@ -63,7 +63,7 @@ def _read_metadata_from_sacfile(
 
     from aimbat.lib.defaults import get_default
 
-    initial_pick_header = get_default(session, ProjectDefault.INITIAL_PICK_HEADER)
+    initial_pick_header = get_default(session, ProjectDefault.INITIAL_PICK_SAC_HEADER)
     logger.debug(f"Using SAC header {initial_pick_header} as t0.")
     sac = SAC.from_file(str(sacfile))
     t0 = getattr(sac.timestamps, str(initial_pick_header))

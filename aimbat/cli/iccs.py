@@ -162,7 +162,7 @@ def cli_iccs_update_pick(
     )
 
 
-@update.command(name="timewindow")
+@update.command(name="window")
 def cli_iccs_update_timewindow(
     *,
     iccs_parameters: IccsPlotParameters | None = None,

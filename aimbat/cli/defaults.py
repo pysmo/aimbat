@@ -13,7 +13,7 @@ from typing import Annotated
 
 def _set_default(
     name: ProjectDefault,
-    value: bool | timedelta | int | str,
+    value: timedelta | bool | str,
     db_url: str | None,
 ) -> None:
     from aimbat.lib.defaults import set_default
@@ -75,7 +75,7 @@ def cli_defaults_get(
 @app.command(name="set")
 def cli_defaults_set(
     name: ProjectDefault,
-    value: timedelta | int | str,
+    value: timedelta | str,
     *,
     global_parameters: Annotated[GlobalParameters | None, Parameter(name="*")] = None,
 ) -> None:
