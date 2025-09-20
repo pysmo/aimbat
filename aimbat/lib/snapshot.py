@@ -1,5 +1,5 @@
 from aimbat.lib.common import logger, reverse_uuid_shortener
-from aimbat.lib.event import get_active_event
+from aimbat.lib.event import get_active_event, event_uuid_dict_reversed
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatSeismogramParametersBase,
@@ -14,6 +14,14 @@ from sqlmodel import Session, select
 from rich.console import Console
 from collections.abc import Sequence
 import uuid
+
+
+def snapshot_uuid_dict_reversed(
+    session: Session, min_length: int = 2
+) -> dict[uuid.UUID, str]:
+    return reverse_uuid_shortener(
+        session.exec(select(AimbatSnapshot.id)).all(), min_length
+    )
 
 
 def create_snapshot(session: Session, comment: str | None = None) -> None:
@@ -193,21 +201,18 @@ def print_snapshot_table(
 
     logger.info("Printing AIMBAT snapshots table.")
 
-    snapshot_uuid_dict = reverse_uuid_shortener(
-        session.exec(select(AimbatSnapshot.id)).all(), 2
-    )
-    event_uuid_dict = reverse_uuid_shortener(
-        session.exec(select(AimbatEvent.id)).all(), 2
-    )
-
     title = "AIMBAT snapshots for all events"
     snapshots = get_snapshots(session, print_all_events)
     logger.debug(f"Found {len(snapshots)} snapshots for the table.")
 
+    event_uuid_dict = reverse_uuid_shortener(
+        session.exec(select(AimbatEvent.id)).all(), 2
+    )
+
     if not print_all_events:
         active_event = get_active_event(session)
         if format:
-            title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict[active_event.id]})"
+            title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict_reversed(session)[active_event.id]})"
         else:
             title = (
                 f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
@@ -228,7 +233,11 @@ def print_snapshot_table(
     for snapshot in snapshots:
         logger.debug(f"Adding snapshot with id={snapshot.id} to the table.")
         row = [
-            snapshot_uuid_dict[snapshot.id] if format else str(snapshot.id),
+            (
+                snapshot_uuid_dict_reversed(session)[snapshot.id]
+                if format
+                else str(snapshot.id)
+            ),
             (
                 snapshot.date.strftime("%Y-%m-%d %H:%M:%S")
                 if format
