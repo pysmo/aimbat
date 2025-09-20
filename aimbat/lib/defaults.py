@@ -6,7 +6,6 @@ from aimbat.lib.models import AimbatDefaults
 from aimbat.lib.typing import (
     ProjectDefault,
     ProjectDefaultBool,
-    ProjectDefaultInt,
     ProjectDefaultStr,
     ProjectDefaultTimedelta,
 )
@@ -36,7 +35,7 @@ def _get_instance(session: Session) -> AimbatDefaults:
 
 
 @overload
-def get_default(session: Session, name: ProjectDefaultInt) -> int: ...
+def get_default(session: Session, name: ProjectDefaultTimedelta) -> timedelta: ...
 
 
 @overload
@@ -48,16 +47,10 @@ def get_default(session: Session, name: ProjectDefaultStr) -> str: ...
 
 
 @overload
-def get_default(session: Session, name: ProjectDefaultTimedelta) -> timedelta: ...
+def get_default(session: Session, name: ProjectDefault) -> timedelta | bool | str: ...
 
 
-@overload
-def get_default(
-    session: Session, name: ProjectDefault
-) -> str | int | bool | timedelta: ...
-
-
-def get_default(session: Session, name: ProjectDefault) -> str | int | bool | timedelta:
+def get_default(session: Session, name: ProjectDefault) -> timedelta | bool | str:
     """Return the value of an AIMBAT default.
 
     Parameters:
@@ -84,21 +77,17 @@ def set_default(session: Session, name: ProjectDefaultBool, value: bool) -> None
 
 
 @overload
-def set_default(session: Session, name: ProjectDefaultInt, value: int) -> None: ...
-
-
-@overload
 def set_default(session: Session, name: ProjectDefaultStr, value: str) -> None: ...
 
 
 @overload
 def set_default(
-    session: Session, name: ProjectDefault, value: timedelta | bool | int | str
+    session: Session, name: ProjectDefault, value: timedelta | bool | str
 ) -> None: ...
 
 
 def set_default(
-    session: Session, name: ProjectDefault, value: timedelta | bool | int | str
+    session: Session, name: ProjectDefault, value: timedelta | bool | str
 ) -> None:
     """Set the value of an AIMBAT default.
 

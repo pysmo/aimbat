@@ -206,7 +206,12 @@ def print_snapshot_table(
 
     if not print_all_events:
         active_event = get_active_event(session)
-        title = f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
+        if format:
+            title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict[active_event.id]})"
+        else:
+            title = (
+                f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
+            )
 
     table = make_table(title=title)
 

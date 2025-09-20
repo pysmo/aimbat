@@ -20,9 +20,9 @@ class ProjectDefault(StrEnum):
     AIMBAT = auto()
     SAMPLEDATA_DIR = auto()
     SAMPLEDATA_SRC = auto()
-    DELTA_TOLERANCE = auto()
-    INITIAL_PICK_HEADER = auto()
-    INITIAL_TIME_WINDOW_WIDTH = auto()
+    INITIAL_PICK_SAC_HEADER = auto()
+    INITIAL_WINDOW_PRE = auto()
+    INITIAL_WINDOW_POST = auto()
     TIME_WINDOW_PADDING = auto()
 
 
@@ -31,21 +31,17 @@ ProjectDefaultBool: TypeAlias = Literal[ProjectDefault.AIMBAT]
 attributes with [`bool`][bool] values."""
 
 ProjectDefaultStr: TypeAlias = Literal[
-    ProjectDefault.INITIAL_PICK_HEADER,
+    ProjectDefault.INITIAL_PICK_SAC_HEADER,
     ProjectDefault.SAMPLEDATA_SRC,
     ProjectDefault.SAMPLEDATA_DIR,
 ]
 """[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults]
 attributes with [`str`][str] values."""
 
-ProjectDefaultInt: TypeAlias = Literal[ProjectDefault.DELTA_TOLERANCE]
-"[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] attributes with [`int`][int] values."
-
-# ProjectDefaultFloat: TypeAlias = Literal[ProjectDefault.TIME_WINDOW_PADDING]
-# "[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] attributes with [`float`][float] values."
-
 ProjectDefaultTimedelta: TypeAlias = Literal[
-    ProjectDefault.INITIAL_TIME_WINDOW_WIDTH, ProjectDefault.TIME_WINDOW_PADDING
+    ProjectDefault.INITIAL_WINDOW_PRE,
+    ProjectDefault.INITIAL_WINDOW_POST,
+    ProjectDefault.TIME_WINDOW_PADDING,
 ]
 "[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] attributes with [`timedelta`][timedelta] values."
 

@@ -37,6 +37,7 @@ def create_iccs_instance(session: Session) -> ICCS:
         seismograms=active_event.seismograms,
         window_pre=active_event.parameters.window_pre,
         window_post=active_event.parameters.window_post,
+        min_ccnorm=active_event.parameters.min_ccnorm,
         plot_padding=get_default(session, ProjectDefault.TIME_WINDOW_PADDING),
     )
 

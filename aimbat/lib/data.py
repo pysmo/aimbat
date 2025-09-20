@@ -15,7 +15,6 @@ from aimbat.lib.models import (
     AimbatSeismogramParameters,
 )
 from aimbat.lib.typing import ProjectDefault, SeismogramFileType
-from datetime import timedelta
 from pathlib import Path
 from sqlmodel import Session, select
 from collections.abc import Sequence
@@ -167,14 +166,10 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
             logger.debug(
                 f"Adding default parameters for event with id={aimbatevent.id}."
             )
-            window_width = get_default(
-                session, ProjectDefault.INITIAL_TIME_WINDOW_WIDTH
-            )
-            assert isinstance(window_width, timedelta)
+            window_pre = get_default(session, ProjectDefault.INITIAL_WINDOW_PRE)
+            window_post = get_default(session, ProjectDefault.INITIAL_WINDOW_POST)
             event_parameter = AimbatEventParameters(
-                event_id=aimbatevent.id,
-                window_pre=window_width / -2,
-                window_post=window_width / 2,
+                event_id=aimbatevent.id, window_pre=window_pre, window_post=window_post
             )
             session.add(event_parameter)
 

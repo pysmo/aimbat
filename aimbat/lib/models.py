@@ -48,23 +48,24 @@ class AimbatDefaults(SQLModel, table=True):
     )
     "URL where sample data is downloaded from."
 
-    delta_tolerance: int = Field(
-        default=9,
-        description="Round delta to N decimals when checking for different sampling rates in SAC files.",
-    )
-    "Round delta to N decimals when checking for different sampling rates in SAC files."
-
-    initial_pick_header: str = Field(
+    initial_pick_sac_header: str = Field(
         default="t0", description="SAC header field where initial pick is stored."
     )
     "SAC header field where initial pick is stored."
 
-    initial_time_window_width: timedelta = Field(
-        default=timedelta(seconds=30),
-        description="Width of initial timewindow (center is initial pick).",
+    initial_window_pre: timedelta = Field(
+        default=timedelta(seconds=-15),
+        description="Initial relative begin time of window.",
+        lt=0,
+    )
+    "Initial relative begin time of window."
+
+    initial_window_post: timedelta = Field(
+        default=timedelta(seconds=15),
+        description="Initial relative end time of window.",
         gt=0,
     )
-    "Width of initial timewindow (center is initial pick)."
+    "Initial relative end time of window."
 
     time_window_padding: timedelta = Field(
         default=timedelta(seconds=20), description="Padding around time window.", gt=0

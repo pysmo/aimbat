@@ -17,7 +17,6 @@ from aimbat.lib.typing import (
     ProjectDefault,
     ProjectDefaultStr,
     ProjectDefaultBool,
-    ProjectDefaultInt,
     ProjectDefaultTimedelta,
 )
 
@@ -51,7 +50,6 @@ class TestLibTypes:
         assert set_from_strenum(ProjectDefault) == set_from_typealiases(  # type: ignore
             ProjectDefaultTimedelta,  # type: ignore
             ProjectDefaultBool,  # type: ignore
-            ProjectDefaultInt,  # type: ignore
             ProjectDefaultStr,  # type: ignore
         )
 
