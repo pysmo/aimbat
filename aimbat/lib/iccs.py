@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 from aimbat.lib.common import logger
-from aimbat.lib.defaults import get_default
-from aimbat.lib.event import get_active_event
 from aimbat.lib.typing import ProjectDefault
 from pysmo.tools.iccs import (
     ICCS,
@@ -14,6 +12,8 @@ from pysmo.tools.iccs import (
     update_timewindow as _update_timewindow,
 )
 from typing import TYPE_CHECKING
+import aimbat.lib.defaults as defaults
+import aimbat.lib.event as event
 
 if TYPE_CHECKING:
     from sqlmodel import Session
@@ -31,14 +31,14 @@ def create_iccs_instance(session: Session) -> ICCS:
 
     logger.info("Creating ICCS instance for active event.")
 
-    active_event = get_active_event(session)
+    active_event = event.get_active_event(session)
 
     return ICCS(
         seismograms=active_event.seismograms,
         window_pre=active_event.parameters.window_pre,
         window_post=active_event.parameters.window_post,
         min_ccnorm=active_event.parameters.min_ccnorm,
-        plot_padding=get_default(session, ProjectDefault.TIME_WINDOW_PADDING),
+        plot_padding=defaults.get_default(session, ProjectDefault.TIME_WINDOW_PADDING),
     )
 
 
@@ -73,7 +73,7 @@ def plot_stack(iccs: ICCS, padded: bool, all: bool) -> None:
 
 
 def plot_seismograms(iccs: ICCS, padded: bool, all: bool) -> None:
-    """Plot the ICCS seismograms.
+    """Plot the ICCS seismograms as an image.
 
     Parameters:
         iccs: ICCS instance.
@@ -122,7 +122,7 @@ def update_timewindow(
     _update_timewindow(iccs, padded, all, use_seismogram_image)
     logger.debug(f"Updated {iccs.window_pre = }, {iccs.window_post = }.")
 
-    active_event = get_active_event(session)
+    active_event = event.get_active_event(session)
     active_event.parameters.window_pre = iccs.window_pre
     active_event.parameters.window_post = iccs.window_post
     session.commit()
@@ -143,6 +143,6 @@ def update_min_ccnorm(session: Session, iccs: ICCS, padded: bool, all: bool) -> 
     _update_min_ccnorm(iccs, padded, all)
     logger.debug(f"Updated {iccs.min_ccnorm = }.")
 
-    active_event = get_active_event(session)
+    active_event = event.get_active_event(session)
     active_event.parameters.min_ccnorm = float(iccs.min_ccnorm)
     session.commit()

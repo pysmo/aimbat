@@ -5,13 +5,19 @@ from pysmo.tools.utils import uuid_shortener
 from typing import TYPE_CHECKING
 from loguru import logger
 from sqlmodel import Session, select
-import uuid
 
 
 if TYPE_CHECKING:
-    from sqlalchemy import Engine
+    from aimbat.lib.models import (
+        AimbatEvent,
+        AimbatSeismogram,
+        AimbatSnapshot,
+        AimbatStation,
+    )
     from collections.abc import Sequence
-    from aimbat.lib.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
+    from sqlalchemy import Engine
+    from uuid import UUID
+
 
 AIMBAT_LOGFILE = "aimbat.log"
 
@@ -41,8 +47,8 @@ def engine_from_url(url: str | None = None) -> "Engine":
 def string_to_uuid(
     session: Session,
     id: str,
-    aimbat_class: type[AimbatEvent | AimbatSeismogram | AimbatSnapshot],
-) -> uuid.UUID:
+    aimbat_class: type[AimbatEvent | AimbatSeismogram | AimbatSnapshot | AimbatStation],
+) -> UUID:
     uuid_set = {
         u for u in session.exec(select(aimbat_class.id)).all() if str(u).startswith(id)
     }
@@ -54,8 +60,8 @@ def string_to_uuid(
 
 
 def reverse_uuid_shortener(
-    uuids: Sequence[uuid.UUID], min_length: int = 2
-) -> dict[uuid.UUID, str]:
+    uuids: Sequence[UUID], min_length: int = 2
+) -> dict[UUID, str]:
     uuid_dict = uuid_shortener(uuids, min_length)
     return {v: k for k, v in uuid_dict.items()}
 

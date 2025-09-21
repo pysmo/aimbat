@@ -1,18 +1,85 @@
+from __future__ import annotations
 from aimbat.lib.common import logger, reverse_uuid_shortener
-from aimbat.lib.event import event_uuid_dict_reversed, get_active_event
-from aimbat.lib.models import AimbatStation
+from aimbat.lib.models import AimbatStation, AimbatSeismogram, AimbatEvent
 from aimbat.lib.misc.rich_utils import make_table
 from rich.console import Console
 from sqlmodel import Session, select
-import uuid
+from sqlalchemy.exc import NoResultFound
+from typing import TYPE_CHECKING
+import aimbat.lib.event as event
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 
 def station_uuid_dict_reversed(
     session: Session, min_length: int = 2
-) -> dict[uuid.UUID, str]:
+) -> dict[UUID, str]:
     return reverse_uuid_shortener(
         session.exec(select(AimbatStation.id)).all(), min_length
     )
+
+
+def delete_station_by_id(session: Session, station_id: UUID) -> None:
+    """Delete an AimbatStation from the database by ID.
+
+    Parameters:
+        session: Database session.
+        station_id: Station ID.
+
+    Raises:
+        NoResultFound: If no AimbatStation is found with the given ID.
+    """
+
+    logger.debug(f"Getting station with id={station_id}.")
+
+    station = session.get(AimbatStation, station_id)
+    if station is None:
+        raise NoResultFound(f"No AimbatStation found with {station_id=}")
+    delete_station(session, station)
+
+
+def delete_station(session: Session, station: AimbatStation) -> None:
+    """Delete an AimbatStation from the database.
+
+    Parameters:
+        session: Database session.
+        station: Station to delete.
+    """
+
+    logger.info(f"Deleting station {station.id}.")
+
+    session.delete(station)
+    session.commit()
+
+
+def get_stations_in_event(
+    session: Session, event: AimbatEvent
+) -> Sequence[AimbatStation]:
+    """Get the stations for a particular event.
+
+    Parameters:
+        session: Database session.
+        event: Event to return stations for.
+
+    Returns: Stations in event.
+    """
+
+    logger.info(f"Getting stations for event: {event.id}.")
+
+    select_stations = (
+        select(AimbatStation)
+        .join(AimbatSeismogram)
+        .join(AimbatEvent)
+        .where(AimbatEvent.id == event.id)
+    )
+
+    stations = session.exec(select_stations).all()
+
+    logger.debug(f"Found {len(stations)}.")
+
+    return stations
 
 
 def print_station_table(
@@ -36,10 +103,10 @@ def print_station_table(
         aimbat_stations = session.exec(select(AimbatStation)).all()
     else:
         logger.debug("Selecting AIMBAT stations for active event.")
-        active_event = get_active_event(session)
-        aimbat_stations = active_event.stations
+        active_event = event.get_active_event(session)
+        aimbat_stations = get_stations_in_event(session, active_event)
         if format:
-            title = f"AIMBAT stations for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict_reversed(session)[active_event.id]})"
+            title = f"AIMBAT stations for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
         else:
             title = (
                 f"AIMBAT stations for event {active_event.time} (ID={active_event.id})"

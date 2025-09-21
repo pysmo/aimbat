@@ -3,6 +3,22 @@
 from aimbat.cli.common import GlobalParameters, TableParameters
 from typing import Annotated
 from cyclopts import App, Parameter
+import uuid
+
+
+def _delete_station(
+    db_url: str | None,
+    station_id: uuid.UUID | str,
+) -> None:
+    from aimbat.lib.station import delete_station_by_id
+    from aimbat.lib.common import engine_from_url, string_to_uuid
+    from aimbat.lib.models import AimbatStation
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        if not isinstance(station_id, uuid.UUID):
+            station_id = string_to_uuid(session, station_id, AimbatStation)
+        delete_station_by_id(session, station_id)
 
 
 def _print_station_table(db_url: str | None, format: bool, all_events: bool) -> None:
@@ -15,6 +31,26 @@ def _print_station_table(db_url: str | None, format: bool, all_events: bool) -> 
 
 
 app = App(name="station", help=__doc__, help_format="markdown")
+
+
+@app.command(name="delete")
+def cli_station_delete(
+    station_id: Annotated[uuid.UUID | str, Parameter(name="id")],
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Delete existing station.
+
+    Parameters:
+        station_id: Station ID.
+    """
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    _delete_station(
+        db_url=global_parameters.db_url,
+        station_id=station_id,
+    )
 
 
 @app.command(name="list")

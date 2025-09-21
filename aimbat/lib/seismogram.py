@@ -3,9 +3,6 @@ from aimbat.lib.common import (
     check_for_notebook,
     reverse_uuid_shortener,
 )
-from aimbat.lib.data import file_uuid_dict_reversed
-from aimbat.lib.event import get_active_event, event_uuid_dict_reversed
-from aimbat.lib.station import station_uuid_dict_reversed
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -25,10 +22,14 @@ from pysmo.tools.azdist import distance
 from datetime import datetime
 from rich.console import Console
 from sqlmodel import Session, select
+from sqlalchemy.exc import NoResultFound
 from typing import overload, Literal
 from collections.abc import Sequence
 from pyqtgraph.jupyter import PlotWidget  # type: ignore
 from matplotlib.figure import Figure
+import aimbat.lib.data as data
+import aimbat.lib.event as event
+import aimbat.lib.station as station
 import uuid
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -41,6 +42,39 @@ def seismogram_uuid_dict_reversed(
     return reverse_uuid_shortener(
         session.exec(select(AimbatSeismogram.id)).all(), min_length
     )
+
+
+def delete_seismogram_by_id(session: Session, seismogram_id: uuid.UUID) -> None:
+    """Delete an AimbatSeismogram from the database by ID.
+
+    Parameters:
+        session: Database session.
+        seismogram_id: Seismogram ID.
+
+    Raises:
+        NoResultFound: If no AimbatSeismogram is found with the given ID.
+    """
+
+    logger.debug(f"Getting seismogram with id={seismogram_id}.")
+
+    seismogram = session.get(AimbatSeismogram, seismogram_id)
+    if seismogram is None:
+        raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
+    delete_seismogram(session, seismogram)
+
+
+def delete_seismogram(session: Session, seismogram: AimbatSeismogram) -> None:
+    """Delete an AimbatSeismogram from the database.
+
+    Parameters:
+        session: Database session.
+        seismogram: Seismogram to delete.
+    """
+
+    logger.info(f"Deleting seismogram {seismogram.id}.")
+
+    session.delete(seismogram)
+    session.commit()
 
 
 def get_seismogram_parameter_by_id(
@@ -248,10 +282,10 @@ def print_seismogram_table(
         seismograms = session.exec(select(AimbatSeismogram)).all()
     else:
         logger.debug("Selecting seismograms for active event only.")
-        active_event = get_active_event(session)
+        active_event = event.get_active_event(session)
         seismograms = active_event.seismograms
         if format:
-            title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict_reversed(session)[active_event.id]})"
+            title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
         else:
             title = f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
 
@@ -281,14 +315,14 @@ def print_seismogram_table(
             ),
             ":heavy_check_mark:" if seismogram.parameters.select is True else "",
             (
-                file_uuid_dict_reversed(session)[seismogram.file.id]
+                data.file_uuid_dict_reversed(session)[seismogram.file.id]
                 if format
                 else str(seismogram.file.id)
             ),
             str(seismogram.delta.total_seconds()),
             str(len(seismogram)),
             (
-                station_uuid_dict_reversed(session)[seismogram.station.id]
+                station.station_uuid_dict_reversed(session)[seismogram.station.id]
                 if format
                 else str(seismogram.station.id)
             ),
@@ -297,7 +331,7 @@ def print_seismogram_table(
 
         if all_events:
             row.append(
-                event_uuid_dict_reversed(session)[seismogram.event.id]
+                event.uuid_dict_reversed(session)[seismogram.event.id]
                 if format
                 else str(seismogram.event.id)
             )
@@ -320,12 +354,15 @@ def plot_seismograms(session: Session, use_qt: bool = False) -> Figure | PlotWid
         session: Database session.
     """
 
-    active_event = get_active_event(session)
+    active_event = event.get_active_event(session)
 
     if active_event is None:
         raise RuntimeError("No active event set.")
 
     seismograms = active_event.seismograms
+
+    if len(seismograms) == 0:
+        raise RuntimeError("No seismograms found in active event.")
 
     distance_dict = {
         seismogram.id: distance(seismogram.station, seismogram.event) / 1000

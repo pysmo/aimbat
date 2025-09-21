@@ -1,11 +1,14 @@
 """Module to manage and view events in AIMBAT."""
 
+from __future__ import annotations
 from aimbat.lib.common import logger, reverse_uuid_shortener
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatEventParameters,
     AimbatEventParametersBase,
+    AimbatStation,
+    AimbatSeismogram,
 )
 from aimbat.lib.typing import (
     EventParameter,
@@ -15,18 +18,53 @@ from aimbat.lib.typing import (
 )
 from rich.console import Console
 from sqlmodel import select, Session
-from typing import overload
-from collections.abc import Sequence
+from sqlalchemy.exc import NoResultFound
+from typing import TYPE_CHECKING, overload
 from datetime import timedelta
-import uuid
+import aimbat.lib.station as station
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 
-def event_uuid_dict_reversed(
-    session: Session, min_length: int = 2
-) -> dict[uuid.UUID, str]:
+def uuid_dict_reversed(session: Session, min_length: int = 2) -> dict[UUID, str]:
     return reverse_uuid_shortener(
         session.exec(select(AimbatEvent.id)).all(), min_length
     )
+
+
+def delete_event_by_id(session: Session, event_id: UUID) -> None:
+    """Delete an AimbatEvent from the database by ID.
+
+    Parameters:
+        session: Database session.
+        event_id: Event ID.
+
+    Raises:
+        NoResultFound: If no AimbatEvent is found with the given ID.
+    """
+
+    logger.debug(f"Getting event with id={event_id}.")
+
+    event = session.get(AimbatEvent, event_id)
+    if event is None:
+        raise NoResultFound(f"No AimbatEvent found with {event_id=}")
+    delete_event(session, event)
+
+
+def delete_event(session: Session, event: AimbatEvent) -> None:
+    """Delete an AimbatEvent from the database.
+
+    Parameters:
+        session: Database session.
+        event: Event to delete.
+    """
+
+    logger.info(f"Deleting event {event.id}.")
+
+    session.delete(event)
+    session.commit()
 
 
 def get_active_event(session: Session) -> AimbatEvent:
@@ -54,7 +92,7 @@ def get_active_event(session: Session) -> AimbatEvent:
     return active_event
 
 
-def set_active_event_by_id(session: Session, event_id: uuid.UUID) -> None:
+def set_active_event_by_id(session: Session, event_id: UUID) -> None:
     """
     Set the currently selected event (i.e. the one being processed) by its ID.
 
@@ -106,6 +144,34 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
     )
 
     return session.exec(select_completed_events).all()
+
+
+def get_events_using_station(
+    session: Session, station: AimbatStation
+) -> Sequence[AimbatEvent]:
+    """Get all events that use a particular station.
+
+    Parameters:
+        session: Database session.
+        station: Station to return events for.
+
+    Returns: Events that use the station.
+    """
+
+    logger.info(f"Getting events for station: {station.id}.")
+
+    select_events = (
+        select(AimbatEvent)
+        .join(AimbatSeismogram)
+        .join(AimbatStation)
+        .where(AimbatStation.id == station.id)
+    )
+
+    events = session.exec(select_events).all()
+
+    logger.debug(f"Found {len(events)}.")
+
+    return events
 
 
 @overload
@@ -219,7 +285,7 @@ def print_event_table(session: Session, format: bool = True) -> None:
     for event in session.exec(select(AimbatEvent)).all():
         logger.debug(f"Adding event with id={event.id} to the table.")
         table.add_row(
-            event_uuid_dict_reversed(session)[event.id] if format else str(event.id),
+            uuid_dict_reversed(session)[event.id] if format else str(event.id),
             ":heavy_check_mark:" if event.active is True else "",
             event.time.strftime("%Y-%m-%d %H:%M:%S") if format else str(event.time),
             f"{event.latitude:.3f}" if format else str(event.latitude),
@@ -227,7 +293,7 @@ def print_event_table(session: Session, format: bool = True) -> None:
             f"{event.depth:.0f}" if format else str(event.depth),
             str(event.parameters.completed),
             str(len(event.seismograms)),
-            str(len(event.stations)),
+            str(len(station.get_stations_in_event(session, event))),
         )
 
     console = Console()

@@ -1,5 +1,5 @@
+from __future__ import annotations
 from aimbat.lib.common import logger, reverse_uuid_shortener
-from aimbat.lib.event import get_active_event, event_uuid_dict_reversed
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatSeismogramParametersBase,
@@ -10,15 +10,21 @@ from aimbat.lib.models import (
     AimbatEventParametersSnapshot,
     AimbatSeismogramParametersSnapshot,
 )
-from sqlmodel import Session, select
+from sqlmodel import select
 from rich.console import Console
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
+import aimbat.lib.event as event
 import uuid
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from sqlmodel import Session
+    from uuid import UUID
 
 
 def snapshot_uuid_dict_reversed(
     session: Session, min_length: int = 2
-) -> dict[uuid.UUID, str]:
+) -> dict[UUID, str]:
     return reverse_uuid_shortener(
         session.exec(select(AimbatSnapshot.id)).all(), min_length
     )
@@ -31,21 +37,25 @@ def create_snapshot(session: Session, comment: str | None = None) -> None:
         session: Database session.
         comment: Optional comment.
     """
-    event = get_active_event(session)
+    aimbat_event = event.get_active_event(session)
 
-    logger.info(f"Creating snapshot for event with id={event.id} with {comment=}.")
+    logger.info(
+        f"Creating snapshot for event with id={aimbat_event.id} with {comment=}."
+    )
 
-    snapshot = AimbatSnapshot(comment=comment)
-    session.add(snapshot)
+    aimbat_snapshot = AimbatSnapshot(comment=comment)
+    session.add(aimbat_snapshot)
     # session.commit()
-    logger.debug(f"Created snapshot with id={snapshot.id}. Now adding parameters...")
+    logger.debug(
+        f"Created snapshot with id={aimbat_snapshot.id}. Now adding parameters..."
+    )
 
     event_parameters_snapshot = AimbatEventParametersSnapshot.model_validate(
-        event.parameters,
+        aimbat_event.parameters,
         update={
             "id": uuid.uuid4(),  # we don't want to carry over the id from the active parameters
-            "snapshot_id": snapshot.id,
-            "parameters_id": event.parameters.id,
+            "snapshot_id": aimbat_snapshot.id,
+            "parameters_id": aimbat_event.parameters.id,
         },
     )
     session.add(event_parameters_snapshot)
@@ -53,13 +63,13 @@ def create_snapshot(session: Session, comment: str | None = None) -> None:
         f"Added event parameters snapshot with id={event_parameters_snapshot.id} to snapshot."
     )
 
-    for seismogram in event.seismograms:
+    for aimbat_seismogram in aimbat_event.seismograms:
         seismogram_parameter_snapshot = AimbatSeismogramParametersSnapshot.model_validate(
-            seismogram.parameters,
+            aimbat_seismogram.parameters,
             update={
                 "id": uuid.uuid4(),  # we don't want to carry over the id from the active parameters
-                "snapshot_id": snapshot.id,
-                "seismogram_parameters_id": seismogram.parameters.id,
+                "snapshot_id": aimbat_snapshot.id,
+                "seismogram_parameters_id": aimbat_seismogram.parameters.id,
             },
         )
         session.add(seismogram_parameter_snapshot)
@@ -70,7 +80,7 @@ def create_snapshot(session: Session, comment: str | None = None) -> None:
     session.commit()
 
 
-def rollback_to_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
+def rollback_to_snapshot_by_id(session: Session, snapshot_id: UUID) -> None:
     """Rollback to an AIMBAT parameters snapshot.
 
     Parameters:
@@ -125,7 +135,7 @@ def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
     session.commit()
 
 
-def delete_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
+def delete_snapshot_by_id(session: Session, snapshot_id: UUID) -> None:
     """Delete an AIMBAT parameter snapshot.
 
     Parameters:
@@ -133,7 +143,7 @@ def delete_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
         snapshot_id: Snapshot id.
     """
 
-    logger.info(f"Deleting snapshot with id={snapshot_id}.")
+    logger.debug(f"Searching for snapshot with id {snapshot_id}.")
 
     snapshot = session.get(AimbatSnapshot, snapshot_id)
 
@@ -153,7 +163,7 @@ def delete_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
         snapshot: Snapshot.
     """
 
-    logger.info(f"Deleting snapshot {snapshot}.")
+    logger.info(f"Deleting snapshot {snapshot.id}.")
 
     session.delete(snapshot)
     session.commit()
@@ -210,9 +220,9 @@ def print_snapshot_table(
     )
 
     if not print_all_events:
-        active_event = get_active_event(session)
+        active_event = event.get_active_event(session)
         if format:
-            title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict_reversed(session)[active_event.id]})"
+            title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
         else:
             title = (
                 f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
