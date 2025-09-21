@@ -1,8 +1,7 @@
 """Manage seismogram files in a project."""
 
 from aimbat.lib.common import logger, reverse_uuid_shortener
-from aimbat.lib.defaults import get_default
-from aimbat.lib.event import get_active_event, event_uuid_dict_reversed
+from aimbat.lib.event import get_active_event, uuid_dict_reversed
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -20,6 +19,7 @@ from sqlmodel import Session, select
 from collections.abc import Sequence
 from rich.progress import track
 from rich.console import Console
+import aimbat.lib.defaults as defaults
 import uuid
 
 
@@ -121,12 +121,6 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
             aimbatevent.longitude = event.longitude
             aimbatevent.depth = event.depth
 
-        if aimbatstation not in aimbatevent.stations:
-            logger.debug(
-                f"Registering station {aimbatstation} with event {aimbatevent}."
-            )
-            aimbatevent.stations.append(aimbatstation)
-
         session.add(aimbatevent)
         session.commit()
 
@@ -157,7 +151,7 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
         session.add(aimbatseismogram)
         session.commit()
 
-        logger.debug("Setting default paramaeters for new events and seismograms.")
+        logger.debug("Setting default parameters for new events and seismograms.")
         select_event_parameter = select(AimbatEventParameters).where(
             AimbatEventParameters.event_id == aimbatevent.id
         )
@@ -166,8 +160,12 @@ def _update_metadata(session: Session, disable_progress_bar: bool = True) -> Non
             logger.debug(
                 f"Adding default parameters for event with id={aimbatevent.id}."
             )
-            window_pre = get_default(session, ProjectDefault.INITIAL_WINDOW_PRE)
-            window_post = get_default(session, ProjectDefault.INITIAL_WINDOW_POST)
+            window_pre = defaults.get_default(
+                session, ProjectDefault.INITIAL_WINDOW_PRE
+            )
+            window_post = defaults.get_default(
+                session, ProjectDefault.INITIAL_WINDOW_POST
+            )
             event_parameter = AimbatEventParameters(
                 event_id=aimbatevent.id, window_pre=window_pre, window_post=window_post
             )
@@ -229,7 +227,7 @@ def print_data_table(session: Session, format: bool, all_events: bool = False) -
         active_event = get_active_event(session)
         aimbat_files = get_data_for_active_event(session)
         if format:
-            title = f"AIMBAT data for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event_uuid_dict_reversed(session)[active_event.id]})"
+            title = f"AIMBAT data for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_dict_reversed(session)[active_event.id]})"
         else:
             title = f"AIMBAT data for event {active_event.time} (ID={active_event.id})"
 

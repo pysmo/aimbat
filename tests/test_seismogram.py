@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from pathlib import Path
-from sqlmodel import Session
+from sqlalchemy.exc import NoResultFound
+from sqlmodel import Session, select
 from aimbat.lib.seismogram import SeismogramParameter
 import pytest
 import random
@@ -38,6 +39,89 @@ class TestLibSeismogram(TestSeismogramBase):
         for k, v in seismogram_uuid_dict_reversed(session).items():
             assert isinstance(k, uuid.UUID)
             assert isinstance(v, str)
+
+
+class TestDeleteSeismogram(TestSeismogramBase):
+    def test_lib_delete_seismogram_by_id(self, session: Session) -> None:
+        from aimbat.lib.seismogram import delete_seismogram_by_id
+        from aimbat.lib.models import AimbatSeismogram
+
+        seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
+        id = seismogram.id
+        delete_seismogram_by_id(session, id)
+        assert (
+            session.exec(
+                select(AimbatSeismogram).where(AimbatSeismogram.id == id)
+            ).one_or_none()
+            is None
+        )
+
+    def test_cli_delete_seismogram_by_id(self, session: Session, db_url: str) -> None:
+        from aimbat.app import app
+        from aimbat.lib.models import AimbatSeismogram
+
+        seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
+        id = seismogram.id
+
+        app(
+            [
+                "seismogram",
+                "delete",
+                str(id),
+                "--db-url",
+                db_url,
+            ]
+        )
+        session.flush()
+        assert (
+            session.exec(
+                select(AimbatSeismogram).where(AimbatSeismogram.id == id)
+            ).one_or_none()
+            is None
+        )
+
+    def test_cli_delete_seismogram_by_id_with_wrong_id(self, db_url: str) -> None:
+        from aimbat.app import app
+        from uuid import uuid4
+
+        id = uuid4()
+
+        with pytest.raises(NoResultFound):
+            app(
+                [
+                    "seismogram",
+                    "delete",
+                    str(id),
+                    "--db-url",
+                    db_url,
+                ]
+            )
+
+    def test_cli_delete_seismogram_by_string(
+        self, session: Session, db_url: str
+    ) -> None:
+        from aimbat.app import app
+        from aimbat.lib.models import AimbatSeismogram
+
+        seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
+        id = seismogram.id
+
+        app(
+            [
+                "seismogram",
+                "delete",
+                str(id)[:5],
+                "--db-url",
+                db_url,
+            ]
+        )
+        session.flush()
+        assert (
+            session.exec(
+                select(AimbatSeismogram).where(AimbatSeismogram.id == id)
+            ).one_or_none()
+            is None
+        )
 
 
 class TestGetSeismogramParameter(TestSeismogramBase):

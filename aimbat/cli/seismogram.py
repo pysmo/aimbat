@@ -7,6 +7,21 @@ from cyclopts import App, Parameter
 import uuid
 
 
+def _delete_seismogram(
+    db_url: str | None,
+    seismogram_id: uuid.UUID | str,
+) -> None:
+    from aimbat.lib.seismogram import delete_seismogram_by_id
+    from aimbat.lib.common import engine_from_url, string_to_uuid
+    from aimbat.lib.models import AimbatSeismogram
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        if not isinstance(seismogram_id, uuid.UUID):
+            seismogram_id = string_to_uuid(session, seismogram_id, AimbatSeismogram)
+        delete_seismogram_by_id(session, seismogram_id)
+
+
 def _get_seismogram_parameter(
     db_url: str | None,
     seismogram_id: uuid.UUID | str,
@@ -68,13 +83,24 @@ def _plot_seismograms(db_url: str | None, use_qt: bool) -> None:
 app = App(name="seismogram", help=__doc__, help_format="markdown")
 
 
-@app.command(name="plot")
-def cli_seismogram_plot(*, global_parameters: GlobalParameters | None = None) -> None:
-    """Plot seismograms for the active event."""
+@app.command(name="delete")
+def cli_seismogram_delete(
+    seismogram_id: Annotated[uuid.UUID | str, Parameter(name="id")],
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Delete existing seismogram.
+
+    Parameters:
+        seismogram_id: Seismogram ID.
+    """
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _plot_seismograms(global_parameters.db_url, global_parameters.use_qt)
+    _delete_seismogram(
+        db_url=global_parameters.db_url,
+        seismogram_id=seismogram_id,
+    )
 
 
 @app.command(name="get")
@@ -144,6 +170,15 @@ def cli_seismogram_list(
     _print_seismogram_table(
         global_parameters.db_url, table_parameters.format, all_events
     )
+
+
+@app.command(name="plot")
+def cli_seismogram_plot(*, global_parameters: GlobalParameters | None = None) -> None:
+    """Plot seismograms for the active event."""
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    _plot_seismograms(global_parameters.db_url, global_parameters.use_qt)
 
 
 if __name__ == "__main__":

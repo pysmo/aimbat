@@ -1,7 +1,5 @@
 from aimbat.lib.common import logger
 from aimbat.lib.db import engine
-from aimbat.lib.event import get_completed_events, get_active_event
-from aimbat.lib.seismogram import get_selected_seismograms
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -13,6 +11,9 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+import aimbat.lib.event as event
+import aimbat.lib.seismogram as seismogram
+import aimbat.lib.station as station
 
 
 def _project_exists(engine: Engine) -> bool:
@@ -144,10 +145,12 @@ def print_project_info(engine: Engine = engine) -> None:
             grid.add_row("AIMBAT Project File: ", project)
 
         events = len(session.exec(select(AimbatEvent)).all())
-        completed_events = len(get_completed_events(session))
+        completed_events = len(event.get_completed_events(session))
         stations = len(session.exec(select(AimbatStation)).all())
         seismograms = len(session.exec(select(AimbatSeismogram)).all())
-        selected_seismograms = len(get_selected_seismograms(session, all_events=True))
+        selected_seismograms = len(
+            seismogram.get_selected_seismograms(session, all_events=True)
+        )
 
         grid.add_row(
             "Number of Events (total/completed): ",
@@ -155,11 +158,13 @@ def print_project_info(engine: Engine = engine) -> None:
         )
 
         try:
-            active_event = get_active_event(session)
+            active_event = event.get_active_event(session)
             active_event_id = active_event.id
-            active_stations = len(active_event.stations)
+            active_stations = len(station.get_stations_in_event(session, active_event))
             seismograms_in_event = len(active_event.seismograms)
-            selected_seismograms_in_event = len(get_selected_seismograms(session))
+            selected_seismograms_in_event = len(
+                seismogram.get_selected_seismograms(session)
+            )
         except RuntimeError:
             active_event_id = None
             active_stations = None

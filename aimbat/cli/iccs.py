@@ -118,13 +118,13 @@ def cli_iccs_plot_stack(
     _plot_stack(global_parameters.db_url, iccs_parameters.pad, iccs_parameters.all)
 
 
-@plot.command(name="seismograms")
+@plot.command(name="image")
 def cli_iccs_plot_seismograms(
     *,
     iccs_parameters: IccsPlotParameters | None = None,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
-    """Plot the ICCS seismograms of the active event.
+    """Plot the ICCS seismograms of the active event as an image.
 
     Parameters:
         pad: Add extra padding to the time window for plotting.

@@ -4,11 +4,11 @@ These classes are ORMs that present data stored in a database
 as classes to use with python in AIMBAT.
 """
 
-from aimbat.lib.io import read_seismogram_data_from_file, write_seismogram_data_to_file
 from aimbat.lib.typing import SeismogramFileType, ProjectDefault
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
+import aimbat.lib.io as io
 import numpy as np
 import uuid
 
@@ -122,44 +122,32 @@ class AimbatFile(AimbatFileBase, table=True):
     )
 
 
-class EventStationLink(SQLModel, table=True):
-    event_id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        foreign_key="aimbatevent.id",
-        primary_key=True,
-        ondelete="CASCADE",
-    )
-    station_id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        foreign_key="aimbatstation.id",
-        primary_key=True,
-        ondelete="CASCADE",
-    )
-
-
 class AimbatEvent(SQLModel, table=True):
     """Store event information."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
+
     active: bool | None = Field(default=None, unique=True)
     "Indicates if an event is the active event."
+
     time: datetime = Field(unique=True, sa_type=_DateTimeUTC)
     "Event time."
+
     latitude: float
     "Event latitude."
+
     longitude: float
     "Event longitude."
+
     depth: float | None = None
     "Event depth."
-    stations: list["AimbatStation"] = Relationship(
-        back_populates="events", link_model=EventStationLink
-    )
-    "List of stations that recorded this event."
+
     seismograms: list["AimbatSeismogram"] = Relationship(
         back_populates="event", cascade_delete=True
     )
     "List of seismograms of this event."
+
     parameters: "AimbatEventParameters" = Relationship(
         back_populates="event", cascade_delete=True
     )
@@ -224,24 +212,26 @@ class AimbatStation(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
+
     name: str = Field(allow_mutation=False)
     "Station name."
+
     latitude: float
     "Station latitude"
+
     longitude: float
     "Station longitude"
+
     network: str | None = Field(default=None, allow_mutation=False)
     "Network name."
+
     elevation: float | None = None
     "Station elevation."
+
     seismograms: list["AimbatSeismogram"] = Relationship(
         back_populates="station", cascade_delete=True
     )
     "Seismograms recorded at this station."
-    events: list[AimbatEvent] = Relationship(
-        back_populates="stations", link_model=EventStationLink
-    )
-    "Events recorded by this station."
 
 
 class AimbatSeismogram(SQLModel, table=True):
@@ -249,12 +239,16 @@ class AimbatSeismogram(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
+
     begin_time: datetime = Field(sa_type=_DateTimeUTC)
     "Begin time of seismogram."
+
     delta: timedelta
     "Sampling interval."
+
     t0: datetime = Field(sa_type=_DateTimeUTC)
     "Initial pick."
+
     cached_length: int | None = None
 
     file_id: uuid.UUID = Field(foreign_key="aimbatfile.id", ondelete="CASCADE")
@@ -307,13 +301,13 @@ class AimbatSeismogram(SQLModel, table=True):
     def data(self) -> np.ndarray:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to read data from")
-        return read_seismogram_data_from_file(self.file.filename, self.file.filetype)
+        return io.read_seismogram_data_from_file(self.file.filename, self.file.filetype)
 
     @data.setter
     def data(self, value: np.ndarray) -> None:
         if self.file_id is None:
             raise RuntimeError("I don't know which file to write data to")
-        write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
+        io.write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
         self.cached_length = np.size(value)
 
 

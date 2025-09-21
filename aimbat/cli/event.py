@@ -8,6 +8,21 @@ from cyclopts import App, Parameter
 import uuid
 
 
+def _delete_event(
+    db_url: str | None,
+    event_id: uuid.UUID | str,
+) -> None:
+    from aimbat.lib.event import delete_event_by_id
+    from aimbat.lib.common import engine_from_url, string_to_uuid
+    from aimbat.lib.models import AimbatEvent
+    from sqlmodel import Session
+
+    with Session(engine_from_url(db_url)) as session:
+        if not isinstance(event_id, uuid.UUID):
+            event_id = string_to_uuid(session, event_id, AimbatEvent)
+        delete_event_by_id(session, event_id)
+
+
 def _print_event_table(db_url: str | None, format: bool) -> None:
     from aimbat.lib.event import print_event_table
     from aimbat.lib.common import engine_from_url
@@ -59,6 +74,26 @@ def _set_event_parameters(
 
 
 app = App(name="event", help=__doc__, help_format="markdown")
+
+
+@app.command(name="delete")
+def cli_event_delete(
+    event_id: Annotated[uuid.UUID | str, Parameter(name="id")],
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Delete existing event.
+
+    Parameters:
+        event_id: Event ID.
+    """
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    _delete_event(
+        db_url=global_parameters.db_url,
+        event_id=event_id,
+    )
 
 
 @app.command(name="list")
