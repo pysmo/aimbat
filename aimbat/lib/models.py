@@ -10,6 +10,7 @@ from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
 import aimbat.lib.io as io
 import numpy as np
+import os
 import uuid
 
 
@@ -100,26 +101,23 @@ class AimbatDefaults(SQLModel, table=True):
         return cls.model_fields.get(name).description  # type: ignore
 
 
-class AimbatFileBase(SQLModel):
+class AimbatFileCreate(SQLModel):
     """Class to store data file information."""
 
-    filename: str = Field(unique=True)
-
-
-class AimbatFileCreate(AimbatFileBase):
-    """Class to store data file information."""
-
+    filename: str | os.PathLike = Field(unique=True)
     filetype: SeismogramFileType = SeismogramFileType.SAC
 
 
-class AimbatFile(AimbatFileBase, table=True):
+class AimbatFile(SQLModel, table=True):
     """Class to store data file information."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    filename: str
     filetype: str
-    seismogram: "AimbatSeismogram" = Relationship(
-        back_populates="file", cascade_delete=True
+    seismogram_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatseismogram.id", ondelete="CASCADE"
     )
+    seismogram: "AimbatSeismogram" = Relationship(back_populates="file")
 
 
 class AimbatEvent(SQLModel, table=True):
@@ -153,6 +151,11 @@ class AimbatEvent(SQLModel, table=True):
     )
     "Event parameters."
 
+    snapshots: list["AimbatSnapshot"] = Relationship(
+        back_populates="event", cascade_delete=True
+    )
+    "List of snapshots."
+
 
 class AimbatEventParametersBase(SQLModel):
     """Base class that defines the event parameters used in AIMBAT.
@@ -181,7 +184,9 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     "Unique ID."
 
-    event_id: uuid.UUID = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
+    event_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatevent.id", ondelete="CASCADE"
+    )
     "Event ID these parameters are associated with."
 
     event: AimbatEvent = Relationship(back_populates="parameters")
@@ -197,13 +202,15 @@ class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
     """Event parameter snapshot."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    snapshot_id: uuid.UUID = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
+    snapshot_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatsnapshot.id", ondelete="CASCADE"
+    )
     snapshot: "AimbatSnapshot" = Relationship(
         back_populates="event_parameters_snapshot"
     )
     parameters: AimbatEventParameters = Relationship(back_populates="snapshots")
     parameters_id: uuid.UUID = Field(
-        foreign_key="aimbateventparameters.id", ondelete="CASCADE"
+        default=None, foreign_key="aimbateventparameters.id", ondelete="CASCADE"
     )
 
 
@@ -251,11 +258,14 @@ class AimbatSeismogram(SQLModel, table=True):
 
     cached_length: int | None = None
 
-    file_id: uuid.UUID = Field(foreign_key="aimbatfile.id", ondelete="CASCADE")
-    file: AimbatFile = Relationship(back_populates="seismogram")
-    station_id: uuid.UUID = Field(foreign_key="aimbatstation.id", ondelete="CASCADE")
+    file: AimbatFile = Relationship(back_populates="seismogram", cascade_delete=True)
+    station_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatstation.id", ondelete="CASCADE"
+    )
     station: AimbatStation = Relationship(back_populates="seismograms")
-    event_id: uuid.UUID = Field(foreign_key="aimbatevent.id", ondelete="CASCADE")
+    event_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatevent.id", ondelete="CASCADE"
+    )
     event: AimbatEvent = Relationship(back_populates="seismograms")
     parameters: "AimbatSeismogramParameters" = Relationship(
         back_populates="seismogram",
@@ -299,13 +309,13 @@ class AimbatSeismogram(SQLModel, table=True):
 
     @property
     def data(self) -> np.ndarray:
-        if self.file_id is None:
+        if self.file is None:
             raise RuntimeError("I don't know which file to read data from")
         return io.read_seismogram_data_from_file(self.file.filename, self.file.filetype)
 
     @data.setter
     def data(self, value: np.ndarray) -> None:
-        if self.file_id is None:
+        if self.file is None:
             raise RuntimeError("I don't know which file to write data to")
         io.write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
         self.cached_length = np.size(value)
@@ -334,7 +344,7 @@ class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     seismogram_id: uuid.UUID = Field(
-        foreign_key="aimbatseismogram.id", ondelete="CASCADE"
+        default=None, foreign_key="aimbatseismogram.id", ondelete="CASCADE"
     )
     seismogram: AimbatSeismogram = Relationship(back_populates="parameters")
     snapshots: list["AimbatSeismogramParametersSnapshot"] = Relationship(
@@ -350,7 +360,9 @@ class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=T
         foreign_key="aimbatseismogramparameters.id", ondelete="CASCADE"
     )
     parameters: AimbatSeismogramParameters = Relationship(back_populates="snapshots")
-    snapshot_id: uuid.UUID = Field(foreign_key="aimbatsnapshot.id", ondelete="CASCADE")
+    snapshot_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatsnapshot.id", ondelete="CASCADE"
+    )
     snapshot: "AimbatSnapshot" = Relationship(
         back_populates="seismogram_parameters_snapshots"
     )
@@ -378,3 +390,11 @@ class AimbatSnapshot(SQLModel, table=True):
     seismogram_parameters_snapshots: list[AimbatSeismogramParametersSnapshot] = (
         Relationship(back_populates="snapshot", cascade_delete=True)
     )
+
+    event_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatevent.id", ondelete="CASCADE"
+    )
+    "Event ID this snapshot is associated with."
+
+    event: AimbatEvent = Relationship(back_populates="snapshots")
+    "Event this snapshot is associated with."

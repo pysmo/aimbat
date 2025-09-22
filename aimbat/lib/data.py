@@ -51,138 +51,94 @@ def add_files_to_project(
         description="Adding files ...",
         disable=disable_progress_bar,
     ):
-        aimbatfilecreate = AimbatFileCreate(filename=str(filename), filetype=filetype)
-        aimbatfile = AimbatFile.model_validate(aimbatfilecreate)
-        statement = select(AimbatFile).where(AimbatFile.filename == aimbatfile.filename)
-        if session.exec(statement).first() is None:
-            logger.debug(f"Adding file {aimbatfile.filename} to database.")
-            session.add(aimbatfile)
-        else:
-            logger.debug(f"File {aimbatfile.filename} already in database. Skipping.")
-
-    session.commit()
-
-    _update_metadata(session, disable_progress_bar)
-
-
-def _update_metadata(session: Session, disable_progress_bar: bool = True) -> None:
-    """Update or add metadata by reading all files whose paths are stored
-    in the AIMBAT project.
-
-    Parameters:
-        session: Database session.
-        disable_progress_bar: Do not display progress bar.
-    """
-
-    logger.info("Updating metadata for all files in project.")
-
-    for aimbatfile in track(
-        sequence=session.exec(select(AimbatFile)).all(),
-        description="Parsing data ...",
-        disable=disable_progress_bar,
-    ):
-        logger.debug(f"Reading metadata from file {aimbatfile.filename}")
         seismogram, station, event, t0 = read_metadata_from_file(
-            session, aimbatfile.filename, aimbatfile.filetype
+            session, filename, filetype
         )
 
-        logger.debug(
-            f"Adding or updating station {station.name=}.{station.network=}..."
-        )
-        select_aimbatstation = (
+        # Create AimbatStation instance
+        select_aimbat_station = (
             select(AimbatStation)
             .where(AimbatStation.name == station.name)
             .where(AimbatStation.network == station.network)
         )
-        aimbatstation = session.exec(select_aimbatstation).one_or_none()
-        if aimbatstation is None:
+        aimbat_station = session.exec(select_aimbat_station).one_or_none()
+        if aimbat_station is None:
             logger.debug(
-                f"Adding station {station.name=}.{station.network=} to database."
+                f"Adding station {station.name} - {station.network} to project."
             )
-            aimbatstation = AimbatStation.model_validate(station)
+            aimbat_station = AimbatStation.model_validate(station)
+            session.add(aimbat_station)
         else:
             logger.debug(
-                f"Updating existing station {station.name=}.{station.network=}."
+                f"Using existing station {aimbat_station.name} - {aimbat_station.network} instead of adding new one."
             )
-            aimbatstation.latitude = station.latitude
-            aimbatstation.longitude = station.longitude
-            aimbatstation.elevation = station.elevation
-        session.add(aimbatstation)
 
-        logger.debug(f"Adding or updating event {event.time}...")
-        select_aimbatevent = select(AimbatEvent).where(AimbatEvent.time == event.time)
-        aimbatevent = session.exec(select_aimbatevent).one_or_none()
-        if aimbatevent is None:
-            logger.debug(f"Adding event {event.time} to database.")
-            aimbatevent = AimbatEvent.model_validate(event, update={"time": event.time})
+        # Create AimbatEvent instance
+        select_aimbat_event = select(AimbatEvent).where(AimbatEvent.time == event.time)
+        aimbat_event = session.exec(select_aimbat_event).one_or_none()
+        if aimbat_event is None:
+            logger.debug(f"Adding event {event.time} to project.")
+            event_parameter = AimbatEventParameters(
+                window_pre=defaults.get_default(
+                    session, ProjectDefault.INITIAL_WINDOW_PRE
+                ),
+                window_post=defaults.get_default(
+                    session, ProjectDefault.INITIAL_WINDOW_POST
+                ),
+            )
+            aimbat_event = AimbatEvent.model_validate(
+                event, update={"parameters": event_parameter}
+            )
+            session.add(aimbat_event)
         else:
-            logger.debug(f"Updating existing event {event.time}.")
-            aimbatevent.latitude = event.latitude
-            aimbatevent.longitude = event.longitude
-            aimbatevent.depth = event.depth
+            logger.debug(
+                f"Using existing event {aimbat_event.time} instead of adding new one."
+            )
 
-        session.add(aimbatevent)
-        session.commit()
-
-        logger.debug(f"Adding or updating seismogram for {aimbatfile.id=}...")
-        select_aimbatseismogram = select(AimbatSeismogram).where(
-            AimbatSeismogram.file_id == aimbatfile.id
+        # Create AimbatSeismogram instance with relationships to AimbatStation and AimbatEvent
+        select_aimbat_seismogram = (
+            select(AimbatSeismogram)
+            .join(AimbatFile)
+            .where(AimbatFile.filename == str(filename))
         )
-        aimbatseismogram = session.exec(select_aimbatseismogram).first()
-        if aimbatseismogram is None:
-            logger.debug(f"Adding seismogram for {aimbatfile.id=} to database.")
-            aimbatseismogram = AimbatSeismogram(
+
+        aimbat_seismogram = session.exec(select_aimbat_seismogram).one_or_none()
+        if aimbat_seismogram is None:
+            logger.debug(f"Adding seismogram with data source {filename} to project.")
+            aimbat_seismogram = AimbatSeismogram(
                 begin_time=seismogram.begin_time,
                 delta=seismogram.delta,
                 t0=t0,
-                file_id=aimbatfile.id,
-                station_id=aimbatstation.id,
-                event_id=aimbatevent.id,
+                station=aimbat_station,
+                event=aimbat_event,
+                parameters=AimbatSeismogramParameters(),
             )
+            session.add(aimbat_seismogram)
         else:
-            logger.debug(f"Updating existing seismogram for {aimbatfile.id=}.")
-            aimbatseismogram.begin_time = seismogram.begin_time
-            aimbatseismogram.delta = seismogram.delta
-            aimbatseismogram.t0 = t0
-            aimbatseismogram.cached_length = None
-            aimbatseismogram.station_id = aimbatstation.id
-            aimbatseismogram.event_id = aimbatevent.id
-
-        session.add(aimbatseismogram)
-        session.commit()
-
-        logger.debug("Setting default parameters for new events and seismograms.")
-        select_event_parameter = select(AimbatEventParameters).where(
-            AimbatEventParameters.event_id == aimbatevent.id
-        )
-        event_parameter = session.exec(select_event_parameter).first()
-        if event_parameter is None:
             logger.debug(
-                f"Adding default parameters for event with id={aimbatevent.id}."
+                f"Using existing seismogram with data source {filename} instead of adding new one."
             )
-            window_pre = defaults.get_default(
-                session, ProjectDefault.INITIAL_WINDOW_PRE
-            )
-            window_post = defaults.get_default(
-                session, ProjectDefault.INITIAL_WINDOW_POST
-            )
-            event_parameter = AimbatEventParameters(
-                event_id=aimbatevent.id, window_pre=window_pre, window_post=window_post
-            )
-            session.add(event_parameter)
 
-        select_seismogram_parameter = select(AimbatSeismogramParameters).where(
-            AimbatSeismogramParameters.seismogram_id == aimbatseismogram.id
+        # Create AimbatFile instance with relationship to AimbatSeismogram
+        select_aimbat_file = select(AimbatFile).where(
+            AimbatFile.filename == str(filename)
         )
-        seismogram_parameter = session.exec(select_seismogram_parameter).first()
-        if seismogram_parameter is None:
+        aimbat_file = session.exec(select_aimbat_file).one_or_none()
+        if aimbat_file is None:
+            logger.debug(f"Adding data source {filename} to project.")
+            aimbat_file_create = AimbatFileCreate(
+                filename=str(filename), filetype=filetype
+            )
+            aimbat_file = AimbatFile.model_validate(
+                aimbat_file_create, update={"seismogram": aimbat_seismogram}
+            )
+
+        else:
             logger.debug(
-                f"Adding default parameters for seismogram with id={aimbatseismogram.id}."
+                f"Using existing data source {filename} instead of adding new one."
             )
-            seismogram_parameter = AimbatSeismogramParameters(
-                seismogram_id=aimbatseismogram.id
-            )
-            session.add(seismogram_parameter)
+            aimbat_file.seismogram = aimbat_seismogram
+        session.add(aimbat_file)
 
     session.commit()
 

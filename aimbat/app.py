@@ -8,7 +8,7 @@ commands is available by typing `aimbat COMMAND --help`.
 
 from importlib import metadata
 from cyclopts import App
-from aimbat.cli import (
+from .cli import (
     data,
     defaults,
     event,
@@ -21,6 +21,7 @@ from aimbat.cli import (
 )
 from rich.console import Console
 import sys
+
 
 try:
     __version__ = str(metadata.version("aimbat"))
@@ -40,9 +41,10 @@ app.command(snapshot.app)
 app.command(station.app)
 app.command(utils.app)
 
+
 if __name__ == "__main__":
     try:
         app()
     except Exception:
-        console.print_exception()
+        console.print_exception(show_locals=True)
         sys.exit(1)
