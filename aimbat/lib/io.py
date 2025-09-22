@@ -6,6 +6,7 @@ from pysmo import Event, Seismogram, Station
 from pysmo.classes import SAC
 from datetime import datetime
 from sqlmodel import Session
+import os
 import numpy as np
 import numpy.typing as npt
 
@@ -44,7 +45,7 @@ def _write_seismogram_data_to_sacfile(
 
 def _read_metadata_from_sacfile(
     session: Session,
-    sacfile: str,
+    sacfile: str | os.PathLike,
 ) -> tuple[Seismogram, Station, Event, datetime]:
     """Read seismogram metadata from a SAC file.
 
@@ -119,7 +120,7 @@ def write_seismogram_data_to_file(
 
 
 def read_metadata_from_file(
-    session: Session, filename: str, filetype: str
+    session: Session, filename: str | os.PathLike, filetype: str
 ) -> tuple[Seismogram, Station, Event, datetime]:
     """Read seismogram metadata from a seismogram file.
 

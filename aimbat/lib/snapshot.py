@@ -37,46 +37,44 @@ def create_snapshot(session: Session, comment: str | None = None) -> None:
         session: Database session.
         comment: Optional comment.
     """
-    aimbat_event = event.get_active_event(session)
+    active_aimbat_event = event.get_active_event(session)
 
     logger.info(
-        f"Creating snapshot for event with id={aimbat_event.id} with {comment=}."
-    )
-
-    aimbat_snapshot = AimbatSnapshot(comment=comment)
-    session.add(aimbat_snapshot)
-    # session.commit()
-    logger.debug(
-        f"Created snapshot with id={aimbat_snapshot.id}. Now adding parameters..."
+        f"Creating snapshot for event with id={active_aimbat_event.id} with {comment=}."
     )
 
     event_parameters_snapshot = AimbatEventParametersSnapshot.model_validate(
-        aimbat_event.parameters,
+        active_aimbat_event.parameters,
         update={
             "id": uuid.uuid4(),  # we don't want to carry over the id from the active parameters
-            "snapshot_id": aimbat_snapshot.id,
-            "parameters_id": aimbat_event.parameters.id,
+            "parameters_id": active_aimbat_event.parameters.id,
         },
     )
-    session.add(event_parameters_snapshot)
     logger.debug(
-        f"Added event parameters snapshot with id={event_parameters_snapshot.id} to snapshot."
+        f"Adding event parameters snapshot with id={event_parameters_snapshot.id} to snapshot."
     )
 
-    for aimbat_seismogram in aimbat_event.seismograms:
+    seismogram_parameter_snapshots = []
+    for aimbat_seismogram in active_aimbat_event.seismograms:
         seismogram_parameter_snapshot = AimbatSeismogramParametersSnapshot.model_validate(
             aimbat_seismogram.parameters,
             update={
                 "id": uuid.uuid4(),  # we don't want to carry over the id from the active parameters
-                "snapshot_id": aimbat_snapshot.id,
                 "seismogram_parameters_id": aimbat_seismogram.parameters.id,
             },
         )
-        session.add(seismogram_parameter_snapshot)
         logger.debug(
-            f"Added seismogram parameters snapshot with id={seismogram_parameter_snapshot.id} to snapshot."
+            f"Adding seismogram parameters snapshot with id={seismogram_parameter_snapshot.id} to snapshot."
         )
+        seismogram_parameter_snapshots.append(seismogram_parameter_snapshot)
 
+    aimbat_snapshot = AimbatSnapshot(
+        event=active_aimbat_event,
+        event_parameters_snapshot=event_parameters_snapshot,
+        seismogram_parameters_snapshots=seismogram_parameter_snapshots,
+        comment=comment,
+    )
+    session.add(aimbat_snapshot)
     session.commit()
 
 
@@ -109,26 +107,31 @@ def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
 
     logger.info(f"Rolling back to snapshot with id={snapshot.id}.")
 
-    current_event_parameters = snapshot.event_parameters_snapshot.parameters
+    # create object with just the parameters
     rollback_event_parameters = AimbatEventParametersBase.model_validate(
         snapshot.event_parameters_snapshot
     )
     logger.debug(
         f"Using event parameters snapshot with id={snapshot.event_parameters_snapshot.id} for rollback."
     )
-    for parameter, value in rollback_event_parameters.__dict__.items():
-        setattr(current_event_parameters, parameter, value)
+    current_event_parameters = snapshot.event.parameters
+    # setting attributes explicitly brings them into the session
+    for k, v in rollback_event_parameters.model_dump().items():
+        setattr(current_event_parameters, k, v)
+
     session.add(current_event_parameters)
 
     for seismogram_parameters_snapshot in snapshot.seismogram_parameters_snapshots:
-        current_seismogram_parameters = seismogram_parameters_snapshot.parameters
+        # create object with just the parameters
         rollback_seismogram_parameters = AimbatSeismogramParametersBase.model_validate(
             seismogram_parameters_snapshot
         )
         logger.debug(
             f"Using seismogram parameters snapshot with id={seismogram_parameters_snapshot.id} for rollback."
         )
-        for parameter, value in rollback_seismogram_parameters.__dict__.items():
+        # setting attributes explicitly brings them into the session
+        current_seismogram_parameters = seismogram_parameters_snapshot.parameters
+        for parameter, value in rollback_seismogram_parameters.model_dump().items():
             setattr(current_seismogram_parameters, parameter, value)
         session.add(current_seismogram_parameters)
 
