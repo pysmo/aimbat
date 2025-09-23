@@ -10,7 +10,6 @@ import random
 if TYPE_CHECKING:
     from pathlib import Path
     from sqlmodel import Session
-    from sqlalchemy.engine import Engine
     from typing import Any
     from collections.abc import Generator
     from aimbat.lib.models import AimbatSeismogram
@@ -19,14 +18,8 @@ if TYPE_CHECKING:
 class TestICCSBase:
     @pytest.fixture
     def session(
-        self, test_db_with_active_event: tuple[Path, str, Engine, Session]
+        self, test_db_with_active_event: tuple[Path, Session]
     ) -> Generator[Session, Any, Any]:
-        yield test_db_with_active_event[3]
-
-    @pytest.fixture
-    def db_url(
-        self, test_db_with_active_event: tuple[Path, str, Engine, Session]
-    ) -> Generator[str, Any, Any]:
         yield test_db_with_active_event[1]
 
     @pytest.fixture

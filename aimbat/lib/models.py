@@ -4,11 +4,12 @@ These classes are ORMs that present data stored in a database
 as classes to use with python in AIMBAT.
 """
 
-from aimbat.lib.typing import SeismogramFileType, ProjectDefault
+from aimbat.lib.typing import SeismogramFileType
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
 import aimbat.lib.io as io
+import aimbat.lib.defaults as defaults
 import numpy as np
 import os
 import uuid
@@ -25,80 +26,6 @@ class _DateTimeUTC(TypeDecorator):
         if isinstance(value, datetime):
             return value.replace(tzinfo=timezone.utc)
         return value
-
-
-class AimbatDefaults(SQLModel, table=True):
-    """Class to store AIMBAT defaults.
-
-    `AimbatDefaults` stores the defaults that are used in all events within
-    the AIMBAT project. Hence there is only one row in this table. The initial
-    values for all attributes are defined in the model directly.
-    """
-
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    aimbat: bool = Field(default=True, description="AIMBAT is awesome!")
-    sampledata_dir: str = Field(
-        default="sample-data",
-        description="Directory to store downloaded sample data.",
-    )
-    "Directory to store downloaded sample data."
-
-    sampledata_src: str = Field(
-        default="https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip",
-        description="URL where sample data is downloaded from.",
-    )
-    "URL where sample data is downloaded from."
-
-    initial_pick_sac_header: str = Field(
-        default="t0", description="SAC header field where initial pick is stored."
-    )
-    "SAC header field where initial pick is stored."
-
-    initial_window_pre: timedelta = Field(
-        default=timedelta(seconds=-15),
-        description="Initial relative begin time of window.",
-        lt=0,
-    )
-    "Initial relative begin time of window."
-
-    initial_window_post: timedelta = Field(
-        default=timedelta(seconds=15),
-        description="Initial relative end time of window.",
-        gt=0,
-    )
-    "Initial relative end time of window."
-
-    time_window_padding: timedelta = Field(
-        default=timedelta(seconds=20), description="Padding around time window.", gt=0
-    )
-    """Padding around time window in seconds.
-
-    This is used to add padding to the time window for plotting. It is *not*
-    used in the cross-correlation itself.
-    """
-
-    def reset(self, name: ProjectDefault) -> None:
-        """Reset an AIMBAT default to the initial value.
-
-        Args:
-            name: The name of the default to reset.
-        """
-
-        default = self.__class__.model_fields.get(name).default  # type: ignore
-        setattr(self, name, default)
-
-    @classmethod
-    def description(cls, name: ProjectDefault) -> str:
-        """Get the description of an AIMBAT default.
-
-        Args:
-            name: The name of the default to reset.
-
-        Returns:
-            The description of the default.
-        """
-
-        return cls.model_fields.get(name).description  # type: ignore
 
 
 class AimbatFileCreate(SQLModel):
@@ -168,13 +95,17 @@ class AimbatEventParametersBase(SQLModel):
     completed: bool = False
     "Mark an event as completed."
 
-    min_ccnorm: float = Field(ge=0.0, le=1.0, default=0.4)
+    min_ccnorm: float = Field(ge=0.0, le=1.0, default=defaults.AIMBAT_MIN_CCNORM)
     "Minimum cross-correlation used when automatically de-selecting seismograms."
 
-    window_pre: timedelta = Field(lt=0)
+    window_pre: timedelta = Field(
+        lt=0, default=timedelta(seconds=float(defaults.AIMBAT_WINDOW_PRE))
+    )
     "Pre-pick window length."
 
-    window_post: timedelta = Field(gt=0)
+    window_post: timedelta = Field(
+        gt=0, default=timedelta(seconds=float(defaults.AIMBAT_WINDOW_POST))
+    )
     "Post-pick window length."
 
 

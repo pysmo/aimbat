@@ -1,11 +1,7 @@
 from sqlmodel import SQLModel
 from enum import StrEnum
 from typing import TypeAlias, get_args
-from aimbat.lib.models import (
-    AimbatDefaults,
-    AimbatEventParametersBase,
-    AimbatSeismogramParametersBase,
-)
+from aimbat.lib.models import AimbatEventParametersBase, AimbatSeismogramParametersBase
 from aimbat.lib.typing import (
     EventParameter,
     SeismogramParameter,
@@ -14,10 +10,6 @@ from aimbat.lib.typing import (
     EventParameterTimedelta,
     SeismogramParameterBool,
     SeismogramParameterDatetime,
-    ProjectDefault,
-    ProjectDefaultStr,
-    ProjectDefaultBool,
-    ProjectDefaultTimedelta,
 )
 
 
@@ -42,16 +34,6 @@ def set_from_typealiases(*aliases: list[TypeAlias]) -> set[str]:
 
 class TestLibTypes:
     """Ensure Default models and types are consistent."""
-
-    def test_default_types(self) -> None:
-        assert set_from_basemodel(AimbatDefaults) == set_from_strenum(  # type: ignore
-            ProjectDefault  # type: ignore
-        )
-        assert set_from_strenum(ProjectDefault) == set_from_typealiases(  # type: ignore
-            ProjectDefaultTimedelta,  # type: ignore
-            ProjectDefaultBool,  # type: ignore
-            ProjectDefaultStr,  # type: ignore
-        )
 
     def test_event_parameter_types(self) -> None:
         assert set_from_basemodel(AimbatEventParametersBase) == set_from_strenum(  # type: ignore

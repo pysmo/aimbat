@@ -10,7 +10,6 @@ from importlib import metadata
 from cyclopts import App
 from .cli import (
     data,
-    defaults,
     event,
     iccs,
     project,
@@ -32,7 +31,6 @@ console = Console()
 
 app = App(version=__version__, help=__doc__, help_format="markdown", console=console)
 app.command(data.app)
-app.command(defaults.app)
 app.command(event.app)
 app.command(iccs.app)
 app.command(project.app)

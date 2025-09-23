@@ -1,15 +1,17 @@
+from aimbat.lib.typing import SeismogramFileType
 from pysmo.classes import SAC
-from sqlmodel import create_engine, Session, select
+from sqlmodel import Session, select
 from pathlib import Path
-from sqlalchemy.engine import Engine
 from collections.abc import Generator, Callable
 from typing import Any
 from dataclasses import dataclass, field
+from importlib import reload
+import aimbat.lib.db as db
+import aimbat.lib.defaults as defaults
 import random
 import shutil
 import pytest
 import matplotlib.pyplot as plt
-import gc
 import uuid
 
 
@@ -75,72 +77,93 @@ def test_data_string(test_data: list[Path]) -> Generator[list[str], Any, Any]:
 @pytest.fixture
 def test_db(
     tmp_path_factory: pytest.TempPathFactory,
-) -> Generator[tuple[Path, str, Engine, Session], Any, Any]:
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[tuple[Path, Session], Any, Any]:
     db_file = Path(tmp_path_factory.mktemp("test_db")) / "mock.db"
-    url: str = rf"sqlite+pysqlite:///{db_file}"
-    engine = create_engine(url, echo=False)
-    with Session(engine) as session:
-        yield db_file, url, engine, session
-    engine.dispose()
+    db_url: str = rf"sqlite+pysqlite:///{db_file}"
+    monkeypatch.setenv("AIMBAT_PROJECT", str(db_file))
+    monkeypatch.setenv("AIMBAT_DB_URL", str(db_url))
+    reload(defaults)
+    reload(db)
+
+    with Session(db.engine) as session:
+        yield db_file, session
+    db.engine.dispose()
 
 
 @pytest.fixture
 def test_db_with_project(
     tmp_path_factory: pytest.TempPathFactory,
-) -> Generator[tuple[Path, str, Engine, Session], Any, Any]:
-    from aimbat.lib.project import create_project
-
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[tuple[Path, Session], Any, Any]:
     db_file = Path(tmp_path_factory.mktemp("test_db")) / "mock.db"
-    url: str = rf"sqlite+pysqlite:///{db_file}"
-    engine = create_engine(url, echo=False)
-    create_project(engine)
-    with Session(engine) as session:
-        yield db_file, url, engine, session
-    engine.dispose()
+    db_url: str = rf"sqlite+pysqlite:///{db_file}"
+    monkeypatch.setenv("AIMBAT_PROJECT", str(db_file))
+    monkeypatch.setenv("AIMBAT_DB_URL", str(db_url))
+    import aimbat.lib.project as project
+
+    reload(defaults)
+    reload(db)
+    reload(project)
+    project.create_project()
+
+    with Session(db.engine) as session:
+        yield db_file, session
+    db.engine.dispose()
 
 
 @pytest.fixture
 def test_db_with_data(
     tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
     test_data: list[Path],
-) -> Generator[tuple[Path, str, Engine, Session], Any, Any]:
-    from aimbat.lib.project import create_project
-    from aimbat.lib.data import add_files_to_project, SeismogramFileType
-
+) -> Generator[tuple[Path, Session], Any, Any]:
     db_file = Path(tmp_path_factory.mktemp("test_db")) / "mock.db"
-    url: str = rf"sqlite+pysqlite:///{db_file}"
-    engine = create_engine(url, echo=False)
-    create_project(engine)
+    db_url: str = rf"sqlite+pysqlite:///{db_file}"
+    monkeypatch.setenv("AIMBAT_PROJECT", str(db_file))
+    monkeypatch.setenv("AIMBAT_DB_URL", str(db_url))
+    import aimbat.lib.project as project
+    import aimbat.lib.data as data
 
-    with Session(engine) as session:
-        add_files_to_project(session, test_data, SeismogramFileType.SAC)
-        session.flush()
-        yield db_file, url, engine, session
-    engine.dispose()
+    reload(defaults)
+    reload(db)
+    reload(project)
+    reload(data)
+    project.create_project()
+    data.add_files_to_project(test_data, SeismogramFileType.SAC)
+
+    with Session(db.engine) as session:
+        yield db_file, session
+    db.engine.dispose()
 
 
 @pytest.fixture
 def test_db_with_active_event(
     tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
     test_data: list[Path],
-) -> Generator[tuple[Path, str, Engine, Session], Any, Any]:
-    from aimbat.lib.project import create_project
-    from aimbat.lib.data import add_files_to_project, SeismogramFileType
-    from aimbat.lib.event import set_active_event, AimbatEvent
-
+) -> Generator[tuple[Path, Session], Any, Any]:
     db_file = Path(tmp_path_factory.mktemp("test_db")) / "mock.db"
-    url: str = rf"sqlite+pysqlite:///{db_file}"
-    engine = create_engine(url, echo=False)
-    create_project(engine)
+    db_url: str = rf"sqlite+pysqlite:///{db_file}"
+    monkeypatch.setenv("AIMBAT_PROJECT", str(db_file))
+    monkeypatch.setenv("AIMBAT_DB_URL", str(db_url))
+    import aimbat.lib.project as project
+    import aimbat.lib.data as data
+    import aimbat.lib.event as event
 
-    with Session(engine) as session:
-        add_files_to_project(session, test_data, SeismogramFileType.SAC)
-        events = session.exec(select(AimbatEvent)).all()
+    reload(defaults)
+    reload(db)
+    reload(project)
+    reload(data)
+    project.create_project()
+    data.add_files_to_project(test_data, SeismogramFileType.SAC)
+
+    with Session(db.engine) as session:
+        events = session.exec(select(event.AimbatEvent)).all()
         lengths = [len(e.seismograms) for e in events]
-        set_active_event(session, events[lengths.index(max(lengths))])
-        session.flush()
-        yield db_file, url, engine, session
-    engine.dispose()
+        event.set_active_event(session, events[lengths.index(max(lengths))])
+        yield db_file, session
+    db.engine.dispose()
 
 
 @pytest.fixture()
@@ -161,6 +184,6 @@ def sac_instance_good(sac_file_good: Path) -> Generator[SAC, Any, Any]:
         del my_sac
 
 
-@pytest.hookimpl(trylast=True)
-def pytest_sessionfinish(session: Session, exitstatus: pytest.ExitCode) -> None:
-    gc.collect()
+# @pytest.hookimpl(trylast=True)
+# def pytest_sessionfinish(session: Session, exitstatus: pytest.ExitCode) -> None:
+#     gc.collect()

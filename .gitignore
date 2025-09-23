@@ -32,3 +32,4 @@ junit.xml
 reset_project.sh
 .envrc
 aimbat.log
+.env

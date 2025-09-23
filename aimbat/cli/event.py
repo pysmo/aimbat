@@ -8,51 +8,46 @@ from cyclopts import App, Parameter
 import uuid
 
 
-def _delete_event(
-    db_url: str | None,
-    event_id: uuid.UUID | str,
-) -> None:
+def _delete_event(event_id: uuid.UUID | str) -> None:
     from aimbat.lib.event import delete_event_by_id
-    from aimbat.lib.common import engine_from_url, string_to_uuid
+    from aimbat.lib.common import string_to_uuid
+    from aimbat.lib.db import engine
     from aimbat.lib.models import AimbatEvent
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         if not isinstance(event_id, uuid.UUID):
             event_id = string_to_uuid(session, event_id, AimbatEvent)
         delete_event_by_id(session, event_id)
 
 
-def _print_event_table(db_url: str | None, format: bool) -> None:
+def _print_event_table(format: bool) -> None:
     from aimbat.lib.event import print_event_table
-    from aimbat.lib.common import engine_from_url
-    from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
-        print_event_table(session, format)
+    print_event_table(format)
 
 
-def _set_active_event_by_id(db_url: str | None, event_id: uuid.UUID | str) -> None:
+def _set_active_event_by_id(event_id: uuid.UUID | str) -> None:
     from aimbat.lib.event import set_active_event_by_id
-    from aimbat.lib.common import engine_from_url, string_to_uuid
+    from aimbat.lib.db import engine
+    from aimbat.lib.common import string_to_uuid
     from aimbat.lib.models import AimbatEvent
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         if not isinstance(event_id, uuid.UUID):
             event_id = string_to_uuid(session, event_id, AimbatEvent)
         set_active_event_by_id(session, event_id)
 
 
 def _get_event_parameters(
-    db_url: str | None,
     name: EventParameter,
 ) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.event import get_event_parameter
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         value = get_event_parameter(session, name)
         if isinstance(value, timedelta):
             print(f"{value.total_seconds()}s")
@@ -61,15 +56,14 @@ def _get_event_parameters(
 
 
 def _set_event_parameters(
-    db_url: str | None,
     name: EventParameter,
     value: timedelta | bool | str,
 ) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.event import set_event_parameter
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         set_event_parameter(session, name, value)
 
 
@@ -91,8 +85,7 @@ def cli_event_delete(
     global_parameters = global_parameters or GlobalParameters()
 
     _delete_event(
-        db_url=global_parameters.db_url,
-        event_id=event_id,
+        event_id,
     )
 
 
@@ -107,7 +100,7 @@ def cli_event_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_event_table(global_parameters.db_url, table_parameters.format)
+    _print_event_table(table_parameters.format)
 
 
 @app.command(name="activate")
@@ -124,7 +117,7 @@ def cli_event_activate(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _set_active_event_by_id(global_parameters.db_url, event_id=event_id)
+    _set_active_event_by_id(event_id)
 
 
 @app.command(name="get")
@@ -141,7 +134,7 @@ def cli_event_parameter_get(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _get_event_parameters(db_url=global_parameters.db_url, name=name)
+    _get_event_parameters(name)
 
 
 @app.command(name="set")
@@ -160,7 +153,7 @@ def cli_event_parameter_set(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _set_event_parameters(db_url=global_parameters.db_url, name=name, value=value)
+    _set_event_parameters(name, value)
 
 
 if __name__ == "__main__":

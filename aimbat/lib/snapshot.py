@@ -1,5 +1,6 @@
 from __future__ import annotations
 from aimbat.lib.common import logger, reverse_uuid_shortener
+from aimbat.lib.db import engine
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatSeismogramParametersBase,
@@ -10,7 +11,7 @@ from aimbat.lib.models import (
     AimbatEventParametersSnapshot,
     AimbatSeismogramParametersSnapshot,
 )
-from sqlmodel import select
+from sqlmodel import Session, select
 from rich.console import Console
 from typing import TYPE_CHECKING
 import aimbat.lib.event as event
@@ -201,13 +202,10 @@ def get_snapshots(
     return session.exec(select_active_event_snapshots).all()
 
 
-def print_snapshot_table(
-    session: Session, format: bool, print_all_events: bool
-) -> None:
+def print_snapshot_table(format: bool, print_all_events: bool) -> None:
     """Print a pretty table with AIMBAT snapshots.
 
     Parameters:
-        session: Database session.
         format: Print the output in a more human-readable format.
         print_all_events: Print all snapshots instead of limiting to the active event.
     """
@@ -215,54 +213,56 @@ def print_snapshot_table(
     logger.info("Printing AIMBAT snapshots table.")
 
     title = "AIMBAT snapshots for all events"
-    snapshots = get_snapshots(session, print_all_events)
-    logger.debug(f"Found {len(snapshots)} snapshots for the table.")
 
-    event_uuid_dict = reverse_uuid_shortener(
-        session.exec(select(AimbatEvent.id)).all(), 2
-    )
+    with Session(engine) as session:
+        snapshots = get_snapshots(session, print_all_events)
+        logger.debug(f"Found {len(snapshots)} snapshots for the table.")
 
-    if not print_all_events:
-        active_event = event.get_active_event(session)
+        event_uuid_dict = reverse_uuid_shortener(
+            session.exec(select(AimbatEvent.id)).all(), 2
+        )
+
+        if not print_all_events:
+            active_event = event.get_active_event(session)
+            if format:
+                title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
+            else:
+                title = f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
+
+        table = make_table(title=title)
+
         if format:
-            title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
-        else:
-            title = (
-                f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
+            table.add_column(
+                "id (shortened)", justify="center", style="cyan", no_wrap=True
             )
-
-    table = make_table(title=title)
-
-    if format:
-        table.add_column("id (shortened)", justify="center", style="cyan", no_wrap=True)
-    else:
-        table.add_column("id", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Comment", justify="center", style="magenta")
-    table.add_column("# Seismograms", justify="center", style="green")
-    if print_all_events:
-        table.add_column("Event ID", justify="center", style="magenta")
-
-    for snapshot in snapshots:
-        logger.debug(f"Adding snapshot with id={snapshot.id} to the table.")
-        row = [
-            (
-                snapshot_uuid_dict_reversed(session)[snapshot.id]
-                if format
-                else str(snapshot.id)
-            ),
-            (
-                snapshot.date.strftime("%Y-%m-%d %H:%M:%S")
-                if format
-                else str(snapshot.date)
-            ),
-            str(snapshot.comment),
-            str(len(snapshot.seismogram_parameters_snapshots)),
-        ]
+        else:
+            table.add_column("id", justify="center", style="cyan", no_wrap=True)
+        table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
+        table.add_column("Comment", justify="center", style="magenta")
+        table.add_column("# Seismograms", justify="center", style="green")
         if print_all_events:
-            event_id = snapshot.event_parameters_snapshot.parameters.event_id
-            row.append(event_uuid_dict[event_id] if format else str(event_id))
-        table.add_row(*row)
+            table.add_column("Event ID", justify="center", style="magenta")
+
+        for snapshot in snapshots:
+            logger.debug(f"Adding snapshot with id={snapshot.id} to the table.")
+            row = [
+                (
+                    snapshot_uuid_dict_reversed(session)[snapshot.id]
+                    if format
+                    else str(snapshot.id)
+                ),
+                (
+                    snapshot.date.strftime("%Y-%m-%d %H:%M:%S")
+                    if format
+                    else str(snapshot.date)
+                ),
+                str(snapshot.comment),
+                str(len(snapshot.seismogram_parameters_snapshots)),
+            ]
+            if print_all_events:
+                event_id = snapshot.event_parameters_snapshot.parameters.event_id
+                row.append(event_uuid_dict[event_id] if format else str(event_id))
+            table.add_row(*row)
 
     console = Console()
     console.print(table)
