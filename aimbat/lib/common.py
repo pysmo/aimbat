@@ -1,30 +1,30 @@
 """Common functions for AIMBAT."""
 
 from __future__ import annotations
-from pysmo.tools.utils import uuid_shortener
-from typing import TYPE_CHECKING
+from pysmo.tools.utils import uuid_shortener as _uuid_shortener
 from sqlmodel import Session, select
+from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from aimbat.lib.models import (
-        AimbatEvent,
-        AimbatSeismogram,
-        AimbatSnapshot,
-        AimbatStation,
-    )
-    from collections.abc import Sequence
+    from aimbat.lib.models import AimbatTypes
     from uuid import UUID
 
 
-__all__ = ["check_for_notebook"]
+def string_to_uuid(session: Session, id: str, aimbat_class: type[AimbatTypes]) -> UUID:
+    """Determine a UUID from a string containing the first few characters.
 
+    Parameters:
+        session: Database session.
+        id: Input string to find UUID for.
+        aimbat_class: Aimbat class to use to find UUID.
 
-def string_to_uuid(
-    session: Session,
-    id: str,
-    aimbat_class: type[AimbatEvent | AimbatSeismogram | AimbatSnapshot | AimbatStation],
-) -> UUID:
+    Returns:
+        The full UUID.
+
+    Raises:
+        ValueError: If the UUID could not be determined.
+    """
     uuid_set = {
         u for u in session.exec(select(aimbat_class.id)).all() if str(u).startswith(id)
     }
@@ -35,11 +35,15 @@ def string_to_uuid(
     raise ValueError(f"Found more than one {aimbat_class.__name__} with id: {id}")
 
 
-def reverse_uuid_shortener(
-    uuids: Sequence[UUID], min_length: int = 2
-) -> dict[UUID, str]:
-    uuid_dict = uuid_shortener(uuids, min_length)
-    return {v: k for k, v in uuid_dict.items()}
+def uuid_shortener(
+    session: Session,
+    aimbat_obj: AimbatTypes,
+    min_length: int = 2,
+) -> str:
+    uuids = session.exec(select(aimbat_obj.__class__.id)).all()
+    uuid_dict = _uuid_shortener(uuids, min_length)
+    reverse_uuid_dict = {v: k for k, v in uuid_dict.items()}
+    return reverse_uuid_dict[aimbat_obj.id]
 
 
 # NOTE: https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook

@@ -1,6 +1,6 @@
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.lib.common import check_for_notebook, reverse_uuid_shortener
+from aimbat.lib.common import check_for_notebook, uuid_shortener
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -25,21 +25,11 @@ from typing import overload, Literal
 from collections.abc import Sequence
 from pyqtgraph.jupyter import PlotWidget  # type: ignore
 from matplotlib.figure import Figure
-import aimbat.lib.data as data
 import aimbat.lib.event as event
-import aimbat.lib.station as station
 import uuid
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pyqtgraph as pg  # type: ignore
-
-
-def seismogram_uuid_dict_reversed(
-    session: Session, min_length: int = 2
-) -> dict[uuid.UUID, str]:
-    return reverse_uuid_shortener(
-        session.exec(select(AimbatSeismogram.id)).all(), min_length
-    )
 
 
 def delete_seismogram_by_id(session: Session, seismogram_id: uuid.UUID) -> None:
@@ -281,7 +271,7 @@ def print_seismogram_table(format: bool, all_events: bool = False) -> None:
             active_event = event.get_active_event(session)
             seismograms = active_event.seismograms
             if format:
-                title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
+                title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_shortener(session, active_event)})"
             else:
                 title = f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
 
@@ -306,21 +296,17 @@ def print_seismogram_table(format: bool, all_events: bool = False) -> None:
         for seismogram in seismograms:
             logger.debug(f"Adding seismogram with ID {seismogram.id} to the table.")
             row = [
-                (
-                    seismogram_uuid_dict_reversed(session)[seismogram.id]
-                    if format
-                    else str(seismogram.id)
-                ),
+                (uuid_shortener(session, seismogram) if format else str(seismogram.id)),
                 ":heavy_check_mark:" if seismogram.parameters.select is True else "",
                 (
-                    data.file_uuid_dict_reversed(session)[seismogram.file.id]
+                    uuid_shortener(session, seismogram.file)
                     if format
                     else str(seismogram.file.id)
                 ),
                 str(seismogram.delta.total_seconds()),
                 str(len(seismogram)),
                 (
-                    station.station_uuid_dict_reversed(session)[seismogram.station.id]
+                    uuid_shortener(session, seismogram.station)
                     if format
                     else str(seismogram.station.id)
                 ),
@@ -329,7 +315,7 @@ def print_seismogram_table(format: bool, all_events: bool = False) -> None:
 
             if all_events:
                 row.append(
-                    event.uuid_dict_reversed(session)[seismogram.event.id]
+                    uuid_shortener(session, seismogram.event)
                     if format
                     else str(seismogram.event.id)
                 )

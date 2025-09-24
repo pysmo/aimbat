@@ -29,6 +29,12 @@ TESTDATA = TestData()
 
 
 @pytest.fixture(autouse=True)
+def aimbat_debug(monkeypatch: pytest.MonkeyPatch) -> Generator[None, Any, Any]:
+    monkeypatch.setenv("AIMBAT_DEBUG", "True")
+    yield
+
+
+@pytest.fixture(autouse=True)
 def mock_uuid4(monkeypatch: pytest.MonkeyPatch) -> None:
     def make_generator() -> Callable[[], uuid.UUID]:
         rand = random.Random(42)

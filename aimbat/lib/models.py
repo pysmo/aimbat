@@ -325,3 +325,17 @@ class AimbatSnapshot(SQLModel, table=True):
 
     event: AimbatEvent = Relationship(back_populates="snapshots")
     "Event this snapshot is associated with."
+
+
+AimbatTypes = (
+    AimbatFile
+    | AimbatStation
+    | AimbatEvent
+    | AimbatEventParameters
+    | AimbatSeismogram
+    | AimbatSeismogramParameters
+    | AimbatSnapshot
+    | AimbatEventParametersSnapshot
+    | AimbatSeismogramParametersSnapshot
+)
+"""Union of all AIMBAT models that exist in the database."""

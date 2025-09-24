@@ -96,9 +96,6 @@ build-backend = "hatchling.build"
 testpaths = [
   "tests",
 ]
-env = [
-  "AIMBAT_DEBUG = True"
-]
 mpl-generate-summary = "html"
 mpl-use-full-test-name = true
 

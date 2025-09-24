@@ -31,15 +31,6 @@ class TestSeismogramBase:
         yield test_db_with_active_event[1]
 
 
-class TestLibSeismogram(TestSeismogramBase):
-    def test_lib_seismogram_uuid_dict_reversed(self, session: Session) -> None:
-        import uuid
-
-        for k, v in seismogram.seismogram_uuid_dict_reversed(session).items():
-            assert isinstance(k, uuid.UUID)
-            assert isinstance(v, str)
-
-
 class TestDeleteSeismogram(TestSeismogramBase):
     def test_lib_delete_seismogram_by_id(self, session: Session) -> None:
         aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))

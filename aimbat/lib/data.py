@@ -1,9 +1,9 @@
 """Manage seismogram files in a project."""
 
 from aimbat.logger import logger
-from aimbat.lib.common import reverse_uuid_shortener
+from aimbat.lib.common import uuid_shortener
 from aimbat.lib.db import engine
-from aimbat.lib.event import get_active_event, uuid_dict_reversed
+from aimbat.lib.event import get_active_event
 from aimbat.lib.io import read_metadata_from_file
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -21,13 +21,6 @@ from collections.abc import Sequence
 from rich.progress import track
 from rich.console import Console
 import os
-import uuid
-
-
-def file_uuid_dict_reversed(
-    session: Session, min_length: int = 2
-) -> dict[uuid.UUID, str]:
-    return reverse_uuid_shortener(session.exec(select(AimbatFile.id)).all(), min_length)
 
 
 def add_files_to_project(
@@ -181,7 +174,7 @@ def print_data_table(format: bool, all_events: bool = False) -> None:
             active_event = get_active_event(session)
             aimbat_files = get_data_for_active_event(session)
             if format:
-                title = f"AIMBAT data for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_dict_reversed(session)[active_event.id]})"
+                title = f"AIMBAT data for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
             else:
                 title = (
                     f"AIMBAT data for event {active_event.time} (ID={active_event.id})"
@@ -191,13 +184,18 @@ def print_data_table(format: bool, all_events: bool = False) -> None:
 
         table = make_table(title=title)
 
-        table.add_column("id", justify="center", style="cyan", no_wrap=True)
+        table.add_column(
+            "id (shortened)" if format else "id",
+            justify="center",
+            style="cyan",
+            no_wrap=True,
+        )
         table.add_column("Filetype", justify="center", style="magenta")
         table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
 
         for file in aimbat_files:
             table.add_row(
-                file_uuid_dict_reversed(session)[file.id] if format else str(file.id),
+                uuid_shortener(session, file) if format else str(file.id),
                 str(file.filetype),
                 str(file.filename),
             )
