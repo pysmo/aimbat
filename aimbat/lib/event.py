@@ -1,8 +1,9 @@
 """Module to manage and view events in AIMBAT."""
 
 from __future__ import annotations
-from aimbat.lib.common import logger, reverse_uuid_shortener
+from aimbat.logger import logger
 from aimbat.lib.db import engine
+from aimbat.lib.common import reverse_uuid_shortener
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatEvent,

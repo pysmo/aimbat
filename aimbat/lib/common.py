@@ -3,9 +3,7 @@
 from __future__ import annotations
 from pysmo.tools.utils import uuid_shortener
 from typing import TYPE_CHECKING
-from loguru import logger
 from sqlmodel import Session, select
-import aimbat.lib.defaults as defaults
 
 
 if TYPE_CHECKING:
@@ -19,15 +17,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
 
-__all__ = ["check_for_notebook", "logger"]
-
-logger.remove(0)
-_ = logger.add(defaults.AIMBAT_LOGFILE, rotation="100 MB", level="INFO")
-
-
-def add_debug_logger() -> None:
-    """Add debug logger to loguru."""
-    logger.add(defaults.AIMBAT_LOGFILE, level="DEBUG")
+__all__ = ["check_for_notebook"]
 
 
 def string_to_uuid(

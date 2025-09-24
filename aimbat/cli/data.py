@@ -5,8 +5,7 @@ from aimbat.cli.common import GlobalParameters, TableParameters
 from aimbat.lib.typing import SeismogramFileType
 from pathlib import Path
 from cyclopts import App, Parameter, validators
-from typing import Annotated
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

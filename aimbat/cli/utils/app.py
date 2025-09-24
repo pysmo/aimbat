@@ -18,10 +18,10 @@ def _run_checks(sacfiles: list[Path]) -> None:
     run_checks(sacfiles)
 
 
-def _print_defaults_table() -> None:
-    from aimbat.lib.defaults import print_defaults_table
+def _print_settings_table() -> None:
+    from aimbat.lib.utils.print_settings import print_settings_table
 
-    print_defaults_table()
+    print_settings_table()
 
 
 app = App(name="utils", help=__doc__, help_format="markdown")
@@ -45,9 +45,9 @@ def cli_checkdata(
     _run_checks(sacfiles)
 
 
-@app.command(name="defaults")
-def cli_defaults_list(*, global_parameters: GlobalParameters | None = None) -> None:
-    """Print a table with defaults used in AIMBAT.
+@app.command(name="settings")
+def cli_settings_list(*, global_parameters: GlobalParameters | None = None) -> None:
+    """Print a table with default settings used in AIMBAT.
 
     These defaults control the default behavior of AIMBAT within a project.
     They can be changed using environment variables of the same name, or by
@@ -56,7 +56,7 @@ def cli_defaults_list(*, global_parameters: GlobalParameters | None = None) -> N
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_defaults_table()
+    _print_settings_table()
 
 
 if __name__ == "__main__":

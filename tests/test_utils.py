@@ -177,21 +177,21 @@ class TestUtilsSampleData(TestUtilsBase):
         assert not download_dir.exists()
 
 
-class TestUtilsDefaultsTable(TestUtilsBase):
+class TestUtilsSettingsTable(TestUtilsBase):
     def test_lib_print_defaullts(self, capsys: CaptureFixture) -> None:
-        import aimbat.lib.defaults as defaults
+        import aimbat.lib.utils.print_settings as print_settings
 
-        defaults.print_defaults_table()
+        print_settings.print_settings_table()
 
         output = capsys.readouterr().out
-        assert "AIMBAT defaults" in output
+        assert "AIMBAT settings" in output
         assert "AIMBAT project file location." in output
 
     def test_cli_print_defaullts(self, capsys: CaptureFixture) -> None:
         from aimbat.app import app
 
-        app(["utils", "defaults"])
+        app(["utils", "settings"])
 
         output = capsys.readouterr().out
-        assert "AIMBAT defaults" in output
+        assert "AIMBAT settings" in output
         assert "AIMBAT project file location." in output

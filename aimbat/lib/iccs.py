@@ -1,7 +1,8 @@
 """Processing of data for AIMBAT."""
 
 from __future__ import annotations
-from aimbat.lib.common import logger
+from aimbat.logger import logger
+from aimbat.config import settings
 from pysmo.tools.iccs import (
     ICCS,
     plot_seismograms as _plot_seismograms,
@@ -10,9 +11,7 @@ from pysmo.tools.iccs import (
     update_pick as _update_pick,
     update_timewindow as _update_timewindow,
 )
-from datetime import timedelta
 from typing import TYPE_CHECKING
-import aimbat.lib.defaults as defaults
 import aimbat.lib.event as event
 
 if TYPE_CHECKING:
@@ -38,7 +37,7 @@ def create_iccs_instance(session: Session) -> ICCS:
         window_pre=active_event.parameters.window_pre,
         window_post=active_event.parameters.window_post,
         min_ccnorm=active_event.parameters.min_ccnorm,
-        plot_padding=timedelta(seconds=float(defaults.AIMBAT_WINDOW_PADDING)),
+        plot_padding=settings.window_padding,
     )
 
 

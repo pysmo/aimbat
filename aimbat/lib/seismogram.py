@@ -1,9 +1,6 @@
-from aimbat.lib.common import (
-    logger,
-    check_for_notebook,
-    reverse_uuid_shortener,
-)
+from aimbat.logger import logger
 from aimbat.lib.db import engine
+from aimbat.lib.common import check_for_notebook, reverse_uuid_shortener
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,

@@ -4,12 +4,12 @@ These classes are ORMs that present data stored in a database
 as classes to use with python in AIMBAT.
 """
 
+from aimbat.config import settings
 from aimbat.lib.typing import SeismogramFileType
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
 import aimbat.lib.io as io
-import aimbat.lib.defaults as defaults
 import numpy as np
 import os
 import uuid
@@ -95,17 +95,13 @@ class AimbatEventParametersBase(SQLModel):
     completed: bool = False
     "Mark an event as completed."
 
-    min_ccnorm: float = Field(ge=0.0, le=1.0, default=defaults.AIMBAT_MIN_CCNORM)
+    min_ccnorm: float = Field(ge=0.0, le=1.0, default=settings.min_ccnorm)
     "Minimum cross-correlation used when automatically de-selecting seismograms."
 
-    window_pre: timedelta = Field(
-        lt=0, default=timedelta(seconds=float(defaults.AIMBAT_WINDOW_PRE))
-    )
+    window_pre: timedelta = Field(lt=0, default=settings.window_pre)
     "Pre-pick window length."
 
-    window_post: timedelta = Field(
-        gt=0, default=timedelta(seconds=float(defaults.AIMBAT_WINDOW_POST))
-    )
+    window_post: timedelta = Field(gt=0, default=settings.window_post)
     "Post-pick window length."
 
 

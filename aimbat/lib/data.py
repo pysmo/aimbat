@@ -1,6 +1,7 @@
 """Manage seismogram files in a project."""
 
-from aimbat.lib.common import logger, reverse_uuid_shortener
+from aimbat.logger import logger
+from aimbat.lib.common import reverse_uuid_shortener
 from aimbat.lib.db import engine
 from aimbat.lib.event import get_active_event, uuid_dict_reversed
 from aimbat.lib.io import read_metadata_from_file
