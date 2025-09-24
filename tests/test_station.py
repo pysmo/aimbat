@@ -80,14 +80,6 @@ class TestDeleteStation(TestStationBase):
 
 
 class TestLibStation(TestStationBase):
-    def test_station_uuid_dict_reversed(self, session: Session) -> None:
-        from aimbat.lib.station import station_uuid_dict_reversed
-        import uuid
-
-        for k, v in station_uuid_dict_reversed(session).items():
-            assert isinstance(k, uuid.UUID)
-            assert isinstance(v, str)
-
     def test_sac_data(self, capsys: CaptureFixture) -> None:
         station.print_station_table(format=False)
         assert "AIMBAT stations for event" in capsys.readouterr().out

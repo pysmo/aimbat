@@ -3,7 +3,7 @@
 from __future__ import annotations
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.lib.common import reverse_uuid_shortener
+from aimbat.lib.common import uuid_shortener
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatEvent,
@@ -28,12 +28,6 @@ import aimbat.lib.station as station
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from uuid import UUID
-
-
-def uuid_dict_reversed(session: Session, min_length: int = 2) -> dict[UUID, str]:
-    return reverse_uuid_shortener(
-        session.exec(select(AimbatEvent.id)).all(), min_length
-    )
 
 
 def delete_event_by_id(session: Session, event_id: UUID) -> None:
@@ -287,7 +281,7 @@ def print_event_table(format: bool = True) -> None:
         for event in session.exec(select(AimbatEvent)).all():
             logger.debug(f"Adding event with id={event.id} to the table.")
             table.add_row(
-                uuid_dict_reversed(session)[event.id] if format else str(event.id),
+                uuid_shortener(session, event) if format else str(event.id),
                 ":heavy_check_mark:" if event.active is True else "",
                 event.time.strftime("%Y-%m-%d %H:%M:%S") if format else str(event.time),
                 f"{event.latitude:.3f}" if format else str(event.latitude),

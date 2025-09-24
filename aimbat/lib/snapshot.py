@@ -1,6 +1,6 @@
 from __future__ import annotations
 from aimbat.logger import logger
-from aimbat.lib.common import reverse_uuid_shortener
+from aimbat.lib.common import uuid_shortener
 from aimbat.lib.db import engine
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
@@ -22,14 +22,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from sqlmodel import Session
     from uuid import UUID
-
-
-def snapshot_uuid_dict_reversed(
-    session: Session, min_length: int = 2
-) -> dict[UUID, str]:
-    return reverse_uuid_shortener(
-        session.exec(select(AimbatSnapshot.id)).all(), min_length
-    )
 
 
 def create_snapshot(session: Session, comment: str | None = None) -> None:
@@ -219,14 +211,10 @@ def print_snapshot_table(format: bool, print_all_events: bool) -> None:
         snapshots = get_snapshots(session, print_all_events)
         logger.debug(f"Found {len(snapshots)} snapshots for the table.")
 
-        event_uuid_dict = reverse_uuid_shortener(
-            session.exec(select(AimbatEvent.id)).all(), 2
-        )
-
         if not print_all_events:
             active_event = event.get_active_event(session)
             if format:
-                title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
+                title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
             else:
                 title = f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
 
@@ -247,11 +235,7 @@ def print_snapshot_table(format: bool, print_all_events: bool) -> None:
         for snapshot in snapshots:
             logger.debug(f"Adding snapshot with id={snapshot.id} to the table.")
             row = [
-                (
-                    snapshot_uuid_dict_reversed(session)[snapshot.id]
-                    if format
-                    else str(snapshot.id)
-                ),
+                (uuid_shortener(session, snapshot) if format else str(snapshot.id)),
                 (
                     snapshot.date.strftime("%Y-%m-%d %H:%M:%S")
                     if format
@@ -261,8 +245,12 @@ def print_snapshot_table(format: bool, print_all_events: bool) -> None:
                 str(len(snapshot.seismogram_parameters_snapshots)),
             ]
             if print_all_events:
-                event_id = snapshot.event_parameters_snapshot.parameters.event_id
-                row.append(event_uuid_dict[event_id] if format else str(event_id))
+                aimbat_event = snapshot.event
+                row.append(
+                    uuid_shortener(session, aimbat_event)
+                    if format
+                    else str(aimbat_event.id)
+                )
             table.add_row(*row)
 
     console = Console()

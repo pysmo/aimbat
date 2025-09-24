@@ -1,7 +1,7 @@
 from __future__ import annotations
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.lib.common import reverse_uuid_shortener
+from aimbat.lib.common import uuid_shortener
 from aimbat.lib.models import AimbatStation, AimbatSeismogram, AimbatEvent
 from aimbat.lib.misc.rich_utils import make_table
 from rich.console import Console
@@ -13,14 +13,6 @@ import aimbat.lib.event as event
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from uuid import UUID
-
-
-def station_uuid_dict_reversed(
-    session: Session, min_length: int = 2
-) -> dict[UUID, str]:
-    return reverse_uuid_shortener(
-        session.exec(select(AimbatStation.id)).all(), min_length
-    )
 
 
 def delete_station_by_id(session: Session, station_id: UUID) -> None:
@@ -106,7 +98,7 @@ def print_station_table(format: bool, all_events: bool = False) -> None:
             active_event = event.get_active_event(session)
             aimbat_stations = get_stations_in_event(session, active_event)
             if format:
-                title = f"AIMBAT stations for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_dict_reversed(session)[active_event.id]})"
+                title = f"AIMBAT stations for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
             else:
                 title = f"AIMBAT stations for event {active_event.time} (ID={active_event.id})"
         logger.debug("Found {len(aimbat_stations)} stations for the table.")
@@ -131,7 +123,7 @@ def print_station_table(format: bool, all_events: bool = False) -> None:
             logger.debug(f"Adding {aimbat_station.name} to the table.")
             row = [
                 (
-                    station_uuid_dict_reversed(session)[aimbat_station.id]
+                    uuid_shortener(session, aimbat_station)
                     if format
                     else str(aimbat_station.id)
                 ),
