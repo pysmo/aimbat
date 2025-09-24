@@ -1,4 +1,4 @@
-from aimbat.lib.common import logger
+from aimbat.logger import logger
 from aimbat.lib.db import engine
 from aimbat.lib.models import (
     AimbatEvent,

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from cyclopts import Parameter
-import aimbat.lib.common as common
+from aimbat.config import settings
 
 
 @Parameter(name="*")
@@ -16,7 +16,7 @@ class GlobalParameters:
 
     def __post_init__(self) -> None:
         if self.debug:
-            common.add_debug_logger()
+            settings.debug = True
 
 
 @Parameter(name="*")

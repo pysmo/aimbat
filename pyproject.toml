@@ -26,7 +26,7 @@ dependencies = [
     "pyqtgraph>=0.13.7",
     "jupyter-rfb>=0.5.3",
     "cyclopts>=3.24.0",
-    "python-dotenv>=1.1.1",
+    "pydantic-settings>=2.10.1",
 ]
 
 [project.urls]
@@ -95,6 +95,9 @@ build-backend = "hatchling.build"
 # xvfb_height = 1080
 testpaths = [
   "tests",
+]
+env = [
+  "AIMBAT_DEBUG = True"
 ]
 mpl-generate-summary = "html"
 mpl-use-full-test-name = true

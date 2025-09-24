@@ -1,8 +1,8 @@
+from aimbat.config import settings
+from aimbat.logger import logger
 from urllib.request import urlopen
 from io import BytesIO
 from zipfile import ZipFile
-from pathlib import Path
-import aimbat.lib.defaults as defaults
 import os
 import shutil
 
@@ -10,24 +10,29 @@ import shutil
 def delete_sampledata() -> None:
     """Delete sample data."""
 
-    sampledata_dir = Path(defaults.AIMBAT_SAMPLEDATA_DIR)
-    shutil.rmtree(sampledata_dir)
+    logger.info(f"Deleting sample data in {settings.sampledata_dir}.")
+
+    shutil.rmtree(settings.sampledata_dir)
 
 
 def download_sampledata(force: bool = False) -> None:
     """Download sample data."""
 
-    sampledata_src = defaults.AIMBAT_SAMPLEDATA_SRC
-    sampledata_dir = Path(defaults.AIMBAT_SAMPLEDATA_DIR)
+    logger.info(
+        f"Downloading sample data from {settings.sampledata_src} to {settings.sampledata_dir}."
+    )
 
-    if sampledata_dir.exists() and len(os.listdir(sampledata_dir)) != 0:
+    if (
+        settings.sampledata_dir.exists()
+        and len(os.listdir(settings.sampledata_dir)) != 0
+    ):
         if force is True:
             delete_sampledata()
         else:
             raise FileExistsError(
-                f"The directory {sampledata_dir} already exists and is non-empty."
+                f"The directory {settings.sampledata_dir} already exists and is non-empty."
             )
 
-    with urlopen(sampledata_src) as zipresp:
+    with urlopen(settings.sampledata_src) as zipresp:
         with ZipFile(BytesIO(zipresp.read())) as zfile:
-            zfile.extractall(sampledata_dir)
+            zfile.extractall(settings.sampledata_dir)

@@ -1,9 +1,5 @@
-from aimbat.lib.common import logger
-from pysmo import (
-    Station,
-    Event,
-    Seismogram,
-)
+from aimbat.logger import logger
+from pysmo import Station, Event, Seismogram
 from pathlib import Path
 
 

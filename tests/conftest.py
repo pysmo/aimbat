@@ -7,7 +7,7 @@ from typing import Any
 from dataclasses import dataclass, field
 from importlib import reload
 import aimbat.lib.db as db
-import aimbat.lib.defaults as defaults
+import aimbat.config as config
 import random
 import shutil
 import pytest
@@ -83,7 +83,7 @@ def test_db(
     db_url: str = rf"sqlite+pysqlite:///{db_file}"
     monkeypatch.setenv("AIMBAT_PROJECT", str(db_file))
     monkeypatch.setenv("AIMBAT_DB_URL", str(db_url))
-    reload(defaults)
+    reload(config)
     reload(db)
 
     with Session(db.engine) as session:
@@ -102,7 +102,7 @@ def test_db_with_project(
     monkeypatch.setenv("AIMBAT_DB_URL", str(db_url))
     import aimbat.lib.project as project
 
-    reload(defaults)
+    reload(config)
     reload(db)
     reload(project)
     project.create_project()
@@ -125,7 +125,7 @@ def test_db_with_data(
     import aimbat.lib.project as project
     import aimbat.lib.data as data
 
-    reload(defaults)
+    reload(config)
     reload(db)
     reload(project)
     reload(data)
@@ -151,7 +151,7 @@ def test_db_with_active_event(
     import aimbat.lib.data as data
     import aimbat.lib.event as event
 
-    reload(defaults)
+    reload(config)
     reload(db)
     reload(project)
     reload(data)
