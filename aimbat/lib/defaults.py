@@ -1,158 +1,74 @@
 """Manage defaults used in an AIMBAT project."""
 
-from aimbat.lib.common import logger
-from aimbat.lib.misc.rich_utils import make_table
-from aimbat.lib.models import AimbatDefaults
-from aimbat.lib.typing import (
-    ProjectDefault,
-    ProjectDefaultBool,
-    ProjectDefaultStr,
-    ProjectDefaultTimedelta,
-)
-from sqlmodel import Session, select
-from typing import overload
-from datetime import timedelta
-from rich.console import Console
+from dotenv import load_dotenv
+import os
+
+load_dotenv(".env")
+
+_DEFAULTS_DICT = {
+    "AIMBAT_PROJECT": (
+        AIMBAT_PROJECT := os.getenv("AIMBAT_PROJECT", "aimbat.db"),
+        "AIMBAT project file location.",
+    ),
+    "AIMBAT_DB_URL": (
+        AIMBAT_DB_URL := os.getenv(
+            "AIMBAT_DB_URL", rf"sqlite+pysqlite:///{AIMBAT_PROJECT}"
+        ),
+        "AIMBAT database url.",
+    ),
+    "AIMBAT_LOGFILE": (
+        AIMBAT_LOGFILE := os.getenv("AIMBAT_LOGFILE", "aimbat.log"),
+        "Log file location.",
+    ),
+    "AIMBAT_WINDOW_PRE": (
+        AIMBAT_WINDOW_PRE := os.getenv("AIMBAT_WINDOW_PRE", -15.0),
+        "Initial relative begin time of window.",
+    ),
+    "AIMBAT_WINDOW_POST": (
+        AIMBAT_WINDOW_POST := os.getenv("AIMBAT_WINDOW_POST", 15),
+        "Initial relative end time of window.",
+    ),
+    "AIMBAT_MIN_CCNORM": (
+        AIMBAT_MIN_CCNORM := os.getenv("AIMBAT_MIN_CCNORM", 0.4),
+        "Initial minimum cross correlation coefficient.",
+    ),
+    "AIMBAT_WINDOW_PADDING": (
+        AIMBAT_WINDOW_PADDING := os.getenv("AIMBAT_WINDOW_PADDING", 20),
+        "Padding around time window in seconds.",
+    ),
+    "AIMBAT_SAC_PICK_HEADER": (
+        AIMBAT_SAC_PICK_HEADER := os.getenv("AIMBAT_SAC_PICK_HEADER", "t0"),
+        "SAC header field where initial pick is stored.",
+    ),
+    "AIMBAT_SAMPLEDATA_SRC": (
+        AIMBAT_SAMPLEDATA_SRC := os.getenv(
+            "AIMBAT_SAMPLEDATA_SRC",
+            "https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip",
+        ),
+        "URL where sample data is downloaded from.",
+    ),
+    "AIMBAT_SAMPLEDATA_DIR": (
+        AIMBAT_SAMPLEDATA_DIR := os.getenv("AIMBAT_SAMPLEDATA_DIR", "sample-data"),
+        "Directory to store downloaded sample data.",
+    ),
+}
 
 
-def _get_instance(session: Session) -> AimbatDefaults:
-    """Return the AimbatDefault instance.
-
-    Parameters:
-        session: Database session.
-
-    Returns:
-        AimbatDefaults instance.
-    """
-
-    logger.info("Retrieving AimbatDefaults instance.")
-
-    aimbat_default = session.exec(select(AimbatDefaults)).one_or_none()
-    if aimbat_default is None:
-        aimbat_default = AimbatDefaults()
-        session.add(aimbat_default)
-    return aimbat_default
-
-
-@overload
-def get_default(session: Session, name: ProjectDefaultTimedelta) -> timedelta: ...
-
-
-@overload
-def get_default(session: Session, name: ProjectDefaultBool) -> bool: ...
-
-
-@overload
-def get_default(session: Session, name: ProjectDefaultStr) -> str: ...
-
-
-@overload
-def get_default(session: Session, name: ProjectDefault) -> timedelta | bool | str: ...
-
-
-def get_default(session: Session, name: ProjectDefault) -> timedelta | bool | str:
-    """Return the value of an AIMBAT default.
-
-    Parameters:
-        session: Database session.
-        name: Name of the default.
-
-    Returns:
-        Value of the default.
-    """
-
-    logger.info(f"Getting value of {name} default.")
-
-    return getattr(_get_instance(session), name)
-
-
-@overload
-def set_default(
-    session: Session, name: ProjectDefaultTimedelta, value: timedelta
-) -> None: ...
-
-
-@overload
-def set_default(session: Session, name: ProjectDefaultBool, value: bool) -> None: ...
-
-
-@overload
-def set_default(session: Session, name: ProjectDefaultStr, value: str) -> None: ...
-
-
-@overload
-def set_default(
-    session: Session, name: ProjectDefault, value: timedelta | bool | str
-) -> None: ...
-
-
-def set_default(
-    session: Session, name: ProjectDefault, value: timedelta | bool | str
-) -> None:
-    """Set the value of an AIMBAT default.
-
-    Parameters:
-        session: Database session.
-        name: Name of the default.
-        value: Value to set the default to.
-    """
-
-    logger.info(f"Setting {name} default to {value}.")
-
-    aimbat_default = _get_instance(session)
-    value = getattr(
-        AimbatDefaults.model_validate(aimbat_default, update={name: value}), name
-    )
-    setattr(aimbat_default, name, value)
-    session.add(aimbat_default)
-    session.commit()
-
-
-def reset_default(session: Session, name: ProjectDefault) -> None:
-    """Reset the value of an AIMBAT default.
-
-    Parameters:
-        session: Database session.
-        name: Name of the default.
-    """
-
-    logger.info(f"Resetting {name} default.")
-
-    aimbat_default = _get_instance(session)
-    aimbat_default.reset(name)
-
-    session.add(aimbat_default)
-    session.commit()
-
-
-def print_defaults_table(session: Session) -> None:
-    """Print a pretty table with AIMBAT configuration options.
-
-    Parameters:
-        session: Database session.
-    """
+def print_defaults_table() -> None:
+    """Print a pretty table with AIMBAT configuration options."""
+    from aimbat.lib.common import logger
+    from aimbat.lib.misc.rich_utils import make_table
+    from rich.console import Console
 
     logger.info("Printing AIMBAT defaults table.")
 
-    aimbat_defaults = _get_instance(session)
-
-    table = make_table(title="AIMBAT Defaults")
-
+    table = make_table(title="AIMBAT defaults")
     table.add_column("Name", justify="left", style="cyan", no_wrap=True)
     table.add_column("Value", justify="center", style="magenta")
     table.add_column("Description", justify="left", style="green")
 
-    for key in AimbatDefaults.model_fields.keys():
-        value = getattr(aimbat_defaults, key)
-        if isinstance(value, timedelta):
-            value = f"{value.total_seconds()}s"
-        if key == "id":
-            continue
-        table.add_row(
-            key,
-            str(value),
-            aimbat_defaults.description(ProjectDefault[key.upper()]),
-        )
+    for k, (v, d) in _DEFAULTS_DICT.items():
+        table.add_row(k, str(v), d)
 
     console = Console()
     console.print(table)

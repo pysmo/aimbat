@@ -3,14 +3,15 @@ from typing import TYPE_CHECKING
 from sqlmodel import select
 from pysmo.classes import SAC, SacSeismogram
 from pysmo import Seismogram
+from aimbat.lib.models import AimbatSeismogram
+from aimbat.lib.typing import SeismogramFileType
+from importlib import reload
 import numpy as np
 import pytest
 
 if TYPE_CHECKING:
     from pathlib import Path
     from sqlmodel import Session
-    from sqlalchemy.engine import Engine
-    from aimbat.lib.models import AimbatSeismogram
     from collections.abc import Generator
     from typing import Any
 
@@ -18,9 +19,9 @@ if TYPE_CHECKING:
 class TestSacBase:
     @pytest.fixture
     def session(
-        self, test_db_with_project: tuple[Path, str, Engine, Session]
+        self, test_db_with_project: tuple[Path, Session]
     ) -> Generator[Session, Any, Any]:
-        yield test_db_with_project[3]
+        yield test_db_with_project[1]
 
     @pytest.fixture
     def aimbat_seismogram_from_sac(
@@ -28,10 +29,11 @@ class TestSacBase:
         session: Session,
         sac_file_good: Path,
     ) -> Generator[AimbatSeismogram, Any, Any]:
-        from aimbat.lib.data import add_files_to_project, SeismogramFileType
-        from aimbat.lib.models import AimbatSeismogram
+        import aimbat.lib.data as data
 
-        add_files_to_project(session, [sac_file_good], SeismogramFileType.SAC)
+        reload(data)
+
+        data.add_files_to_project([sac_file_good], SeismogramFileType.SAC)
         aimbat_file = session.exec(select(AimbatSeismogram)).one()
         yield aimbat_file
 
@@ -68,11 +70,11 @@ class TestSacWrite(TestSacBase):
 
 
 class TestSacBadFile(TestSacBase):
-    def test_t0_missing(self, session: Session, sac_file_good: Path) -> None:
+    def test_t0_missing(self, sac_file_good: Path) -> None:
         from aimbat.lib.data import add_files_to_project, SeismogramFileType
 
         sac = SAC.from_file(sac_file_good)
         sac.t0 = None
         sac.write(sac_file_good)
         with pytest.raises(TypeError):
-            add_files_to_project(session, [sac_file_good], SeismogramFileType.SAC)
+            add_files_to_project([sac_file_good], SeismogramFileType.SAC)

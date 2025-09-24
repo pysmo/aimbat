@@ -13,25 +13,22 @@ from aimbat.cli.common import GlobalParameters
 from cyclopts import App
 
 
-def _create_project(db_url: str | None) -> None:
+def _create_project() -> None:
     from aimbat.lib.project import create_project
-    from aimbat.lib.common import engine_from_url
 
-    create_project(engine_from_url(db_url))
+    create_project()
 
 
-def _delete_project(db_url: str | None) -> None:
+def _delete_project() -> None:
     from aimbat.lib.project import delete_project
-    from aimbat.lib.common import engine_from_url
 
-    delete_project(engine_from_url(db_url))
+    delete_project()
 
 
-def _print_project_info(db_url: str | None) -> None:
+def _print_project_info() -> None:
     from aimbat.lib.project import print_project_info
-    from aimbat.lib.common import engine_from_url
 
-    print_project_info(engine_from_url(db_url))
+    print_project_info()
 
 
 app = App(name="project", help=__doc__, help_format="markdown")
@@ -43,7 +40,7 @@ def cli_project_create(*, global_parameters: GlobalParameters | None = None) -> 
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _create_project(global_parameters.db_url)
+    _create_project()
 
 
 @app.command(name="delete")
@@ -52,7 +49,7 @@ def cli_project_delete(*, global_parameters: GlobalParameters | None = None) -> 
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_project(global_parameters.db_url)
+    _delete_project()
 
 
 @app.command(name="info")
@@ -61,7 +58,7 @@ def cli_project_info(*, global_parameters: GlobalParameters | None = None) -> No
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_project_info(global_parameters.db_url)
+    _print_project_info()
 
 
 if __name__ == "__main__":

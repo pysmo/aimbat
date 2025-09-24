@@ -1,11 +1,11 @@
 """Functions to read and write data files used with AIMBAT"""
 
 from aimbat.lib.common import logger
-from aimbat.lib.typing import ProjectDefault
 from pysmo import Event, Seismogram, Station
 from pysmo.classes import SAC
 from datetime import datetime
 from sqlmodel import Session
+import aimbat.lib.defaults as defaults
 import os
 import numpy as np
 import numpy.typing as npt
@@ -62,12 +62,10 @@ def _read_metadata_from_sacfile(
 
     logger.debug(f"Reading seismogram metadata from {sacfile}.")
 
-    from aimbat.lib.defaults import get_default
-
-    initial_pick_header = get_default(session, ProjectDefault.INITIAL_PICK_SAC_HEADER)
+    initial_pick_header = defaults.AIMBAT_SAC_PICK_HEADER
     logger.debug(f"Using SAC header {initial_pick_header} as t0.")
     sac = SAC.from_file(str(sacfile))
-    t0 = getattr(sac.timestamps, str(initial_pick_header))
+    t0 = getattr(sac.timestamps, initial_pick_header)
     if t0 is None:
         raise TypeError(
             "Unable to get {sacfile=}: header '{initial_pick_header}' is NoneType"

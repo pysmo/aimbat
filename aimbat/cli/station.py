@@ -7,27 +7,24 @@ import uuid
 
 
 def _delete_station(
-    db_url: str | None,
     station_id: uuid.UUID | str,
 ) -> None:
+    from aimbat.lib.common import string_to_uuid
+    from aimbat.lib.db import engine
     from aimbat.lib.station import delete_station_by_id
-    from aimbat.lib.common import engine_from_url, string_to_uuid
     from aimbat.lib.models import AimbatStation
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         if not isinstance(station_id, uuid.UUID):
             station_id = string_to_uuid(session, station_id, AimbatStation)
         delete_station_by_id(session, station_id)
 
 
-def _print_station_table(db_url: str | None, format: bool, all_events: bool) -> None:
+def _print_station_table(format: bool, all_events: bool) -> None:
     from aimbat.lib.station import print_station_table
-    from aimbat.lib.common import engine_from_url
-    from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
-        print_station_table(session, format, all_events)
+    print_station_table(format, all_events)
 
 
 app = App(name="station", help=__doc__, help_format="markdown")
@@ -47,10 +44,7 @@ def cli_station_delete(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_station(
-        db_url=global_parameters.db_url,
-        station_id=station_id,
-    )
+    _delete_station(station_id=station_id)
 
 
 @app.command(name="list")
@@ -69,7 +63,7 @@ def cli_station_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_station_table(global_parameters.db_url, table_parameters.format, all_events)
+    _print_station_table(table_parameters.format, all_events)
 
 
 if __name__ == "__main__":

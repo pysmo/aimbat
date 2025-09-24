@@ -26,6 +26,7 @@ dependencies = [
     "pyqtgraph>=0.13.7",
     "jupyter-rfb>=0.5.3",
     "cyclopts>=3.24.0",
+    "python-dotenv>=1.1.1",
 ]
 
 [project.urls]

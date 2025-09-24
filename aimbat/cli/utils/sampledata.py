@@ -12,22 +12,16 @@ from aimbat.cli.common import GlobalParameters
 from cyclopts import App
 
 
-def _delete_sampledata(db_url: str | None) -> None:
+def _delete_sampledata() -> None:
     from aimbat.lib.utils.sampledata import delete_sampledata
-    from aimbat.lib.common import engine_from_url
-    from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
-        delete_sampledata(session)
+    delete_sampledata()
 
 
-def _download_sampledata(db_url: str | None, force: bool = False) -> None:
+def _download_sampledata(force: bool = False) -> None:
     from aimbat.lib.utils.sampledata import download_sampledata
-    from aimbat.lib.common import engine_from_url
-    from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
-        download_sampledata(session, force)
+    download_sampledata(force)
 
 
 app = App(name="sampledata", help=__doc__, help_format="markdown")
@@ -48,7 +42,7 @@ def sampledata_cli_download(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _download_sampledata(global_parameters.db_url, force)
+    _download_sampledata(force)
 
 
 @app.command(name="delete")
@@ -57,7 +51,7 @@ def sampledata_cli_delete(*, global_parameters: GlobalParameters | None = None) 
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_sampledata(global_parameters.db_url)
+    _delete_sampledata()
 
 
 if __name__ == "__main__":

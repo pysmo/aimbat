@@ -8,68 +8,62 @@ from aimbat.cli.common import GlobalParameters, IccsPlotParameters
 from cyclopts import App, Parameter
 
 
-def _run_iccs(
-    db_url: str | None, autoflip: bool = False, autoselect: bool = False
-) -> None:
+def _run_iccs(autoflip: bool = False, autoselect: bool = False) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, run_iccs
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         iccs = create_iccs_instance(session)
         run_iccs(session, iccs, autoflip, autoselect)
 
 
-def _plot_stack(db_url: str | None, padded: bool, all: bool) -> None:
+def _plot_stack(padded: bool, all: bool) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, plot_stack
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         iccs = create_iccs_instance(session)
         plot_stack(iccs, padded, all)
 
 
-def _plot_seismograms(db_url: str | None, padded: bool, all: bool) -> None:
+def _plot_seismograms(padded: bool, all: bool) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, plot_seismograms
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         iccs = create_iccs_instance(session)
         plot_seismograms(iccs, padded, all)
 
 
-def _update_pick(
-    db_url: str | None, padded: bool, all: bool, use_seismogram_image: bool
-) -> None:
+def _update_pick(padded: bool, all: bool, use_seismogram_image: bool) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_pick
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         iccs = create_iccs_instance(session)
         update_pick(session, iccs, padded, all, use_seismogram_image)
 
 
-def _update_timewindow(
-    db_url: str | None, padded: bool, all: bool, use_seismogram_image: bool
-) -> None:
+def _update_timewindow(padded: bool, all: bool, use_seismogram_image: bool) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_timewindow
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         iccs = create_iccs_instance(session)
         update_timewindow(session, iccs, padded, all, use_seismogram_image)
 
 
-def _update_min_ccnorm(db_url: str | None, padded: bool, all: bool) -> None:
+def _update_min_ccnorm(padded: bool, all: bool) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_min_ccnorm
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         iccs = create_iccs_instance(session)
         update_min_ccnorm(session, iccs, padded, all)
 
@@ -101,7 +95,7 @@ def cli_iccs_run(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _run_iccs(global_parameters.db_url, autoflip, autoselect)
+    _run_iccs(autoflip, autoselect)
 
 
 @plot.command(name="stack")
@@ -115,7 +109,7 @@ def cli_iccs_plot_stack(
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _plot_stack(global_parameters.db_url, iccs_parameters.pad, iccs_parameters.all)
+    _plot_stack(iccs_parameters.pad, iccs_parameters.all)
 
 
 @plot.command(name="image")
@@ -133,9 +127,7 @@ def cli_iccs_plot_seismograms(
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _plot_seismograms(
-        global_parameters.db_url, iccs_parameters.pad, iccs_parameters.all
-    )
+    _plot_seismograms(iccs_parameters.pad, iccs_parameters.all)
 
 
 @update.command(name="pick")
@@ -155,7 +147,6 @@ def cli_iccs_update_pick(
     global_parameters = global_parameters or GlobalParameters()
 
     _update_pick(
-        global_parameters.db_url,
         iccs_parameters.pad,
         iccs_parameters.all,
         use_seismogram_image,
@@ -179,7 +170,6 @@ def cli_iccs_update_timewindow(
     global_parameters = global_parameters or GlobalParameters()
 
     _update_timewindow(
-        global_parameters.db_url,
         iccs_parameters.pad,
         iccs_parameters.all,
         use_seismogram_image,
@@ -197,9 +187,7 @@ def cli_iccs_update_min_ccnorm(
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _update_min_ccnorm(
-        global_parameters.db_url, iccs_parameters.pad, iccs_parameters.all
-    )
+    _update_min_ccnorm(iccs_parameters.pad, iccs_parameters.all)
 
 
 if __name__ == "__main__":

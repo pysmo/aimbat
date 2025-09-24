@@ -6,46 +6,45 @@ from cyclopts import App, Parameter
 import uuid
 
 
-def _create_snapshot(db_url: str | None, comment: str | None = None) -> None:
+def _create_snapshot(comment: str | None = None) -> None:
+    from aimbat.lib.db import engine
     from aimbat.lib.snapshot import create_snapshot
-    from aimbat.lib.common import engine_from_url
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         create_snapshot(session, comment)
 
 
-def _rollback_to_snapshot(db_url: str | None, snapshot_id: uuid.UUID | str) -> None:
-    from aimbat.lib.snapshot import rollback_to_snapshot_by_id
-    from aimbat.lib.common import engine_from_url, string_to_uuid
+def _rollback_to_snapshot(snapshot_id: uuid.UUID | str) -> None:
+    from aimbat.lib.common import string_to_uuid
+    from aimbat.lib.db import engine
     from aimbat.lib.models import AimbatSnapshot
+    from aimbat.lib.snapshot import rollback_to_snapshot_by_id
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         if not isinstance(snapshot_id, uuid.UUID):
             snapshot_id = string_to_uuid(session, snapshot_id, AimbatSnapshot)
         rollback_to_snapshot_by_id(session, snapshot_id)
 
 
-def _delete_snapshot(db_url: str | None, snapshot_id: uuid.UUID | str) -> None:
-    from aimbat.lib.snapshot import delete_snapshot_by_id
-    from aimbat.lib.common import engine_from_url, string_to_uuid
+def _delete_snapshot(snapshot_id: uuid.UUID | str) -> None:
+    from aimbat.lib.common import string_to_uuid
+    from aimbat.lib.db import engine
     from aimbat.lib.models import AimbatSnapshot
+    from aimbat.lib.snapshot import delete_snapshot_by_id
     from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
+    with Session(engine) as session:
         if not isinstance(snapshot_id, uuid.UUID):
             snapshot_id = string_to_uuid(session, snapshot_id, AimbatSnapshot)
         delete_snapshot_by_id(session, snapshot_id)
 
 
-def _print_snapshot_table(db_url: str | None, format: bool, all_events: bool) -> None:
+def _print_snapshot_table(format: bool, all_events: bool) -> None:
     from aimbat.lib.snapshot import print_snapshot_table
-    from aimbat.lib.common import engine_from_url
-    from sqlmodel import Session
 
-    with Session(engine_from_url(db_url)) as session:
-        print_snapshot_table(session, format, all_events)
+    print_snapshot_table(format, all_events)
 
 
 app = App(name="snapshot", help=__doc__, help_format="markdown")
@@ -63,7 +62,7 @@ def cli_snapshot_create(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _create_snapshot(db_url=global_parameters.db_url, comment=comment)
+    _create_snapshot(comment=comment)
 
 
 @app.command(name="rollback")
@@ -80,7 +79,7 @@ def cli_snapshot_rollback(
 
     global_paramaters = global_paramaters or GlobalParameters()
 
-    _rollback_to_snapshot(global_paramaters.db_url, snapshot_id)
+    _rollback_to_snapshot(snapshot_id)
 
 
 @app.command(name="delete")
@@ -97,7 +96,7 @@ def cli_snapshop_delete(
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_snapshot(global_parameters.db_url, snapshot_id)
+    _delete_snapshot(snapshot_id)
 
 
 @app.command(name="list")
@@ -116,7 +115,7 @@ def cli_snapshot_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_snapshot_table(global_parameters.db_url, table_parameters.format, all_events)
+    _print_snapshot_table(table_parameters.format, all_events)
 
 
 if __name__ == "__main__":

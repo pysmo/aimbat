@@ -1,9 +1,12 @@
 from __future__ import annotations
+from aimbat.lib.typing import SeismogramParameter
+from aimbat.lib.models import AimbatSeismogram
 from typing import TYPE_CHECKING
 from pathlib import Path
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
-from aimbat.lib.seismogram import SeismogramParameter
+from importlib import reload
+import aimbat.lib.seismogram as seismogram
 import pytest
 import random
 
@@ -12,43 +15,36 @@ if TYPE_CHECKING:
     from aimbat.lib.models import AimbatSeismogram
     from collections.abc import Generator
     from typing import Any
-    from sqlalchemy.engine import Engine
     from pytest import CaptureFixture
     from matplotlib.figure import Figure
 
 
 class TestSeismogramBase:
-    @pytest.fixture
-    def session(
-        self, test_db_with_active_event: tuple[Path, str, Engine, Session]
-    ) -> Generator[Session, Any, Any]:
-        yield test_db_with_active_event[3]
+    @pytest.fixture(autouse=True)
+    def reload_modules(self, test_db_with_active_event: tuple[Path, Session]) -> None:
+        reload(seismogram)
 
     @pytest.fixture
-    def db_url(
-        self, test_db_with_active_event: tuple[Path, str, Engine, Session]
-    ) -> Generator[str, Any, Any]:
+    def session(
+        self, test_db_with_active_event: tuple[Path, Session]
+    ) -> Generator[Session, Any, Any]:
         yield test_db_with_active_event[1]
 
 
 class TestLibSeismogram(TestSeismogramBase):
     def test_lib_seismogram_uuid_dict_reversed(self, session: Session) -> None:
-        from aimbat.lib.seismogram import seismogram_uuid_dict_reversed
         import uuid
 
-        for k, v in seismogram_uuid_dict_reversed(session).items():
+        for k, v in seismogram.seismogram_uuid_dict_reversed(session).items():
             assert isinstance(k, uuid.UUID)
             assert isinstance(v, str)
 
 
 class TestDeleteSeismogram(TestSeismogramBase):
     def test_lib_delete_seismogram_by_id(self, session: Session) -> None:
-        from aimbat.lib.seismogram import delete_seismogram_by_id
-        from aimbat.lib.models import AimbatSeismogram
-
-        seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
-        id = seismogram.id
-        delete_seismogram_by_id(session, id)
+        aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
+        id = aimbat_seismogram.id
+        seismogram.delete_seismogram_by_id(session, id)
         assert (
             session.exec(
                 select(AimbatSeismogram).where(AimbatSeismogram.id == id)
@@ -56,22 +52,13 @@ class TestDeleteSeismogram(TestSeismogramBase):
             is None
         )
 
-    def test_cli_delete_seismogram_by_id(self, session: Session, db_url: str) -> None:
+    def test_cli_delete_seismogram_by_id(self, session: Session) -> None:
         from aimbat.app import app
-        from aimbat.lib.models import AimbatSeismogram
 
-        seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
-        id = seismogram.id
+        aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
+        id = aimbat_seismogram.id
 
-        app(
-            [
-                "seismogram",
-                "delete",
-                str(id),
-                "--db-url",
-                db_url,
-            ]
-        )
+        app(["seismogram", "delete", str(id)])
         session.flush()
         assert (
             session.exec(
@@ -80,41 +67,22 @@ class TestDeleteSeismogram(TestSeismogramBase):
             is None
         )
 
-    def test_cli_delete_seismogram_by_id_with_wrong_id(self, db_url: str) -> None:
+    def test_cli_delete_seismogram_by_id_with_wrong_id(self) -> None:
         from aimbat.app import app
         from uuid import uuid4
 
         id = uuid4()
 
         with pytest.raises(NoResultFound):
-            app(
-                [
-                    "seismogram",
-                    "delete",
-                    str(id),
-                    "--db-url",
-                    db_url,
-                ]
-            )
+            app(["seismogram", "delete", str(id)])
 
-    def test_cli_delete_seismogram_by_string(
-        self, session: Session, db_url: str
-    ) -> None:
+    def test_cli_delete_seismogram_by_string(self, session: Session) -> None:
         from aimbat.app import app
-        from aimbat.lib.models import AimbatSeismogram
 
-        seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
-        id = seismogram.id
+        aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
+        id = aimbat_seismogram.id
 
-        app(
-            [
-                "seismogram",
-                "delete",
-                str(id)[:5],
-                "--db-url",
-                db_url,
-            ]
-        )
+        app(["seismogram", "delete", str(id)[:5]])
         session.flush()
         assert (
             session.exec(
@@ -147,56 +115,44 @@ class TestGetSeismogramParameter(TestSeismogramBase):
         parameter: SeismogramParameter,
         expected: Any,
     ) -> None:
-        from aimbat.lib.seismogram import get_seismogram_parameter
-
-        assert get_seismogram_parameter(random_seismogram, parameter) == expected
+        assert (
+            seismogram.get_seismogram_parameter(random_seismogram, parameter)
+            == expected
+        )
         assert getattr(random_seismogram.parameters, parameter) == expected
 
     def test_lib_get_seismogram_parameter_by_id(
         self, session: Session, random_seismogram: AimbatSeismogram
     ) -> None:
-        from aimbat.lib.seismogram import (
-            get_seismogram_parameter_by_id,
-            SeismogramParameter,
-        )
         import uuid
 
         assert (
-            get_seismogram_parameter_by_id(
+            seismogram.get_seismogram_parameter_by_id(
                 session, random_seismogram.id, SeismogramParameter.SELECT
             )
             is True
         )
 
         with pytest.raises(ValueError):
-            get_seismogram_parameter_by_id(
+            seismogram.get_seismogram_parameter_by_id(
                 session, uuid.uuid4(), SeismogramParameter.SELECT
             )
 
     def test_cli_get_seismogram_parameter_with_uuid(
-        self, db_url: str, random_seismogram: AimbatSeismogram, capsys: CaptureFixture
+        self, random_seismogram: AimbatSeismogram, capsys: CaptureFixture
     ) -> None:
         from aimbat.app import app
-        from aimbat.lib.seismogram import SeismogramParameter
 
         app(
-            [
-                "seismogram",
-                "get",
-                str(random_seismogram.id),
-                SeismogramParameter.SELECT,
-                "--db-url",
-                db_url,
-            ]
+            ["seismogram", "get", str(random_seismogram.id), SeismogramParameter.SELECT]
         )
         captured = capsys.readouterr()
         assert "True" in captured.out
 
     def test_cli_get_seismogram_parameter_with_string(
-        self, db_url: str, random_seismogram: AimbatSeismogram, capsys: CaptureFixture
+        self, random_seismogram: AimbatSeismogram, capsys: CaptureFixture
     ) -> None:
         from aimbat.app import app
-        from aimbat.lib.seismogram import SeismogramParameter
 
         app(
             [
@@ -204,8 +160,6 @@ class TestGetSeismogramParameter(TestSeismogramBase):
                 "get",
                 str(random_seismogram.id)[:6],
                 SeismogramParameter.SELECT,
-                "--db-url",
-                db_url,
             ]
         )
         captured = capsys.readouterr()
@@ -226,50 +180,42 @@ class TestSetSeismogramParameter(TestSeismogramBase):
     def test_lib_set_seismogram_parameter(
         self, session: Session, random_seismogram: AimbatSeismogram
     ) -> None:
-        from aimbat.lib.seismogram import (
-            set_seismogram_parameter,
-            get_seismogram_parameter,
-            SeismogramParameter,
-        )
-
-        set_seismogram_parameter(
+        seismogram.set_seismogram_parameter(
             session, random_seismogram, SeismogramParameter.SELECT, False
         )
 
         assert (
-            get_seismogram_parameter(random_seismogram, SeismogramParameter.SELECT)
+            seismogram.get_seismogram_parameter(
+                random_seismogram, SeismogramParameter.SELECT
+            )
             is False
         )
 
     def test_lib_set_seismogram_parameter_by_id(
         self, session: Session, random_seismogram: AimbatSeismogram
     ) -> None:
-        from aimbat.lib.seismogram import (
-            set_seismogram_parameter_by_id,
-            get_seismogram_parameter,
-            SeismogramParameter,
-        )
         import uuid
 
-        set_seismogram_parameter_by_id(
+        seismogram.set_seismogram_parameter_by_id(
             session, random_seismogram.id, SeismogramParameter.SELECT, False
         )
 
         assert (
-            get_seismogram_parameter(random_seismogram, SeismogramParameter.SELECT)
+            seismogram.get_seismogram_parameter(
+                random_seismogram, SeismogramParameter.SELECT
+            )
             is False
         )
 
         with pytest.raises(ValueError):
-            set_seismogram_parameter_by_id(
+            seismogram.set_seismogram_parameter_by_id(
                 session, uuid.uuid4(), SeismogramParameter.SELECT, False
             )
 
     def test_cli_set_seismogram_parameter_with_uuid(
-        self, db_url: str, random_seismogram: AimbatSeismogram, session: Session
+        self, random_seismogram: AimbatSeismogram, session: Session
     ) -> None:
         from aimbat.app import app
-        from aimbat.lib.seismogram import SeismogramParameter, get_seismogram_parameter
 
         app(
             [
@@ -278,21 +224,20 @@ class TestSetSeismogramParameter(TestSeismogramBase):
                 str(random_seismogram.id),
                 SeismogramParameter.SELECT,
                 "False",
-                "--db-url",
-                db_url,
             ]
         )
         session.refresh(random_seismogram)
         assert (
-            get_seismogram_parameter(random_seismogram, SeismogramParameter.SELECT)
+            seismogram.get_seismogram_parameter(
+                random_seismogram, SeismogramParameter.SELECT
+            )
             is False
         )
 
     def test_cli_set_seismogram_parameter_with_string(
-        self, db_url: str, random_seismogram: AimbatSeismogram, session: Session
+        self, random_seismogram: AimbatSeismogram, session: Session
     ) -> None:
         from aimbat.app import app
-        from aimbat.lib.seismogram import SeismogramParameter, get_seismogram_parameter
 
         app(
             [
@@ -301,13 +246,13 @@ class TestSetSeismogramParameter(TestSeismogramBase):
                 str(random_seismogram.id)[:6],
                 SeismogramParameter.SELECT,
                 "False",
-                "--db-url",
-                db_url,
             ]
         )
         session.refresh(random_seismogram)
         assert (
-            get_seismogram_parameter(random_seismogram, SeismogramParameter.SELECT)
+            seismogram.get_seismogram_parameter(
+                random_seismogram, SeismogramParameter.SELECT
+            )
             is False
         )
 
@@ -316,65 +261,47 @@ class TestGetAllSelectedSeismograms(TestSeismogramBase):
     def test_lib_get_selected_seismograms_for_active_event(
         self, session: Session
     ) -> None:
-        from aimbat.lib.seismogram import get_selected_seismograms
-
-        assert len(get_selected_seismograms(session)) == 13
+        assert len(seismogram.get_selected_seismograms(session)) == 13
 
     def test_lib_get_selected_seismograms_for_all_events(
         self, session: Session
     ) -> None:
-        from aimbat.lib.seismogram import get_selected_seismograms
-
-        assert len(get_selected_seismograms(session, all_events=True)) == 20
+        assert len(seismogram.get_selected_seismograms(session, all_events=True)) == 20
 
 
 class TestPrintSeismogramTable(TestSeismogramBase):
-    def test_lib_print_seismogram_table_no_format(
-        self, session: Session, capsys: CaptureFixture
-    ) -> None:
-        from aimbat.lib.seismogram import print_seismogram_table
-
-        print_seismogram_table(session, format=False, all_events=False)
+    def test_lib_print_seismogram_table_no_format(self, capsys: CaptureFixture) -> None:
+        seismogram.print_seismogram_table(format=False, all_events=False)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
         assert "id (shortened)" not in captured.out
 
-    def test_lib_print_seismogram_table_format(
-        self, session: Session, capsys: CaptureFixture
-    ) -> None:
-        from aimbat.lib.seismogram import print_seismogram_table
-
-        print_seismogram_table(session, format=True, all_events=False)
+    def test_lib_print_seismogram_table_format(self, capsys: CaptureFixture) -> None:
+        seismogram.print_seismogram_table(format=True, all_events=False)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
         assert "id (shortened)" in captured.out
 
     def test_lib_print_seismogram_table_no_format_all_events(
-        self, session: Session, capsys: CaptureFixture
+        self, capsys: CaptureFixture
     ) -> None:
-        from aimbat.lib.seismogram import print_seismogram_table
-
-        print_seismogram_table(session, format=False, all_events=True)
+        seismogram.print_seismogram_table(format=False, all_events=True)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for all events" in captured.out
         assert "id (shortened)" not in captured.out
 
     def test_lib_print_seismogram_table_format_all_events(
-        self, session: Session, capsys: CaptureFixture
+        self, capsys: CaptureFixture
     ) -> None:
-        from aimbat.lib.seismogram import print_seismogram_table
-
-        print_seismogram_table(session, format=True, all_events=True)
+        seismogram.print_seismogram_table(format=True, all_events=True)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for all events" in captured.out
         assert "id (shortened)" in captured.out
 
-    def test_cli_print_seismogram_table(
-        self, db_url: str, capsys: CaptureFixture
-    ) -> None:
+    def test_cli_print_seismogram_table(self, capsys: CaptureFixture) -> None:
         from aimbat.app import app
 
-        app(["seismogram", "list", "--db-url", db_url])
+        app(["seismogram", "list"])
 
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
@@ -383,18 +310,16 @@ class TestPrintSeismogramTable(TestSeismogramBase):
 
 class TestSeismogramPlot(TestSeismogramBase):
     @pytest.mark.mpl_image_compare
-    def test_lib_plotseis_mpl(self, session: Session) -> Figure:
-        from aimbat.lib.seismogram import plot_seismograms
-
-        return plot_seismograms(session)
+    def test_lib_plotseis_mpl(self) -> Figure:
+        return seismogram.plot_seismograms()
 
     @pytest.mark.skip(reason="I con't know how to test QT yet.")
-    def test_lib_plotseis_qt(self, session: Session) -> None:
-        from aimbat.lib.seismogram import plot_seismograms
+    def test_lib_plotseis_qt(
+        self,
+    ) -> None:
+        _ = seismogram.plot_seismograms(use_qt=True)
 
-        _ = plot_seismograms(session, use_qt=True)
-
-    def test_cli_plotseis_mpl(self, db_url: str) -> None:
+    def test_cli_plotseis_mpl(self) -> None:
         from aimbat.app import app
 
-        app(["seismogram", "plot", "--db-url", db_url])
+        app(["seismogram", "plot"])

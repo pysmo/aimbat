@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from aimbat.lib.common import logger, reverse_uuid_shortener
+from aimbat.lib.db import engine
 from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatEvent,
@@ -258,11 +259,10 @@ def set_event_parameter(
     session.commit()
 
 
-def print_event_table(session: Session, format: bool = True) -> None:
+def print_event_table(format: bool = True) -> None:
     """Print a pretty table with AIMBAT events.
 
     Parameters:
-        session: Database session.
         format: Format the output to be more human-readable.
     """
 
@@ -282,19 +282,20 @@ def print_event_table(session: Session, format: bool = True) -> None:
     table.add_column("# Seismograms", justify="center", style="green")
     table.add_column("# Stations", justify="center", style="green")
 
-    for event in session.exec(select(AimbatEvent)).all():
-        logger.debug(f"Adding event with id={event.id} to the table.")
-        table.add_row(
-            uuid_dict_reversed(session)[event.id] if format else str(event.id),
-            ":heavy_check_mark:" if event.active is True else "",
-            event.time.strftime("%Y-%m-%d %H:%M:%S") if format else str(event.time),
-            f"{event.latitude:.3f}" if format else str(event.latitude),
-            f"{event.longitude:.3f}" if format else str(event.longitude),
-            f"{event.depth:.0f}" if format else str(event.depth),
-            str(event.parameters.completed),
-            str(len(event.seismograms)),
-            str(len(station.get_stations_in_event(session, event))),
-        )
+    with Session(engine) as session:
+        for event in session.exec(select(AimbatEvent)).all():
+            logger.debug(f"Adding event with id={event.id} to the table.")
+            table.add_row(
+                uuid_dict_reversed(session)[event.id] if format else str(event.id),
+                ":heavy_check_mark:" if event.active is True else "",
+                event.time.strftime("%Y-%m-%d %H:%M:%S") if format else str(event.time),
+                f"{event.latitude:.3f}" if format else str(event.latitude),
+                f"{event.longitude:.3f}" if format else str(event.longitude),
+                f"{event.depth:.0f}" if format else str(event.depth),
+                str(event.parameters.completed),
+                str(len(event.seismograms)),
+                str(len(station.get_stations_in_event(session, event))),
+            )
 
     console = Console()
     console.print(table)

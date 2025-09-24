@@ -10,42 +10,6 @@ class SeismogramFileType(StrEnum):
     SAC = auto()
 
 
-class ProjectDefault(StrEnum):
-    """[`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] enum class for typing.
-
-    This enum class is used for typing, cli args etc. The attributes must be
-    the same as in the [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] model.
-    """
-
-    AIMBAT = auto()
-    SAMPLEDATA_DIR = auto()
-    SAMPLEDATA_SRC = auto()
-    INITIAL_PICK_SAC_HEADER = auto()
-    INITIAL_WINDOW_PRE = auto()
-    INITIAL_WINDOW_POST = auto()
-    TIME_WINDOW_PADDING = auto()
-
-
-ProjectDefaultBool: TypeAlias = Literal[ProjectDefault.AIMBAT]
-"""[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults]
-attributes with [`bool`][bool] values."""
-
-ProjectDefaultStr: TypeAlias = Literal[
-    ProjectDefault.INITIAL_PICK_SAC_HEADER,
-    ProjectDefault.SAMPLEDATA_SRC,
-    ProjectDefault.SAMPLEDATA_DIR,
-]
-"""[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults]
-attributes with [`str`][str] values."""
-
-ProjectDefaultTimedelta: TypeAlias = Literal[
-    ProjectDefault.INITIAL_WINDOW_PRE,
-    ProjectDefault.INITIAL_WINDOW_POST,
-    ProjectDefault.TIME_WINDOW_PADDING,
-]
-"[`TypeAlias`][typing.TypeAlias] for [`AimbatDefaults`][aimbat.lib.models.AimbatDefaults] attributes with [`timedelta`][timedelta] values."
-
-
 class EventParameter(StrEnum):
     """[`AimbatEvent`][aimbat.lib.models.AimbatEvent] enum class for typing.
 

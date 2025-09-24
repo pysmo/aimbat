@@ -5,6 +5,7 @@ from pysmo.tools.utils import uuid_shortener
 from typing import TYPE_CHECKING
 from loguru import logger
 from sqlmodel import Session, select
+import aimbat.lib.defaults as defaults
 
 
 if TYPE_CHECKING:
@@ -15,33 +16,18 @@ if TYPE_CHECKING:
         AimbatStation,
     )
     from collections.abc import Sequence
-    from sqlalchemy import Engine
     from uuid import UUID
 
 
-AIMBAT_LOGFILE = "aimbat.log"
-
-__all__ = ["engine_from_url", "check_for_notebook", "logger"]
+__all__ = ["check_for_notebook", "logger"]
 
 logger.remove(0)
-_ = logger.add(AIMBAT_LOGFILE, rotation="100 MB", level="INFO")
+_ = logger.add(defaults.AIMBAT_LOGFILE, rotation="100 MB", level="INFO")
 
 
-def engine_from_url(url: str | None = None) -> "Engine":
-    """Create an engine from url or return default engine.
-
-    url: Optional database url to create an engine from.
-    """
-    from aimbat.lib.db import engine
-    from sqlmodel import create_engine
-
-    if url is not None:
-        logger.debug(f"Creating database engine from {url}")
-        engine = create_engine(url)
-    else:
-        logger.debug("No database url provided, using default engine.")
-
-    return engine
+def add_debug_logger() -> None:
+    """Add debug logger to loguru."""
+    logger.add(defaults.AIMBAT_LOGFILE, level="DEBUG")
 
 
 def string_to_uuid(
