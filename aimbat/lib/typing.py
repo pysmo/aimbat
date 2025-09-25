@@ -3,11 +3,15 @@
 from typing import Literal, TypeAlias
 from enum import StrEnum, auto
 
-
-class SeismogramFileType(StrEnum):
-    """Valid AIMBAT file types."""
-
-    SAC = auto()
+__all__ = [
+    "EventParameter",
+    "EventParameterBool",
+    "EventParameterFloat",
+    "EventParameterTimedelta",
+    "SeismogramParameter",
+    "SeismogramParameterBool",
+    "SeismogramParameterDatetime",
+]
 
 
 class EventParameter(StrEnum):

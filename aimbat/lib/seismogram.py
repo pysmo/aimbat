@@ -299,9 +299,9 @@ def print_seismogram_table(format: bool, all_events: bool = False) -> None:
                 (uuid_shortener(session, seismogram) if format else str(seismogram.id)),
                 ":heavy_check_mark:" if seismogram.parameters.select is True else "",
                 (
-                    uuid_shortener(session, seismogram.file)
+                    uuid_shortener(session, seismogram.datasource)
                     if format
-                    else str(seismogram.file.id)
+                    else str(seismogram.datasource.id)
                 ),
                 str(seismogram.delta.total_seconds()),
                 str(len(seismogram)),

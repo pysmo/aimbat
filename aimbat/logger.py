@@ -1,3 +1,5 @@
+"""Logging setup."""
+
 from loguru import logger
 from aimbat.config import settings
 

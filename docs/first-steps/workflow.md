@@ -28,16 +28,16 @@ algorithm, as well as adjusting AIMBAT parameters are iterative processes.
 
 ``` mermaid
 flowchart TD
-  A@{ shape: circle, label: "Start"} --> B>Import seismograms containing initial picks t0];
-  B --> C>"Run ICCS with intitial picks and default values for AIMBAT parameters (window width, filter parameters, etc)."];
-  C --> D[Inspect results of course alignment];
-  D --> E[Adjust AIMBAT parameters];
-  E --> F>Run ICCS with updated parameters]
-  F --> G[Inspect results of refined alignment];
+  A@{ shape: circle, label: "Start"}
+  A --> B>Import seismograms containing initial picks t0];
+  B --> F
+  E[Adjust AIMBAT parameters];
+  E --> F>Run ICCS with intial/updated parameters]
+  F --> G[Inspect results of alignment];
   G --> H{"Continue
           with
           MCCC?"}
-  H -->|Yes| M>"Run MCCC for final alignment"];
+  H ---->|Yes| M>"Run MCCC for final alignment"];
   H -->|No| E;
 ```
 

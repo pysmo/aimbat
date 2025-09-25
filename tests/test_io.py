@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from pydantic import ValidationError
 from sqlmodel import select
 from pysmo.classes import SAC, SacSeismogram
 from pysmo import Seismogram
 from aimbat.lib.models import AimbatSeismogram
-from aimbat.lib.typing import SeismogramFileType
+from aimbat.lib.io import DataType
 from importlib import reload
 import numpy as np
 import pytest
@@ -33,7 +34,7 @@ class TestSacBase:
 
         reload(data)
 
-        data.add_files_to_project([sac_file_good], SeismogramFileType.SAC)
+        data.add_files_to_project([sac_file_good], DataType.SAC)
         aimbat_file = session.exec(select(AimbatSeismogram)).one()
         yield aimbat_file
 
@@ -71,10 +72,10 @@ class TestSacWrite(TestSacBase):
 
 class TestSacBadFile(TestSacBase):
     def test_t0_missing(self, sac_file_good: Path) -> None:
-        from aimbat.lib.data import add_files_to_project, SeismogramFileType
+        from aimbat.lib.data import add_files_to_project
 
         sac = SAC.from_file(sac_file_good)
         sac.t0 = None
         sac.write(sac_file_good)
-        with pytest.raises(TypeError):
-            add_files_to_project([sac_file_good], SeismogramFileType.SAC)
+        with pytest.raises(ValidationError):
+            add_files_to_project([sac_file_good], DataType.SAC)

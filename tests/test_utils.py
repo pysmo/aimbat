@@ -185,7 +185,21 @@ class TestUtilsSettingsTable(TestUtilsBase):
 
         output = capsys.readouterr().out
         assert "AIMBAT settings" in output
-        assert "AIMBAT project file location." in output
+        assert "AIMBAT project file location" in output
+
+    def test_lib_print_defaullts_without_env_prefix(
+        self, monkeypatch: MonkeyPatch, capsys: CaptureFixture
+    ) -> None:
+        from aimbat.config import Settings
+        import aimbat.lib.utils.print_settings as print_settings
+
+        monkeypatch.delitem(Settings.model_config, "env_prefix")
+
+        reload(print_settings)
+
+        print_settings.print_settings_table()
+        output = capsys.readouterr().out
+        assert "AIMBAT_" not in output
 
     def test_cli_print_defaullts(self, capsys: CaptureFixture) -> None:
         from aimbat.app import app
@@ -194,4 +208,4 @@ class TestUtilsSettingsTable(TestUtilsBase):
 
         output = capsys.readouterr().out
         assert "AIMBAT settings" in output
-        assert "AIMBAT project file location." in output
+        assert "AIMBAT project file location" in output
