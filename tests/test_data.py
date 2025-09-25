@@ -4,7 +4,8 @@ from sqlmodel import select, Session
 from typing import TYPE_CHECKING
 from pathlib import Path
 from importlib import reload
-from aimbat.lib.typing import SeismogramFileType
+from aimbat.lib.io import DataType
+from aimbat.lib.models import AimbatDataSource
 import aimbat.lib.data as data
 import pytest
 import numpy as np
@@ -29,20 +30,20 @@ class TestDataAdd(TestDataBase):
     ) -> None:
         data.add_files_to_project(
             [sac_file_good],
-            filetype=SeismogramFileType.SAC,
+            datatype=DataType.SAC,
         )
 
         session = test_db_with_project[1]
-        seismogram_filename = session.exec(select(data.AimbatFile.filename)).one()
+        seismogram_filename = session.exec(select(AimbatDataSource.sourcename)).one()
         assert seismogram_filename == str(sac_file_good)
 
         # do this a second time to see that nothing changes
         data.add_files_to_project(
             [sac_file_good],
-            filetype=SeismogramFileType.SAC,
+            datatype=DataType.SAC,
         )
 
-        seismogram_filename = session.exec(select(data.AimbatFile.filename)).one()
+        seismogram_filename = session.exec(select(AimbatDataSource.sourcename)).one()
         assert seismogram_filename == str(sac_file_good)
 
     def test_cli_data_add(
@@ -57,7 +58,7 @@ class TestDataAdd(TestDataBase):
         app(["data", "add", "--no-progress", sac_file_good_as_string])
 
         session = test_db_with_project[1]
-        seismogram_filename = session.exec(select(data.AimbatFile.filename)).one()
+        seismogram_filename = session.exec(select(AimbatDataSource.sourcename)).one()
         assert seismogram_filename == str(sac_file_good)
 
 
@@ -131,7 +132,7 @@ class TestDataCompare(TestDataBase):
 
         data.add_files_to_project(
             [sac_file_good],
-            filetype=SeismogramFileType.SAC,
+            datatype=DataType.SAC,
         )
 
         session = test_db_with_project[1]
@@ -152,7 +153,7 @@ class TestDataCompare(TestDataBase):
         reload(data)
         from aimbat.lib.models import AimbatStation, AimbatSeismogram
 
-        data.add_files_to_project([sac_file_good], filetype=SeismogramFileType.SAC)
+        data.add_files_to_project([sac_file_good], datatype=DataType.SAC)
 
         session = test_db_with_project[1]
         sac_station = sac_instance_good.station
@@ -173,7 +174,7 @@ class TestDataCompare(TestDataBase):
         reload(data)
         from aimbat.lib.models import AimbatEvent, AimbatSeismogram
 
-        data.add_files_to_project([sac_file_good], filetype=SeismogramFileType.SAC)
+        data.add_files_to_project([sac_file_good], datatype=DataType.SAC)
 
         session = test_db_with_project[1]
         sac_event = sac_instance_good.event

@@ -1,4 +1,4 @@
-from aimbat.lib.typing import SeismogramFileType
+from aimbat.lib.io import DataType
 from pysmo.classes import SAC
 from sqlmodel import Session, select
 from pathlib import Path
@@ -136,7 +136,7 @@ def test_db_with_data(
     reload(project)
     reload(data)
     project.create_project()
-    data.add_files_to_project(test_data, SeismogramFileType.SAC)
+    data.add_files_to_project(test_data, DataType.SAC)
 
     with Session(db.engine) as session:
         yield db_file, session
@@ -162,7 +162,7 @@ def test_db_with_active_event(
     reload(project)
     reload(data)
     project.create_project()
-    data.add_files_to_project(test_data, SeismogramFileType.SAC)
+    data.add_files_to_project(test_data, DataType.SAC)
 
     with Session(db.engine) as session:
         events = session.exec(select(event.AimbatEvent)).all()
@@ -188,8 +188,3 @@ def sac_instance_good(sac_file_good: Path) -> Generator[SAC, Any, Any]:
         yield my_sac
     finally:
         del my_sac
-
-
-# @pytest.hookimpl(trylast=True)
-# def pytest_sessionfinish(session: Session, exitstatus: pytest.ExitCode) -> None:
-#     gc.collect()

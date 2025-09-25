@@ -5,7 +5,8 @@ as classes to use with python in AIMBAT.
 """
 
 from aimbat.config import settings
-from aimbat.lib.typing import SeismogramFileType
+
+# from aimbat.lib.typing import DataType
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
@@ -28,23 +29,23 @@ class _DateTimeUTC(TypeDecorator):
         return value
 
 
-class AimbatFileCreate(SQLModel):
-    """Class to store data file information."""
+class AimbatDataSourceCreate(SQLModel):
+    """Class to store data source information."""
 
-    filename: str | os.PathLike = Field(unique=True)
-    filetype: SeismogramFileType = SeismogramFileType.SAC
+    sourcename: str | os.PathLike = Field(unique=True)
+    datatype: io.DataType = io.DataType.SAC
 
 
-class AimbatFile(SQLModel, table=True):
-    """Class to store data file information."""
+class AimbatDataSource(SQLModel, table=True):
+    """Class to store data source information."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    filename: str
-    filetype: str
+    sourcename: str
+    datatype: io.DataType
     seismogram_id: uuid.UUID = Field(
         default=None, foreign_key="aimbatseismogram.id", ondelete="CASCADE"
     )
-    seismogram: "AimbatSeismogram" = Relationship(back_populates="file")
+    seismogram: "AimbatSeismogram" = Relationship(back_populates="datasource")
 
 
 class AimbatEvent(SQLModel, table=True):
@@ -185,7 +186,9 @@ class AimbatSeismogram(SQLModel, table=True):
 
     cached_length: int | None = None
 
-    file: AimbatFile = Relationship(back_populates="seismogram", cascade_delete=True)
+    datasource: AimbatDataSource = Relationship(
+        back_populates="seismogram", cascade_delete=True
+    )
     station_id: uuid.UUID = Field(
         default=None, foreign_key="aimbatstation.id", ondelete="CASCADE"
     )
@@ -236,15 +239,19 @@ class AimbatSeismogram(SQLModel, table=True):
 
     @property
     def data(self) -> np.ndarray:
-        if self.file is None:
+        if self.datasource is None:
             raise RuntimeError("I don't know which file to read data from")
-        return io.read_seismogram_data_from_file(self.file.filename, self.file.filetype)
+        return io.read_seismogram_data(
+            self.datasource.sourcename, self.datasource.datatype
+        )
 
     @data.setter
     def data(self, value: np.ndarray) -> None:
-        if self.file is None:
+        if self.datasource is None:
             raise RuntimeError("I don't know which file to write data to")
-        io.write_seismogram_data_to_file(self.file.filename, self.file.filetype, value)
+        io.write_seismogram_data(
+            self.datasource.sourcename, self.datasource.datatype, value
+        )
         self.cached_length = np.size(value)
 
 
@@ -328,7 +335,7 @@ class AimbatSnapshot(SQLModel, table=True):
 
 
 AimbatTypes = (
-    AimbatFile
+    AimbatDataSource
     | AimbatStation
     | AimbatEvent
     | AimbatEventParameters

@@ -153,6 +153,7 @@ nav:
       - user-guide/gui.md
   - Getting Help: user-guide/help.md
   - API Reference:
+      - reference/index.md
       - aimbat.cli: reference/cli.md
       - aimbat.lib: reference/lib.md
   - Contributors: user-guide/contributors.md

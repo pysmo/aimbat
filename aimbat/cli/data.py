@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from aimbat.cli.common import GlobalParameters, TableParameters
-from aimbat.lib.typing import SeismogramFileType
+from aimbat.lib.io import DataType
 from pathlib import Path
 from cyclopts import App, Parameter, validators
 from typing import TYPE_CHECKING, Annotated
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 def _add_files_to_project(
     seismogram_files: Sequence[Path],
-    filetype: SeismogramFileType,
+    filetype: DataType,
     show_progress_bar: bool,
 ) -> None:
     from aimbat.lib.data import add_files_to_project
@@ -45,7 +45,7 @@ def cli_data_add(
         ),
     ],
     *,
-    filetype: SeismogramFileType = SeismogramFileType.SAC,
+    filetype: DataType = DataType.SAC,
     show_progress_bar: Annotated[bool, Parameter(name="progress")] = True,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
