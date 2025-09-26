@@ -1,17 +1,38 @@
 """Common functions for AIMBAT."""
 
-from __future__ import annotations
+from aimbat.config import settings
+from aimbat.lib.models import (
+    AimbatTypes,
+    AimbatDataSource,
+    AimbatStation,
+    AimbatEvent,
+    AimbatEventParameters,
+    AimbatSeismogram,
+    AimbatSeismogramParameters,
+    AimbatSnapshot,
+    AimbatEventParametersSnapshot,
+    AimbatSeismogramParametersSnapshot,
+)
 from pysmo.tools.utils import uuid_shortener as _uuid_shortener
 from sqlmodel import Session, select
-from typing import TYPE_CHECKING
+from uuid import UUID
 
 
-if TYPE_CHECKING:
-    from aimbat.lib.models import AimbatTypes
-    from uuid import UUID
-
-
-def string_to_uuid(session: Session, id: str, aimbat_class: type[AimbatTypes]) -> UUID:
+def string_to_uuid(
+    session: Session,
+    id: str,
+    aimbat_class: type[
+        AimbatDataSource
+        | AimbatStation
+        | AimbatEvent
+        | AimbatEventParameters
+        | AimbatSeismogram
+        | AimbatSeismogramParameters
+        | AimbatSnapshot
+        | AimbatEventParametersSnapshot
+        | AimbatSeismogramParametersSnapshot
+    ],
+) -> UUID:
     """Determine a UUID from a string containing the first few characters.
 
     Parameters:
@@ -38,7 +59,7 @@ def string_to_uuid(session: Session, id: str, aimbat_class: type[AimbatTypes]) -
 def uuid_shortener(
     session: Session,
     aimbat_obj: AimbatTypes,
-    min_length: int = 2,
+    min_length: int = settings.min_id_length,
 ) -> str:
     uuids = session.exec(select(aimbat_obj.__class__.id)).all()
     uuid_dict = _uuid_shortener(uuids, min_length)

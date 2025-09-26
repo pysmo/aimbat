@@ -1,7 +1,5 @@
-from __future__ import annotations
 from pysmo.classes import SAC
 from sqlmodel import select, Session
-from typing import TYPE_CHECKING
 from pathlib import Path
 from importlib import reload
 from aimbat.lib.io import DataType
@@ -9,10 +7,7 @@ from aimbat.lib.models import AimbatDataSource
 import aimbat.lib.data as data
 import pytest
 import numpy as np
-
-
-if TYPE_CHECKING:
-    from pytest import CaptureFixture
+import json
 
 
 # @pytest.mark.dependency(depends=["create_project"], scope="session")
@@ -66,12 +61,12 @@ class TestDataTable(TestDataBase):
     def test_lib_print_data_table_without_active_event(
         self,
         test_db_with_data: tuple[Path, Session],
-        capsys: CaptureFixture,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         reload(data)
-        # not event active
+        # no event active
         with pytest.raises(RuntimeError):
-            data.print_data_table(False, False)
+            data.print_data_table(False)
 
         data.print_data_table(False, True)
         captured = capsys.readouterr()
@@ -80,7 +75,7 @@ class TestDataTable(TestDataBase):
     def test_lib_print_data_table_with_active_event(
         self,
         test_db_with_active_event: tuple[Path, Session],
-        capsys: CaptureFixture,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         reload(data)
         data.print_data_table(False, False)
@@ -102,12 +97,12 @@ class TestDataTable(TestDataBase):
     def test_cli_data_list(
         self,
         test_db_with_active_event: tuple[Path, Session],
-        capsys: CaptureFixture,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         reload(data)
         from aimbat.app import app
 
-        app(["data", "list", "--no-format"])
+        app(["data", "list", "--no-short"])
         captured = capsys.readouterr()
         assert "AIMBAT data for event 2011-09-15 19:31:04.080000+00:00" in captured.out
 
@@ -118,6 +113,38 @@ class TestDataTable(TestDataBase):
         app(["data", "list", "--all"])
         captured = capsys.readouterr()
         assert "AIMBAT data for all events" in captured.out
+
+
+class TestDataDump(TestDataBase):
+    def test_lib_dump_data(
+        self,
+        test_db_with_data: tuple[Path, Session],
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        reload(data)
+        data.dump_data_table()
+        captured = capsys.readouterr()
+        loaded_json = json.loads(captured.out)
+        assert isinstance(loaded_json, list)
+        assert len(loaded_json) > 0
+        for i in loaded_json:
+            _ = AimbatDataSource(**i)
+
+    def test_cli_dump_data(
+        self,
+        test_db_with_data: tuple[Path, Session],
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        reload(data)
+        from aimbat.app import app
+
+        app(["data", "dump"])
+        captured = capsys.readouterr()
+        loaded_json = json.loads(captured.out)
+        assert isinstance(loaded_json, list)
+        assert len(loaded_json) > 0
+        for i in loaded_json:
+            _ = AimbatDataSource(**i)
 
 
 class TestDataCompare(TestDataBase):

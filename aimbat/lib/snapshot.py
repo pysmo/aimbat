@@ -1,8 +1,7 @@
-from __future__ import annotations
 from aimbat.logger import logger
+from aimbat.cli.styling import make_table
 from aimbat.lib.common import uuid_shortener
 from aimbat.lib.db import engine
-from aimbat.lib.misc.rich_utils import make_table
 from aimbat.lib.models import (
     AimbatSeismogramParametersBase,
     AimbatSnapshot,
@@ -14,14 +13,9 @@ from aimbat.lib.models import (
 )
 from sqlmodel import Session, select
 from rich.console import Console
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
 import aimbat.lib.event as event
 import uuid
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from sqlmodel import Session
-    from uuid import UUID
 
 
 def create_snapshot(session: Session, comment: str | None = None) -> None:
@@ -72,7 +66,7 @@ def create_snapshot(session: Session, comment: str | None = None) -> None:
     session.commit()
 
 
-def rollback_to_snapshot_by_id(session: Session, snapshot_id: UUID) -> None:
+def rollback_to_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
     """Rollback to an AIMBAT parameters snapshot.
 
     Parameters:
@@ -132,7 +126,7 @@ def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
     session.commit()
 
 
-def delete_snapshot_by_id(session: Session, snapshot_id: UUID) -> None:
+def delete_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
     """Delete an AIMBAT parameter snapshot.
 
     Parameters:
@@ -195,12 +189,12 @@ def get_snapshots(
     return session.exec(select_active_event_snapshots).all()
 
 
-def print_snapshot_table(format: bool, print_all_events: bool) -> None:
+def print_snapshot_table(short: bool, all_events: bool) -> None:
     """Print a pretty table with AIMBAT snapshots.
 
     Parameters:
-        format: Print the output in a more human-readable format.
-        print_all_events: Print all snapshots instead of limiting to the active event.
+        short: Shorten and format the output to be more human-readable.
+        all_events: Print all snapshots instead of limiting to the active event.
     """
 
     logger.info("Printing AIMBAT snapshots table.")
@@ -208,19 +202,19 @@ def print_snapshot_table(format: bool, print_all_events: bool) -> None:
     title = "AIMBAT snapshots for all events"
 
     with Session(engine) as session:
-        snapshots = get_snapshots(session, print_all_events)
+        snapshots = get_snapshots(session, all_events)
         logger.debug(f"Found {len(snapshots)} snapshots for the table.")
 
-        if not print_all_events:
+        if not all_events:
             active_event = event.get_active_event(session)
-            if format:
+            if short:
                 title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
             else:
                 title = f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
 
         table = make_table(title=title)
 
-        if format:
+        if short:
             table.add_column(
                 "id (shortened)", justify="center", style="cyan", no_wrap=True
             )
@@ -229,26 +223,26 @@ def print_snapshot_table(format: bool, print_all_events: bool) -> None:
         table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
         table.add_column("Comment", justify="center", style="magenta")
         table.add_column("# Seismograms", justify="center", style="green")
-        if print_all_events:
+        if all_events:
             table.add_column("Event ID", justify="center", style="magenta")
 
         for snapshot in snapshots:
             logger.debug(f"Adding snapshot with id={snapshot.id} to the table.")
             row = [
-                (uuid_shortener(session, snapshot) if format else str(snapshot.id)),
+                (uuid_shortener(session, snapshot) if short else str(snapshot.id)),
                 (
                     snapshot.date.strftime("%Y-%m-%d %H:%M:%S")
-                    if format
+                    if short
                     else str(snapshot.date)
                 ),
                 str(snapshot.comment),
                 str(len(snapshot.seismogram_parameters_snapshots)),
             ]
-            if print_all_events:
+            if all_events:
                 aimbat_event = snapshot.event
                 row.append(
                     uuid_shortener(session, aimbat_event)
-                    if format
+                    if short
                     else str(aimbat_event.id)
                 )
             table.add_row(*row)

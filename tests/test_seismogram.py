@@ -1,22 +1,16 @@
-from __future__ import annotations
 from aimbat.lib.typing import SeismogramParameter
 from aimbat.lib.models import AimbatSeismogram
-from typing import TYPE_CHECKING
-from pathlib import Path
-from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
+from sqlalchemy.exc import NoResultFound
 from importlib import reload
+from typing import Any
+from matplotlib.figure import Figure
+from pathlib import Path
+from collections.abc import Generator
 import aimbat.lib.seismogram as seismogram
 import pytest
 import random
-
-
-if TYPE_CHECKING:
-    from aimbat.lib.models import AimbatSeismogram
-    from collections.abc import Generator
-    from typing import Any
-    from pytest import CaptureFixture
-    from matplotlib.figure import Figure
+import json
 
 
 class TestSeismogramBase:
@@ -130,7 +124,7 @@ class TestGetSeismogramParameter(TestSeismogramBase):
             )
 
     def test_cli_get_seismogram_parameter_with_uuid(
-        self, random_seismogram: AimbatSeismogram, capsys: CaptureFixture
+        self, random_seismogram: AimbatSeismogram, capsys: pytest.CaptureFixture
     ) -> None:
         from aimbat.app import app
 
@@ -141,7 +135,7 @@ class TestGetSeismogramParameter(TestSeismogramBase):
         assert "True" in captured.out
 
     def test_cli_get_seismogram_parameter_with_string(
-        self, random_seismogram: AimbatSeismogram, capsys: CaptureFixture
+        self, random_seismogram: AimbatSeismogram, capsys: pytest.CaptureFixture
     ) -> None:
         from aimbat.app import app
 
@@ -261,35 +255,39 @@ class TestGetAllSelectedSeismograms(TestSeismogramBase):
 
 
 class TestPrintSeismogramTable(TestSeismogramBase):
-    def test_lib_print_seismogram_table_no_format(self, capsys: CaptureFixture) -> None:
-        seismogram.print_seismogram_table(format=False, all_events=False)
+    def test_lib_print_seismogram_table_no_format(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        seismogram.print_seismogram_table(short=False, all_events=False)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
         assert "id (shortened)" not in captured.out
 
-    def test_lib_print_seismogram_table_format(self, capsys: CaptureFixture) -> None:
-        seismogram.print_seismogram_table(format=True, all_events=False)
+    def test_lib_print_seismogram_table_format(
+        self, capsys: pytest.CaptureFixture
+    ) -> None:
+        seismogram.print_seismogram_table(short=True, all_events=False)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
         assert "id (shortened)" in captured.out
 
     def test_lib_print_seismogram_table_no_format_all_events(
-        self, capsys: CaptureFixture
+        self, capsys: pytest.CaptureFixture
     ) -> None:
-        seismogram.print_seismogram_table(format=False, all_events=True)
+        seismogram.print_seismogram_table(short=False, all_events=True)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for all events" in captured.out
         assert "id (shortened)" not in captured.out
 
     def test_lib_print_seismogram_table_format_all_events(
-        self, capsys: CaptureFixture
+        self, capsys: pytest.CaptureFixture
     ) -> None:
-        seismogram.print_seismogram_table(format=True, all_events=True)
+        seismogram.print_seismogram_table(short=True, all_events=True)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for all events" in captured.out
         assert "id (shortened)" in captured.out
 
-    def test_cli_print_seismogram_table(self, capsys: CaptureFixture) -> None:
+    def test_cli_print_seismogram_table(self, capsys: pytest.CaptureFixture) -> None:
         from aimbat.app import app
 
         app(["seismogram", "list"])
@@ -297,6 +295,38 @@ class TestPrintSeismogramTable(TestSeismogramBase):
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
         assert "id (shortened)" in captured.out
+
+
+class TestDumpSeismogram(TestSeismogramBase):
+    def test_lib_dump_data(
+        self,
+        test_db_with_data: tuple[Path, Session],
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        reload(seismogram)
+        seismogram.dump_seismogram_table()
+        captured = capsys.readouterr()
+        loaded_json = json.loads(captured.out)
+        assert isinstance(loaded_json, list)
+        assert len(loaded_json) > 0
+        for i in loaded_json:
+            _ = AimbatSeismogram(**i)
+
+    def test_cli_dump_data(
+        self,
+        test_db_with_data: tuple[Path, Session],
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        reload(seismogram)
+        from aimbat.app import app
+
+        app(["seismogram", "dump"])
+        captured = capsys.readouterr()
+        loaded_json = json.loads(captured.out)
+        assert isinstance(loaded_json, list)
+        assert len(loaded_json) > 0
+        for i in loaded_json:
+            _ = AimbatSeismogram(**i)
 
 
 class TestSeismogramPlot(TestSeismogramBase):

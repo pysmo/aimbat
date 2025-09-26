@@ -14,6 +14,7 @@ from .cli import (
     iccs,
     project,
     seismogram,
+    settings,
     snapshot,
     station,
     utils,
@@ -35,6 +36,7 @@ app.command(event.app)
 app.command(iccs.app)
 app.command(project.app)
 app.command(seismogram.app)
+app.command(settings.cli_settings_list, name="settings")
 app.command(snapshot.app)
 app.command(station.app)
 app.command(utils.app)

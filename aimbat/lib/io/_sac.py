@@ -2,13 +2,13 @@ from __future__ import annotations
 from aimbat.config import settings
 from aimbat.logger import logger
 from pysmo.classes import SAC
+from os import PathLike
+import numpy as np
+import numpy.typing as npt
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from aimbat.lib.models import AimbatEvent, AimbatSeismogram, AimbatStation
-    from os import PathLike
-    import numpy as np
-    import numpy.typing as npt
 
 
 def read_seismogram_data_from_sacfile(

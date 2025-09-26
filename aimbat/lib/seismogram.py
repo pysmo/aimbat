@@ -12,7 +12,8 @@ from aimbat.lib.typing import (
     SeismogramParameterBool,
     SeismogramParameterDatetime,
 )
-from aimbat.lib.misc.rich_utils import make_table
+from aimbat.lib.utils.json import dump_to_json
+from aimbat.cli.styling import make_table, TABLE_COLOURS
 from pysmo import MiniSeismogram
 from pysmo.functions import detrend, normalize, clone_to_mini
 from pysmo.tools.plotutils import time_array, unix_time_array
@@ -249,11 +250,11 @@ def get_selected_seismograms(
     return seismograms
 
 
-def print_seismogram_table(format: bool, all_events: bool = False) -> None:
+def print_seismogram_table(short: bool, all_events: bool = False) -> None:
     """Prints a pretty table with AIMBAT seismograms.
 
     Parameters:
-        format: Print the output in a more human-readable format.
+        short: Shorten and format the output to be more human-readable.
         all_events: Print seismograms for all events.
     """
 
@@ -270,7 +271,7 @@ def print_seismogram_table(format: bool, all_events: bool = False) -> None:
             logger.debug("Selecting seismograms for active event only.")
             active_event = event.get_active_event(session)
             seismograms = active_event.seismograms
-            if format:
+            if short:
                 title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_shortener(session, active_event)})"
             else:
                 title = f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
@@ -278,36 +279,46 @@ def print_seismogram_table(format: bool, all_events: bool = False) -> None:
         logger.debug(f"Found {len(seismograms)} seismograms for the table.")
 
         table = make_table(title=title)
-        if format:
+        if short:
             table.add_column(
-                "id (shortened)", justify="center", style="cyan", no_wrap=True
+                "id (shortened)", justify="center", style=TABLE_COLOURS.id, no_wrap=True
             )
         else:
-            table.add_column("id", justify="center", style="cyan", no_wrap=True)
-        table.add_column("Selected", justify="center", style="cyan", no_wrap=True)
-        table.add_column("File ID", justify="center", style="cyan", no_wrap=True)
-        table.add_column("Delta", justify="center", style="cyan", no_wrap=True)
-        table.add_column("NPTS", justify="center", style="cyan", no_wrap=True)
-        table.add_column("Station ID", justify="center", style="magenta")
-        table.add_column("Station Name", justify="center", style="magenta")
+            table.add_column(
+                "id", justify="center", style=TABLE_COLOURS.id, no_wrap=True
+            )
+        table.add_column(
+            "Selected", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+        )
+        table.add_column(
+            "Delta", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+        )
+        table.add_column(
+            "NPTS", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+        )
+        table.add_column(
+            "Data id", justify="center", style=TABLE_COLOURS.linked, no_wrap=True
+        )
+        table.add_column("Station id", justify="center", style=TABLE_COLOURS.linked)
+        table.add_column("Station Name", justify="center", style=TABLE_COLOURS.linked)
         if all_events:
-            table.add_column("Event ID", justify="center", style="magenta")
+            table.add_column("Event id", justify="center", style=TABLE_COLOURS.linked)
 
         for seismogram in seismograms:
             logger.debug(f"Adding seismogram with ID {seismogram.id} to the table.")
             row = [
-                (uuid_shortener(session, seismogram) if format else str(seismogram.id)),
+                (uuid_shortener(session, seismogram) if short else str(seismogram.id)),
                 ":heavy_check_mark:" if seismogram.parameters.select is True else "",
+                str(len(seismogram)),
+                str(seismogram.delta.total_seconds()),
                 (
                     uuid_shortener(session, seismogram.datasource)
-                    if format
+                    if short
                     else str(seismogram.datasource.id)
                 ),
-                str(seismogram.delta.total_seconds()),
-                str(len(seismogram)),
                 (
                     uuid_shortener(session, seismogram.station)
-                    if format
+                    if short
                     else str(seismogram.station.id)
                 ),
                 f"{seismogram.station.name} - {seismogram.station.network}",
@@ -316,13 +327,23 @@ def print_seismogram_table(format: bool, all_events: bool = False) -> None:
             if all_events:
                 row.append(
                     uuid_shortener(session, seismogram.event)
-                    if format
+                    if short
                     else str(seismogram.event.id)
                 )
             table.add_row(*row)
 
     console = Console()
     console.print(table)
+
+
+def dump_seismogram_table() -> None:
+    """Dump the table data to json."""
+
+    logger.info("Dumping AIMBAT seismogram table to json.")
+
+    with Session(engine) as session:
+        aimbat_seismograms = session.exec(select(AimbatSeismogram)).all()
+        dump_to_json(aimbat_seismograms)
 
 
 @overload

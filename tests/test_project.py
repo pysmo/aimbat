@@ -1,13 +1,8 @@
-from __future__ import annotations
 from pathlib import Path
-from typing import TYPE_CHECKING
 from importlib import reload
+from sqlmodel import Session
 import aimbat.lib.project as project
 import pytest
-
-if TYPE_CHECKING:
-    from pytest import CaptureFixture
-    from sqlmodel import Session
 
 
 class TestProjectBase:
@@ -89,7 +84,7 @@ class TestProjectTable(TestProjectBase):
             project.print_project_info()
 
     def test_lib_print_project_info_with_empty_project(
-        self, test_db_with_project: tuple[Path, Session], capsys: CaptureFixture
+        self, test_db_with_project: tuple[Path, Session], capsys: pytest.CaptureFixture
     ) -> None:
         reload(project)
         project.print_project_info()
@@ -100,7 +95,7 @@ class TestProjectTable(TestProjectBase):
     def test_lib_print_project_info_with_active_event(
         self,
         test_db_with_active_event: tuple[Path, Session],
-        capsys: CaptureFixture,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         reload(project)
         project.print_project_info()
@@ -111,7 +106,7 @@ class TestProjectTable(TestProjectBase):
     def test_cli_print_project_info_with_active_event(
         self,
         test_db_with_active_event: tuple[Path, Session],
-        capsys: CaptureFixture,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         reload(project)
         from aimbat.app import app

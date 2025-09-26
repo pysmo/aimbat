@@ -1,20 +1,15 @@
-from __future__ import annotations
-from typing import TYPE_CHECKING
-from pydantic import ValidationError
-from sqlmodel import select
-from pysmo.classes import SAC, SacSeismogram
-from pysmo import Seismogram
 from aimbat.lib.models import AimbatSeismogram
 from aimbat.lib.io import DataType
+from pysmo.classes import SAC, SacSeismogram
+from pysmo import Seismogram
+from pydantic import ValidationError
+from sqlmodel import Session, select
+from typing import Any
+from collections.abc import Generator
+from pathlib import Path
 from importlib import reload
 import numpy as np
 import pytest
-
-if TYPE_CHECKING:
-    from pathlib import Path
-    from sqlmodel import Session
-    from collections.abc import Generator
-    from typing import Any
 
 
 class TestSacBase:
