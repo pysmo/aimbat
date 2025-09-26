@@ -41,10 +41,10 @@ def _delete_snapshot(snapshot_id: uuid.UUID | str) -> None:
         delete_snapshot_by_id(session, snapshot_id)
 
 
-def _print_snapshot_table(format: bool, all_events: bool) -> None:
+def _print_snapshot_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.snapshot import print_snapshot_table
 
-    print_snapshot_table(format, all_events)
+    print_snapshot_table(short, all_events)
 
 
 app = App(name="snapshot", help=__doc__, help_format="markdown")
@@ -115,7 +115,7 @@ def cli_snapshot_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_snapshot_table(table_parameters.format, all_events)
+    _print_snapshot_table(table_parameters.short, all_events)
 
 
 if __name__ == "__main__":

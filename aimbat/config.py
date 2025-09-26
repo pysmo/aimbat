@@ -71,8 +71,48 @@ class Settings(BaseSettings):
     )
     """Directory to store downloaded sample data."""
 
+    min_id_length: int = Field(
+        default=2, ge=1, description="Minimum length of ID string."
+    )
+    """Minimum length of truncated UUID string."""
+
 
 settings = Settings()
+
+
+def print_settings_table(pretty: bool) -> None:
+    """Print a pretty table with AIMBAT configuration options."""
+    from aimbat.cli.styling import make_table, TABLE_COLOURS
+    from rich.console import Console
+
+    env_prefix = ""
+    try:
+        env_prefix = Settings.model_config["env_prefix"]
+    except KeyError:
+        pass
+
+    if not pretty:
+        for k in Settings.model_fields:
+            print(
+                f'{(env_prefix + k).upper() if env_prefix else k}="{getattr(settings, k)}"'
+            )
+        return
+
+    table = make_table(title="AIMBAT settings")
+    table.add_column("Name", justify="left", style=TABLE_COLOURS.id, no_wrap=True)
+    table.add_column("Value", justify="center", style=TABLE_COLOURS.mine)
+    table.add_column("Description", justify="left", style=TABLE_COLOURS.linked)
+
+    for k, v in Settings.model_fields.items():
+        description = f"{v.description}" if v.description else ""
+        if env_prefix:
+            env_var = f" Environment variable: {env_prefix.upper()}{str(k).upper()}"
+            description += env_var
+        description = description
+        table.add_row(k, str(getattr(settings, k)), description)
+
+    console = Console()
+    console.print(table)
 
 
 if __name__ == "__main__":

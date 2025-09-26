@@ -5,8 +5,6 @@ as classes to use with python in AIMBAT.
 """
 
 from aimbat.config import settings
-
-# from aimbat.lib.typing import DataType
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
@@ -240,7 +238,7 @@ class AimbatSeismogram(SQLModel, table=True):
     @property
     def data(self) -> np.ndarray:
         if self.datasource is None:
-            raise RuntimeError("I don't know which file to read data from")
+            raise RuntimeError("I don't know which data source to read data from")
         return io.read_seismogram_data(
             self.datasource.sourcename, self.datasource.datatype
         )
@@ -248,7 +246,7 @@ class AimbatSeismogram(SQLModel, table=True):
     @data.setter
     def data(self, value: np.ndarray) -> None:
         if self.datasource is None:
-            raise RuntimeError("I don't know which file to write data to")
+            raise RuntimeError("I don't know which data source to write data to")
         io.write_seismogram_data(
             self.datasource.sourcename, self.datasource.datatype, value
         )

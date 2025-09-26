@@ -1,8 +1,8 @@
 """Common parameters for AIMBAT CLI."""
 
+from aimbat.config import settings
 from dataclasses import dataclass
 from cyclopts import Parameter
-from aimbat.config import settings
 
 
 @Parameter(name="*")
@@ -22,8 +22,8 @@ class GlobalParameters:
 @Parameter(name="*")
 @dataclass
 class TableParameters:
-    format: bool = True
-    "Format the output to be more human-readable."
+    short: bool = True
+    "Shorten UUIDs and format data."
 
 
 @Parameter(name="*")

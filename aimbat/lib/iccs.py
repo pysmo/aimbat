@@ -1,6 +1,5 @@
 """Processing of data for AIMBAT."""
 
-from __future__ import annotations
 from aimbat.logger import logger
 from aimbat.config import settings
 from pysmo.tools.iccs import (
@@ -11,11 +10,8 @@ from pysmo.tools.iccs import (
     update_pick as _update_pick,
     update_timewindow as _update_timewindow,
 )
-from typing import TYPE_CHECKING
+from sqlmodel import Session
 import aimbat.lib.event as event
-
-if TYPE_CHECKING:
-    from sqlmodel import Session
 
 
 def create_iccs_instance(session: Session) -> ICCS:

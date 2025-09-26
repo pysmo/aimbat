@@ -1,6 +1,7 @@
 from aimbat.logger import logger
-from aimbat.lib.common import uuid_shortener
 from aimbat.lib.db import engine
+from aimbat.cli.styling import make_table, TABLE_COLOURS
+from aimbat.lib.common import uuid_shortener
 from aimbat.lib.event import get_active_event
 from aimbat.lib.io import (
     create_seismogram,
@@ -8,7 +9,7 @@ from aimbat.lib.io import (
     create_event,
     DataType,
 )
-from aimbat.lib.misc.rich_utils import make_table
+from aimbat.lib.utils.json import dump_to_json
 from aimbat.lib.models import (
     AimbatDataSource,
     AimbatDataSourceCreate,
@@ -173,50 +174,75 @@ def get_data_for_active_event(session: Session) -> Sequence[AimbatDataSource]:
     return session.exec(select_files).all()
 
 
-def print_data_table(format: bool, all_events: bool = False) -> None:
+def print_data_table(short: bool, all_events: bool = False) -> None:
     """Print a pretty table with AIMBAT data.
 
     Parameters:
-        format: Print the output in a more human-readable format.
+        short: Shorten UUIDs and format data.
         all_events: Print all files instead of limiting to the active event.
     """
 
     logger.info("Printing AIMBAT data table.")
 
-    title = "AIMBAT data for all events"
-    aimbat_files = None
     with Session(engine) as session:
         if all_events:
-            aimbat_files = session.exec(select(AimbatDataSource)).all()
+            aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
+            title = "AIMBAT data for all events"
         else:
             active_event = get_active_event(session)
-            aimbat_files = get_data_for_active_event(session)
-            if format:
-                title = f"AIMBAT data for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
-            else:
-                title = (
-                    f"AIMBAT data for event {active_event.time} (ID={active_event.id})"
-                )
+            aimbat_data_sources = get_data_for_active_event(session)
+            time = (
+                active_event.time.strftime("%Y-%m-%d %H:%M:%S")
+                if short
+                else active_event.time
+            )
+            id = uuid_shortener(session, active_event) if short else active_event.id
+            title = f"AIMBAT data for event {time} (ID={id})"
 
-        logger.debug(f"Found {len(aimbat_files)} files in total.")
+        logger.debug(f"Found {len(aimbat_data_sources)} files in total.")
+
+        rows = [
+            [
+                uuid_shortener(session, a) if short else str(a.id),
+                str(a.datatype),
+                str(a.sourcename),
+                (
+                    uuid_shortener(session, a.seismogram)
+                    if short
+                    else str(a.seismogram.id)
+                ),
+            ]
+            for a in aimbat_data_sources
+        ]
 
         table = make_table(title=title)
 
         table.add_column(
-            "id (shortened)" if format else "id",
+            "id (shortened)" if short else "id",
             justify="center",
-            style="cyan",
+            style=TABLE_COLOURS.id,
             no_wrap=True,
         )
-        table.add_column("Datatype", justify="center", style="magenta")
-        table.add_column("Filename", justify="left", style="cyan", no_wrap=True)
+        table.add_column("Datatype", justify="center", style=TABLE_COLOURS.mine)
+        table.add_column(
+            "Filename", justify="left", style=TABLE_COLOURS.mine, no_wrap=True
+        )
+        table.add_column(
+            "Seismogram id", justify="center", style=TABLE_COLOURS.linked, no_wrap=True
+        )
 
-        for file in aimbat_files:
-            table.add_row(
-                uuid_shortener(session, file) if format else str(file.id),
-                str(file.datatype),
-                str(file.sourcename),
-            )
+        for row in rows:
+            table.add_row(*row)
 
         console = Console()
         console.print(table)
+
+
+def dump_data_table() -> None:
+    """Dump the table data to json."""
+
+    logger.info("Dumping AIMBAT datasources table to json.")
+
+    with Session(engine) as session:
+        aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
+        dump_to_json(aimbat_data_sources)

@@ -1,21 +1,18 @@
-from __future__ import annotations
 from aimbat.logger import logger
 from aimbat.lib.db import engine
 from aimbat.lib.common import uuid_shortener
+from aimbat.lib.utils.json import dump_to_json
 from aimbat.lib.models import AimbatStation, AimbatSeismogram, AimbatEvent
-from aimbat.lib.misc.rich_utils import make_table
-from rich.console import Console
+from aimbat.cli.styling import make_table, TABLE_COLOURS
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
-from typing import TYPE_CHECKING
+from rich.console import Console
+from collections.abc import Sequence
 import aimbat.lib.event as event
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from uuid import UUID
+import uuid
 
 
-def delete_station_by_id(session: Session, station_id: UUID) -> None:
+def delete_station_by_id(session: Session, station_id: uuid.UUID) -> None:
     """Delete an AimbatStation from the database by ID.
 
     Parameters:
@@ -76,11 +73,11 @@ def get_stations_in_event(
     return stations
 
 
-def print_station_table(format: bool, all_events: bool = False) -> None:
+def print_station_table(short: bool, all_events: bool = False) -> None:
     """Prints a pretty table with AIMBAT stations.
 
     Parameters:
-        format: Print the output in a more human-readable format.
+        short: Shorten and format the output to be more human-readable.
         all_events: Print stations for all events.
     """
 
@@ -97,7 +94,7 @@ def print_station_table(format: bool, all_events: bool = False) -> None:
             logger.debug("Selecting AIMBAT stations for active event.")
             active_event = event.get_active_event(session)
             aimbat_stations = get_stations_in_event(session, active_event)
-            if format:
+            if short:
                 title = f"AIMBAT stations for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
             else:
                 title = f"AIMBAT stations for event {active_event.time} (ID={active_event.id})"
@@ -105,42 +102,48 @@ def print_station_table(format: bool, all_events: bool = False) -> None:
 
         table = make_table(title=title)
 
-        if format:
+        if short:
             table.add_column(
-                "id (shortened)", justify="center", style="cyan", no_wrap=True
+                "id (shortened)", justify="center", style=TABLE_COLOURS.id, no_wrap=True
             )
         else:
-            table.add_column("id", justify="center", style="cyan", no_wrap=True)
-        table.add_column("Name & Network", justify="center", style="cyan", no_wrap=True)
-        table.add_column("Latitude", justify="center", style="magenta")
-        table.add_column("Longitude", justify="center", style="magenta")
-        table.add_column("Elevation", justify="center", style="magenta")
+            table.add_column(
+                "id", justify="center", style=TABLE_COLOURS.id, no_wrap=True
+            )
+        table.add_column(
+            "Name & Network", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+        )
+        table.add_column("Latitude", justify="center", style=TABLE_COLOURS.mine)
+        table.add_column("Longitude", justify="center", style=TABLE_COLOURS.mine)
+        table.add_column("Elevation", justify="center", style=TABLE_COLOURS.mine)
         if all_events:
-            table.add_column("# Seismograms", justify="center", style="green")
-            table.add_column("# Events", justify="center", style="green")
+            table.add_column(
+                "# Seismograms", justify="center", style=TABLE_COLOURS.linked
+            )
+            table.add_column("# Events", justify="center", style=TABLE_COLOURS.linked)
 
         for aimbat_station in aimbat_stations:
             logger.debug(f"Adding {aimbat_station.name} to the table.")
             row = [
                 (
                     uuid_shortener(session, aimbat_station)
-                    if format
+                    if short
                     else str(aimbat_station.id)
                 ),
                 f"{aimbat_station.name} - {aimbat_station.network}",
                 (
                     f"{aimbat_station.latitude:.3f}"
-                    if format
+                    if short
                     else str(aimbat_station.latitude)
                 ),
                 (
                     f"{aimbat_station.longitude:.3f}"
-                    if format
+                    if short
                     else str(aimbat_station.longitude)
                 ),
                 (
                     f"{aimbat_station.elevation:.0f}"
-                    if format
+                    if short
                     else str(aimbat_station.elevation)
                 ),
             ]
@@ -155,3 +158,13 @@ def print_station_table(format: bool, all_events: bool = False) -> None:
 
     console = Console()
     console.print(table)
+
+
+def dump_station_table() -> None:
+    """Dump the table data to json."""
+
+    logger.info("Dumping AIMBAT station table to json.")
+
+    with Session(engine) as session:
+        aimbat_stations = session.exec(select(AimbatStation)).all()
+        dump_to_json(aimbat_stations)

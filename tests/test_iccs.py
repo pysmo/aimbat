@@ -1,18 +1,13 @@
-from __future__ import annotations
-from typing import TYPE_CHECKING
-from sqlmodel import select
-from pysmo.tools.iccs import ICCSSeismogram
+from aimbat.lib.models import AimbatSeismogram
 from aimbat.lib.seismogram import SeismogramParameter
+from pysmo.tools.iccs import ICCSSeismogram
+from sqlmodel import Session, select
 from datetime import timedelta
+from pathlib import Path
+from typing import Any
+from collections.abc import Generator
 import pytest
 import random
-
-if TYPE_CHECKING:
-    from pathlib import Path
-    from sqlmodel import Session
-    from typing import Any
-    from collections.abc import Generator
-    from aimbat.lib.models import AimbatSeismogram
 
 
 class TestICCSBase:

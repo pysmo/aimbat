@@ -21,10 +21,16 @@ def _delete_station(
         delete_station_by_id(session, station_id)
 
 
-def _print_station_table(format: bool, all_events: bool) -> None:
+def _print_station_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.station import print_station_table
 
-    print_station_table(format, all_events)
+    print_station_table(short, all_events)
+
+
+def _dump_station_table() -> None:
+    from aimbat.lib.station import dump_station_table
+
+    dump_station_table()
 
 
 app = App(name="station", help=__doc__, help_format="markdown")
@@ -63,7 +69,19 @@ def cli_station_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_station_table(table_parameters.format, all_events)
+    _print_station_table(table_parameters.short, all_events)
+
+
+@app.command(name="dump")
+def cli_station_dump(
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Dump the contents of the AIMBAT station table to json."""
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    _dump_station_table()
 
 
 if __name__ == "__main__":

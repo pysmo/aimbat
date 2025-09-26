@@ -1,14 +1,11 @@
 from __future__ import annotations
-from ._sac import (
-    create_station_from_sacfile,
-    create_event_from_sacfile,
-    create_seismogram_from_sacfile,
-    read_seismogram_data_from_sacfile,
-    write_seismogram_data_to_sacfile,
-)
+from . import _sac as sac
 from aimbat.logger import logger
 from enum import StrEnum, auto
+from os import PathLike
 from typing import TYPE_CHECKING
+import numpy as np
+import numpy.typing as npt
 
 if TYPE_CHECKING:
     from aimbat.lib.models import (
@@ -16,9 +13,6 @@ if TYPE_CHECKING:
         AimbatSeismogram,
         AimbatStation,
     )
-    from os import PathLike
-    import numpy as np
-    import numpy.typing as npt
 
 
 class DataType(StrEnum):
@@ -27,11 +21,11 @@ class DataType(StrEnum):
     SAC = auto()
 
 
-station_creator = {DataType.SAC: create_station_from_sacfile}
-event_creator = {DataType.SAC: create_event_from_sacfile}
-seismogram_creator = {DataType.SAC: create_seismogram_from_sacfile}
-seismogram_data_reader = {DataType.SAC: read_seismogram_data_from_sacfile}
-seismogram_data_writer = {DataType.SAC: write_seismogram_data_to_sacfile}
+station_creator = {DataType.SAC: sac.create_station_from_sacfile}
+event_creator = {DataType.SAC: sac.create_event_from_sacfile}
+seismogram_creator = {DataType.SAC: sac.create_seismogram_from_sacfile}
+seismogram_data_reader = {DataType.SAC: sac.read_seismogram_data_from_sacfile}
+seismogram_data_writer = {DataType.SAC: sac.write_seismogram_data_to_sacfile}
 
 
 def create_station(datasource: str | PathLike, datatype: DataType) -> AimbatStation:
@@ -109,12 +103,12 @@ def create_seismogram(
 
 
 def read_seismogram_data(
-    filename: str | PathLike, datatype: DataType
+    datasource: str | PathLike, datatype: DataType
 ) -> npt.NDArray[np.float64]:
     """Read seismogram data from a data source.
 
     Parameters:
-        filename: Name of the seismogram file.
+        datasource: Name of the data source.
         datatype: AIMBAT compatible filetype.
 
     Returns:
@@ -124,23 +118,23 @@ def read_seismogram_data(
         NotImplementedError: If the datatype is not supported.
     """
 
-    logger.debug(f"Reading seismogram data from {filename}.")
+    logger.debug(f"Reading seismogram data from {datasource}.")
 
     data_reader_fn = seismogram_data_reader.get(datatype)
     if data_reader_fn is None:
         raise NotImplementedError(f"I don't know how to read data of type {datatype}.")
-    return data_reader_fn(filename)
+    return data_reader_fn(datasource)
 
 
 def write_seismogram_data(
-    filename: str | PathLike,
+    datasource: str | PathLike,
     datatype: DataType,
     data: npt.NDArray[np.float64],
 ) -> None:
     """Write seismogram data to a data source.
 
     Parameters:
-        filename: Name of the seismogram file.
+        datasource: Name of the data source.
         datatype: AIMBAT compatible filetype.
         data: Seismogram data
 
@@ -148,11 +142,11 @@ def write_seismogram_data(
         NotImplementedError: If the datatype is not supported.
     """
 
-    logger.debug(f"Writing seismogram data to {filename}.")
+    logger.debug(f"Writing seismogram data to {datasource}.")
 
     data_writer_fn = seismogram_data_writer.get(datatype)
     if data_writer_fn is None:
         raise NotImplementedError(
             f"I don't know how to write data to file of type {datatype}"
         )
-    data_writer_fn(filename, data)
+    data_writer_fn(datasource, data)

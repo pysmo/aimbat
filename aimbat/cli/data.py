@@ -1,14 +1,11 @@
 """Manage seismogram files in an AIMBAT project."""
 
-from __future__ import annotations
 from aimbat.cli.common import GlobalParameters, TableParameters
 from aimbat.lib.io import DataType
-from pathlib import Path
 from cyclopts import App, Parameter, validators
-from typing import TYPE_CHECKING, Annotated
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Annotated
 
 
 def _add_files_to_project(
@@ -27,10 +24,16 @@ def _add_files_to_project(
     )
 
 
-def _print_data_table(format: bool, all_events: bool) -> None:
+def _print_data_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.data import print_data_table
 
-    print_data_table(format, all_events)
+    print_data_table(short, all_events)
+
+
+def _dump_data_table() -> None:
+    from aimbat.lib.data import dump_data_table
+
+    dump_data_table()
 
 
 app = App(name="data", help=__doc__, help_format="markdown")
@@ -78,7 +81,19 @@ def cli_data_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_data_table(table_parameters.format, all_events)
+    _print_data_table(table_parameters.short, all_events)
+
+
+@app.command(name="dump")
+def cli_data_dump(
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Dump the contents of the AIMBAT data table to json."""
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    _dump_data_table()
 
 
 if __name__ == "__main__":

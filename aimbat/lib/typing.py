@@ -3,16 +3,6 @@
 from typing import Literal, TypeAlias
 from enum import StrEnum, auto
 
-__all__ = [
-    "EventParameter",
-    "EventParameterBool",
-    "EventParameterFloat",
-    "EventParameterTimedelta",
-    "SeismogramParameter",
-    "SeismogramParameterBool",
-    "SeismogramParameterDatetime",
-]
-
 
 class EventParameter(StrEnum):
     """[`AimbatEvent`][aimbat.lib.models.AimbatEvent] enum class for typing.

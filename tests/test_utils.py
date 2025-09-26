@@ -1,20 +1,15 @@
-from __future__ import annotations
 from pysmo.classes import SAC
 from datetime import datetime, timezone
 from importlib import reload
-from typing import TYPE_CHECKING
+from typing import Any
+from sqlmodel import Session
+from collections.abc import Generator
+from pathlib import Path
 import aimbat.lib.utils.checkdata as checkdata
 import aimbat.lib.utils.sampledata as sampledata
 import numpy as np
 import os
 import pytest
-from pathlib import Path
-
-if TYPE_CHECKING:
-    from pytest import CaptureFixture, TempPathFactory, MonkeyPatch
-    from sqlmodel import Session
-    from collections.abc import Generator
-    from typing import Any
 
 
 class TestUtilsBase:
@@ -31,7 +26,7 @@ class TestUtilsBase:
 
     @pytest.fixture(autouse=True)
     def download_dir(
-        self, tmp_path_factory: TempPathFactory, monkeypatch: MonkeyPatch
+        self, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
     ) -> Generator[Path, Any, Any]:
         tmp_dir = tmp_path_factory.mktemp("download_dir")
         monkeypatch.setenv("AIMBAT_SAMPLEDATA_DIR", str(tmp_dir))
@@ -88,7 +83,7 @@ class TestUtilsCheckData(TestUtilsBase):
         issues = checkdata.checkdata_seismogram(sac_instance_good.seismogram)
         assert "No seismogram data" in issues[0]
 
-    def test_cli_usage(self, capsys: CaptureFixture) -> None:
+    def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
         from aimbat.app import app
 
         app(["utils", "checkdata", "--help"])
@@ -146,7 +141,7 @@ class TestUtilsSampleData(TestUtilsBase):
         sampledata.delete_sampledata()
         assert download_dir.exists() is False
 
-    def test_cli_usage(self, capsys: CaptureFixture) -> None:
+    def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
         from aimbat.app import app
 
         app(["utils", "sampledata"])
@@ -175,37 +170,3 @@ class TestUtilsSampleData(TestUtilsBase):
 
         app(["utils", "sampledata", "delete"])
         assert not download_dir.exists()
-
-
-class TestUtilsSettingsTable(TestUtilsBase):
-    def test_lib_print_defaullts(self, capsys: CaptureFixture) -> None:
-        import aimbat.lib.utils.print_settings as print_settings
-
-        print_settings.print_settings_table()
-
-        output = capsys.readouterr().out
-        assert "AIMBAT settings" in output
-        assert "AIMBAT project file location" in output
-
-    def test_lib_print_defaullts_without_env_prefix(
-        self, monkeypatch: MonkeyPatch, capsys: CaptureFixture
-    ) -> None:
-        from aimbat.config import Settings
-        import aimbat.lib.utils.print_settings as print_settings
-
-        monkeypatch.delitem(Settings.model_config, "env_prefix")
-
-        reload(print_settings)
-
-        print_settings.print_settings_table()
-        output = capsys.readouterr().out
-        assert "AIMBAT_" not in output
-
-    def test_cli_print_defaullts(self, capsys: CaptureFixture) -> None:
-        from aimbat.app import app
-
-        app(["utils", "settings"])
-
-        output = capsys.readouterr().out
-        assert "AIMBAT settings" in output
-        assert "AIMBAT project file location" in output

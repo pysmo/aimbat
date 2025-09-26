@@ -21,10 +21,10 @@ def _delete_event(event_id: uuid.UUID | str) -> None:
         delete_event_by_id(session, event_id)
 
 
-def _print_event_table(format: bool) -> None:
+def _print_event_table(short: bool) -> None:
     from aimbat.lib.event import print_event_table
 
-    print_event_table(format)
+    print_event_table(short)
 
 
 def _set_active_event_by_id(event_id: uuid.UUID | str) -> None:
@@ -38,6 +38,12 @@ def _set_active_event_by_id(event_id: uuid.UUID | str) -> None:
         if not isinstance(event_id, uuid.UUID):
             event_id = string_to_uuid(session, event_id, AimbatEvent)
         set_active_event_by_id(session, event_id)
+
+
+def _dump_event_table() -> None:
+    from aimbat.lib.event import dump_event_table
+
+    dump_event_table()
 
 
 def _get_event_parameters(
@@ -100,7 +106,7 @@ def cli_event_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_event_table(table_parameters.format)
+    _print_event_table(table_parameters.short)
 
 
 @app.command(name="activate")
@@ -154,6 +160,18 @@ def cli_event_parameter_set(
     global_parameters = global_parameters or GlobalParameters()
 
     _set_event_parameters(name, value)
+
+
+@app.command(name="dump")
+def cli_event_dump(
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Dump the contents of the AIMBAT event table to json."""
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    _dump_event_table()
 
 
 if __name__ == "__main__":

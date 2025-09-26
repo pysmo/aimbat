@@ -52,10 +52,16 @@ def _set_seismogram_parameter(
         set_seismogram_parameter_by_id(session, seismogram_id, name, value)
 
 
-def _print_seismogram_table(format: bool, all_events: bool) -> None:
+def _print_seismogram_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.seismogram import print_seismogram_table
 
-    print_seismogram_table(format, all_events)
+    print_seismogram_table(short, all_events)
+
+
+def _dump_seismogram_table() -> None:
+    from aimbat.lib.seismogram import dump_seismogram_table
+
+    dump_seismogram_table()
 
 
 def _plot_seismograms(use_qt: bool) -> None:
@@ -155,7 +161,19 @@ def cli_seismogram_list(
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_seismogram_table(table_parameters.format, all_events)
+    _print_seismogram_table(table_parameters.short, all_events)
+
+
+@app.command(name="dump")
+def cli_seismogram_dump(
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Dump the contents of the AIMBAT seismogram table to json."""
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    _dump_seismogram_table()
 
 
 @app.command(name="plot")

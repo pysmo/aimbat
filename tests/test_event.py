@@ -1,22 +1,16 @@
-from __future__ import annotations
-from aimbat.lib.models import AimbatEvent, AimbatStation
+from aimbat.lib.models import AimbatEvent, AimbatStation, AimbatSeismogram
 from aimbat.lib.typing import EventParameter
 from pydantic_core import ValidationError
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from pathlib import Path
-from typing import TYPE_CHECKING
+from importlib import reload
+from typing import Any
+from collections.abc import Generator, Sequence
 import aimbat.lib.event as event
 import pytest
 import random
-from importlib import reload
-
-
-if TYPE_CHECKING:
-    from collections.abc import Generator, Sequence
-    from typing import Any
-    from aimbat.lib.models import AimbatSeismogram
-    from pytest import CaptureFixture
+import json
 
 
 class TestEventBase:
@@ -234,7 +228,7 @@ class TestGetEventParameter(TestEventBase):
             event.set_event_parameter(session, EventParameter.COMPLETED, "foo")
 
     def test_lib_print_event_table(
-        self, session: Session, capsys: CaptureFixture
+        self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
         _ = self.activate_random_event(session)
 
@@ -242,13 +236,13 @@ class TestGetEventParameter(TestEventBase):
         captured = capsys.readouterr()
         assert "AIMBAT Events" in captured.out
         assert "2012-01-12 19:31:04" in captured.out
-        event.print_event_table(format=False)
+        event.print_event_table(short=False)
         captured = capsys.readouterr()
         assert "AIMBAT Events" in captured.out
         assert "2011-09-15 19:31:04.080000+00:00" in captured.out
 
     def test_cli_get_event_parameter(
-        self, session: Session, capsys: CaptureFixture
+        self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
         from aimbat.app import app
 
@@ -261,14 +255,14 @@ class TestGetEventParameter(TestEventBase):
 
 
 class TestCliEvent(TestEventBase):
-    def test_cli_usage(self, capsys: CaptureFixture) -> None:
+    def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
         from aimbat.app import app
 
         app(["event"])
         assert "Usage" in capsys.readouterr().out
 
     def test_cli_set_event_parameter(
-        self, session: Session, capsys: CaptureFixture
+        self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
         from aimbat.app import app
 
@@ -281,9 +275,41 @@ class TestCliEvent(TestEventBase):
 
     def test_cli_event_list(
         self,
-        capsys: CaptureFixture,
+        capsys: pytest.CaptureFixture,
     ) -> None:
         from aimbat.app import app
 
         app(["event", "list"])
         assert "AIMBAT Events" in capsys.readouterr().out
+
+
+class TestEventDump(TestEventBase):
+    def test_lib_dump_event(
+        self,
+        test_db_with_data: tuple[Path, Session],
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        reload(event)
+        event.dump_event_table()
+        captured = capsys.readouterr()
+        loaded_json = json.loads(captured.out)
+        assert isinstance(loaded_json, list)
+        assert len(loaded_json) > 0
+        for i in loaded_json:
+            _ = AimbatEvent(**i)
+
+    def test_cli_dump_data(
+        self,
+        test_db_with_data: tuple[Path, Session],
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        reload(event)
+        from aimbat.app import app
+
+        app(["event", "dump"])
+        captured = capsys.readouterr()
+        loaded_json = json.loads(captured.out)
+        assert isinstance(loaded_json, list)
+        assert len(loaded_json) > 0
+        for i in loaded_json:
+            _ = AimbatEvent(**i)

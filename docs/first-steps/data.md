@@ -48,16 +48,17 @@ things to be mindful of:
   metadata stored in the source file. It does, however, still need to be able
   to read the time series data from it.
 
-[^1]: Deleting items from a project simply drops them from the project. AIMBAT
-will *never* delete (or modify) any files.
-
 !!! Tip
     If this all seems overly complicated to you, remember that often parameters
     that apply to all seismograms of an event need to be changed to
     the same value. Organising the data like this means we only need to change
     the parameters in one place. And there are some additional
     [perks](#snapshots) when setting things up this way!
-  
+
+[^1]:
+    Deleting items from a project simply drops them from the project. AIMBAT
+    will *never* delete (or modify) any files.
+
 ## Project file
 
 If the above section sounded a bit "databasey" to you, that is because you are
@@ -91,12 +92,14 @@ AIMBAT defaults are global settings that control how the application itself
 behaves, as well as defaults for [event](#event-parameters) and
 [seismogram](#seismogram-parameters) parameters when they are instantiated.
 The currently used values for these parameters can be found by running
-`#!bash aimbat utils settings`. As these settings are relevant even before a
-project is created, they are not stored in the project file. To override these
+`#!bash aimbat settings` in your terminal. As some settings are relevant before
+a project is created, they cannot stored in the project file. To override these
 settings you can set the corresponding environment variable directly (e.g.
 `export AIMBAT_PROJECT=different_project_name.sqlite`) or place those settings
-in a `.env` file. Note that if you set them in both places the environment
+in a `.env`[^2] file. Note that if you set them in both places the environment
 variable is used.
+
+[^2]: The file must be named exactly `.env` and not `SOMENAME.env`!
 
 ### Event Parameters
 
@@ -128,3 +131,38 @@ any other) snapshot.
 !!! tip
     It is always a good idea to create a snapshot right after importing new
     data!
+
+## UUID (Universally Unique Identifiers)
+
+Internally, the items in a project use
+[UUIDs](https://en.wikipedia.org/wiki/Universally_unique_identifier) to
+identify themselves. They look something like this:
+
+```
+37a8245f-c508-46a7-9bbc-d1c601e42983
+```
+
+The length and randomness of these identifiers guarantee no two items will ever
+have the same ID (even if generated on two separate computers, in different
+databases etc.), but they are a bit unwieldy to use directly. To make things
+easier, they are typically presented in a truncated form to the user (but
+always long enough to be unique). For example, if there are only four
+seismograms and they have these UUIDS:
+
+```
+6a4acdf7-6c7b-4523-aaaa-0a674cdc5f2d
+647568aa-8361-45ef-bfc8-61f873847f17
+c980918d-106d-44d9-a3fa-5740f58edf4e
+5dcb5c4b-b416-4a7b-870f-9a8da42a7dd2
+```
+
+they can still be unambiguously identified using only the first two characters:
+
+```
+6a
+64
+c9
+5d
+```
+
+If two characters are insufficient, then three will be used, and so on.

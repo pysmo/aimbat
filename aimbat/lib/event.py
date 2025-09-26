@@ -1,10 +1,10 @@
 """Module to manage and view events in AIMBAT."""
 
-from __future__ import annotations
 from aimbat.logger import logger
 from aimbat.lib.db import engine
 from aimbat.lib.common import uuid_shortener
-from aimbat.lib.misc.rich_utils import make_table
+from aimbat.cli.styling import make_table, TABLE_COLOURS
+from aimbat.lib.utils.json import dump_to_json
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatEventParameters,
@@ -21,13 +21,12 @@ from aimbat.lib.typing import (
 from rich.console import Console
 from sqlmodel import select, Session
 from sqlalchemy.exc import NoResultFound
-from typing import TYPE_CHECKING, overload
+from typing import overload
 from datetime import timedelta
 import aimbat.lib.station as station
 
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from uuid import UUID
+from collections.abc import Sequence
+from uuid import UUID
 
 
 def delete_event_by_id(session: Session, event_id: UUID) -> None:
@@ -254,39 +253,43 @@ def set_event_parameter(
     session.commit()
 
 
-def print_event_table(format: bool = True) -> None:
+def print_event_table(short: bool = True) -> None:
     """Print a pretty table with AIMBAT events.
 
     Parameters:
-        format: Format the output to be more human-readable.
+        short: Shorten and format the output to be more human-readable.
     """
 
     logger.info("Printing AIMBAT events table.")
 
     table = make_table(title="AIMBAT Events")
-    if format:
-        table.add_column("id (shortened)", justify="center", style="cyan", no_wrap=True)
+    if short:
+        table.add_column(
+            "id (shortened)", justify="center", style=TABLE_COLOURS.id, no_wrap=True
+        )
     else:
-        table.add_column("id", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Active", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
-    table.add_column("Latitude", justify="center", style="magenta")
-    table.add_column("Longitude", justify="center", style="magenta")
-    table.add_column("Depth", justify="center", style="magenta")
-    table.add_column("Completed", justify="center", style="green")
-    table.add_column("# Seismograms", justify="center", style="green")
-    table.add_column("# Stations", justify="center", style="green")
+        table.add_column("id", justify="center", style=TABLE_COLOURS.id, no_wrap=True)
+    table.add_column("Active", justify="center", style=TABLE_COLOURS.mine, no_wrap=True)
+    table.add_column(
+        "Date & Time", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+    )
+    table.add_column("Latitude", justify="center", style=TABLE_COLOURS.mine)
+    table.add_column("Longitude", justify="center", style=TABLE_COLOURS.mine)
+    table.add_column("Depth", justify="center", style=TABLE_COLOURS.mine)
+    table.add_column("Completed", justify="center", style=TABLE_COLOURS.parameters)
+    table.add_column("# Seismograms", justify="center", style=TABLE_COLOURS.linked)
+    table.add_column("# Stations", justify="center", style=TABLE_COLOURS.linked)
 
     with Session(engine) as session:
         for event in session.exec(select(AimbatEvent)).all():
             logger.debug(f"Adding event with id={event.id} to the table.")
             table.add_row(
-                uuid_shortener(session, event) if format else str(event.id),
+                uuid_shortener(session, event) if short else str(event.id),
                 ":heavy_check_mark:" if event.active is True else "",
-                event.time.strftime("%Y-%m-%d %H:%M:%S") if format else str(event.time),
-                f"{event.latitude:.3f}" if format else str(event.latitude),
-                f"{event.longitude:.3f}" if format else str(event.longitude),
-                f"{event.depth:.0f}" if format else str(event.depth),
+                event.time.strftime("%Y-%m-%d %H:%M:%S") if short else str(event.time),
+                f"{event.latitude:.3f}" if short else str(event.latitude),
+                f"{event.longitude:.3f}" if short else str(event.longitude),
+                f"{event.depth:.0f}" if short else str(event.depth),
                 str(event.parameters.completed),
                 str(len(event.seismograms)),
                 str(len(station.get_stations_in_event(session, event))),
@@ -294,3 +297,13 @@ def print_event_table(format: bool = True) -> None:
 
     console = Console()
     console.print(table)
+
+
+def dump_event_table() -> None:
+    """Dump the table data to json."""
+
+    logger.info("Dumping AIMBAT event table to json.")
+
+    with Session(engine) as session:
+        aimbat_events = session.exec(select(AimbatEvent)).all()
+        dump_to_json(aimbat_events)
