@@ -48,11 +48,13 @@ theme:
         name: Switch to system preference
 
 extra_javascript:
+  - javascripts/asciinema-player.min.js
   - javascripts/katex.js
   - https://unpkg.com/katex@0/dist/katex.min.js
   - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
 
 extra_css:
+  - css/asciinema-player.css
   - css/material.css
   - css/mermaid.css
   - css/mkdocstrings.css
