@@ -4,10 +4,21 @@ Launches various processing tools related to ICCS.
 """
 
 from typing import Annotated
-from aimbat.cli.common import GlobalParameters, IccsPlotParameters
+from aimbat.cli.common import GlobalParameters, simple_exception
 from cyclopts import App, Parameter
+from dataclasses import dataclass
 
 
+@Parameter(name="*")
+@dataclass
+class IccsPlotParameters:
+    pad: bool = True
+    "Add extra padding to the time window for plotting."
+    all: bool = False
+    "Include all seismograms in the plot, even if not used in stack."
+
+
+@simple_exception
 def _run_iccs(autoflip: bool = False, autoselect: bool = False) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, run_iccs
@@ -18,6 +29,7 @@ def _run_iccs(autoflip: bool = False, autoselect: bool = False) -> None:
         run_iccs(session, iccs, autoflip, autoselect)
 
 
+@simple_exception
 def _plot_stack(padded: bool, all: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, plot_stack
@@ -28,6 +40,7 @@ def _plot_stack(padded: bool, all: bool) -> None:
         plot_stack(iccs, padded, all)
 
 
+@simple_exception
 def _plot_seismograms(padded: bool, all: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, plot_seismograms
@@ -38,6 +51,7 @@ def _plot_seismograms(padded: bool, all: bool) -> None:
         plot_seismograms(iccs, padded, all)
 
 
+@simple_exception
 def _update_pick(padded: bool, all: bool, use_seismogram_image: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_pick
@@ -48,6 +62,7 @@ def _update_pick(padded: bool, all: bool, use_seismogram_image: bool) -> None:
         update_pick(session, iccs, padded, all, use_seismogram_image)
 
 
+@simple_exception
 def _update_timewindow(padded: bool, all: bool, use_seismogram_image: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_timewindow
@@ -58,6 +73,7 @@ def _update_timewindow(padded: bool, all: bool, use_seismogram_image: bool) -> N
         update_timewindow(session, iccs, padded, all, use_seismogram_image)
 
 
+@simple_exception
 def _update_min_ccnorm(padded: bool, all: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_min_ccnorm

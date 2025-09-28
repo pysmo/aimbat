@@ -1,6 +1,11 @@
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.lib.common import check_for_notebook, uuid_shortener
+from aimbat.lib.common import (
+    check_for_notebook,
+    uuid_shortener,
+    make_table,
+    TABLE_STYLING,
+)
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -13,7 +18,6 @@ from aimbat.lib.typing import (
     SeismogramParameterDatetime,
 )
 from aimbat.lib.utils.json import dump_to_json
-from aimbat.cli.styling import make_table, TABLE_COLOURS
 from pysmo import MiniSeismogram
 from pysmo.functions import detrend, normalize, clone_to_mini
 from pysmo.tools.plotutils import time_array, unix_time_array
@@ -279,36 +283,34 @@ def print_seismogram_table(short: bool, all_events: bool = False) -> None:
         logger.debug(f"Found {len(seismograms)} seismograms for the table.")
 
         table = make_table(title=title)
-        if short:
-            table.add_column(
-                "id (shortened)", justify="center", style=TABLE_COLOURS.id, no_wrap=True
-            )
-        else:
-            table.add_column(
-                "id", justify="center", style=TABLE_COLOURS.id, no_wrap=True
-            )
         table.add_column(
-            "Selected", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+            "ID (shortened)" if short else "ID",
+            justify="center",
+            style=TABLE_STYLING.id,
+            no_wrap=True,
         )
         table.add_column(
-            "Delta", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+            "Selected", justify="center", style=TABLE_STYLING.mine, no_wrap=True
         )
         table.add_column(
-            "NPTS", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+            "NPTS", justify="center", style=TABLE_STYLING.mine, no_wrap=True
         )
         table.add_column(
-            "Data id", justify="center", style=TABLE_COLOURS.linked, no_wrap=True
+            "Delta", justify="center", style=TABLE_STYLING.mine, no_wrap=True
         )
-        table.add_column("Station id", justify="center", style=TABLE_COLOURS.linked)
-        table.add_column("Station Name", justify="center", style=TABLE_COLOURS.linked)
+        table.add_column(
+            "Data ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
+        )
+        table.add_column("Station ID", justify="center", style=TABLE_STYLING.linked)
+        table.add_column("Station Name", justify="center", style=TABLE_STYLING.linked)
         if all_events:
-            table.add_column("Event id", justify="center", style=TABLE_COLOURS.linked)
+            table.add_column("Event ID", justify="center", style=TABLE_STYLING.linked)
 
         for seismogram in seismograms:
             logger.debug(f"Adding seismogram with ID {seismogram.id} to the table.")
             row = [
                 (uuid_shortener(session, seismogram) if short else str(seismogram.id)),
-                ":heavy_check_mark:" if seismogram.parameters.select is True else "",
+                TABLE_STYLING.bool_formatter(seismogram.parameters.select),
                 str(len(seismogram)),
                 str(seismogram.delta.total_seconds()),
                 (

@@ -4,7 +4,6 @@ from sqlalchemy.exc import NoResultFound
 from importlib import reload
 from typing import Any
 from collections.abc import Generator
-from pathlib import Path
 import aimbat.lib.station as station
 import random
 import pytest
@@ -13,14 +12,14 @@ import json
 
 class TestStationBase:
     @pytest.fixture(autouse=True)
-    def reload_modules(self, test_db_with_active_event: tuple[Path, Session]) -> None:
+    def reload_modules(self, fixture_session_with_active_event: Session) -> None:
         reload(station)
 
     @pytest.fixture
     def session(
-        self, test_db_with_active_event: tuple[Path, Session]
+        self, fixture_session_with_active_event: Session
     ) -> Generator[Session, Any, Any]:
-        yield test_db_with_active_event[1]
+        yield fixture_session_with_active_event
 
 
 class TestDeleteStation(TestStationBase):
@@ -81,7 +80,7 @@ class TestLibStation(TestStationBase):
         assert "AIMBAT stations for event" in capsys.readouterr().out
 
         station.print_station_table(short=True)
-        assert "id (shortened)" in capsys.readouterr().out
+        assert "ID (shortened)" in capsys.readouterr().out
 
         station.print_station_table(short=False, all_events=True)
         assert "AIMBAT stations for all events" in capsys.readouterr().out
@@ -107,7 +106,7 @@ class TestCliStation(TestStationBase):
 class TestDumpStation(TestStationBase):
     def test_lib_dump_data(
         self,
-        test_db_with_data: tuple[Path, Session],
+        fixture_session_with_data: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
         reload(station)
@@ -121,7 +120,7 @@ class TestDumpStation(TestStationBase):
 
     def test_cli_dump_data(
         self,
-        test_db_with_data: tuple[Path, Session],
+        fixture_session_with_data: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
         reload(station)

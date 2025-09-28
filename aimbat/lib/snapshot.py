@@ -1,6 +1,5 @@
 from aimbat.logger import logger
-from aimbat.cli.styling import make_table
-from aimbat.lib.common import uuid_shortener
+from aimbat.lib.common import uuid_shortener, make_table, TABLE_STYLING
 from aimbat.lib.db import engine
 from aimbat.lib.models import (
     AimbatSeismogramParametersBase,
@@ -214,27 +213,25 @@ def print_snapshot_table(short: bool, all_events: bool) -> None:
 
         table = make_table(title=title)
 
-        if short:
-            table.add_column(
-                "id (shortened)", justify="center", style="cyan", no_wrap=True
-            )
-        else:
-            table.add_column("id", justify="center", style="cyan", no_wrap=True)
-        table.add_column("Date & Time", justify="center", style="cyan", no_wrap=True)
-        table.add_column("Comment", justify="center", style="magenta")
-        table.add_column("# Seismograms", justify="center", style="green")
+        table.add_column(
+            "ID (shortened)" if short else "ID",
+            justify="center",
+            style=TABLE_STYLING.id,
+            no_wrap=True,
+        )
+        table.add_column(
+            "Date & Time", justify="center", style=TABLE_STYLING.mine, no_wrap=True
+        )
+        table.add_column("Comment", justify="center", style=TABLE_STYLING.mine)
+        table.add_column("# Seismograms", justify="center", style=TABLE_STYLING.linked)
         if all_events:
-            table.add_column("Event ID", justify="center", style="magenta")
+            table.add_column("Event ID", justify="center", style=TABLE_STYLING.linked)
 
         for snapshot in snapshots:
             logger.debug(f"Adding snapshot with id={snapshot.id} to the table.")
             row = [
                 (uuid_shortener(session, snapshot) if short else str(snapshot.id)),
-                (
-                    snapshot.date.strftime("%Y-%m-%d %H:%M:%S")
-                    if short
-                    else str(snapshot.date)
-                ),
+                TABLE_STYLING.datetime_formatter(snapshot.date, short),
                 str(snapshot.comment),
                 str(len(snapshot.seismogram_parameters_snapshots)),
             ]

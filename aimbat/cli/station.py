@@ -1,11 +1,12 @@
 """View and manage stations."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters
+from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
 from typing import Annotated
 from cyclopts import App, Parameter
 import uuid
 
 
+@simple_exception
 def _delete_station(
     station_id: uuid.UUID | str,
 ) -> None:
@@ -21,12 +22,14 @@ def _delete_station(
         delete_station_by_id(session, station_id)
 
 
+@simple_exception
 def _print_station_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.station import print_station_table
 
     print_station_table(short, all_events)
 
 
+@simple_exception
 def _dump_station_table() -> None:
     from aimbat.lib.station import dump_station_table
 

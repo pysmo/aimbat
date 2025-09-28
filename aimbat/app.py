@@ -6,6 +6,7 @@ command (as specified below) to actually do anything. Help for individual
 commands is available by typing `aimbat COMMAND --help`.
 """
 
+from .config import cli_settings_list
 from importlib import metadata
 from cyclopts import App
 from .cli import (
@@ -14,7 +15,6 @@ from .cli import (
     iccs,
     project,
     seismogram,
-    settings,
     snapshot,
     station,
     utils,
@@ -36,7 +36,7 @@ app.command(event.app)
 app.command(iccs.app)
 app.command(project.app)
 app.command(seismogram.app)
-app.command(settings.cli_settings_list, name="settings")
+app.command(cli_settings_list, name="settings")
 app.command(snapshot.app)
 app.command(station.app)
 app.command(utils.app)

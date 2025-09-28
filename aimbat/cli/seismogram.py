@@ -1,12 +1,13 @@
 """View and manage seismograms in the AIMBAT project."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters
+from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
 from aimbat.lib.typing import SeismogramParameter
 from typing import Annotated
 from cyclopts import App, Parameter
 import uuid
 
 
+@simple_exception
 def _delete_seismogram(seismogram_id: uuid.UUID | str) -> None:
     from aimbat.lib.common import string_to_uuid
     from aimbat.lib.db import engine
@@ -20,6 +21,7 @@ def _delete_seismogram(seismogram_id: uuid.UUID | str) -> None:
         delete_seismogram_by_id(session, seismogram_id)
 
 
+@simple_exception
 def _get_seismogram_parameter(
     seismogram_id: uuid.UUID | str, name: SeismogramParameter
 ) -> None:
@@ -35,6 +37,7 @@ def _get_seismogram_parameter(
         print(get_seismogram_parameter_by_id(session, seismogram_id, name))
 
 
+@simple_exception
 def _set_seismogram_parameter(
     seismogram_id: uuid.UUID | str,
     name: SeismogramParameter,
@@ -52,18 +55,21 @@ def _set_seismogram_parameter(
         set_seismogram_parameter_by_id(session, seismogram_id, name, value)
 
 
+@simple_exception
 def _print_seismogram_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.seismogram import print_seismogram_table
 
     print_seismogram_table(short, all_events)
 
 
+@simple_exception
 def _dump_seismogram_table() -> None:
     from aimbat.lib.seismogram import dump_seismogram_table
 
     dump_seismogram_table()
 
 
+@simple_exception
 def _plot_seismograms(use_qt: bool) -> None:
     from aimbat.lib.seismogram import plot_seismograms
     import pyqtgraph as pg  # type: ignore

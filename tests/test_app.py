@@ -19,11 +19,11 @@ def test_cli(capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch) -> 
     assert "Usage" in capsys.readouterr().out
 
     monkeypatch.setattr(metadata, "version", mock_return_str)
-    _ = reload(app)
+    reload(app)
     app.app("--version")
     assert "1.2.3" in capsys.readouterr().out
 
     monkeypatch.setattr(metadata, "version", mock_raise)
-    _ = reload(app)
+    reload(app)
     app.app("--version")
     assert "unknown" in capsys.readouterr().out

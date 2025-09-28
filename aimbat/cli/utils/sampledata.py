@@ -8,16 +8,18 @@ The sample data source url can be viewed or changed via `aimbat default
 be viewed or changed via `aimbat default <list/set> sampledata_dir`.
 """
 
-from aimbat.cli.common import GlobalParameters
+from aimbat.cli.common import GlobalParameters, simple_exception
 from cyclopts import App
 
 
+@simple_exception
 def _delete_sampledata() -> None:
     from aimbat.lib.utils.sampledata import delete_sampledata
 
     delete_sampledata()
 
 
+@simple_exception
 def _download_sampledata(force: bool = False) -> None:
     from aimbat.lib.utils.sampledata import download_sampledata
 

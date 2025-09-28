@@ -1,6 +1,6 @@
 """Manage seismogram files in an AIMBAT project."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters
+from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
 from aimbat.lib.io import DataType
 from cyclopts import App, Parameter, validators
 from collections.abc import Sequence
@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 
+@simple_exception
 def _add_files_to_project(
     seismogram_files: Sequence[Path],
     filetype: DataType,
@@ -24,12 +25,14 @@ def _add_files_to_project(
     )
 
 
+@simple_exception
 def _print_data_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.data import print_data_table
 
     print_data_table(short, all_events)
 
 
+@simple_exception
 def _dump_data_table() -> None:
     from aimbat.lib.data import dump_data_table
 

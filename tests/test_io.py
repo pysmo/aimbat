@@ -8,29 +8,24 @@ from typing import Any
 from collections.abc import Generator
 from pathlib import Path
 from importlib import reload
+import aimbat.lib.data as data
 import numpy as np
 import pytest
 
 
 class TestSacBase:
-    @pytest.fixture
-    def session(
-        self, test_db_with_project: tuple[Path, Session]
-    ) -> Generator[Session, Any, Any]:
-        yield test_db_with_project[1]
+    @pytest.fixture(autouse=True)
+    def reload_modules(self, fixture_session_with_project: Session) -> None:
+        reload(data)
 
     @pytest.fixture
     def aimbat_seismogram_from_sac(
         self,
-        session: Session,
+        fixture_session_with_project: Session,
         sac_file_good: Path,
     ) -> Generator[AimbatSeismogram, Any, Any]:
-        import aimbat.lib.data as data
-
-        reload(data)
-
         data.add_files_to_project([sac_file_good], DataType.SAC)
-        aimbat_file = session.exec(select(AimbatSeismogram)).one()
+        aimbat_file = fixture_session_with_project.exec(select(AimbatSeismogram)).one()
         yield aimbat_file
 
     @pytest.fixture
@@ -66,11 +61,11 @@ class TestSacWrite(TestSacBase):
 
 
 class TestSacBadFile(TestSacBase):
-    def test_t0_missing(self, sac_file_good: Path) -> None:
-        from aimbat.lib.data import add_files_to_project
-
+    def test_t0_missing(
+        self, sac_file_good: Path, fixture_session_with_project: Session
+    ) -> None:
         sac = SAC.from_file(sac_file_good)
         sac.t0 = None
         sac.write(sac_file_good)
         with pytest.raises(ValidationError):
-            add_files_to_project([sac_file_good], DataType.SAC)
+            data.add_files_to_project([sac_file_good], DataType.SAC)

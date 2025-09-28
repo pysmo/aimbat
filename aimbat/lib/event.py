@@ -2,8 +2,7 @@
 
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.lib.common import uuid_shortener
-from aimbat.cli.styling import make_table, TABLE_COLOURS
+from aimbat.lib.common import uuid_shortener, make_table, HINTS, TABLE_STYLING
 from aimbat.lib.utils.json import dump_to_json
 from aimbat.lib.models import (
     AimbatEvent,
@@ -44,7 +43,9 @@ def delete_event_by_id(session: Session, event_id: UUID) -> None:
 
     event = session.get(AimbatEvent, event_id)
     if event is None:
-        raise NoResultFound(f"No AimbatEvent found with {event_id=}")
+        raise NoResultFound(
+            f"Unable to find event using id: {event_id}. {HINTS.LIST_EVENTS}"
+        )
     delete_event(session, event)
 
 
@@ -72,17 +73,23 @@ def get_active_event(session: Session) -> AimbatEvent:
     Returns:
         Active Event
 
-    Raises:
-        RuntimeError: If no active event is found.
+    Raises
+        NoResultFound: When no event is active.
     """
 
+    logger.debug("Attempting to determine active event.")
+
     select_active_event = select(AimbatEvent).where(AimbatEvent.active == 1)
-    active_event = session.exec(select_active_event).one_or_none()
 
-    logger.debug(f"Active event: {active_event}")
+    # NOTE: While there technically can be no active event in the database,
+    # we typically don't really want to go beyond this point when that is the
+    # case. Hence we call `one` rather than `one_or_none`.
+    try:
+        active_event = session.exec(select_active_event).one()
+    except NoResultFound:
+        raise NoResultFound(f"No active event found. {HINTS.ACTIVATE_EVENT}")
 
-    if active_event is None:
-        raise RuntimeError("No active event found.")
+    logger.debug(f"Active event: {active_event.id}")
 
     return active_event
 
@@ -101,7 +108,9 @@ def set_active_event_by_id(session: Session, event_id: UUID) -> None:
     logger.info(f"Setting active event to event with id={event_id}.")
 
     if event_id not in session.exec(select(AimbatEvent.id)).all():
-        raise ValueError(f"No event with id={event_id} found.")
+        raise ValueError(
+            f"No AimbatEvent found with id: {event_id}. {HINTS.LIST_EVENTS}"
+        )
 
     aimbat_event = session.exec(
         select(AimbatEvent).where(AimbatEvent.id == event_id)
@@ -111,11 +120,11 @@ def set_active_event_by_id(session: Session, event_id: UUID) -> None:
 
 def set_active_event(session: Session, event: AimbatEvent) -> None:
     """
-    Set the currently active event (i.e. the one being processed).
+    Set the active event (i.e. the one being processed).
 
     Parameters:
         session: SQL session.
-        event: AIMBAT Event to set as active one.
+        event: AIMBAT Event to set as active.
     """
 
     logger.info(f"Activating {event=}")
@@ -263,34 +272,34 @@ def print_event_table(short: bool = True) -> None:
     logger.info("Printing AIMBAT events table.")
 
     table = make_table(title="AIMBAT Events")
-    if short:
-        table.add_column(
-            "id (shortened)", justify="center", style=TABLE_COLOURS.id, no_wrap=True
-        )
-    else:
-        table.add_column("id", justify="center", style=TABLE_COLOURS.id, no_wrap=True)
-    table.add_column("Active", justify="center", style=TABLE_COLOURS.mine, no_wrap=True)
     table.add_column(
-        "Date & Time", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+        "ID (shortened)" if short else "ID",
+        justify="center",
+        style=TABLE_STYLING.id,
+        no_wrap=True,
     )
-    table.add_column("Latitude", justify="center", style=TABLE_COLOURS.mine)
-    table.add_column("Longitude", justify="center", style=TABLE_COLOURS.mine)
-    table.add_column("Depth", justify="center", style=TABLE_COLOURS.mine)
-    table.add_column("Completed", justify="center", style=TABLE_COLOURS.parameters)
-    table.add_column("# Seismograms", justify="center", style=TABLE_COLOURS.linked)
-    table.add_column("# Stations", justify="center", style=TABLE_COLOURS.linked)
+    table.add_column("Active", justify="center", style=TABLE_STYLING.mine, no_wrap=True)
+    table.add_column(
+        "Date & Time", justify="center", style=TABLE_STYLING.mine, no_wrap=True
+    )
+    table.add_column("Latitude", justify="center", style=TABLE_STYLING.mine)
+    table.add_column("Longitude", justify="center", style=TABLE_STYLING.mine)
+    table.add_column("Depth", justify="center", style=TABLE_STYLING.mine)
+    table.add_column("Completed", justify="center", style=TABLE_STYLING.parameters)
+    table.add_column("# Seismograms", justify="center", style=TABLE_STYLING.linked)
+    table.add_column("# Stations", justify="center", style=TABLE_STYLING.linked)
 
     with Session(engine) as session:
         for event in session.exec(select(AimbatEvent)).all():
             logger.debug(f"Adding event with id={event.id} to the table.")
             table.add_row(
                 uuid_shortener(session, event) if short else str(event.id),
-                ":heavy_check_mark:" if event.active is True else "",
-                event.time.strftime("%Y-%m-%d %H:%M:%S") if short else str(event.time),
+                TABLE_STYLING.bool_formatter(event.active),
+                TABLE_STYLING.datetime_formatter(event.time, short),
                 f"{event.latitude:.3f}" if short else str(event.latitude),
                 f"{event.longitude:.3f}" if short else str(event.longitude),
                 f"{event.depth:.0f}" if short else str(event.depth),
-                str(event.parameters.completed),
+                TABLE_STYLING.bool_formatter(event.parameters.completed),
                 str(len(event.seismograms)),
                 str(len(station.get_stations_in_event(session, event))),
             )

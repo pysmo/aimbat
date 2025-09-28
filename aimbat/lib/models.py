@@ -182,8 +182,6 @@ class AimbatSeismogram(SQLModel, table=True):
     t0: datetime = Field(sa_type=_DateTimeUTC)
     "Initial pick."
 
-    cached_length: int | None = None
-
     datasource: AimbatDataSource = Relationship(
         back_populates="seismogram", cascade_delete=True
     )
@@ -225,9 +223,7 @@ class AimbatSeismogram(SQLModel, table=True):
         self.parameters.t1 = value
 
     def __len__(self) -> int:
-        if self.cached_length is None:
-            self.cached_length = np.size(self.data)
-        return self.cached_length
+        return np.size(self.data)
 
     @property
     def end_time(self) -> datetime:
@@ -238,7 +234,7 @@ class AimbatSeismogram(SQLModel, table=True):
     @property
     def data(self) -> np.ndarray:
         if self.datasource is None:
-            raise RuntimeError("I don't know which data source to read data from")
+            raise ValueError("Expected a valid datasource name, got None.")
         return io.read_seismogram_data(
             self.datasource.sourcename, self.datasource.datatype
         )
@@ -246,11 +242,10 @@ class AimbatSeismogram(SQLModel, table=True):
     @data.setter
     def data(self, value: np.ndarray) -> None:
         if self.datasource is None:
-            raise RuntimeError("I don't know which data source to write data to")
+            raise ValueError("Expected a valid datasource name, got None.")
         io.write_seismogram_data(
             self.datasource.sourcename, self.datasource.datatype, value
         )
-        self.cached_length = np.size(value)
 
 
 class AimbatSeismogramParametersBase(SQLModel):
@@ -258,8 +253,10 @@ class AimbatSeismogramParametersBase(SQLModel):
 
     flip: bool = False
     "Whether or not the seismogram should be flipped."
+
     select: bool = True
     "Whether or not this seismogram should be used for processing."
+
     t1: datetime | None = Field(default=None, sa_type=_DateTimeUTC)
     """Working pick.
 

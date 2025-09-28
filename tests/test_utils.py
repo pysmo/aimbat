@@ -1,3 +1,4 @@
+from aimbat.config import Settings
 from pysmo.classes import SAC
 from datetime import datetime, timezone
 from importlib import reload
@@ -14,22 +15,24 @@ import pytest
 
 class TestUtilsBase:
     @pytest.fixture(autouse=True)
-    def reload_modules(self, test_db_with_active_event: tuple[Path, Session]) -> None:
+    def reload_modules(self, fixture_session_with_active_event: Session) -> None:
         reload(checkdata)
         reload(sampledata)
 
     @pytest.fixture
     def session(
-        self, test_db_with_active_event: tuple[Path, Session]
+        self, fixture_session_with_active_event: Session
     ) -> Generator[Session, Any, Any]:
-        yield test_db_with_active_event[1]
+        yield fixture_session_with_active_event
 
     @pytest.fixture(autouse=True)
     def download_dir(
-        self, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path_factory: pytest.TempPathFactory,
+        patch_settings: Settings,
     ) -> Generator[Path, Any, Any]:
         tmp_dir = tmp_path_factory.mktemp("download_dir")
-        monkeypatch.setenv("AIMBAT_SAMPLEDATA_DIR", str(tmp_dir))
+        patch_settings.sampledata_dir = tmp_dir
         yield tmp_dir
 
 
@@ -126,6 +129,7 @@ class TestUtilsCheckData(TestUtilsBase):
 
 
 class TestUtilsSampleData(TestUtilsBase):
+    @pytest.mark.dependency(name="download_sampledata")
     def test_lib_download_sampledata(self, download_dir: Path) -> None:
         assert len(os.listdir(download_dir)) == 0
         sampledata.download_sampledata()

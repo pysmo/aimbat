@@ -3,6 +3,7 @@ from aimbat.config import settings
 from aimbat.logger import logger
 from pysmo.classes import SAC
 from os import PathLike
+from functools import partial
 import numpy as np
 import numpy.typing as npt
 from typing import TYPE_CHECKING
@@ -46,8 +47,6 @@ def write_seismogram_data_to_sacfile(
 
 
 def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
-    from aimbat.lib.models import AimbatStation
-
     """Create an AimbatStation instance from a SAC file.
 
     Parameters:
@@ -57,6 +56,8 @@ def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
         A new AimbatStation instance.
     """
 
+    from aimbat.lib.models import AimbatStation
+
     logger.debug(f"Reading station data from {sacfile}.")
 
     event = SAC.from_file(sacfile).station
@@ -65,13 +66,13 @@ def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
 
 
 def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
-    from aimbat.lib.models import AimbatEvent, AimbatEventParameters
-
     """Create an AimbatSeismogram instance from a SAC file.
 
     Parameters:
         sacfile: Name of the SAC file.
     """
+
+    from aimbat.lib.models import AimbatEvent, AimbatEventParameters
 
     logger.debug(f"Reading event data from {sacfile}.")
 
@@ -82,21 +83,30 @@ def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
     return aimbat_event
 
 
-def create_seismogram_from_sacfile(sacfile: str | PathLike) -> AimbatSeismogram:
-    from aimbat.lib.models import AimbatSeismogram, AimbatSeismogramParameters
-
+def create_seismogram_from_sacfile_and_pick_header(
+    sacfile: str | PathLike, sac_pick_header: str
+) -> AimbatSeismogram:
     """Create an AimbatSeismogram instance from a SAC file.
 
     Parameters:
         sacfile: Name of the SAC file.
+        sac_pick_header: SAC header to use as t0 in AIMBAT.
     """
+
+    from aimbat.lib.models import AimbatSeismogram, AimbatSeismogramParameters
 
     logger.debug(f"Reading seismogram metadata from {sacfile}.")
 
     sac = SAC.from_file(sacfile)
-    t0 = getattr(sac.timestamps, settings.sac_pick_header)
+    t0 = getattr(sac.timestamps, sac_pick_header)
     seismogram = sac.seismogram
     aimbat_seismogram = AimbatSeismogram.model_validate(
         seismogram, update={"t0": t0, "parameters": AimbatSeismogramParameters()}
     )
     return aimbat_seismogram
+
+
+create_seismogram_from_sacfile = partial(
+    create_seismogram_from_sacfile_and_pick_header,
+    sac_pick_header=settings.sac_pick_header,
+)
