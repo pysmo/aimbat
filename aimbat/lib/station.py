@@ -1,9 +1,8 @@
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.lib.common import uuid_shortener
+from aimbat.lib.common import uuid_shortener, make_table, TABLE_STYLING
 from aimbat.lib.utils.json import dump_to_json
 from aimbat.lib.models import AimbatStation, AimbatSeismogram, AimbatEvent
-from aimbat.cli.styling import make_table, TABLE_COLOURS
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from rich.console import Console
@@ -102,25 +101,23 @@ def print_station_table(short: bool, all_events: bool = False) -> None:
 
         table = make_table(title=title)
 
-        if short:
-            table.add_column(
-                "id (shortened)", justify="center", style=TABLE_COLOURS.id, no_wrap=True
-            )
-        else:
-            table.add_column(
-                "id", justify="center", style=TABLE_COLOURS.id, no_wrap=True
-            )
         table.add_column(
-            "Name & Network", justify="center", style=TABLE_COLOURS.mine, no_wrap=True
+            "ID (shortened)" if short else "ID",
+            justify="center",
+            style=TABLE_STYLING.id,
+            no_wrap=True,
         )
-        table.add_column("Latitude", justify="center", style=TABLE_COLOURS.mine)
-        table.add_column("Longitude", justify="center", style=TABLE_COLOURS.mine)
-        table.add_column("Elevation", justify="center", style=TABLE_COLOURS.mine)
+        table.add_column(
+            "Name & Network", justify="center", style=TABLE_STYLING.mine, no_wrap=True
+        )
+        table.add_column("Latitude", justify="center", style=TABLE_STYLING.mine)
+        table.add_column("Longitude", justify="center", style=TABLE_STYLING.mine)
+        table.add_column("Elevation", justify="center", style=TABLE_STYLING.mine)
         if all_events:
             table.add_column(
-                "# Seismograms", justify="center", style=TABLE_COLOURS.linked
+                "# Seismograms", justify="center", style=TABLE_STYLING.linked
             )
-            table.add_column("# Events", justify="center", style=TABLE_COLOURS.linked)
+            table.add_column("# Events", justify="center", style=TABLE_STYLING.linked)
 
         for aimbat_station in aimbat_stations:
             logger.debug(f"Adding {aimbat_station.name} to the table.")

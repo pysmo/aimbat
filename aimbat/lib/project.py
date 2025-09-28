@@ -1,3 +1,4 @@
+from sqlalchemy.exc import NoResultFound
 from aimbat.logger import logger
 from aimbat.lib.db import engine
 from aimbat.lib.models import (
@@ -37,25 +38,6 @@ def _project_exists() -> bool:
     raise RuntimeError(
         f"Unable to determine if project already exists using {engine=}."
     )
-
-
-def _project_file_from_engine() -> Path:
-    """Get filename from sqlite engine
-
-    Raises:
-        RuntimeError: If unable to determine project file.
-    """
-
-    logger.info(f"Determining project file from {engine=}.")
-
-    with engine.connect() as connection:
-        dbs = connection.execute(text("PRAGMA database_list")).all()
-        assert dbs is not None
-        for db in dbs:
-            if db[1] == "main":
-                db_file = db[-1]
-                return Path(db_file)
-        raise RuntimeError(f"Unable to to determine project file using {engine=}.")
 
 
 def create_project() -> None:
@@ -106,14 +88,15 @@ def delete_project() -> None:
 
     if _project_exists():
         if engine.driver == "pysqlite":
-            project_path = _project_file_from_engine()
+            database = engine.url.database
             engine.dispose()
-            try:
+            if database == ":memory:":
+                logger.info("Running database in memory, nothing to delete.")
+                return
+            elif database:
+                project_path = Path(database)
                 logger.info(f"Deleting project file: {project_path=}")
                 project_path.unlink()
-                return
-            except IsADirectoryError:
-                logger.info("No file found - possibly running in-memory database?")
                 return
     raise RuntimeError("Unable to find/delete project.")
 
@@ -128,17 +111,19 @@ def print_project_info() -> None:
         RuntimeError: If no project found.
     """
 
-    logger.info(f"Printing project info in {engine=}.")
+    logger.info("Printing project info.")
 
     if not _project_exists():
-        raise RuntimeError("No AIMBAT project found.")
+        raise RuntimeError(
+            'No AIMBAT project found. Try running "aimbat project create" first.'
+        )
 
     with Session(engine) as session:
         grid = Table.grid(expand=False)
         grid.add_column()
         grid.add_column(justify="left")
         if engine.driver == "pysqlite":
-            project = str(_project_file_from_engine())
+            project = str(engine.url.database)
             grid.add_row("AIMBAT Project File: ", project)
 
         events = len(session.exec(select(AimbatEvent)).all())
@@ -162,7 +147,7 @@ def print_project_info() -> None:
             selected_seismograms_in_event = len(
                 seismogram.get_selected_seismograms(session)
             )
-        except RuntimeError:
+        except NoResultFound:
             active_event_id = None
             active_stations = None
             seismograms_in_event = None

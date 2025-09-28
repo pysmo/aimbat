@@ -3,7 +3,6 @@ from aimbat.lib.typing import EventParameter
 from pydantic_core import ValidationError
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
-from pathlib import Path
 from importlib import reload
 from typing import Any
 from collections.abc import Generator, Sequence
@@ -15,14 +14,14 @@ import json
 
 class TestEventBase:
     @pytest.fixture(autouse=True)
-    def reload_modules(self, test_db_with_data: tuple[Path, Session]) -> None:
+    def reload_modules(self, fixture_session_with_data: Session) -> None:
         reload(event)
 
     @pytest.fixture
     def session(
-        self, test_db_with_data: tuple[Path, Session]
+        self, fixture_session_with_data: Session
     ) -> Generator[Session, Any, Any]:
-        yield test_db_with_data[1]
+        yield fixture_session_with_data
 
     def get_random_station(self, session: Session) -> AimbatStation:
         stations = session.exec(select(AimbatStation)).all()
@@ -91,7 +90,7 @@ class TestGetActiveEvent(TestEventBase):
         events = session.exec(select(AimbatEvent)).all()
         assert all(e.active is None for e in events)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(NoResultFound):
             event.get_active_event(session)
 
 
@@ -285,11 +284,8 @@ class TestCliEvent(TestEventBase):
 
 class TestEventDump(TestEventBase):
     def test_lib_dump_event(
-        self,
-        test_db_with_data: tuple[Path, Session],
-        capsys: pytest.CaptureFixture,
+        self, fixture_session_with_data: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        reload(event)
         event.dump_event_table()
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
@@ -299,11 +295,8 @@ class TestEventDump(TestEventBase):
             _ = AimbatEvent(**i)
 
     def test_cli_dump_data(
-        self,
-        test_db_with_data: tuple[Path, Session],
-        capsys: pytest.CaptureFixture,
+        self, fixture_session_with_data: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        reload(event)
         from aimbat.app import app
 
         app(["event", "dump"])

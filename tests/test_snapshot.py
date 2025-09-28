@@ -1,7 +1,6 @@
 from sqlmodel import Session
 from importlib import reload
 from typing import Any
-from pathlib import Path
 from collections.abc import Generator
 import aimbat.lib.snapshot as snapshot
 import pytest
@@ -12,14 +11,14 @@ RANDOM_COMMENT = "Random comment"
 
 class TestSnapshotBase:
     @pytest.fixture(autouse=True)
-    def reload_modules(self, test_db_with_active_event: tuple[Path, Session]) -> None:
+    def reload_modules(self, fixture_session_with_active_event: Session) -> None:
         reload(snapshot)
 
     @pytest.fixture
     def session(
-        self, test_db_with_active_event: tuple[Path, Session]
+        self, fixture_session_with_active_event: Session
     ) -> Generator[Session, Any, Any]:
-        yield test_db_with_active_event[1]
+        yield fixture_session_with_active_event
 
 
 class TestLibSnapshotGet(TestSnapshotBase):
@@ -109,37 +108,37 @@ class TestLibSnapshotTable(TestSnapshotBase):
         snapshot.create_snapshot(session, RANDOM_COMMENT)
         yield
 
-    def test_snapshot_table_no_format(self, capsys: pytest.CaptureFixture) -> None:
+    def test_snapshot_table_no_short(self, capsys: pytest.CaptureFixture) -> None:
         snapshot.print_snapshot_table(short=False, all_events=False)
         captured = capsys.readouterr()
         assert RANDOM_COMMENT in captured.out
         assert "AIMBAT snapshots for event" in captured.out
-        assert "id (shortened)" not in captured.out
+        assert "ID (shortened)" not in captured.out
 
-    def test_snapshot_table_format(self, capsys: pytest.CaptureFixture) -> None:
+    def test_snapshot_table_short(self, capsys: pytest.CaptureFixture) -> None:
         snapshot.print_snapshot_table(short=True, all_events=False)
         captured = capsys.readouterr()
         assert RANDOM_COMMENT in captured.out
         assert "AIMBAT snapshots for event" in captured.out
-        assert "id (shortened)" in captured.out
+        assert "ID (shortened)" in captured.out
 
-    def test_snapshot_table_no_format_all_events(
+    def test_snapshot_table_no_short_all_events(
         self, capsys: pytest.CaptureFixture
     ) -> None:
         snapshot.print_snapshot_table(short=False, all_events=True)
         captured = capsys.readouterr()
         assert RANDOM_COMMENT in captured.out
         assert "AIMBAT snapshots for all events" in captured.out
-        assert "id (shortened)" not in captured.out
+        assert "ID (shortened)" not in captured.out
 
-    def test_snapshot_table_format_all_events(
+    def test_snapshot_table_short_all_events(
         self, capsys: pytest.CaptureFixture
     ) -> None:
         snapshot.print_snapshot_table(short=True, all_events=True)
         captured = capsys.readouterr()
         assert RANDOM_COMMENT in captured.out
         assert "AIMBAT snapshots for all events" in captured.out
-        assert "id (shortened)" in captured.out
+        assert "ID (shortened)" in captured.out
 
 
 class TestCliSnapshotUsage(TestSnapshotBase):
@@ -231,4 +230,4 @@ class TestCliSnapshotTable(TestSnapshotBase):
         captured = capsys.readouterr()
         assert RANDOM_COMMENT in captured.out
         assert "AIMBAT snapshots for event" in captured.out
-        assert "id (shortened)" in captured.out
+        assert "ID (shortened)" in captured.out

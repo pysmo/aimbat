@@ -3,7 +3,6 @@ from aimbat.lib.seismogram import SeismogramParameter
 from pysmo.tools.iccs import ICCSSeismogram
 from sqlmodel import Session, select
 from datetime import timedelta
-from pathlib import Path
 from typing import Any
 from collections.abc import Generator
 import pytest
@@ -12,18 +11,14 @@ import random
 
 class TestICCSBase:
     @pytest.fixture
-    def session(
-        self, test_db_with_active_event: tuple[Path, Session]
-    ) -> Generator[Session, Any, Any]:
-        yield test_db_with_active_event[1]
-
-    @pytest.fixture
     def random_aimbat_seismogram(
-        self, session: Session
+        self, fixture_session_with_active_event: Session
     ) -> Generator[AimbatSeismogram, Any, Any]:
         from aimbat.lib.models import AimbatSeismogram
 
-        yield random.choice(list(session.exec(select(AimbatSeismogram)).all()))
+        yield random.choice(
+            list(fixture_session_with_active_event.exec(select(AimbatSeismogram)).all())
+        )
 
 
 class TestAimbatSeismogramIsICCSSeismogram(TestICCSBase):

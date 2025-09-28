@@ -95,11 +95,11 @@ The currently used values for these parameters can be found by running
 `#!bash aimbat settings` in your terminal. As some settings are relevant before
 a project is created, they cannot stored in the project file. To override these
 settings you can set the corresponding environment variable directly (e.g.
-`export AIMBAT_PROJECT=different_project_name.sqlite`) or place those settings
-in a `.env`[^2] file. Note that if you set them in both places the environment
+`export AIMBAT_PROJECT=different_project_name.db`) or place those settings in a
+`.env`[^2] file. Note that if you set them in both places the environment
 variable is used.
 
-[^2]: The file must be named exactly `.env` and not `SOMENAME.env`!
+[^2]: The file must be named exactly `.env`, and not `SOMENAME.env`!
 
 ### Event Parameters
 

@@ -1,7 +1,6 @@
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.cli.styling import make_table, TABLE_COLOURS
-from aimbat.lib.common import uuid_shortener
+from aimbat.lib.common import uuid_shortener, make_table, TABLE_STYLING
 from aimbat.lib.event import get_active_event
 from aimbat.lib.io import (
     create_seismogram,
@@ -218,17 +217,17 @@ def print_data_table(short: bool, all_events: bool = False) -> None:
         table = make_table(title=title)
 
         table.add_column(
-            "id (shortened)" if short else "id",
+            "ID (shortened)" if short else "ID",
             justify="center",
-            style=TABLE_COLOURS.id,
+            style=TABLE_STYLING.id,
             no_wrap=True,
         )
-        table.add_column("Datatype", justify="center", style=TABLE_COLOURS.mine)
+        table.add_column("Datatype", justify="center", style=TABLE_STYLING.mine)
         table.add_column(
-            "Filename", justify="left", style=TABLE_COLOURS.mine, no_wrap=True
+            "Filename", justify="left", style=TABLE_STYLING.mine, no_wrap=True
         )
         table.add_column(
-            "Seismogram id", justify="center", style=TABLE_COLOURS.linked, no_wrap=True
+            "Seismogram ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
         )
 
         for row in rows:

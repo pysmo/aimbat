@@ -5,13 +5,14 @@ The utils subcommand contains useful tools that
 are not strictly part of an AIMBAT workflow.
 """
 
-from aimbat.cli.common import GlobalParameters
+from aimbat.cli.common import GlobalParameters, simple_exception
 from aimbat.cli.utils.sampledata import app as sampledata_app
 from pathlib import Path
 from typing import Annotated
 from cyclopts import App, Parameter
 
 
+@simple_exception
 def _run_checks(sacfiles: list[Path]) -> None:
     from aimbat.lib.utils.checkdata import run_checks
 

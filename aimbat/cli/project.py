@@ -9,22 +9,25 @@ environment variable to the desired filename. Alternatively, `aimbat` can be
 executed with a database url directly.
 """
 
-from aimbat.cli.common import GlobalParameters
+from aimbat.cli.common import GlobalParameters, simple_exception
 from cyclopts import App
 
 
+@simple_exception
 def _create_project() -> None:
     from aimbat.lib.project import create_project
 
     create_project()
 
 
+@simple_exception
 def _delete_project() -> None:
     from aimbat.lib.project import delete_project
 
     delete_project()
 
 
+@simple_exception
 def _print_project_info() -> None:
     from aimbat.lib.project import print_project_info
 

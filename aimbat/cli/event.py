@@ -1,51 +1,63 @@
 """View and manage events in the AIMBAT project."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters
+from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
 from aimbat.lib.typing import EventParameter
 from typing import Annotated
 from datetime import timedelta
 from cyclopts import App, Parameter
+from sqlmodel import Session
 import uuid
 
 
+def string_to_event_uuid(session: Session, event_id: str) -> uuid.UUID:
+    from aimbat.lib.models import AimbatEvent
+    from aimbat.lib.common import string_to_uuid, HINTS
+
+    return string_to_uuid(
+        session,
+        event_id,
+        AimbatEvent,
+        custom_error=f"Unable to find event using id: {event_id}. {HINTS.LIST_EVENTS}",
+    )
+
+
+@simple_exception
 def _delete_event(event_id: uuid.UUID | str) -> None:
     from aimbat.lib.event import delete_event_by_id
-    from aimbat.lib.common import string_to_uuid
     from aimbat.lib.db import engine
-    from aimbat.lib.models import AimbatEvent
-    from sqlmodel import Session
 
     with Session(engine) as session:
         if not isinstance(event_id, uuid.UUID):
-            event_id = string_to_uuid(session, event_id, AimbatEvent)
+            event_id = string_to_event_uuid(session, event_id)
         delete_event_by_id(session, event_id)
 
 
+@simple_exception
 def _print_event_table(short: bool) -> None:
     from aimbat.lib.event import print_event_table
 
     print_event_table(short)
 
 
+@simple_exception
 def _set_active_event_by_id(event_id: uuid.UUID | str) -> None:
     from aimbat.lib.event import set_active_event_by_id
     from aimbat.lib.db import engine
-    from aimbat.lib.common import string_to_uuid
-    from aimbat.lib.models import AimbatEvent
-    from sqlmodel import Session
 
     with Session(engine) as session:
         if not isinstance(event_id, uuid.UUID):
-            event_id = string_to_uuid(session, event_id, AimbatEvent)
+            event_id = string_to_event_uuid(session, event_id)
         set_active_event_by_id(session, event_id)
 
 
+@simple_exception
 def _dump_event_table() -> None:
     from aimbat.lib.event import dump_event_table
 
     dump_event_table()
 
 
+@simple_exception
 def _get_event_parameters(
     name: EventParameter,
 ) -> None:
@@ -61,6 +73,7 @@ def _get_event_parameters(
             print(value)
 
 
+@simple_exception
 def _set_event_parameters(
     name: EventParameter,
     value: timedelta | bool | str,

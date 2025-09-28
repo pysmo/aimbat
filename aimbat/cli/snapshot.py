@@ -1,11 +1,12 @@
 """View and manage snapshots."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters
+from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
 from typing import Annotated
 from cyclopts import App, Parameter
 import uuid
 
 
+@simple_exception
 def _create_snapshot(comment: str | None = None) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.snapshot import create_snapshot
@@ -15,6 +16,7 @@ def _create_snapshot(comment: str | None = None) -> None:
         create_snapshot(session, comment)
 
 
+@simple_exception
 def _rollback_to_snapshot(snapshot_id: uuid.UUID | str) -> None:
     from aimbat.lib.common import string_to_uuid
     from aimbat.lib.db import engine
@@ -28,6 +30,7 @@ def _rollback_to_snapshot(snapshot_id: uuid.UUID | str) -> None:
         rollback_to_snapshot_by_id(session, snapshot_id)
 
 
+@simple_exception
 def _delete_snapshot(snapshot_id: uuid.UUID | str) -> None:
     from aimbat.lib.common import string_to_uuid
     from aimbat.lib.db import engine
@@ -41,6 +44,7 @@ def _delete_snapshot(snapshot_id: uuid.UUID | str) -> None:
         delete_snapshot_by_id(session, snapshot_id)
 
 
+@simple_exception
 def _print_snapshot_table(short: bool, all_events: bool) -> None:
     from aimbat.lib.snapshot import print_snapshot_table
 

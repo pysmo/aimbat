@@ -33,17 +33,17 @@ lint: check-uv ## Check formatting with black and lint code with ruff.
 	uv run black . --check --diff --color
 	uv run ruff check .
 
-test-figs: check-uv ## Generate baseline figures for testing. Only run this if you know what you are doing!
-	uv run py.test --mpl-generate-path=tests/baseline
+test-figs: check-uv ## Generate baseline figures for testing.
+	uv run py.test --mpl-generate-path=baseline
 
 test-tutorial: check-uv ## Check if the tutorial notebook runs error-free.
 	uv run py.test --nbmake docs/examples/tutorial.ipynb
 
 tests: check-uv mypy test-tutorial ## Run all tests with pytest.
-	uv run pytest --mypy --cov=aimbat --cov-report=term-missing --cov-report=html --mpl -v
+	uv run pytest --cov=aimbat --cov-report=term-missing --cov-report=html --mpl
 
 mypy: check-uv ## Run typing tests with pytest.
-	uv run pytest --mypy -m mypy -v aimbat
+	uv run pytest --mypy -m mypy aimbat tests
 
 docs: check-uv install ## Build html docs.
 	uv run mkdocs build
