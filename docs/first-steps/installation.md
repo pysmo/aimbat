@@ -20,53 +20,53 @@ Running applications with `uv` is very simple. It manages all dependencies and
 even installs a compatible Python version if needed. A very convenient feature
 of using `uv` is that it can run applications without installing them:
 
-<!-- termynal -->
-
 ```bash
-# First check that uv is available:
+$ # First check that uv is available:
 $ uv --version
-uv 0.8.6 
-# Next run AIMBAT using uv tool:
-$ uv tool run aimbat --version
-⠇ Resolving dependencies...
-⠦ Preparing packages... (66/69)
----> 100%
----> 100%
----> 100%
----> 100%
+uv 0.8.14
+$ # Next run AIMBAT using uv tool:
+$ uv tool run aimbat
+⠦ Resolving dependencies...
 ...
-2.0.0
+Usage: aimbat COMMAND
+
+AIMBAT command line interface entrypoint for all other commands.
+
+This is the main command line interface for AIMBAT. It must be
+executed with a command (as specified below) to actually do anything.
+Help for individual commands is available by typing aimbat COMMAND
+--help.
+
+╭─ Commands ────────────────────────────────────────────────────────╮
+│ data        Manage seismogram files in an AIMBAT project.         │
+│ event       View and manage events in the AIMBAT project.         │
+│ iccs        ICCS processing tools.                                │
+│ project     Manage AIMBAT projects.                               │
+│ seismogram  View and manage seismograms in the AIMBAT project.    │
+│ settings    Print a table with default settings used in AIMBAT.   │
+│ snapshot    View and manage snapshots.                            │
+│ station     View and manage stations.                             │
+│ utils       Utilities for AIMBAT.                                 │
+│ --help -h   Display this message and exit.                        │
+│ --version   Display application version.                          │
+╰───────────────────────────────────────────────────────────────────╯
 ```
 
 This will likely have taken a while, as `uv` has to download and install a lot
-of dependencies. Subsequent runs will be much faster:
-
-<!-- termynal -->
-
-```bash
-# Running the same command again will be much faster!
-$ uv tool run aimbat --version
-⠇ Resolving dependencies...
-2.0.0
-```
-
-`uv tool run` is such a useful command that it has its own alias:
-
-<!-- termynal -->
+of dependencies. Subsequent runs will be much faster. `uv tool run` is such a
+useful command that it has its own alias, `uvx`:
 
 ```bash
 # 'uvx' is an alias for 'uv tool run':
-$ uvx aimbat --version
-⠦ Resolving dependencies...
-2.0.0
+$ uvx aimbat
+Usage: aimbat COMMAND
+...
 ```
 
 ## Running the development version
 
 Running AIMBAT without installing it is particularly useful for trying out the
 latest development version:
-
-<!-- termynal -->
 
 ```
 $ uvx git+https://github.com/pysmo/aimbat --version
@@ -76,17 +76,20 @@ Updating https://github.com/pysmo/aimbat (HEAD)
 ---> 100%
 ---> 100%
 2.1.0.dev0
-# To clean up after yourself, you can remove the uv cache:
-$ uv cache clean
+```
+
+To clean up after yourself, you can remove the `uv` cache:
+
+```bash
+$ uv clean
 Clearing cache at: /home/USER/.cache/uv
 Removed 26702 files (2.1GiB)
 ```
 
-## Installing AIMBAT
+## Installing AIMBAT locally
 
-Installing applications with `uv` is very simple:
-
-<!-- termynal -->
+After successfully test driving AIMBAT you may want to actually install it.
+This is very simple with `uv`:
 
 ```bash
 # Again use uv tool, but this time with the 'install' command:
@@ -96,9 +99,14 @@ $ uv tool install aimbat
 + aimbat==2.0.0
 ...
 Installed 1 executable: aimbat
-# You can now run AIMBAT using the 'aimbat' command directly:
-$ aimbat --version
-2.0.0
+```
+
+You can now run AIMBAT using the `aimbat` command directly:
+
+```bash
+$ aimbat
+Usage: aimbat COMMAND
+...
 ```
 
 !!! tip
@@ -109,11 +117,33 @@ $ aimbat --version
 
 Upgrading or uninstalling AIMBAT is just as easy:
 
-<!-- termynal -->
-
 ```bash
 $ uv tool upgrade aimbat
 Nothing to upgrade
 $ uv tool uninstall aimbat
 Uninstalled 1 executable: aimbat
 ```
+
+## Demo
+
+This demo shows what you can expect to see in your terminal when running
+the commands above:
+
+<div id="asciinema-installation-demo" style="z-index: 1; position: relative; "></div>
+
+<script>
+  window.onload = function(){
+    const player = AsciinemaPlayer.create('../../images/asciinema/install-with-uv.cast', document.getElementById('asciinema-installation-demo'),
+{poster: 'npt:0:18', idleTimeLimit: 2,   markers: [
+    [3, 'Intro'],
+    [5, 'Foo'],
+    [9, 'Bar'],
+  ] });
+
+}
+</script>
+
+!!! tip
+
+    These kinds of recordings work just like normal videos, but you can also
+    select text and copy it to your clipboard!
