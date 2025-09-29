@@ -7,17 +7,12 @@ from sqlmodel import Session, select
 from typing import Any
 from collections.abc import Generator
 from pathlib import Path
-from importlib import reload
 import aimbat.lib.data as data
 import numpy as np
 import pytest
 
 
 class TestSacBase:
-    @pytest.fixture(autouse=True)
-    def reload_modules(self, fixture_session_with_project: Session) -> None:
-        reload(data)
-
     @pytest.fixture
     def aimbat_seismogram_from_sac(
         self,

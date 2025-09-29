@@ -1,9 +1,9 @@
+from aimbat.config import settings
 from aimbat.lib.models import AimbatEvent, AimbatStation, AimbatSeismogram
 from aimbat.lib.typing import EventParameter
 from pydantic_core import ValidationError
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
-from importlib import reload
 from typing import Any
 from collections.abc import Generator, Sequence
 import aimbat.lib.event as event
@@ -13,10 +13,6 @@ import json
 
 
 class TestEventBase:
-    @pytest.fixture(autouse=True)
-    def reload_modules(self, fixture_session_with_data: Session) -> None:
-        reload(event)
-
     @pytest.fixture
     def session(
         self, fixture_session_with_data: Session
@@ -32,11 +28,9 @@ class TestEventBase:
         return random.choice(events)
 
     def activate_random_event(self, session: Session) -> AimbatEvent:
-        from aimbat.lib.event import set_active_event
-
-        event = self.get_random_event(session)
-        set_active_event(session, event)
-        return event
+        random_event = self.get_random_event(session)
+        event.set_active_event(session, random_event)
+        return random_event
 
 
 class TestDeleteEvent(TestEventBase):
@@ -62,7 +56,7 @@ class TestDeleteEvent(TestEventBase):
             is None
         )
 
-    def test_cli_delete_event_by_id_with_wrong_id(self) -> None:
+    def test_cli_delete_event_by_id_with_wrong_id(self, session: Session) -> None:
         from aimbat.app import app
         from uuid import uuid4
 
@@ -250,7 +244,7 @@ class TestGetEventParameter(TestEventBase):
         assert "False" in capsys.readouterr().out
 
         app(["event", "get", "window_post"])
-        assert "15.0s" in capsys.readouterr().out
+        assert f"{settings.window_post.total_seconds()}s" in capsys.readouterr().out
 
 
 class TestCliEvent(TestEventBase):
@@ -274,6 +268,7 @@ class TestCliEvent(TestEventBase):
 
     def test_cli_event_list(
         self,
+        session: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
         from aimbat.app import app

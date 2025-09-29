@@ -1,4 +1,5 @@
 from aimbat.config import Settings
+from aimbat.app import app
 from pysmo.classes import SAC
 from datetime import datetime, timezone
 from importlib import reload
@@ -14,11 +15,6 @@ import pytest
 
 
 class TestUtilsBase:
-    @pytest.fixture(autouse=True)
-    def reload_modules(self, fixture_session_with_active_event: Session) -> None:
-        reload(checkdata)
-        reload(sampledata)
-
     @pytest.fixture
     def session(
         self, fixture_session_with_active_event: Session
@@ -28,11 +24,14 @@ class TestUtilsBase:
     @pytest.fixture(autouse=True)
     def download_dir(
         self,
+        session: Session,
         tmp_path_factory: pytest.TempPathFactory,
         patch_settings: Settings,
     ) -> Generator[Path, Any, Any]:
         tmp_dir = tmp_path_factory.mktemp("download_dir")
         patch_settings.sampledata_dir = tmp_dir
+        reload(checkdata)
+        reload(sampledata)
         yield tmp_dir
 
 
@@ -87,8 +86,6 @@ class TestUtilsCheckData(TestUtilsBase):
         assert "No seismogram data" in issues[0]
 
     def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
-        from aimbat.app import app
-
         app(["utils", "checkdata", "--help"])
         assert "Usage" in capsys.readouterr().out
 
@@ -96,7 +93,6 @@ class TestUtilsCheckData(TestUtilsBase):
         self, tmp_path_factory: pytest.TempPathFactory, capsys: pytest.CaptureFixture
     ) -> None:
         """Test AIMBAT cli with checkdata subcommand."""
-        from aimbat.app import app
 
         testfile = str(tmp_path_factory.mktemp("checkdata")) + "/test.sac"
 
@@ -146,14 +142,10 @@ class TestUtilsSampleData(TestUtilsBase):
         assert download_dir.exists() is False
 
     def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
-        from aimbat.app import app
-
         app(["utils", "sampledata"])
         assert "Usage" in capsys.readouterr().out
 
     def test_cli_download_sampledata(self, download_dir: Path) -> None:
-        from aimbat.app import app
-
         assert len(os.listdir((download_dir))) == 0
         app(["utils", "sampledata", "download"])
         assert len(os.listdir((download_dir))) > 0
@@ -166,8 +158,6 @@ class TestUtilsSampleData(TestUtilsBase):
         app(["utils", "sampledata", "download", "--force"])
 
     def test_cli__delete_sampledata(self, download_dir: Path) -> None:
-        from aimbat.app import app
-
         assert len(os.listdir((download_dir))) == 0
         app(["utils", "sampledata", "download"])
         assert len(os.listdir((download_dir))) > 0

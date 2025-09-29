@@ -1,8 +1,8 @@
+from aimbat.app import app
 from pysmo.classes import SAC
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import select, Session
 from pathlib import Path
-from importlib import reload
 from aimbat.lib.io import DataType
 from aimbat.lib.models import AimbatDataSource
 import aimbat.lib.data as data
@@ -12,9 +12,7 @@ import json
 
 
 class TestDataBase:
-    @pytest.fixture(autouse=True)
-    def reload_modules(self, fixture_session_with_project: Session) -> None:
-        reload(data)
+    """Base class for testing the data module."""
 
 
 class TestDataAdd(TestDataBase):
@@ -40,8 +38,6 @@ class TestDataAdd(TestDataBase):
         sac_file_good: Path,
         fixture_session_with_project: Session,
     ) -> None:
-        from aimbat.app import app
-
         sac_file_good_as_string = str(sac_file_good)
 
         app(["data", "add", "--no-progress", sac_file_good_as_string])
@@ -57,7 +53,6 @@ class TestDataTable(TestDataBase):
         fixture_session_with_data: tuple[Path, Session],
         capsys: pytest.CaptureFixture,
     ) -> None:
-        reload(data)
         # no event active
         with pytest.raises(NoResultFound):
             data.print_data_table(False)
@@ -83,8 +78,6 @@ class TestDataTable(TestDataBase):
         all_events: bool,
         expected: str,
     ) -> None:
-        reload(data)
-
         data.print_data_table(short, all_events)
         captured = capsys.readouterr()
         assert expected in captured.out
@@ -105,9 +98,6 @@ class TestDataTable(TestDataBase):
         cli_args: list[str],
         expected: str,
     ) -> None:
-        reload(data)
-        from aimbat.app import app
-
         cmd = ["data", "list"]
         cmd.extend(cli_args)
         app(cmd)
@@ -121,7 +111,6 @@ class TestDataDump(TestDataBase):
         fixture_session_with_data: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        reload(data)
         data.dump_data_table()
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
@@ -135,9 +124,6 @@ class TestDataDump(TestDataBase):
         fixture_session_with_data: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        reload(data)
-        from aimbat.app import app
-
         app(["data", "dump"])
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
