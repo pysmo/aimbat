@@ -4,6 +4,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from datetime import timedelta
+from pysmo.tools.iccs._defaults import ICCS_DEFAULTS
+import numpy as np
 
 
 class Settings(BaseSettings):
@@ -28,26 +30,28 @@ class Settings(BaseSettings):
     """Enable debug logging."""
 
     window_pre: timedelta = Field(
-        default=timedelta(seconds=-15),
+        default=ICCS_DEFAULTS.WINDOW_PRE,
         lt=0,
         description="Initial relative begin time of window.",
     )
     """Initial relative begin time of window."""
 
     window_post: timedelta = Field(
-        default=timedelta(seconds=15),
+        default=ICCS_DEFAULTS.WINDOW_POST,
         ge=0,
         description="Initial relative end time of window.",
     )
     """Initial relative end time of window."""
 
     window_padding: timedelta = Field(
-        default=timedelta(seconds=20), gt=0, description="Padding around time window."
+        default=ICCS_DEFAULTS.PLOT_PADDING,
+        gt=0,
+        description="Padding around time window.",
     )
     """Padding around time window."""
 
-    min_ccnorm: float = Field(
-        default=0.5,
+    min_ccnorm: float | np.floating = Field(
+        default=ICCS_DEFAULTS.MIN_CCNORM,
         ge=0,
         le=1,
         description="Initial minimum cross correlation coefficient.",
@@ -75,8 +79,6 @@ class Settings(BaseSettings):
         default=2, ge=1, description="Minimum length of ID string."
     )
     """Minimum length of truncated UUID string."""
-
-    _blah: int = 4
 
 
 settings = Settings()

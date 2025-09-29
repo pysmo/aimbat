@@ -1,3 +1,4 @@
+from aimbat.app import app
 from aimbat.lib.typing import SeismogramParameter
 from aimbat.lib.models import AimbatSeismogram
 from sqlmodel import Session, select
@@ -14,13 +15,10 @@ import json
 
 class TestSeismogramBase:
     @pytest.fixture(autouse=True)
-    def reload_modules(self, fixture_session_with_active_event: Session) -> None:
-        reload(seismogram)
-
-    @pytest.fixture
     def session(
         self, fixture_session_with_active_event: Session
     ) -> Generator[Session, Any, Any]:
+        reload(seismogram)
         yield fixture_session_with_active_event
 
 
@@ -37,8 +35,6 @@ class TestDeleteSeismogram(TestSeismogramBase):
         )
 
     def test_cli_delete_seismogram_by_id(self, session: Session) -> None:
-        from aimbat.app import app
-
         aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
         id = aimbat_seismogram.id
 
@@ -52,17 +48,14 @@ class TestDeleteSeismogram(TestSeismogramBase):
         )
 
     def test_cli_delete_seismogram_by_id_with_wrong_id(self) -> None:
-        from aimbat.app import app
-        from uuid import uuid4
+        import uuid
 
-        id = uuid4()
+        id = uuid.uuid4()
 
         with pytest.raises(NoResultFound):
             app(["seismogram", "delete", str(id)])
 
     def test_cli_delete_seismogram_by_string(self, session: Session) -> None:
-        from aimbat.app import app
-
         aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
         id = aimbat_seismogram.id
 
@@ -125,8 +118,6 @@ class TestGetSeismogramParameter(TestSeismogramBase):
     def test_cli_get_seismogram_parameter_with_uuid(
         self, random_seismogram: AimbatSeismogram, capsys: pytest.CaptureFixture
     ) -> None:
-        from aimbat.app import app
-
         app(
             ["seismogram", "get", str(random_seismogram.id), SeismogramParameter.SELECT]
         )
@@ -136,8 +127,6 @@ class TestGetSeismogramParameter(TestSeismogramBase):
     def test_cli_get_seismogram_parameter_with_string(
         self, random_seismogram: AimbatSeismogram, capsys: pytest.CaptureFixture
     ) -> None:
-        from aimbat.app import app
-
         app(
             [
                 "seismogram",
@@ -199,8 +188,6 @@ class TestSetSeismogramParameter(TestSeismogramBase):
     def test_cli_set_seismogram_parameter_with_uuid(
         self, random_seismogram: AimbatSeismogram, session: Session
     ) -> None:
-        from aimbat.app import app
-
         app(
             [
                 "seismogram",
@@ -221,8 +208,6 @@ class TestSetSeismogramParameter(TestSeismogramBase):
     def test_cli_set_seismogram_parameter_with_string(
         self, random_seismogram: AimbatSeismogram, session: Session
     ) -> None:
-        from aimbat.app import app
-
         app(
             [
                 "seismogram",
@@ -287,8 +272,6 @@ class TestPrintSeismogramTable(TestSeismogramBase):
         assert "ID (shortened)" in captured.out
 
     def test_cli_print_seismogram_table(self, capsys: pytest.CaptureFixture) -> None:
-        from aimbat.app import app
-
         app(["seismogram", "list"])
 
         captured = capsys.readouterr()
@@ -297,10 +280,7 @@ class TestPrintSeismogramTable(TestSeismogramBase):
 
 
 class TestDumpSeismogram(TestSeismogramBase):
-    def test_lib_dump_data(
-        self, fixture_session_with_data: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        reload(seismogram)
+    def test_lib_dump_data(self, capsys: pytest.CaptureFixture) -> None:
         seismogram.dump_seismogram_table()
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
@@ -309,12 +289,7 @@ class TestDumpSeismogram(TestSeismogramBase):
         for i in loaded_json:
             _ = AimbatSeismogram(**i)
 
-    def test_cli_dump_data(
-        self, fixture_session_with_data: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        reload(seismogram)
-        from aimbat.app import app
-
+    def test_cli_dump_data(self, capsys: pytest.CaptureFixture) -> None:
         app(["seismogram", "dump"])
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
@@ -336,6 +311,4 @@ class TestSeismogramPlot(TestSeismogramBase):
         _ = seismogram.plot_seismograms(use_qt=True)
 
     def test_cli_plotseis_mpl(self) -> None:
-        from aimbat.app import app
-
         app(["seismogram", "plot"])

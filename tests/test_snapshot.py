@@ -1,3 +1,4 @@
+from aimbat.app import app
 from sqlmodel import Session
 from importlib import reload
 from typing import Any
@@ -11,13 +12,10 @@ RANDOM_COMMENT = "Random comment"
 
 class TestSnapshotBase:
     @pytest.fixture(autouse=True)
-    def reload_modules(self, fixture_session_with_active_event: Session) -> None:
-        reload(snapshot)
-
-    @pytest.fixture
     def session(
         self, fixture_session_with_active_event: Session
     ) -> Generator[Session, Any, Any]:
+        reload(snapshot)
         yield fixture_session_with_active_event
 
 
@@ -143,8 +141,6 @@ class TestLibSnapshotTable(TestSnapshotBase):
 
 class TestCliSnapshotUsage(TestSnapshotBase):
     def test_usage(self, capsys: pytest.CaptureFixture) -> None:
-        from aimbat.app import app
-
         app("snapshot")
         captured = capsys.readouterr()
         assert "Usage" in captured.out
@@ -152,8 +148,6 @@ class TestCliSnapshotUsage(TestSnapshotBase):
 
 class TestCliSnapshotCreate(TestSnapshotBase):
     def test_create_snapshot(self, session: Session) -> None:
-        from aimbat.app import app
-
         app(["snapshot", "create", RANDOM_COMMENT])
 
         all_snapshots = snapshot.get_snapshots(session)
@@ -170,8 +164,6 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         yield
 
     def test_delete_snapshot_with_uuid(self, session: Session) -> None:
-        from aimbat.app import app
-
         all_snapshots = snapshot.get_snapshots(session)
         assert len(all_snapshots) == 1
         snapshot_id = all_snapshots[0].id
@@ -182,8 +174,6 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         assert len(all_snapshots) == 0
 
     def test_delete_snapshot_with_string(self, session: Session) -> None:
-        from aimbat.app import app
-
         all_snapshots = snapshot.get_snapshots(session)
         assert len(all_snapshots) == 1
         snapshot_id = str(all_snapshots[0].id)[:8]
@@ -194,8 +184,6 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         assert len(all_snapshots) == 0
 
     def test_rollback_to_snapshot_with_uuid(self, session: Session) -> None:
-        from aimbat.app import app
-
         all_snapshots = snapshot.get_snapshots(session)
         assert len(all_snapshots) == 1
         snapshot_id = all_snapshots[0].id
@@ -204,8 +192,6 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         session.flush()
 
     def test_rollback_to_snapshot_with_string(self, session: Session) -> None:
-        from aimbat.app import app
-
         all_snapshots = snapshot.get_snapshots(session)
         assert len(all_snapshots) == 1
         snapshot_id = str(all_snapshots[0].id)[:8]
@@ -223,8 +209,6 @@ class TestCliSnapshotTable(TestSnapshotBase):
         yield
 
     def test_snapshot_table_no_format(self, capsys: pytest.CaptureFixture) -> None:
-        from aimbat.app import app
-
         app(["snapshot", "list"])
 
         captured = capsys.readouterr()

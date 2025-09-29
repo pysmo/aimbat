@@ -1,4 +1,5 @@
 from aimbat.lib.models import AimbatStation
+from aimbat.app import app
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from importlib import reload
@@ -12,13 +13,10 @@ import json
 
 class TestStationBase:
     @pytest.fixture(autouse=True)
-    def reload_modules(self, fixture_session_with_active_event: Session) -> None:
-        reload(station)
-
-    @pytest.fixture
     def session(
         self, fixture_session_with_active_event: Session
     ) -> Generator[Session, Any, Any]:
+        reload(station)
         yield fixture_session_with_active_event
 
 
@@ -35,8 +33,6 @@ class TestDeleteStation(TestStationBase):
         )
 
     def test_cli_delete_station_by_id(self, session: Session) -> None:
-        from aimbat.app import app
-
         seismogram = random.choice(list(session.exec(select(AimbatStation))))
         id = seismogram.id
 
@@ -50,17 +46,14 @@ class TestDeleteStation(TestStationBase):
         )
 
     def test_cli_delete_station_by_id_with_wrong_id(self) -> None:
-        from aimbat.app import app
-        from uuid import uuid4
+        import uuid
 
-        id = uuid4()
+        id = uuid.uuid4()
 
         with pytest.raises(NoResultFound):
             app(["station", "delete", str(id)])
 
     def test_cli_delete_station_by_string(self, session: Session) -> None:
-        from aimbat.app import app
-
         station = random.choice(list(session.exec(select(AimbatStation))))
         id = station.id
 
@@ -91,25 +84,18 @@ class TestLibStation(TestStationBase):
 
 class TestCliStation(TestStationBase):
     def test_usage(self, capsys: pytest.CaptureFixture) -> None:
-        from aimbat.app import app
-
         app(["station"])
         assert "Usage" in capsys.readouterr().out
 
-    def test_station_list(self, capsys: pytest.CaptureFixture) -> None:
-        from aimbat.app import app
-
+    def test_station_list(
+        self, session: Session, capsys: pytest.CaptureFixture
+    ) -> None:
         app(["station", "list", "--all"])
         assert "# Seismograms" in capsys.readouterr().out
 
 
 class TestDumpStation(TestStationBase):
-    def test_lib_dump_data(
-        self,
-        fixture_session_with_data: Session,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        reload(station)
+    def test_lib_dump_data(self, capsys: pytest.CaptureFixture) -> None:
         station.dump_station_table()
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
@@ -118,14 +104,7 @@ class TestDumpStation(TestStationBase):
         for i in loaded_json:
             _ = AimbatStation(**i)
 
-    def test_cli_dump_data(
-        self,
-        fixture_session_with_data: Session,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        reload(station)
-        from aimbat.app import app
-
+    def test_cli_dump_data(self, capsys: pytest.CaptureFixture) -> None:
         app(["station", "dump"])
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)

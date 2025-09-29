@@ -1,6 +1,6 @@
+from aimbat.app import app
 from pathlib import Path
 from sqlmodel import Session
-from importlib import reload
 import aimbat.lib.project as project
 import pytest
 
@@ -35,8 +35,6 @@ class TestProjectCreate(TestProjectBase):
             project.create_project()
 
     def test_cli_create_project(self, fixture_session_empty: Session) -> None:
-        from aimbat.app import app
-
         assert project._project_exists() is False
         app(["project", "create"])
         assert project._project_exists() is True
@@ -46,7 +44,6 @@ class TestProjectDelete(TestProjectBase):
     def test_lib_delete_project_file(
         self, fixture_session_with_project_file: tuple[Session, Path]
     ) -> None:
-        reload(project)
         assert project._project_exists() is True
 
         project.delete_project()
@@ -54,15 +51,11 @@ class TestProjectDelete(TestProjectBase):
 
     def test_lib_delete_project(self, fixture_session_with_project: Session) -> None:
         assert project._project_exists() is True
-        reload(project)
 
         project.delete_project()
         assert project._project_exists() is False
 
     def test_cli_delete_project(self, fixture_session_with_project: Session) -> None:
-        reload(project)
-        from aimbat.app import app
-
         assert project._project_exists() is True
 
         app(["project", "delete"])
@@ -81,7 +74,6 @@ class TestProjectTable(TestProjectBase):
         fixture_session_with_project: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        reload(project)
         project.print_project_info()
         captured = capsys.readouterr()
         assert "Project Info" in captured.out
@@ -90,7 +82,6 @@ class TestProjectTable(TestProjectBase):
     def test_lib_print_project_info_with_active_event(
         self, fixture_session_with_active_event: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        reload(project)
         project.print_project_info()
         captured = capsys.readouterr()
         assert "Project Info" in captured.out
@@ -99,9 +90,6 @@ class TestProjectTable(TestProjectBase):
     def test_cli_print_project_info_with_active_event(
         self, fixture_session_with_active_event: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        reload(project)
-        from aimbat.app import app
-
         assert project._project_exists() is True
 
         app(["project", "info"])
