@@ -16,14 +16,20 @@ class TestUuidFunctions:
     ) -> Iterator[Session]:
         station_1 = AimbatStation(
             id=UUID1,
-            name="test_station_1",
+            name="TEST1",
+            network="TE",
+            channel="BHZ",
+            location="",
             latitude=12,
             longitude=12,
             elevation=12,
         )
         station_2 = AimbatStation(
             id=UUID2,
-            name="test_station_2",
+            name="TEST2",
+            network="TE",
+            channel="BHZ",
+            location="",
             latitude=12,
             longitude=12,
             elevation=12,

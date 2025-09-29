@@ -110,6 +110,8 @@ def print_station_table(short: bool, all_events: bool = False) -> None:
         table.add_column(
             "Name & Network", justify="center", style=TABLE_STYLING.mine, no_wrap=True
         )
+        table.add_column("Channel", justify="center", style=TABLE_STYLING.mine)
+        table.add_column("Location", justify="center", style=TABLE_STYLING.mine)
         table.add_column("Latitude", justify="center", style=TABLE_STYLING.mine)
         table.add_column("Longitude", justify="center", style=TABLE_STYLING.mine)
         table.add_column("Elevation", justify="center", style=TABLE_STYLING.mine)
@@ -128,6 +130,8 @@ def print_station_table(short: bool, all_events: bool = False) -> None:
                     else str(aimbat_station.id)
                 ),
                 f"{aimbat_station.name} - {aimbat_station.network}",
+                f"{aimbat_station.channel}",
+                f"{aimbat_station.location}",
                 (
                     f"{aimbat_station.latitude:.3f}"
                     if short
