@@ -60,8 +60,8 @@ def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
 
     logger.debug(f"Reading station data from {sacfile}.")
 
-    event = SAC.from_file(sacfile).station
-    aimbat_station = AimbatStation.model_validate(event)
+    station = SAC.from_file(sacfile).station
+    aimbat_station = AimbatStation.model_validate(station)
     return aimbat_station
 
 

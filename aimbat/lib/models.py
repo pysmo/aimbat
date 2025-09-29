@@ -55,7 +55,7 @@ class AimbatEvent(SQLModel, table=True):
     active: bool | None = Field(default=None, unique=True)
     "Indicates if an event is the active event."
 
-    time: datetime = Field(unique=True, sa_type=_DateTimeUTC)
+    time: datetime = Field(unique=True, sa_type=_DateTimeUTC, allow_mutation=False)
     "Event time."
 
     latitude: float
@@ -149,14 +149,20 @@ class AimbatStation(SQLModel, table=True):
     name: str = Field(allow_mutation=False)
     "Station name."
 
+    network: str = Field(allow_mutation=False)
+    "Network name."
+
+    location: str = Field(allow_mutation=False)
+    "Location ID."
+
+    channel: str = Field(allow_mutation=False)
+    "Channel code."
+
     latitude: float
     "Station latitude"
 
     longitude: float
     "Station longitude"
-
-    network: str | None = Field(default=None, allow_mutation=False)
-    "Network name."
 
     elevation: float | None = None
     "Station elevation."

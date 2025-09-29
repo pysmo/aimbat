@@ -34,6 +34,8 @@ def _create_station(
         select(AimbatStation)
         .where(AimbatStation.name == new_aimbat_station.name)
         .where(AimbatStation.network == new_aimbat_station.network)
+        .where(AimbatStation.channel == new_aimbat_station.channel)
+        .where(AimbatStation.location == new_aimbat_station.location)
     )
     aimbat_station = session.exec(select_aimbat_station).one_or_none()
 
@@ -106,7 +108,6 @@ def add_files_to_project(
     """Add files to the AIMBAT database.
 
     Parameters:
-        session: Database session.
         datasources: List of data sources to add.
         datatype: Type of data.
         disable_progress_bar: Do not display progress bar.
