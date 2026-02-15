@@ -1,3 +1,0 @@
-# Getting Help
-
-## On Github

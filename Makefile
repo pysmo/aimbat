@@ -1,6 +1,6 @@
-.PHONY: help check-uv install upgrade lint test-figs test-tutorial tests \
-	mypy docs docs-export live-docs notebook build publish clean python \
-	format format-check
+.PHONY: help check-uv sync upgrade lint test-figs tests \
+	mypy docs live-docs build publish clean python \
+	format format-check changelog
 
 ifeq ($(OS),Windows_NT)
   UV_VERSION := $(shell uv --version 2> NUL)
@@ -24,7 +24,7 @@ else
 endif
 
 sync: check-uv ## Install this project and its dependencies in a virtual environment.
-	uv sync
+	uv sync --locked --all-extras
 
 upgrade: check-uv ## Upgrade dependencies to their latest versions.
 	uv sync --upgrade
@@ -33,31 +33,25 @@ lint: check-uv ## Check formatting with black and lint code with ruff.
 	uv run black . --check --diff --color
 	uv run ruff check .
 
-test-figs: check-uv ## Generate baseline figures for testing.
+test-figs: check-uv ## Generate baseline figures for testing (then manually move them to the test directories).
 	uv run py.test --mpl-generate-path=baseline
 
-test-tutorial: check-uv ## Check if the tutorial notebook runs error-free.
-	uv run py.test --nbmake docs/examples/tutorial.ipynb
-
-tests: check-uv mypy test-tutorial ## Run all tests with pytest.
-	uv run pytest --cov-report=term-missing --cov-report=html --mpl
+tests: check-uv mypy ## Run all tests with pytest.
+	uv run pytest --cov --cov-report=term-missing --cov-report=html --mpl
 
 mypy: check-uv ## Run typing tests with pytest.
 	uv run pytest --mypy -m mypy src tests
 
-docs: check-uv install ## Build html docs.
-	uv run mkdocs build
+docs: check-uv sync ## Build html docs.
+	uv run zensical build --clean
 
-docs-export: check-uv install ## Export installed package information to docs/requirements.txt.
-	uv export --only=docs -o docs/requirements.txt
+live-docs: check-uv sync ## Live build html docs. They are served on http://localhost:8000
+	uv run zensical serve
 
-live-docs: check-uv install ## Live build html docs. They are served on http://localhost:8000
-	uv run mkdocs serve -w README.md -w src
-
-notebook: check-uv install ## Run a jupyter notebook in the uv environment
-	uv run jupyter-lab
-
-build: clean check-uv install ## Build distribution.
+changelog: check-uv sync ## Generate CHANGELOG.md
+	uv run git-cliff v1.0.7..HEAD --config cliff.toml --output CHANGELOG.md
+	
+build: clean check-uv sync ## Build distribution.
 	uv build
 
 publish: check-uv build ## Publish package to PyPI (you will be asked for PyPI username and password).

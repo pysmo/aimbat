@@ -100,9 +100,6 @@ def delete_project() -> None:
 def print_project_info() -> None:
     """Show AIMBAT project information.
 
-    Parameters:
-        engine: Database engine.
-
     Raises:
         RuntimeError: If no project found.
     """
