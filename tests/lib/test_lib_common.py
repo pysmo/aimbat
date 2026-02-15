@@ -1,5 +1,4 @@
 from sqlmodel import Session
-from types import SimpleNamespace
 from aimbat.lib.models import AimbatStation
 from collections.abc import Iterator
 import pytest
@@ -78,49 +77,3 @@ class TestUuidFunctions:
         assert (
             uuid_shortener(session_with_stations, aimbat_station) == str(test_uuid)[:2]
         )
-
-
-@pytest.mark.parametrize(
-    "shell,  expected",
-    [
-        ("ZMQInteractiveShell", True),
-        ("TerminalInteractiveShell", False),
-        ("SomeOtherShell", False),
-        ("raise", False),
-    ],
-)
-def test_ipython_class_name2(
-    monkeypatch: pytest.MonkeyPatch, shell: str, expected: bool
-) -> None:
-    """Not quite sure what the point of this test is..."""
-    import IPython.core.getipython as getipython
-    from aimbat.lib.common import check_for_notebook
-
-    # Create a fake class object with a custom __name__
-    fake_class = SimpleNamespace(__name__=shell)
-
-    # Create a fake IPython instance with a custom __class__
-    class FakeIPython:
-        @property  # type: ignore
-        def __class__(self):  # type: ignore
-            return fake_class
-
-    def fake_get_ipython() -> FakeIPython:
-        return FakeIPython()
-
-    def raise_name_error() -> None:
-        raise NameError
-
-    monkeypatch.setattr(
-        getipython,
-        "get_ipython",
-        raise_name_error if shell == "raise" else fake_get_ipython,
-    )
-
-    if shell != "raise":
-        assert getipython.get_ipython().__class__.__name__ == shell
-    else:
-        with pytest.raises(NameError):
-            getipython.get_ipython()
-
-    assert check_for_notebook() is expected

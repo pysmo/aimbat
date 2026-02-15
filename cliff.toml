@@ -1,0 +1,56 @@
+# cliff.toml
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to the **AIMBAT** project will be documented in this file.
+
+"""
+
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}**({{ commit.scope }})** {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}\n
+"""
+
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+
+commit_preprocessors = [
+    { pattern = '\r', replace = "" },
+    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](https://github.com/pysmo/aimbat/issues/${2}))" },
+]
+
+# The categorization logic
+commit_parsers = [
+    { message = "^feat", group = "🚀 New Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^perf", group = "⚡ Performance Improvements" },
+    { message = "^docs", group = "📚 Documentation" },
+    { message = "^ci|^build", group = "⚙️ DevOps & Infrastructure" },
+    { message = ".*uv.lock", group = "⚙️ DevOps & Infrastructure" },
+    { message = ".*", group = "🔍 Other Changes" },
+]
+
+protect_breaking_commits = false
+filter_commits = false
+# Sort order
+tag_pattern = "v[0-9].*"
+skip_tags = "beta|alpha"
+ignore_tags = ""
+sort_commits = "oldest"

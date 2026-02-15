@@ -100,7 +100,7 @@ def set_active_event_by_id(session: Session, event_id: UUID) -> None:
 
     Parameters:
         session: SQL session.
-        id: ID of AIMBAT Event to set as active one.
+        event_id: ID of AIMBAT Event to set as active one.
 
     Raises:
         ValueError: If no event with the given ID is found.

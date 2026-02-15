@@ -134,11 +134,7 @@ def cli_iccs_plot_seismograms(
     iccs_parameters: IccsPlotParameters | None = None,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
-    """Plot the ICCS seismograms of the active event as an image.
-
-    Parameters:
-        pad: Add extra padding to the time window for plotting.
-    """
+    """Plot the ICCS seismograms of the active event as an image."""
 
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()

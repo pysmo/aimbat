@@ -76,23 +76,6 @@ def uuid_shortener(
     return reverse_uuid_dict[aimbat_obj.id]
 
 
-# NOTE: https://stackoverflow.com/questions/15411967/how-can-i-check-if-code-is-executed-in-the-ipython-notebook
-def check_for_notebook() -> bool:
-    """Check if we ware running inside a jupyter notebook."""
-    import IPython.core.getipython as getipython
-
-    try:
-        shell = getipython.get_ipython().__class__.__name__
-        if shell == "ZMQInteractiveShell":
-            return True  # Jupyter notebook or qtconsole
-        elif shell == "TerminalInteractiveShell":
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
-    except NameError:
-        return False  # Probably standard Python interpreter
-
-
 # -------------------------------------------------
 # Styling
 # -------------------------------------------------

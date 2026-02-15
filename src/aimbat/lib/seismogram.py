@@ -1,11 +1,6 @@
 from aimbat.logger import logger
 from aimbat.lib.db import engine
-from aimbat.lib.common import (
-    check_for_notebook,
-    uuid_shortener,
-    make_table,
-    TABLE_STYLING,
-)
+from aimbat.lib.common import uuid_shortener, make_table, TABLE_STYLING
 from aimbat.lib.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -26,9 +21,8 @@ from datetime import datetime
 from rich.console import Console
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
-from typing import overload, Literal
+from typing import overload
 from collections.abc import Sequence
-from pyqtgraph.jupyter import PlotWidget  # type: ignore
 from matplotlib.figure import Figure
 import aimbat.lib.event as event
 import uuid
@@ -348,13 +342,7 @@ def dump_seismogram_table() -> None:
         dump_to_json(aimbat_seismograms)
 
 
-@overload
-def plot_seismograms(use_qt: Literal[True]) -> PlotWidget: ...
-@overload
-def plot_seismograms(use_qt: Literal[False] = False) -> Figure: ...
-@overload
-def plot_seismograms(use_qt: bool = False) -> Figure | PlotWidget: ...
-def plot_seismograms(use_qt: bool = False) -> Figure | PlotWidget:
+def plot_seismograms(use_qt: bool = False) -> Figure:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Parameters:
@@ -386,10 +374,7 @@ def plot_seismograms(use_qt: bool = False) -> Figure | PlotWidget:
 
         plot_widget = None
         if use_qt:
-            if check_for_notebook():
-                plot_widget = PlotWidget(width=200)
-            else:
-                plot_widget = pg.plot(title=title)
+            plot_widget = pg.plot(title=title)
             axis = pg.DateAxisItem()
             plot_widget.setAxisItems({"bottom": axis})
             plot_widget.setLabel("bottom", xlabel)
@@ -413,9 +398,7 @@ def plot_seismograms(use_qt: bool = False) -> Figure | PlotWidget:
                     scalex=True,
                     scaley=True,
                 )
-        if use_qt and isinstance(plot_widget, PlotWidget):
-            return plot_widget
-        elif not use_qt:
+        if not use_qt:
             plt.xlabel(xlabel=xlabel)
             plt.ylabel(ylabel=ylabel)
             plt.gcf().autofmt_xdate()
