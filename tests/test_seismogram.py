@@ -2,7 +2,6 @@ from aimbat.app import app
 from aimbat.lib.typing import SeismogramParameter
 from aimbat.lib.models import AimbatSeismogram
 from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
 from importlib import reload
 from typing import Any
 from matplotlib.figure import Figure
@@ -38,7 +37,11 @@ class TestDeleteSeismogram(TestSeismogramBase):
         aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
         id = aimbat_seismogram.id
 
-        app(["seismogram", "delete", str(id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["seismogram", "delete", str(id)])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         assert (
             session.exec(
@@ -50,16 +53,26 @@ class TestDeleteSeismogram(TestSeismogramBase):
     def test_cli_delete_seismogram_by_id_with_wrong_id(self) -> None:
         import uuid
 
+        from aimbat.config import settings
+
+        settings.debug = False
+
         id = uuid.uuid4()
 
-        with pytest.raises(NoResultFound):
+        with pytest.raises(SystemExit) as excinfo:
             app(["seismogram", "delete", str(id)])
+
+        assert excinfo.value.code == 1
 
     def test_cli_delete_seismogram_by_string(self, session: Session) -> None:
         aimbat_seismogram = random.choice(list(session.exec(select(AimbatSeismogram))))
         id = aimbat_seismogram.id
 
-        app(["seismogram", "delete", str(id)[:5]])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["seismogram", "delete", str(id)[:5]])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         assert (
             session.exec(
@@ -118,23 +131,36 @@ class TestGetSeismogramParameter(TestSeismogramBase):
     def test_cli_get_seismogram_parameter_with_uuid(
         self, random_seismogram: AimbatSeismogram, capsys: pytest.CaptureFixture
     ) -> None:
-        app(
-            ["seismogram", "get", str(random_seismogram.id), SeismogramParameter.SELECT]
-        )
+        with pytest.raises(SystemExit) as excinfo:
+            app(
+                [
+                    "seismogram",
+                    "get",
+                    str(random_seismogram.id),
+                    SeismogramParameter.SELECT,
+                ]
+            )
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         assert "True" in captured.out
 
     def test_cli_get_seismogram_parameter_with_string(
         self, random_seismogram: AimbatSeismogram, capsys: pytest.CaptureFixture
     ) -> None:
-        app(
-            [
-                "seismogram",
-                "get",
-                str(random_seismogram.id)[:6],
-                SeismogramParameter.SELECT,
-            ]
-        )
+        with pytest.raises(SystemExit) as excinfo:
+            app(
+                [
+                    "seismogram",
+                    "get",
+                    str(random_seismogram.id)[:6],
+                    SeismogramParameter.SELECT,
+                ]
+            )
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         assert "True" in captured.out
 
@@ -188,15 +214,19 @@ class TestSetSeismogramParameter(TestSeismogramBase):
     def test_cli_set_seismogram_parameter_with_uuid(
         self, random_seismogram: AimbatSeismogram, session: Session
     ) -> None:
-        app(
-            [
-                "seismogram",
-                "set",
-                str(random_seismogram.id),
-                SeismogramParameter.SELECT,
-                "False",
-            ]
-        )
+        with pytest.raises(SystemExit) as excinfo:
+            app(
+                [
+                    "seismogram",
+                    "set",
+                    str(random_seismogram.id),
+                    SeismogramParameter.SELECT,
+                    "False",
+                ]
+            )
+
+        assert excinfo.value.code == 0
+
         session.refresh(random_seismogram)
         assert (
             seismogram.get_seismogram_parameter(
@@ -208,15 +238,19 @@ class TestSetSeismogramParameter(TestSeismogramBase):
     def test_cli_set_seismogram_parameter_with_string(
         self, random_seismogram: AimbatSeismogram, session: Session
     ) -> None:
-        app(
-            [
-                "seismogram",
-                "set",
-                str(random_seismogram.id)[:6],
-                SeismogramParameter.SELECT,
-                "False",
-            ]
-        )
+        with pytest.raises(SystemExit) as excinfo:
+            app(
+                [
+                    "seismogram",
+                    "set",
+                    str(random_seismogram.id)[:6],
+                    SeismogramParameter.SELECT,
+                    "False",
+                ]
+            )
+
+        assert excinfo.value.code == 0
+
         session.refresh(random_seismogram)
         assert (
             seismogram.get_seismogram_parameter(
@@ -272,7 +306,10 @@ class TestPrintSeismogramTable(TestSeismogramBase):
         assert "ID (shortened)" in captured.out
 
     def test_cli_print_seismogram_table(self, capsys: pytest.CaptureFixture) -> None:
-        app(["seismogram", "list"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["seismogram", "list"])
+
+        assert excinfo.value.code == 0
 
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
@@ -290,7 +327,11 @@ class TestDumpSeismogram(TestSeismogramBase):
             _ = AimbatSeismogram(**i)
 
     def test_cli_dump_data(self, capsys: pytest.CaptureFixture) -> None:
-        app(["seismogram", "dump"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["seismogram", "dump"])
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
         assert isinstance(loaded_json, list)
@@ -311,4 +352,7 @@ class TestSeismogramPlot(TestSeismogramBase):
         _ = seismogram.plot_seismograms(use_qt=True)
 
     def test_cli_plotseis_mpl(self) -> None:
-        app(["seismogram", "plot"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["seismogram", "plot"])
+
+        assert excinfo.value.code == 0

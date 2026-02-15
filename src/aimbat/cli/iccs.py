@@ -12,8 +12,8 @@ from dataclasses import dataclass
 @Parameter(name="*")
 @dataclass
 class IccsPlotParameters:
-    pad: bool = True
-    "Add extra padding to the time window for plotting."
+    context: bool = True
+    "Plot seismograms with extra context instead of the short tapered ones used for cross-correlation."
     all: bool = False
     "Include all seismograms in the plot, even if not used in stack."
 
@@ -30,58 +30,58 @@ def _run_iccs(autoflip: bool = False, autoselect: bool = False) -> None:
 
 
 @simple_exception
-def _plot_stack(padded: bool, all: bool) -> None:
+def _plot_stack(context: bool, all: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, plot_stack
     from sqlmodel import Session
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        plot_stack(iccs, padded, all)
+        plot_stack(iccs, context, all)
 
 
 @simple_exception
-def _plot_seismograms(padded: bool, all: bool) -> None:
+def _plot_seismograms(context: bool, all: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, plot_seismograms
     from sqlmodel import Session
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        plot_seismograms(iccs, padded, all)
+        plot_seismograms(iccs, context, all)
 
 
 @simple_exception
-def _update_pick(padded: bool, all: bool, use_seismogram_image: bool) -> None:
+def _update_pick(context: bool, all: bool, use_seismogram_image: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_pick
     from sqlmodel import Session
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        update_pick(session, iccs, padded, all, use_seismogram_image)
+        update_pick(session, iccs, context, all, use_seismogram_image)
 
 
 @simple_exception
-def _update_timewindow(padded: bool, all: bool, use_seismogram_image: bool) -> None:
+def _update_timewindow(context: bool, all: bool, use_seismogram_image: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_timewindow
     from sqlmodel import Session
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        update_timewindow(session, iccs, padded, all, use_seismogram_image)
+        update_timewindow(session, iccs, context, all, use_seismogram_image)
 
 
 @simple_exception
-def _update_min_ccnorm(padded: bool, all: bool) -> None:
+def _update_min_ccnorm(context: bool, all: bool) -> None:
     from aimbat.lib.db import engine
     from aimbat.lib.iccs import create_iccs_instance, update_min_ccnorm
     from sqlmodel import Session
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        update_min_ccnorm(session, iccs, padded, all)
+        update_min_ccnorm(session, iccs, context, all)
 
 
 app = App(name="iccs", help=__doc__, help_format="markdown")
@@ -125,7 +125,7 @@ def cli_iccs_plot_stack(
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _plot_stack(iccs_parameters.pad, iccs_parameters.all)
+    _plot_stack(iccs_parameters.context, iccs_parameters.all)
 
 
 @plot.command(name="image")
@@ -143,7 +143,7 @@ def cli_iccs_plot_seismograms(
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _plot_seismograms(iccs_parameters.pad, iccs_parameters.all)
+    _plot_seismograms(iccs_parameters.context, iccs_parameters.all)
 
 
 @update.command(name="pick")
@@ -163,7 +163,7 @@ def cli_iccs_update_pick(
     global_parameters = global_parameters or GlobalParameters()
 
     _update_pick(
-        iccs_parameters.pad,
+        iccs_parameters.context,
         iccs_parameters.all,
         use_seismogram_image,
     )
@@ -186,7 +186,7 @@ def cli_iccs_update_timewindow(
     global_parameters = global_parameters or GlobalParameters()
 
     _update_timewindow(
-        iccs_parameters.pad,
+        iccs_parameters.context,
         iccs_parameters.all,
         use_seismogram_image,
     )
@@ -203,7 +203,7 @@ def cli_iccs_update_min_ccnorm(
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _update_min_ccnorm(iccs_parameters.pad, iccs_parameters.all)
+    _update_min_ccnorm(iccs_parameters.context, iccs_parameters.all)
 
 
 if __name__ == "__main__":

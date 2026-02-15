@@ -62,9 +62,7 @@ def create_project() -> None:
 
     # This trigger ensures that only one event can be active at a time
     with engine.connect() as connection:
-        connection.execute(
-            text(
-                """CREATE TRIGGER single_active_event
+        connection.execute(text("""CREATE TRIGGER single_active_event
         BEFORE UPDATE ON aimbatevent
         FOR EACH ROW
         WHEN NEW.active = TRUE
@@ -72,9 +70,7 @@ def create_project() -> None:
             UPDATE aimbatevent SET active = NULL
         WHERE active = TRUE AND id != NEW.id;
         END;
-    """
-            )
-        )
+    """))
 
 
 def delete_project() -> None:

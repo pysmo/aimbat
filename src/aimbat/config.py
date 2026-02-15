@@ -30,28 +30,28 @@ class Settings(BaseSettings):
     """Enable debug logging."""
 
     window_pre: timedelta = Field(
-        default=ICCS_DEFAULTS.WINDOW_PRE,
+        default=ICCS_DEFAULTS.window_pre,
         lt=0,
         description="Initial relative begin time of window.",
     )
     """Initial relative begin time of window."""
 
     window_post: timedelta = Field(
-        default=ICCS_DEFAULTS.WINDOW_POST,
+        default=ICCS_DEFAULTS.window_post,
         ge=0,
         description="Initial relative end time of window.",
     )
     """Initial relative end time of window."""
 
-    window_padding: timedelta = Field(
-        default=ICCS_DEFAULTS.PLOT_PADDING,
+    context_width: timedelta = Field(
+        default=ICCS_DEFAULTS.context_width,
         gt=0,
-        description="Padding around time window.",
+        description="Context padding to apply before and after the time window.",
     )
-    """Padding around time window."""
+    """Context padding to apply before and after the time window."""
 
     min_ccnorm: float | np.floating = Field(
-        default=ICCS_DEFAULTS.MIN_CCNORM,
+        default=ICCS_DEFAULTS.min_ccnorm,
         ge=0,
         le=1,
         description="Initial minimum cross correlation coefficient.",

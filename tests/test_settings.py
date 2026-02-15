@@ -27,7 +27,10 @@ class TestConfig:
     ) -> None:
         from aimbat.app import app
 
-        app(["settings", pretty])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["settings", pretty])
+
+        assert excinfo.value.code == 0
 
         output = capsys.readouterr().out
         assert expected in output

@@ -26,9 +26,9 @@
             nativeBuildInputs = with pkgs; [
               uv
               ruff
-              python312
+              (python314.withPackages (ps: with ps; [tox]))
               python313
-              python313Packages.tox
+              python312
               gnumake
               sqlitebrowser
             ];
@@ -39,7 +39,7 @@
                   stdenv.cc.cc.lib
                   zlib
                   zstd
-                  xorg.libX11
+                  libX11
                   libGL
                   glib
                   libxkbcommon
@@ -48,6 +48,9 @@
                   dbus
                   wayland
                 ]}:$LD_LIBRARY_PATH
+                export UV_PYTHON=$(which python3.14)
+                export UV_NO_MANAGED_PYTHON=true
+                [ ! -d .venv ] && uv venv --system-site-packages
                 uv sync --locked --all-extras
                 VENV=.venv
                 export MPLBACKEND=QtAgg

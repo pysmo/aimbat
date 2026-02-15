@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - uses: awalsh128/cache-apt-pkgs-action@latest
@@ -30,7 +30,7 @@ jobs:
           uv sync --locked --all-extras --no-group docs
           uv run black . --check --diff --color
           uv run ruff check
-          uv run py.test --mpl --mypy --cov=aimbat --cov-append --cov-report=term-missing  --junitxml=junit.xml
+          uv run py.test --mpl --mypy --cov src --cov-append --cov-report=term-missing  --junitxml=junit.xml
 
       - name: Store coverage results as artifacts
         uses: actions/upload-artifact@v4
