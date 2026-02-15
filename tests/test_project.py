@@ -36,7 +36,9 @@ class TestProjectCreate(TestProjectBase):
 
     def test_cli_create_project(self, fixture_session_empty: Session) -> None:
         assert project._project_exists() is False
-        app(["project", "create"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["project", "create"])
+        assert excinfo.value.code == 0
         assert project._project_exists() is True
 
 
@@ -58,7 +60,9 @@ class TestProjectDelete(TestProjectBase):
     def test_cli_delete_project(self, fixture_session_with_project: Session) -> None:
         assert project._project_exists() is True
 
-        app(["project", "delete"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["project", "delete"])
+        assert excinfo.value.code == 0
         assert project._project_exists() is False
 
 
@@ -92,7 +96,10 @@ class TestProjectTable(TestProjectBase):
     ) -> None:
         assert project._project_exists() is True
 
-        app(["project", "info"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["project", "info"])
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         assert "Project Info" in captured.out
         assert "(3/0)" in captured.out

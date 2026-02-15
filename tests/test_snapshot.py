@@ -6,7 +6,6 @@ from collections.abc import Generator
 import aimbat.lib.snapshot as snapshot
 import pytest
 
-
 RANDOM_COMMENT = "Random comment"
 
 
@@ -140,15 +139,22 @@ class TestLibSnapshotTable(TestSnapshotBase):
 
 
 class TestCliSnapshotUsage(TestSnapshotBase):
-    def test_usage(self, capsys: pytest.CaptureFixture) -> None:
-        app("snapshot")
+    def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            app(["snapshot", "--help"])
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         assert "Usage" in captured.out
 
 
 class TestCliSnapshotCreate(TestSnapshotBase):
     def test_create_snapshot(self, session: Session) -> None:
-        app(["snapshot", "create", RANDOM_COMMENT])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["snapshot", "create", RANDOM_COMMENT])
+
+        assert excinfo.value.code == 0
 
         all_snapshots = snapshot.get_snapshots(session)
         assert len(all_snapshots) == 1
@@ -168,7 +174,11 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         assert len(all_snapshots) == 1
         snapshot_id = all_snapshots[0].id
 
-        app(["snapshot", "delete", str(snapshot_id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["snapshot", "delete", str(snapshot_id)])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         all_snapshots = snapshot.get_snapshots(session)
         assert len(all_snapshots) == 0
@@ -178,7 +188,11 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         assert len(all_snapshots) == 1
         snapshot_id = str(all_snapshots[0].id)[:8]
 
-        app(["snapshot", "delete", str(snapshot_id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["snapshot", "delete", str(snapshot_id)])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         all_snapshots = snapshot.get_snapshots(session)
         assert len(all_snapshots) == 0
@@ -188,7 +202,11 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         assert len(all_snapshots) == 1
         snapshot_id = all_snapshots[0].id
 
-        app(["snapshot", "rollback", str(snapshot_id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["snapshot", "rollback", str(snapshot_id)])
+
+        assert excinfo.value.code == 0
+
         session.flush()
 
     def test_rollback_to_snapshot_with_string(self, session: Session) -> None:
@@ -196,7 +214,11 @@ class TestCliSnapshotRollbackAndDelete(TestSnapshotBase):
         assert len(all_snapshots) == 1
         snapshot_id = str(all_snapshots[0].id)[:8]
 
-        app(["snapshot", "rollback", str(snapshot_id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["snapshot", "rollback", str(snapshot_id)])
+
+        assert excinfo.value.code == 0
+
         session.flush()
 
 
@@ -209,7 +231,10 @@ class TestCliSnapshotTable(TestSnapshotBase):
         yield
 
     def test_snapshot_table_no_format(self, capsys: pytest.CaptureFixture) -> None:
-        app(["snapshot", "list"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["snapshot", "list"])
+
+        assert excinfo.value.code == 0
 
         captured = capsys.readouterr()
         assert RANDOM_COMMENT in captured.out

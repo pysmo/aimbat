@@ -49,7 +49,11 @@ class TestDeleteEvent(TestEventBase):
         aimbat_event = self.get_random_event(session)
         id = aimbat_event.id
 
-        app(["event", "delete", str(id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "delete", str(id)])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         assert (
             session.exec(select(AimbatEvent).where(AimbatEvent.id == id)).one_or_none()
@@ -60,10 +64,14 @@ class TestDeleteEvent(TestEventBase):
         from aimbat.app import app
         from uuid import uuid4
 
+        settings.debug = False
+
         id = uuid4()
 
-        with pytest.raises(NoResultFound):
+        with pytest.raises(SystemExit) as excinfo:
             app(["event", "delete", str(id)])
+
+        assert excinfo.value.code == 1
 
     def test_cli_delete_event_by_string(self, session: Session) -> None:
         from aimbat.app import app
@@ -71,7 +79,11 @@ class TestDeleteEvent(TestEventBase):
         aimbat_event = random.choice(list(session.exec(select(AimbatEvent))))
         id = aimbat_event.id
 
-        app(["event", "delete", str(id)[:5]])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "delete", str(id)[:5]])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         assert (
             session.exec(select(AimbatEvent).where(AimbatEvent.id == id)).one_or_none()
@@ -131,7 +143,10 @@ class TestSetActiveEvent(TestEventBase):
         event = self.get_random_event(session)
         assert event.active is None
 
-        app(["event", "activate", str(event.id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "activate", str(event.id)])
+
+        assert excinfo.value.code == 0
 
         session.refresh(event)
         assert event.active is True
@@ -143,7 +158,10 @@ class TestSetActiveEvent(TestEventBase):
         assert event.active is None
         short_uuid = str(event.id)[:6]
 
-        app(["event", "activate", short_uuid])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "activate", short_uuid])
+
+        assert excinfo.value.code == 0
 
         session.refresh(event)
         assert event.active is True
@@ -240,10 +258,17 @@ class TestGetEventParameter(TestEventBase):
         from aimbat.app import app
 
         _ = self.activate_random_event(session)
-        app(["event", "get", "completed"])
+
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "get", "completed"])
+
+        assert excinfo.value.code == 0
         assert "False" in capsys.readouterr().out
 
-        app(["event", "get", "window_post"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "get", "window_post"])
+
+        assert excinfo.value.code == 0
         assert f"{settings.window_post.total_seconds()}s" in capsys.readouterr().out
 
 
@@ -251,8 +276,13 @@ class TestCliEvent(TestEventBase):
     def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
         from aimbat.app import app
 
-        app(["event"])
-        assert "Usage" in capsys.readouterr().out
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "--help"])
+
+        assert excinfo.value.code == 0
+
+        captured = capsys.readouterr()
+        assert "Usage" in captured.out
 
     def test_cli_set_event_parameter(
         self, session: Session, capsys: pytest.CaptureFixture
@@ -260,10 +290,22 @@ class TestCliEvent(TestEventBase):
         from aimbat.app import app
 
         _ = self.activate_random_event(session)
-        app(["event", "get", "completed"])
+
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "get", "completed"])
+
+        assert excinfo.value.code == 0
         assert "False" in capsys.readouterr().out
-        app(["event", "set", "completed", "True"])
-        app(["event", "get", "completed"])
+
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "set", "completed", "True"])
+
+        assert excinfo.value.code == 0
+
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "get", "completed"])
+
+        assert excinfo.value.code == 0
         assert "True" in capsys.readouterr().out
 
     def test_cli_event_list(
@@ -273,7 +315,10 @@ class TestCliEvent(TestEventBase):
     ) -> None:
         from aimbat.app import app
 
-        app(["event", "list"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "list"])
+
+        assert excinfo.value.code == 0
         assert "AIMBAT Events" in capsys.readouterr().out
 
 
@@ -294,7 +339,11 @@ class TestEventDump(TestEventBase):
     ) -> None:
         from aimbat.app import app
 
-        app(["event", "dump"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["event", "dump"])
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
         assert isinstance(loaded_json, list)

@@ -40,7 +40,10 @@ class TestDataAdd(TestDataBase):
     ) -> None:
         sac_file_good_as_string = str(sac_file_good)
 
-        app(["data", "add", "--no-progress", sac_file_good_as_string])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["data", "add", "--no-progress", sac_file_good_as_string])
+
+        assert excinfo.value.code == 0
 
         session = fixture_session_with_project
         seismogram_filename = session.exec(select(AimbatDataSource.sourcename)).one()
@@ -100,7 +103,11 @@ class TestDataTable(TestDataBase):
     ) -> None:
         cmd = ["data", "list"]
         cmd.extend(cli_args)
-        app(cmd)
+        with pytest.raises(SystemExit) as excinfo:
+            app(cmd)
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         assert expected in captured.out
 
@@ -124,7 +131,11 @@ class TestDataDump(TestDataBase):
         fixture_session_with_data: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        app(["data", "dump"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["data", "dump"])
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
         assert isinstance(loaded_json, list)

@@ -22,7 +22,6 @@ from .cli import (
 from rich.console import Console
 import sys
 
-
 try:
     __version__ = str(metadata.version("aimbat"))
 except Exception:

@@ -1,4 +1,4 @@
-from aimbat.config import Settings
+from aimbat.config import Settings, settings
 from aimbat.app import app
 from pysmo.classes import SAC
 from datetime import datetime, timezone
@@ -86,8 +86,13 @@ class TestUtilsCheckData(TestUtilsBase):
         assert "No seismogram data" in issues[0]
 
     def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
-        app(["utils", "checkdata", "--help"])
-        assert "Usage" in capsys.readouterr().out
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "checkdata", "--help"])
+
+        assert excinfo.value.code == 0
+
+        captured = capsys.readouterr()
+        assert "Usage" in captured.out
 
     def test_cli_checkdata(
         self, tmp_path_factory: pytest.TempPathFactory, capsys: pytest.CaptureFixture
@@ -99,7 +104,9 @@ class TestUtilsCheckData(TestUtilsBase):
         sac = SAC()
         sac.write(testfile)
 
-        app(["utils", "checkdata", testfile])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "checkdata", testfile])
+        assert excinfo.value.code == 0
         output = capsys.readouterr().out
         for item in ["name", "latitude", "longitude"]:
             assert f"No station {item} found in file" in output
@@ -115,7 +122,9 @@ class TestUtilsCheckData(TestUtilsBase):
         sac.event.longitude = 19.1
         sac.seismogram.data = np.random.rand(100)
         sac.write(testfile)
-        app(["utils", "checkdata", testfile])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "checkdata", testfile])
+        assert excinfo.value.code == 0
         output = capsys.readouterr().out
         for item in ["name", "latitude", "longitude"]:
             assert f"No station {item} found in file" not in output
@@ -142,25 +151,37 @@ class TestUtilsSampleData(TestUtilsBase):
         assert download_dir.exists() is False
 
     def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
-        app(["utils", "sampledata"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "sampledata", "--help"])
+        assert excinfo.value.code == 0
         assert "Usage" in capsys.readouterr().out
 
     def test_cli_download_sampledata(self, download_dir: Path) -> None:
         assert len(os.listdir((download_dir))) == 0
-        app(["utils", "sampledata", "download"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "sampledata", "download"])
+        assert excinfo.value.code == 0
         assert len(os.listdir((download_dir))) > 0
 
         # can't download if it is already there
-        with pytest.raises(FileExistsError):
+        settings.debug = False
+        with pytest.raises(SystemExit) as excinfo:
             app(["utils", "sampledata", "download"])
+        assert excinfo.value.code == 1
 
         # unless we use force
-        app(["utils", "sampledata", "download", "--force"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "sampledata", "download", "--force"])
+        assert excinfo.value.code == 0
 
     def test_cli__delete_sampledata(self, download_dir: Path) -> None:
         assert len(os.listdir((download_dir))) == 0
-        app(["utils", "sampledata", "download"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "sampledata", "download"])
+        assert excinfo.value.code == 0
         assert len(os.listdir((download_dir))) > 0
 
-        app(["utils", "sampledata", "delete"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["utils", "sampledata", "delete"])
+        assert excinfo.value.code == 0
         assert not download_dir.exists()

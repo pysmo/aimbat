@@ -1,7 +1,6 @@
 from aimbat.lib.models import AimbatStation
 from aimbat.app import app
 from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
 from importlib import reload
 from typing import Any
 from collections.abc import Generator
@@ -36,7 +35,11 @@ class TestDeleteStation(TestStationBase):
         seismogram = random.choice(list(session.exec(select(AimbatStation))))
         id = seismogram.id
 
-        app(["station", "delete", str(id)])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["station", "delete", str(id)])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         assert (
             session.exec(
@@ -46,18 +49,28 @@ class TestDeleteStation(TestStationBase):
         )
 
     def test_cli_delete_station_by_id_with_wrong_id(self) -> None:
+        from aimbat.config import settings
+
+        settings.debug = False
+
         import uuid
 
         id = uuid.uuid4()
 
-        with pytest.raises(NoResultFound):
+        with pytest.raises(SystemExit) as excinfo:
             app(["station", "delete", str(id)])
+
+        assert excinfo.value.code == 1
 
     def test_cli_delete_station_by_string(self, session: Session) -> None:
         station = random.choice(list(session.exec(select(AimbatStation))))
         id = station.id
 
-        app(["station", "delete", str(id)[:5]])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["station", "delete", str(id)[:5]])
+
+        assert excinfo.value.code == 0
+
         session.flush()
         assert (
             session.exec(
@@ -83,15 +96,26 @@ class TestLibStation(TestStationBase):
 
 
 class TestCliStation(TestStationBase):
-    def test_usage(self, capsys: pytest.CaptureFixture) -> None:
-        app(["station"])
-        assert "Usage" in capsys.readouterr().out
+    def test_cli_usage(self, capsys: pytest.CaptureFixture) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            app(["station", "--help"])
 
-    def test_station_list(
+        assert excinfo.value.code == 0
+
+        captured = capsys.readouterr()
+        assert "Usage" in captured.out
+
+    def test_cli_station_list(
         self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        app(["station", "list", "--all"])
-        assert "# Seismograms" in capsys.readouterr().out
+        with pytest.raises(SystemExit) as excinfo:
+            app(["station", "list", "--all"])
+
+        assert excinfo.value.code == 0
+
+        captured = capsys.readouterr()
+
+        assert "# Seismograms" in captured.out
 
 
 class TestDumpStation(TestStationBase):
@@ -105,7 +129,11 @@ class TestDumpStation(TestStationBase):
             _ = AimbatStation(**i)
 
     def test_cli_dump_data(self, capsys: pytest.CaptureFixture) -> None:
-        app(["station", "dump"])
+        with pytest.raises(SystemExit) as excinfo:
+            app(["station", "dump"])
+
+        assert excinfo.value.code == 0
+
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
         assert isinstance(loaded_json, list)

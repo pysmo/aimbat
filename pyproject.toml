@@ -6,7 +6,7 @@ authors = [
     { name = "Xiaoting Lou", email = "xlou@u.northwestern.edu" },
     { name = "Simon M. Lloyd", email = "simon@slloyd.net" },
 ]
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12,<3.15"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 classifiers = [
@@ -80,11 +80,9 @@ exclude = [
     "docs",
 ]
 
+
 [tool.hatch.build.targets.wheel]
-exclude = [
-    "tests",
-    "docs",
-]
+packages = ["src/aimbat"]
 
 [build-system]
 requires = ["hatchling"]
@@ -95,16 +93,20 @@ build-backend = "hatchling.build"
 # xvfb_height = 1080
 testpaths = [
   "tests",
+  "src",
 ]
 mpl-generate-summary = "html"
 mpl-use-full-test-name = true
 
 [tool.mypy]
+mypy_path = "src"
 namespace_packages = true
 disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 
+[tool.coverage.run]
+source = ["src"]
 [tool.coverage.report]
 exclude_also = [
     "def __repr__",
@@ -126,6 +128,7 @@ exclude_also = [
 target-version = [
     "py312",
     "py313",
+    "py314",
 ]
 
 [tool.ruff]

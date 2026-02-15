@@ -33,7 +33,7 @@ def create_iccs_instance(session: Session) -> ICCS:
         window_pre=active_event.parameters.window_pre,
         window_post=active_event.parameters.window_post,
         min_ccnorm=active_event.parameters.min_ccnorm,
-        plot_padding=settings.window_padding,
+        context_width=settings.context_width,
     )
 
 
@@ -54,59 +54,59 @@ def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> 
     session.commit()
 
 
-def plot_stack(iccs: ICCS, padded: bool, all: bool) -> None:
+def plot_stack(iccs: ICCS, context: bool, all: bool) -> None:
     """Plot the ICCS stack.
 
     Parameters:
         iccs: ICCS instance.
-        padded: Whether to pad the stack.
+        context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
     """
 
     logger.info("Plotting ICCS stack for active event.")
-    _plot_stack(iccs, padded, all)
+    _plot_stack(iccs, context, all)
 
 
-def plot_seismograms(iccs: ICCS, padded: bool, all: bool) -> None:
+def plot_seismograms(iccs: ICCS, context: bool, all: bool) -> None:
     """Plot the ICCS seismograms as an image.
 
     Parameters:
         iccs: ICCS instance.
-        padded: Whether to pad the seismograms.
+        context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
     """
 
     logger.info("Plotting ICCS seismograms for active event.")
 
-    _plot_seismograms(iccs, padded, all)
+    _plot_seismograms(iccs, context, all)
 
 
 def update_pick(
-    session: Session, iccs: ICCS, padded: bool, all: bool, use_seismogram_image: bool
+    session: Session, iccs: ICCS, context: bool, all: bool, use_seismogram_image: bool
 ) -> None:
     """Update the pick for the active event.
 
     Parameters:
         iccs: ICCS instance.
-        padded: Whether to pad the seismograms.
+        context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
         use_seismogram_image: Whether to use the seismogram image to update pick.
     """
 
     logger.info("Updating pick for active event.")
 
-    _update_pick(iccs, padded, all, use_seismogram_image)
+    _update_pick(iccs, context, all, use_seismogram_image)
     session.commit()
 
 
 def update_timewindow(
-    session: Session, iccs: ICCS, padded: bool, all: bool, use_seismogram_image: bool
+    session: Session, iccs: ICCS, context: bool, all: bool, use_seismogram_image: bool
 ) -> None:
     """Update the time window for the active event.
 
     Parameters:
         iccs: ICCS instance.
-        padded: Whether to pad the seismograms.
+        context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
         use_seismogram_image: Whether to use the seismogram image to update pick.
     """
@@ -114,7 +114,7 @@ def update_timewindow(
     logger.info("Updating time window for active event.")
 
     logger.debug(f"Current {iccs.window_pre = }, {iccs.window_post = }.")
-    _update_timewindow(iccs, padded, all, use_seismogram_image)
+    _update_timewindow(iccs, context, all, use_seismogram_image)
     logger.debug(f"Updated {iccs.window_pre = }, {iccs.window_post = }.")
 
     active_event = event.get_active_event(session)
@@ -123,19 +123,19 @@ def update_timewindow(
     session.commit()
 
 
-def update_min_ccnorm(session: Session, iccs: ICCS, padded: bool, all: bool) -> None:
+def update_min_ccnorm(session: Session, iccs: ICCS, context: bool, all: bool) -> None:
     """Update the minimum cross correlation coefficient for the active event.
 
     Parameters:
         iccs: ICCS instance.
-        padded: Whether to pad the seismograms.
+        context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
     """
 
     logger.info("Updating minimum cross correlation coefficient for active event.")
 
     logger.debug(f"Current {iccs.min_ccnorm = }.")
-    _update_min_ccnorm(iccs, padded, all)
+    _update_min_ccnorm(iccs, context, all)
     logger.debug(f"Updated {iccs.min_ccnorm = }.")
 
     active_event = event.get_active_event(session)

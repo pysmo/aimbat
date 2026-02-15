@@ -40,10 +40,10 @@ test-tutorial: check-uv ## Check if the tutorial notebook runs error-free.
 	uv run py.test --nbmake docs/examples/tutorial.ipynb
 
 tests: check-uv mypy test-tutorial ## Run all tests with pytest.
-	uv run pytest --cov=aimbat --cov-report=term-missing --cov-report=html --mpl
+	uv run pytest --cov-report=term-missing --cov-report=html --mpl
 
 mypy: check-uv ## Run typing tests with pytest.
-	uv run pytest --mypy -m mypy aimbat tests
+	uv run pytest --mypy -m mypy src tests
 
 docs: check-uv install ## Build html docs.
 	uv run mkdocs build
@@ -52,7 +52,7 @@ docs-export: check-uv install ## Export installed package information to docs/re
 	uv export --only=docs -o docs/requirements.txt
 
 live-docs: check-uv install ## Live build html docs. They are served on http://localhost:8000
-	uv run mkdocs serve -w README.md -w aimbat
+	uv run mkdocs serve -w README.md -w src
 
 notebook: check-uv install ## Run a jupyter notebook in the uv environment
 	uv run jupyter-lab
