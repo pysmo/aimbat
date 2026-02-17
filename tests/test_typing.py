@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel
-from enum import EnumType
+from enum import StrEnum
 from typing import get_args, TypeAliasType
 from aimbat.lib.models import AimbatEventParametersBase, AimbatSeismogramParametersBase
 from aimbat.lib.typing import (
@@ -21,9 +21,9 @@ def set_from_basemodel(obj: type[SQLModel]) -> set[str]:
     return my_set
 
 
-def set_from_strenum(enum: EnumType) -> set[TypeAliasType]:
+def set_from_strenum(enum: type[StrEnum]) -> set[str]:
 
-    return set([member.value for member in enum])  # type: ignore
+    return set([member.value for member in enum])
 
 
 def set_from_typealiases(*aliases: TypeAliasType) -> set[str]:
