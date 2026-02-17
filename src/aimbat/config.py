@@ -64,7 +64,7 @@ class Settings(EventParametersValidatorMixin, BaseSettings):
         default=ICCS_DEFAULTS.bandpass_apply,
         description="Whether to apply bandpass filter to seismograms.",
     )
-    "Whether to apply bandpass filter to seismograms."
+    """Whether to apply bandpass filter to seismograms."""
 
     bandpass_fmin: float = Field(
         default=ICCS_DEFAULTS.bandpass_fmin,
