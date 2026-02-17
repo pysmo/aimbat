@@ -1,6 +1,6 @@
 """Custom types used in AIMBAT."""
 
-from typing import Literal, TypeAlias
+from typing import Literal
 from enum import StrEnum, auto
 
 
@@ -15,15 +15,24 @@ class EventParameter(StrEnum):
     MIN_CCNORM = auto()
     WINDOW_PRE = auto()
     WINDOW_POST = auto()
+    BANDPASS_APPLY = auto()
+    BANDPASS_FMIN = auto()
+    BANDPASS_FMAX = auto()
 
 
-EventParameterBool: TypeAlias = Literal[EventParameter.COMPLETED]
+type EventParameterBool = Literal[
+    EventParameter.COMPLETED, EventParameter.BANDPASS_APPLY
+]
 "[`TypeAlias`][typing.TypeAlias] for [`AimbatEvent`][aimbat.lib.models.AimbatEvent] attributes with [`bool`][bool] values."
 
-EventParameterFloat: TypeAlias = Literal[EventParameter.MIN_CCNORM]
+type EventParameterFloat = Literal[
+    EventParameter.MIN_CCNORM,
+    EventParameter.BANDPASS_FMIN,
+    EventParameter.BANDPASS_FMAX,
+]
 "[`TypeAlias`][typing.TypeAlias] for [`AimbatEvent`][aimbat.lib.models.AimbatEvent] attributes with [`float`][float] values."
 
-EventParameterTimedelta: TypeAlias = Literal[
+type EventParameterTimedelta = Literal[
     EventParameter.WINDOW_PRE, EventParameter.WINDOW_POST
 ]
 "[`TypeAlias`][typing.TypeAlias] for [`AimbatEvent`][aimbat.lib.models.AimbatEvent] attributes with [`timedelta`][datetime.timedelta] values."
@@ -41,7 +50,7 @@ class SeismogramParameter(StrEnum):
     T1 = auto()
 
 
-SeismogramParameterBool: TypeAlias = Literal[
+type SeismogramParameterBool = Literal[
     SeismogramParameter.SELECT, SeismogramParameter.FLIP
 ]
-SeismogramParameterDatetime: TypeAlias = Literal[SeismogramParameter.T1]
+type SeismogramParameterDatetime = Literal[SeismogramParameter.T1]

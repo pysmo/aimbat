@@ -1,14 +1,16 @@
 """Global configuration options for the AIMBAT application."""
 
-from pydantic import Field
+from aimbat.lib._validators import EventParametersValidatorMixin
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from datetime import timedelta
 from pysmo.tools.iccs._defaults import ICCS_DEFAULTS
+from typing import Self
 import numpy as np
 
 
-class Settings(BaseSettings):
+class Settings(EventParametersValidatorMixin, BaseSettings):
     model_config = SettingsConfigDict(env_prefix="aimbat_", env_file=".env")
 
     project: Path = Field(
@@ -18,10 +20,10 @@ class Settings(BaseSettings):
     """AIMBAT project file location."""
 
     db_url: str = Field(
-        default_factory=lambda data: r"sqlite+pysqlite:///" + str(data["project"]),
-        description="AIMBAT database url (default value is derived from `project`.)",
+        default="",
+        description="AIMBAT database url (default value is derived from `project`).",
     )
-    """AIMBAT database url."""
+    """AIMBAT database url (default is derived from `project`)."""
 
     logfile: Path = Field(default=Path("aimbat.log"), description="Log file location.")
     """Log file location."""
@@ -58,6 +60,26 @@ class Settings(BaseSettings):
     )
     """Initial minimum cross correlation coefficient."""
 
+    bandpass_apply: bool = Field(
+        default=ICCS_DEFAULTS.bandpass_apply,
+        description="Whether to apply bandpass filter to seismograms.",
+    )
+    """Whether to apply bandpass filter to seismograms."""
+
+    bandpass_fmin: float = Field(
+        default=ICCS_DEFAULTS.bandpass_fmin,
+        ge=0,
+        description="Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+    )
+    """Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False)."""
+
+    bandpass_fmax: float = Field(
+        default=ICCS_DEFAULTS.bandpass_fmax,
+        gt=0,
+        description="Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+    )
+    """Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False)."""
+
     sac_pick_header: str = Field(
         default="t0", description="SAC header field where initial pick is stored."
     )
@@ -79,6 +101,14 @@ class Settings(BaseSettings):
         default=2, ge=1, description="Minimum length of ID string."
     )
     """Minimum length of truncated UUID string."""
+
+    @model_validator(mode="after")
+    def set_computed_defaults(self) -> Self:
+        """Sets defaults that depend on other fields."""
+        # 1. Handle db_url dependency on project
+        if self.db_url == "":
+            self.db_url = f"sqlite+pysqlite:///{self.project}"
+        return self
 
 
 settings = Settings()

@@ -5,6 +5,7 @@ as classes to use with python in AIMBAT.
 """
 
 from aimbat.config import settings
+from aimbat.lib._validators import EventParametersValidatorMixin
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Relationship, SQLModel, Field
 from sqlalchemy.types import DateTime, TypeDecorator
@@ -94,17 +95,30 @@ class AimbatEventParametersBase(SQLModel):
     completed: bool = False
     "Mark an event as completed."
 
-    min_ccnorm: float = Field(ge=0.0, le=1.0, default=settings.min_ccnorm)
+    min_ccnorm: float = Field(
+        ge=0.0, le=1.0, default_factory=lambda: settings.min_ccnorm
+    )
     "Minimum cross-correlation used when automatically de-selecting seismograms."
 
-    window_pre: timedelta = Field(lt=0, default=settings.window_pre)
+    window_pre: timedelta = Field(lt=0, default_factory=lambda: settings.window_pre)
     "Pre-pick window length."
 
-    window_post: timedelta = Field(gt=0, default=settings.window_post)
+    window_post: timedelta = Field(gt=0, default_factory=lambda: settings.window_post)
     "Post-pick window length."
 
+    bandpass_apply: bool = Field(default_factory=lambda: settings.bandpass_apply)
+    "Whether to apply bandpass filter to seismograms."
 
-class AimbatEventParameters(AimbatEventParametersBase, table=True):
+    bandpass_fmin: float = Field(default_factory=lambda: settings.bandpass_fmin, ge=0)
+    "Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False)."
+
+    bandpass_fmax: float = Field(default_factory=lambda: settings.bandpass_fmax, gt=0)
+    "Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False)."
+
+
+class AimbatEventParameters(
+    AimbatEventParametersBase, EventParametersValidatorMixin, table=True
+):
     """Processing parameters common to all seismograms of a particular event."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
