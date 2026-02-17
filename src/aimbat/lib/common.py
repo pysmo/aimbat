@@ -41,7 +41,7 @@ def string_to_uuid(
 ) -> UUID:
     """Determine a UUID from a string containing the first few characters.
 
-    Parameters:
+    Args:
         session: Database session.
         id: Input string to find UUID for.
         aimbat_class: Aimbat class to use to find UUID.

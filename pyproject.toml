@@ -1,6 +1,6 @@
 [project]
 name = "aimbat"
-version = "2.0.0-dev0"
+dynamic = ["version"]
 description = "AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times."
 authors = [
     { name = "Xiaoting Lou", email = "xlou@u.northwestern.edu" },
@@ -64,18 +64,14 @@ default-groups = [
 [tool.uv.sources]
 pysmo = { git = "https://github.com/pysmo/pysmo", rev = "master" }
 
-[tool.hatch.build.targets.sdist]
-exclude = [
-    "tests",
-    "docs",
-]
-
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aimbat"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]

@@ -94,7 +94,7 @@ def cli_seismogram_delete(
 ) -> None:
     """Delete existing seismogram.
 
-    Parameters:
+    Args:
         seismogram_id: Seismogram ID.
     """
 
@@ -114,7 +114,7 @@ def cli_seismogram_get(
 ) -> None:
     """Get the value of a processing parameter.
 
-    Parameters:
+    Args:
         seismogram_id: Seismogram ID number.
         name: Name of the seismogram parameter.
     """
@@ -137,7 +137,7 @@ def cli_seismogram_set(
 ) -> None:
     """Set value of a processing parameter.
 
-    Parameters:
+    Args:
         seismogram_id: Seismogram ID number.
         name: Name of the seismogram parameter.
         value: Value of the seismogram parameter.
@@ -161,7 +161,7 @@ def cli_seismogram_list(
 ) -> None:
     """Print information on the seismograms in the active event.
 
-    Parameters:
+    Args:
         all_events: Select seismograms for all events."""
 
     table_parameters = table_parameters or TableParameters()

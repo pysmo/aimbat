@@ -107,7 +107,7 @@ def add_files_to_project(
 ) -> None:
     """Add files to the AIMBAT database.
 
-    Parameters:
+    Args:
         datasources: List of data sources to add.
         datatype: Type of data.
         disable_progress_bar: Do not display progress bar.
@@ -156,7 +156,7 @@ def add_files_to_project(
 def get_data_for_active_event(session: Session) -> Sequence[AimbatDataSource]:
     """Returns the AimbatFiles belonging to the active event.
 
-    Parameters:
+    Args:
         session: Database session.
 
     Returns:
@@ -177,7 +177,7 @@ def get_data_for_active_event(session: Session) -> Sequence[AimbatDataSource]:
 def print_data_table(short: bool, all_events: bool = False) -> None:
     """Print a pretty table with AIMBAT data.
 
-    Parameters:
+    Args:
         short: Shorten UUIDs and format data.
         all_events: Print all files instead of limiting to the active event.
     """

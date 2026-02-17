@@ -10,7 +10,11 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 body = """
 {% if version %}\
-    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+    {% if previous.version %}\
+        ## [{{ version | trim_start_matches(pat="v") }}](https://github.com/pysmo/aimbat/compare/{{ previous.version }}...{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+    {% else %}\
+        ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+    {% endif %}\
 {% else %}\
     ## [Unreleased]
 {% endif %}\
@@ -19,7 +23,7 @@ body = """
     {% for commit in commits %}
         - {% if commit.scope %}**({{ commit.scope }})** {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | upper_first }}\
+            {{ commit.message | split(pat="\n") | first | upper_first }}\
     {% endfor %}
 {% endfor %}\n
 """
@@ -38,10 +42,18 @@ commit_preprocessors = [
 
 # The categorization logic
 commit_parsers = [
+    { message = "^.*\\(deps(-dev)?\\).*", skip = true },
+    { message = "^Merge", skip = true },
+    { message = "Signed-off-by: dependabot\\[bot\\]", skip = true },
+    { message = "Potential fix for code scanning alert", skip = true },
     { message = "^feat", group = "🚀 New Features" },
     { message = "^fix", group = "🐛 Bug Fixes" },
     { message = "^perf", group = "⚡ Performance Improvements" },
     { message = "^docs", group = "📚 Documentation" },
+    { message = "^refactor", group = "🔧 Refactoring" },
+    { message = "^test", group = "🧪 Testing" },
+    { message = "^style", group = "🎨 Styling" },
+    { message = "^chore", group = "📦 Miscellaneous" },
     { message = "^ci|^build", group = "⚙️ DevOps & Infrastructure" },
     { message = ".*uv.lock", group = "⚙️ DevOps & Infrastructure" },
     { message = ".*", group = "🔍 Other Changes" },

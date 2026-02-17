@@ -14,7 +14,7 @@ import uuid
 def delete_station_by_id(session: Session, station_id: uuid.UUID) -> None:
     """Delete an AimbatStation from the database by ID.
 
-    Parameters:
+    Args:
         session: Database session.
         station_id: Station ID.
 
@@ -33,7 +33,7 @@ def delete_station_by_id(session: Session, station_id: uuid.UUID) -> None:
 def delete_station(session: Session, station: AimbatStation) -> None:
     """Delete an AimbatStation from the database.
 
-    Parameters:
+    Args:
         session: Database session.
         station: Station to delete.
     """
@@ -49,7 +49,7 @@ def get_stations_in_event(
 ) -> Sequence[AimbatStation]:
     """Get the stations for a particular event.
 
-    Parameters:
+    Args:
         session: Database session.
         event: Event to return stations for.
 
@@ -75,7 +75,7 @@ def get_stations_in_event(
 def print_station_table(short: bool, all_events: bool = False) -> None:
     """Prints a pretty table with AIMBAT stations.
 
-    Parameters:
+    Args:
         short: Shorten and format the output to be more human-readable.
         all_events: Print stations for all events.
     """

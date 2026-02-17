@@ -17,7 +17,7 @@ def read_seismogram_data_from_sacfile(
 ) -> npt.NDArray[np.float64]:
     """Read seismogram data from a SAC file.
 
-    Parameters:
+    Args:
         sacfile: Name of the SAC file.
 
     Returns:
@@ -34,7 +34,7 @@ def write_seismogram_data_to_sacfile(
 ) -> None:
     """Write seismogram data to a SAC file.
 
-    Parameters:
+    Args:
         sacfile: Name of the SAC file.
         data: Seismogram data.
     """
@@ -49,7 +49,7 @@ def write_seismogram_data_to_sacfile(
 def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
     """Create an AimbatStation instance from a SAC file.
 
-    Parameters:
+    Args:
         sacfile: Name of the SAC file.
 
     Returns:
@@ -68,7 +68,7 @@ def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
 def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
     """Create an AimbatSeismogram instance from a SAC file.
 
-    Parameters:
+    Args:
         sacfile: Name of the SAC file.
     """
 
@@ -88,7 +88,7 @@ def create_seismogram_from_sacfile_and_pick_header(
 ) -> AimbatSeismogram:
     """Create an AimbatSeismogram instance from a SAC file.
 
-    Parameters:
+    Args:
         sacfile: Name of the SAC file.
         sac_pick_header: SAC header to use as t0 in AIMBAT.
     """

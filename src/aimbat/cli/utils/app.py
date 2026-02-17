@@ -31,7 +31,7 @@ def cli_checkdata(
 ) -> None:
     """Check if there are any problems with SAC files before adding them to a project.
 
-    Parameters:
+    Args:
         sacfiles: One or more SAC files.
     """
 

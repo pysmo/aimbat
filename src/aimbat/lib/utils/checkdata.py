@@ -6,7 +6,7 @@ from pathlib import Path
 def checkdata_station(station: Station) -> list[str]:
     """Check if station information is complete.
 
-    Parameters:
+    Args:
         station: station object to test.
     """
 
@@ -38,7 +38,7 @@ def checkdata_station(station: Station) -> list[str]:
 def checkdata_event(event: Event) -> list[str]:
     """Check if event information is complete.
 
-    Parameters:
+    Args:
         event: event object to test.
     """
 
@@ -70,7 +70,7 @@ def checkdata_event(event: Event) -> list[str]:
 def checkdata_seismogram(seismogram: Seismogram) -> list[str]:
     """Check if seismogram information is complete.
 
-    Parameters:
+    Args:
         seismogram: seismogram object to test.
     """
 
@@ -90,7 +90,7 @@ def checkdata_seismogram(seismogram: Seismogram) -> list[str]:
 def run_checks(sacfiles: list[Path]) -> None:
     """Run all checks on one or more SAC files.
 
-    Parameters:
+    Args:
         sacfiles: SAC files to test.
     """
 

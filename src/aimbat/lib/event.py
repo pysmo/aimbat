@@ -31,7 +31,7 @@ from uuid import UUID
 def delete_event_by_id(session: Session, event_id: UUID) -> None:
     """Delete an AimbatEvent from the database by ID.
 
-    Parameters:
+    Args:
         session: Database session.
         event_id: Event ID.
 
@@ -52,7 +52,7 @@ def delete_event_by_id(session: Session, event_id: UUID) -> None:
 def delete_event(session: Session, event: AimbatEvent) -> None:
     """Delete an AimbatEvent from the database.
 
-    Parameters:
+    Args:
         session: Database session.
         event: Event to delete.
     """
@@ -67,7 +67,7 @@ def get_active_event(session: Session) -> AimbatEvent:
     """
     Return the currently active event (i.e. the one being processed).
 
-    Parameters:
+    Args:
         session: SQL session.
 
     Returns:
@@ -98,7 +98,7 @@ def set_active_event_by_id(session: Session, event_id: UUID) -> None:
     """
     Set the currently selected event (i.e. the one being processed) by its ID.
 
-    Parameters:
+    Args:
         session: SQL session.
         event_id: ID of AIMBAT Event to set as active one.
 
@@ -122,7 +122,7 @@ def set_active_event(session: Session, event: AimbatEvent) -> None:
     """
     Set the active event (i.e. the one being processed).
 
-    Parameters:
+    Args:
         session: SQL session.
         event: AIMBAT Event to set as active.
     """
@@ -137,7 +137,7 @@ def set_active_event(session: Session, event: AimbatEvent) -> None:
 def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
     """Get the events marked as completed.
 
-    Parameters:
+    Args:
         session: SQL session.
     """
 
@@ -155,7 +155,7 @@ def get_events_using_station(
 ) -> Sequence[AimbatEvent]:
     """Get all events that use a particular station.
 
-    Parameters:
+    Args:
         session: Database session.
         station: Station to return events for.
 
@@ -203,7 +203,7 @@ def get_event_parameter(
 ) -> timedelta | bool | float:
     """Get event parameter value for the active event.
 
-    Parameters:
+    Args:
         session: Database session.
         name: Name of the parameter.
     """
@@ -244,7 +244,7 @@ def set_event_parameter(
 ) -> None:
     """Set event parameter value for the active event.
 
-    Parameters:
+    Args:
         session: Database session.
         name: Name of the parameter.
         value: Value to set.
@@ -265,7 +265,7 @@ def set_event_parameter(
 def print_event_table(short: bool = True) -> None:
     """Print a pretty table with AIMBAT events.
 
-    Parameters:
+    Args:
         short: Shorten and format the output to be more human-readable.
     """
 

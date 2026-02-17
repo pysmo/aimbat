@@ -20,7 +20,7 @@ import uuid
 def create_snapshot(session: Session, comment: str | None = None) -> None:
     """Create a snapshot of the AIMBAT processing parameters.
 
-    Parameters:
+    Args:
         session: Database session.
         comment: Optional comment.
     """
@@ -68,7 +68,7 @@ def create_snapshot(session: Session, comment: str | None = None) -> None:
 def rollback_to_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
     """Rollback to an AIMBAT parameters snapshot.
 
-    Parameters:
+    Args:
         session: Database session.
         snapshot_id: Snapshot id.
     """
@@ -88,7 +88,7 @@ def rollback_to_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None
 def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
     """Rollback to an AIMBAT parameters snapshot.
 
-    Parameters:
+    Args:
         snapshot: Snapshot.
     """
 
@@ -128,7 +128,7 @@ def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
 def delete_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
     """Delete an AIMBAT parameter snapshot.
 
-    Parameters:
+    Args:
         session: Database session.
         snapshot_id: Snapshot id.
     """
@@ -148,7 +148,7 @@ def delete_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
 def delete_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
     """Delete an AIMBAT parameter snapshot.
 
-    Parameters:
+    Args:
         session: Database session.
         snapshot: Snapshot.
     """
@@ -164,7 +164,7 @@ def get_snapshots(
 ) -> Sequence[AimbatSnapshot]:
     """Get the snapshots for the active avent.
 
-    Parameters:
+    Args:
         session: Database session.
         all_events: Get the selected snapshots for all events.
 
@@ -191,7 +191,7 @@ def get_snapshots(
 def print_snapshot_table(short: bool, all_events: bool) -> None:
     """Print a pretty table with AIMBAT snapshots.
 
-    Parameters:
+    Args:
         short: Shorten and format the output to be more human-readable.
         all_events: Print all snapshots instead of limiting to the active event.
     """

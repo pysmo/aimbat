@@ -158,7 +158,7 @@ def cli_settings_list(
     They can be changed using environment variables of the same name, or by
     adding a `.env` file to the current working directory.
 
-    Parameters:
+    Args:
         pretty: Print the table in a pretty format.
     """
     print_settings_table(pretty)

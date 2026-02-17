@@ -47,7 +47,7 @@ def cli_station_delete(
 ) -> None:
     """Delete existing station.
 
-    Parameters:
+    Args:
         station_id: Station ID.
     """
 
@@ -65,7 +65,7 @@ def cli_station_list(
 ) -> None:
     """Print information on the stations used in the active event.
 
-    Parameters:
+    Args:
         all_events: Select stations for all events.
     """
 

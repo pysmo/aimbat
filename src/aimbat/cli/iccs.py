@@ -104,7 +104,7 @@ def cli_iccs_run(
 ) -> None:
     """Run the ICCS algorithm.
 
-    Parameters:
+    Args:
         autoflip: Whether to automatically flip seismograms (multiply data by -1).
         autoselect: Whether to automatically de-select seismograms.
     """
@@ -151,7 +151,7 @@ def cli_iccs_update_pick(
 ) -> None:
     """Pick a new arrival time.
 
-    Parameters:
+    Args:
         use_seismogram_image: Use the seismogram image to update pick.
     """
 
@@ -174,7 +174,7 @@ def cli_iccs_update_timewindow(
 ) -> None:
     """Pick a new time window.
 
-    Parameters:
+    Args:
         use_seismogram_image: Use the seismogram image to pick the time window.
     """
 
