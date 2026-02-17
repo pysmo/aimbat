@@ -57,7 +57,7 @@ def cli_data_add(
 ) -> None:
     """Add or update data files in the AIMBAT project.
 
-    Parameters:
+    Args:
         seismogram_files: Seismogram files to be added.
         filetype: Specify type of seismogram file.
         show_progress_bar: Display progress bar.
@@ -77,7 +77,7 @@ def cli_data_list(
 ) -> None:
     """Print information on the data stored in AIMBAT.
 
-    Parameters:
+    Args:
         all_events: Select data for all events.
     """
 

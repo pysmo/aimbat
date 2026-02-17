@@ -34,7 +34,7 @@ import pyqtgraph as pg  # type: ignore
 def delete_seismogram_by_id(session: Session, seismogram_id: uuid.UUID) -> None:
     """Delete an AimbatSeismogram from the database by ID.
 
-    Parameters:
+    Args:
         session: Database session.
         seismogram_id: Seismogram ID.
 
@@ -53,7 +53,7 @@ def delete_seismogram_by_id(session: Session, seismogram_id: uuid.UUID) -> None:
 def delete_seismogram(session: Session, seismogram: AimbatSeismogram) -> None:
     """Delete an AimbatSeismogram from the database.
 
-    Parameters:
+    Args:
         session: Database session.
         seismogram: Seismogram to delete.
     """
@@ -69,7 +69,7 @@ def get_seismogram_parameter_by_id(
 ) -> bool | datetime:
     """Get parameter value from an AimbatSeismogram by ID.
 
-    Parameters:
+    Args:
         session: Database session.
         seismogram_id: Seismogram ID.
         name: Name of the parameter value to return.
@@ -114,7 +114,7 @@ def get_seismogram_parameter(
 ) -> bool | datetime:
     """Get parameter value from an AimbatSeismogram instance.
 
-    Parameters:
+    Args:
         seismogram: Seismogram.
         name: Name of the parameter value to return.
 
@@ -135,7 +135,7 @@ def set_seismogram_parameter_by_id(
 ) -> None:
     """Set parameter value for an AimbatSeismogram by ID.
 
-    Parameters:
+    Args:
         session: Database session
         seismogram_id: Seismogram id.
         name: Name of the parameter.
@@ -192,7 +192,7 @@ def set_seismogram_parameter(
 ) -> None:
     """Set parameter value for an AimbatSeismogram instance.
 
-    Parameters:
+    Args:
         session: Database session
         seismogram: Seismogram to set parameter for.
         name: Name of the parameter.
@@ -215,7 +215,7 @@ def get_selected_seismograms(
 ) -> Sequence[AimbatSeismogram]:
     """Get the selected seismograms for the active avent.
 
-    Parameters:
+    Args:
         session: Database session.
         all_events: Get the selected seismograms for all events.
 
@@ -251,7 +251,7 @@ def get_selected_seismograms(
 def print_seismogram_table(short: bool, all_events: bool = False) -> None:
     """Prints a pretty table with AIMBAT seismograms.
 
-    Parameters:
+    Args:
         short: Shorten and format the output to be more human-readable.
         all_events: Print seismograms for all events.
     """
@@ -345,7 +345,7 @@ def dump_seismogram_table() -> None:
 def plot_seismograms(use_qt: bool = False) -> Figure:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
-    Parameters:
+    Args:
         use_qt: Plot with pqtgraph instead of pyplot
     """
 

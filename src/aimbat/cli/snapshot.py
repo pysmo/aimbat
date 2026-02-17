@@ -60,7 +60,7 @@ def cli_snapshot_create(
 ) -> None:
     """Create new snapshot.
 
-    Parameters:
+    Args:
         comment: Create snapshot with optional comment.
     """
 
@@ -77,7 +77,7 @@ def cli_snapshot_rollback(
 ) -> None:
     """Rollback to snapshot.
 
-    Parameters:
+    Args:
         snapshot_id: Snapshot ID Number.
     """
 
@@ -94,7 +94,7 @@ def cli_snapshop_delete(
 ) -> None:
     """Delete existing snapshot.
 
-    Parameters:
+    Args:
         snapshot_id: Snapshot ID Number.
     """
 
@@ -112,7 +112,7 @@ def cli_snapshot_list(
 ) -> None:
     """Print information on the snapshots for the active event.
 
-    Parameters:
+    Args:
         all_events: Select snapshots for all events.
     """
 

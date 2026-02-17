@@ -97,7 +97,7 @@ def cli_event_delete(
 ) -> None:
     """Delete existing event.
 
-    Parameters:
+    Args:
         event_id: Event ID.
     """
 
@@ -130,7 +130,7 @@ def cli_event_activate(
 ) -> None:
     """Select the event to be active for Processing.
 
-    Parameters:
+    Args:
         event_id: Event ID number.
     """
 
@@ -147,7 +147,7 @@ def cli_event_parameter_get(
 ) -> None:
     """Get parameter value for the active event.
 
-    Parameters:
+    Args:
         name: Event parameter name.
     """
 
@@ -165,7 +165,7 @@ def cli_event_parameter_set(
 ) -> None:
     """Set parameter value for the active event.
 
-    Parameters:
+    Args:
         name: Event parameter name.
         value: Event parameter value.
     """

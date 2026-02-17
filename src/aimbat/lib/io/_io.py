@@ -31,7 +31,7 @@ seismogram_data_writer = {DataType.SAC: sac.write_seismogram_data_to_sacfile}
 def create_station(datasource: str | PathLike, datatype: DataType) -> AimbatStation:
     """Read station data from a data source and create an AimbatStation.
 
-    Parameters:
+    Args:
         datasource: Name of the data source.
         datatype: AIMBAT compatible datatype.
 
@@ -55,7 +55,7 @@ def create_station(datasource: str | PathLike, datatype: DataType) -> AimbatStat
 def create_event(datasource: str | PathLike, datatype: DataType) -> AimbatEvent:
     """Read event data from a data source and create an AimbatEvent.
 
-    Parameters:
+    Args:
         datasource: Name of the data source.
         datatype: AIMBAT compatible datatype.
 
@@ -81,7 +81,7 @@ def create_seismogram(
 ) -> AimbatSeismogram:
     """Read seismogram data from a data source and create an AimbatSeismogram.
 
-    Parameters:
+    Args:
         datasource: Name of the data source.
         datatype: AIMBAT compatible datatype.
 
@@ -107,7 +107,7 @@ def read_seismogram_data(
 ) -> npt.NDArray[np.float64]:
     """Read seismogram data from a data source.
 
-    Parameters:
+    Args:
         datasource: Name of the data source.
         datatype: AIMBAT compatible filetype.
 
@@ -133,7 +133,7 @@ def write_seismogram_data(
 ) -> None:
     """Write seismogram data to a data source.
 
-    Parameters:
+    Args:
         datasource: Name of the data source.
         datatype: AIMBAT compatible filetype.
         data: Seismogram data

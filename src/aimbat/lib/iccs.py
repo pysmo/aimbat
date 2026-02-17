@@ -17,7 +17,7 @@ import aimbat.lib.event as event
 def create_iccs_instance(session: Session) -> ICCS:
     """Create an ICCS instance for the active event.
 
-    Parameters:
+    Args:
         session: Database session.
 
     Returns:
@@ -43,7 +43,7 @@ def create_iccs_instance(session: Session) -> ICCS:
 def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> None:
     """Run ICCS algorithm.
 
-    Parameters:
+    Args:
         session: Database session.
         iccs: ICCS instance.
         autoflip: Whether to automatically flip seismograms.
@@ -60,7 +60,7 @@ def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> 
 def plot_stack(iccs: ICCS, context: bool, all: bool) -> None:
     """Plot the ICCS stack.
 
-    Parameters:
+    Args:
         iccs: ICCS instance.
         context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
@@ -73,7 +73,7 @@ def plot_stack(iccs: ICCS, context: bool, all: bool) -> None:
 def plot_seismograms(iccs: ICCS, context: bool, all: bool) -> None:
     """Plot the ICCS seismograms as an image.
 
-    Parameters:
+    Args:
         iccs: ICCS instance.
         context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
@@ -89,7 +89,7 @@ def update_pick(
 ) -> None:
     """Update the pick for the active event.
 
-    Parameters:
+    Args:
         iccs: ICCS instance.
         context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
@@ -107,7 +107,7 @@ def update_timewindow(
 ) -> None:
     """Update the time window for the active event.
 
-    Parameters:
+    Args:
         iccs: ICCS instance.
         context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
@@ -129,7 +129,7 @@ def update_timewindow(
 def update_min_ccnorm(session: Session, iccs: ICCS, context: bool, all: bool) -> None:
     """Update the minimum cross correlation coefficient for the active event.
 
-    Parameters:
+    Args:
         iccs: ICCS instance.
         context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.

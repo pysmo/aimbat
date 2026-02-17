@@ -38,7 +38,7 @@ def sampledata_cli_download(
     Downloads an example dataset to the directory specified in the
     `sampledata_dir` AIMBAT default variable.
 
-    Parameters:
+    Args:
         force: Delete the download directory and re-download."
     """
 
