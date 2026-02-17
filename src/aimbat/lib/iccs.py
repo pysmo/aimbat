@@ -32,6 +32,9 @@ def create_iccs_instance(session: Session) -> ICCS:
         seismograms=active_event.seismograms,
         window_pre=active_event.parameters.window_pre,
         window_post=active_event.parameters.window_post,
+        bandpass_apply=active_event.parameters.bandpass_apply,
+        bandpass_fmin=active_event.parameters.bandpass_fmin,
+        bandpass_fmax=active_event.parameters.bandpass_fmax,
         min_ccnorm=active_event.parameters.min_ccnorm,
         context_width=settings.context_width,
     )
