@@ -1,17 +1,18 @@
 """View and manage events in the AIMBAT project."""
 
 from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
-from aimbat.lib.typing import EventParameter
+from aimbat.cli.common import HINTS
+from aimbat.aimbat_types import EventParameter
 from typing import Annotated
-from datetime import timedelta
+from pandas import Timedelta
 from cyclopts import App, Parameter
 from sqlmodel import Session
 import uuid
 
 
 def string_to_event_uuid(session: Session, event_id: str) -> uuid.UUID:
-    from aimbat.lib.models import AimbatEvent
-    from aimbat.lib.common import string_to_uuid, HINTS
+    from aimbat.models import AimbatEvent
+    from aimbat.utils import string_to_uuid
 
     return string_to_uuid(
         session,
@@ -21,75 +22,11 @@ def string_to_event_uuid(session: Session, event_id: str) -> uuid.UUID:
     )
 
 
-@simple_exception
-def _delete_event(event_id: uuid.UUID | str) -> None:
-    from aimbat.lib.event import delete_event_by_id
-    from aimbat.lib.db import engine
-
-    with Session(engine) as session:
-        if not isinstance(event_id, uuid.UUID):
-            event_id = string_to_event_uuid(session, event_id)
-        delete_event_by_id(session, event_id)
-
-
-@simple_exception
-def _print_event_table(short: bool) -> None:
-    from aimbat.lib.event import print_event_table
-
-    print_event_table(short)
-
-
-@simple_exception
-def _set_active_event_by_id(event_id: uuid.UUID | str) -> None:
-    from aimbat.lib.event import set_active_event_by_id
-    from aimbat.lib.db import engine
-
-    with Session(engine) as session:
-        if not isinstance(event_id, uuid.UUID):
-            event_id = string_to_event_uuid(session, event_id)
-        set_active_event_by_id(session, event_id)
-
-
-@simple_exception
-def _dump_event_table() -> None:
-    from aimbat.lib.event import dump_event_table
-
-    dump_event_table()
-
-
-@simple_exception
-def _get_event_parameters(
-    name: EventParameter,
-) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.event import get_event_parameter
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        value = get_event_parameter(session, name)
-        if isinstance(value, timedelta):
-            print(f"{value.total_seconds()}s")
-        else:
-            print(value)
-
-
-@simple_exception
-def _set_event_parameters(
-    name: EventParameter,
-    value: timedelta | bool | str,
-) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.event import set_event_parameter
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        set_event_parameter(session, name, value)
-
-
 app = App(name="event", help=__doc__, help_format="markdown")
 
 
 @app.command(name="delete")
+@simple_exception
 def cli_event_delete(
     event_id: Annotated[uuid.UUID | str, Parameter(name="id")],
     *,
@@ -100,29 +37,37 @@ def cli_event_delete(
     Args:
         event_id: Event ID.
     """
+    from aimbat.db import engine
+    from aimbat.core import delete_event_by_id
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_event(
-        event_id,
-    )
+    with Session(engine) as session:
+        if not isinstance(event_id, uuid.UUID):
+            event_id = string_to_event_uuid(session, event_id)
+        delete_event_by_id(session, event_id)
 
 
 @app.command(name="list")
+@simple_exception
 def cli_event_list(
     *,
     table_parameters: TableParameters | None = None,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Print information on the events stored in AIMBAT."""
+    from aimbat.db import engine
+    from aimbat.core import print_event_table
 
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_event_table(table_parameters.short)
+    with Session(engine) as session:
+        print_event_table(session, table_parameters.short)
 
 
 @app.command(name="activate")
+@simple_exception
 def cli_event_activate(
     event_id: Annotated[uuid.UUID | str, Parameter(name="id")],
     *,
@@ -133,13 +78,19 @@ def cli_event_activate(
     Args:
         event_id: Event ID number.
     """
+    from aimbat.core import set_active_event_by_id
+    from aimbat.db import engine
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _set_active_event_by_id(event_id)
+    with Session(engine) as session:
+        if not isinstance(event_id, uuid.UUID):
+            event_id = string_to_event_uuid(session, event_id)
+        set_active_event_by_id(session, event_id)
 
 
 @app.command(name="get")
+@simple_exception
 def cli_event_parameter_get(
     name: EventParameter,
     *,
@@ -151,15 +102,25 @@ def cli_event_parameter_get(
         name: Event parameter name.
     """
 
+    from aimbat.db import engine
+    from aimbat.core import get_event_parameter
+    from sqlmodel import Session
+
     global_parameters = global_parameters or GlobalParameters()
 
-    _get_event_parameters(name)
+    with Session(engine) as session:
+        value = get_event_parameter(session, name)
+        if isinstance(value, Timedelta):
+            print(f"{value.total_seconds()}s")
+        else:
+            print(value)
 
 
 @app.command(name="set")
+@simple_exception
 def cli_event_parameter_set(
     name: EventParameter,
-    value: timedelta | str,
+    value: Timedelta | str,
     *,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
@@ -169,22 +130,30 @@ def cli_event_parameter_set(
         name: Event parameter name.
         value: Event parameter value.
     """
+    from aimbat.db import engine
+    from aimbat.core import set_event_parameter
+    from sqlmodel import Session
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _set_event_parameters(name, value)
+    with Session(engine) as session:
+        set_event_parameter(session, name, value)
 
 
 @app.command(name="dump")
+@simple_exception
 def cli_event_dump(
     *,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Dump the contents of the AIMBAT event table to json."""
+    from aimbat.db import engine
+    from aimbat.core import dump_event_table
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _dump_event_table()
+    with Session(engine) as session:
+        dump_event_table(session)
 
 
 if __name__ == "__main__":

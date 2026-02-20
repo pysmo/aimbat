@@ -1,12 +1,12 @@
 from aimbat.app import app
-from aimbat.lib.typing import SeismogramParameter
-from aimbat.lib.models import AimbatSeismogram
+from aimbat.aimbat_types import SeismogramParameter
+from aimbat.models import AimbatSeismogram
 from sqlmodel import Session, select
-from importlib import reload
+from sqlalchemy import Engine
 from typing import Any
 from matplotlib.figure import Figure
 from collections.abc import Generator
-import aimbat.lib.seismogram as seismogram
+import aimbat.core._seismogram as seismogram
 import pytest
 import random
 import json
@@ -15,10 +15,10 @@ import json
 class TestSeismogramBase:
     @pytest.fixture(autouse=True)
     def session(
-        self, fixture_session_with_active_event: Session
+        self, fixture_engine_session_with_active_event: tuple[Engine, Session]
     ) -> Generator[Session, Any, Any]:
-        reload(seismogram)
-        yield fixture_session_with_active_event
+        session = fixture_engine_session_with_active_event[1]
+        yield session
 
 
 class TestDeleteSeismogram(TestSeismogramBase):
@@ -53,9 +53,9 @@ class TestDeleteSeismogram(TestSeismogramBase):
     def test_cli_delete_seismogram_by_id_with_wrong_id(self) -> None:
         import uuid
 
-        from aimbat.config import settings
+        from aimbat import settings
 
-        settings.debug = False
+        settings.log_level = "INFO"
 
         id = uuid.uuid4()
 
@@ -87,7 +87,7 @@ class TestGetSeismogramParameter(TestSeismogramBase):
     def random_seismogram(
         self, session: Session
     ) -> Generator[AimbatSeismogram, Any, Any]:
-        from aimbat.lib.event import get_active_event
+        from aimbat.utils import get_active_event
 
         yield random.choice(list(get_active_event(session).seismograms))
 
@@ -170,7 +170,7 @@ class TestSetSeismogramParameter(TestSeismogramBase):
     def random_seismogram(
         self, session: Session
     ) -> Generator[AimbatSeismogram, Any, Any]:
-        from aimbat.lib.event import get_active_event
+        from aimbat.utils import get_active_event
 
         seismogram = random.choice(list(get_active_event(session).seismograms))
         assert seismogram.parameters.select is True
@@ -274,33 +274,33 @@ class TestGetAllSelectedSeismograms(TestSeismogramBase):
 
 class TestPrintSeismogramTable(TestSeismogramBase):
     def test_lib_print_seismogram_table_no_short(
-        self, capsys: pytest.CaptureFixture
+        self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        seismogram.print_seismogram_table(short=False, all_events=False)
+        seismogram.print_seismogram_table(session, short=False, all_events=False)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
         assert "ID (shortened)" not in captured.out
 
     def test_lib_print_seismogram_table_short(
-        self, capsys: pytest.CaptureFixture
+        self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        seismogram.print_seismogram_table(short=True, all_events=False)
+        seismogram.print_seismogram_table(session, short=True, all_events=False)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for event" in captured.out
         assert "ID (shortened)" in captured.out
 
     def test_lib_print_seismogram_table_no_short_all_events(
-        self, capsys: pytest.CaptureFixture
+        self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        seismogram.print_seismogram_table(short=False, all_events=True)
+        seismogram.print_seismogram_table(session, short=False, all_events=True)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for all events" in captured.out
         assert "ID (shortened)" not in captured.out
 
     def test_lib_print_seismogram_table_short_all_events(
-        self, capsys: pytest.CaptureFixture
+        self, session: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        seismogram.print_seismogram_table(short=True, all_events=True)
+        seismogram.print_seismogram_table(session, short=True, all_events=True)
         captured = capsys.readouterr()
         assert "AIMBAT seismograms for all events" in captured.out
         assert "ID (shortened)" in captured.out
@@ -317,8 +317,10 @@ class TestPrintSeismogramTable(TestSeismogramBase):
 
 
 class TestDumpSeismogram(TestSeismogramBase):
-    def test_lib_dump_data(self, capsys: pytest.CaptureFixture) -> None:
-        seismogram.dump_seismogram_table()
+    def test_lib_dump_data(
+        self, session: Session, capsys: pytest.CaptureFixture
+    ) -> None:
+        seismogram.dump_seismogram_table(session)
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
         assert isinstance(loaded_json, list)
@@ -342,14 +344,15 @@ class TestDumpSeismogram(TestSeismogramBase):
 
 class TestSeismogramPlot(TestSeismogramBase):
     @pytest.mark.mpl_image_compare
-    def test_lib_plotseis_mpl(self) -> Figure:
-        return seismogram.plot_seismograms()
+    def test_lib_plotseis_mpl(self, session: Session) -> Figure:
+        return seismogram.plot_all_seismograms(session)
 
     @pytest.mark.skip(reason="I con't know how to test QT yet.")
     def test_lib_plotseis_qt(
         self,
+        session: Session,
     ) -> None:
-        _ = seismogram.plot_seismograms(use_qt=True)
+        _ = seismogram.plot_all_seismograms(session, use_qt=True)
 
     def test_cli_plotseis_mpl(self) -> None:
         with pytest.raises(SystemExit) as excinfo:

@@ -1,15 +1,15 @@
 from sqlmodel import SQLModel
 from enum import StrEnum
 from typing import get_args, TypeAliasType
-from aimbat.lib.models import AimbatEventParametersBase, AimbatSeismogramParametersBase
-from aimbat.lib.typing import (
+from aimbat.models import AimbatEventParametersBase, AimbatSeismogramParametersBase
+from aimbat.aimbat_types import (
     EventParameter,
     SeismogramParameter,
     EventParameterBool,
     EventParameterFloat,
     EventParameterTimedelta,
     SeismogramParameterBool,
-    SeismogramParameterDatetime,
+    SeismogramParameterTimestamp,
 )
 
 
@@ -53,5 +53,5 @@ class TestLibTypes:
         )
         assert set_from_strenum(SeismogramParameter) == set_from_typealiases(
             SeismogramParameterBool,
-            SeismogramParameterDatetime,
+            SeismogramParameterTimestamp,
         )

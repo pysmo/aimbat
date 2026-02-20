@@ -6,7 +6,7 @@ command (as specified below) to actually do anything. Help for individual
 commands is available by typing `aimbat COMMAND --help`.
 """
 
-from .config import cli_settings_list
+from ._config import cli_settings_list
 from importlib import metadata
 from cyclopts import App
 from .cli import (

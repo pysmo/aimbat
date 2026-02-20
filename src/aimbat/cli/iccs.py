@@ -18,72 +18,6 @@ class IccsPlotParameters:
     "Include all seismograms in the plot, even if not used in stack."
 
 
-@simple_exception
-def _run_iccs(autoflip: bool = False, autoselect: bool = False) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.iccs import create_iccs_instance, run_iccs
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        iccs = create_iccs_instance(session)
-        run_iccs(session, iccs, autoflip, autoselect)
-
-
-@simple_exception
-def _plot_stack(context: bool, all: bool) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.iccs import create_iccs_instance, plot_stack
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        iccs = create_iccs_instance(session)
-        plot_stack(iccs, context, all)
-
-
-@simple_exception
-def _plot_seismograms(context: bool, all: bool) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.iccs import create_iccs_instance, plot_seismograms
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        iccs = create_iccs_instance(session)
-        plot_seismograms(iccs, context, all)
-
-
-@simple_exception
-def _update_pick(context: bool, all: bool, use_seismogram_image: bool) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.iccs import create_iccs_instance, update_pick
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        iccs = create_iccs_instance(session)
-        update_pick(session, iccs, context, all, use_seismogram_image)
-
-
-@simple_exception
-def _update_timewindow(context: bool, all: bool, use_seismogram_image: bool) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.iccs import create_iccs_instance, update_timewindow
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        iccs = create_iccs_instance(session)
-        update_timewindow(session, iccs, context, all, use_seismogram_image)
-
-
-@simple_exception
-def _update_min_ccnorm(context: bool, all: bool) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.iccs import create_iccs_instance, update_min_ccnorm
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        iccs = create_iccs_instance(session)
-        update_min_ccnorm(session, iccs, context, all)
-
-
 app = App(name="iccs", help=__doc__, help_format="markdown")
 plot = App(name="plot", help="Plot ICCS data and results.", help_format="markdown")
 update = App(
@@ -96,6 +30,7 @@ app.command(update)
 
 
 @app.command(name="run")
+@simple_exception
 def cli_iccs_run(
     *,
     autoflip: bool = False,
@@ -108,41 +43,59 @@ def cli_iccs_run(
         autoflip: Whether to automatically flip seismograms (multiply data by -1).
         autoselect: Whether to automatically de-select seismograms.
     """
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, run_iccs
+    from sqlmodel import Session
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _run_iccs(autoflip, autoselect)
+    with Session(engine) as session:
+        iccs = create_iccs_instance(session)
+        run_iccs(session, iccs, autoflip, autoselect)
 
 
 @plot.command(name="stack")
+@simple_exception
 def cli_iccs_plot_stack(
     *,
     iccs_parameters: IccsPlotParameters | None = None,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Plot the ICCS stack of the active event."""
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, plot_stack
+    from sqlmodel import Session
 
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _plot_stack(iccs_parameters.context, iccs_parameters.all)
+    with Session(engine) as session:
+        iccs = create_iccs_instance(session)
+        plot_stack(iccs, iccs_parameters.context, iccs_parameters.all)
 
 
 @plot.command(name="image")
+@simple_exception
 def cli_iccs_plot_seismograms(
     *,
     iccs_parameters: IccsPlotParameters | None = None,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Plot the ICCS seismograms of the active event as an image."""
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, plot_seismograms
+    from sqlmodel import Session
 
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _plot_seismograms(iccs_parameters.context, iccs_parameters.all)
+    with Session(engine) as session:
+        iccs = create_iccs_instance(session)
+        plot_seismograms(iccs, iccs_parameters.context, iccs_parameters.all)
 
 
 @update.command(name="pick")
+@simple_exception
 def cli_iccs_update_pick(
     *,
     iccs_parameters: IccsPlotParameters | None = None,
@@ -154,18 +107,26 @@ def cli_iccs_update_pick(
     Args:
         use_seismogram_image: Use the seismogram image to update pick.
     """
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, update_pick
+    from sqlmodel import Session
 
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _update_pick(
-        iccs_parameters.context,
-        iccs_parameters.all,
-        use_seismogram_image,
-    )
+    with Session(engine) as session:
+        iccs = create_iccs_instance(session)
+        update_pick(
+            session,
+            iccs,
+            iccs_parameters.context,
+            iccs_parameters.all,
+            use_seismogram_image,
+        )
 
 
 @update.command(name="window")
+@simple_exception
 def cli_iccs_update_timewindow(
     *,
     iccs_parameters: IccsPlotParameters | None = None,
@@ -177,29 +138,42 @@ def cli_iccs_update_timewindow(
     Args:
         use_seismogram_image: Use the seismogram image to pick the time window.
     """
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, update_timewindow
+    from sqlmodel import Session
 
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _update_timewindow(
-        iccs_parameters.context,
-        iccs_parameters.all,
-        use_seismogram_image,
-    )
+    with Session(engine) as session:
+        iccs = create_iccs_instance(session)
+        update_timewindow(
+            session,
+            iccs,
+            iccs_parameters.context,
+            iccs_parameters.all,
+            use_seismogram_image,
+        )
 
 
 @update.command(name="ccnorm")
+@simple_exception
 def cli_iccs_update_min_ccnorm(
     *,
     iccs_parameters: IccsPlotParameters | None = None,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Pick a new minimum cross-correlation norm for auto-selection."""
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, update_min_ccnorm
+    from sqlmodel import Session
 
     iccs_parameters = iccs_parameters or IccsPlotParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _update_min_ccnorm(iccs_parameters.context, iccs_parameters.all)
+    with Session(engine) as session:
+        iccs = create_iccs_instance(session)
+        update_min_ccnorm(session, iccs, iccs_parameters.context, iccs_parameters.all)
 
 
 if __name__ == "__main__":

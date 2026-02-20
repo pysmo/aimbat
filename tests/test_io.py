@@ -1,13 +1,14 @@
-from aimbat.lib.models import AimbatSeismogram
-from aimbat.lib.io import DataType
+from aimbat.models import AimbatSeismogram
+from aimbat.aimbat_types import DataType
 from pysmo.classes import SAC, SacSeismogram
 from pysmo import Seismogram
-from pydantic import ValidationError
 from sqlmodel import Session, select
+from sqlalchemy import Engine
+from sqlalchemy.exc import StatementError
 from typing import Any
 from collections.abc import Generator
 from pathlib import Path
-import aimbat.lib.data as data
+import aimbat.core._data as data
 import numpy as np
 import pytest
 
@@ -16,11 +17,13 @@ class TestSacBase:
     @pytest.fixture
     def aimbat_seismogram_from_sac(
         self,
-        fixture_session_with_project: Session,
+        fixture_engine_session_with_project: tuple[Engine, Session],
         sac_file_good: Path,
     ) -> Generator[AimbatSeismogram, Any, Any]:
-        data.add_files_to_project([sac_file_good], DataType.SAC)
-        aimbat_file = fixture_session_with_project.exec(select(AimbatSeismogram)).one()
+
+        _, session = fixture_engine_session_with_project
+        data.add_files_to_project(session, [sac_file_good], DataType.SAC)
+        aimbat_file = session.exec(select(AimbatSeismogram)).one()
         yield aimbat_file
 
     @pytest.fixture
@@ -37,8 +40,14 @@ class TestSacRead(TestSacBase):
     ) -> None:
         assert isinstance(aimbat_seismogram_from_sac, Seismogram)
         assert sac_seismogram.delta == aimbat_seismogram_from_sac.delta
-        assert sac_seismogram.begin_time == aimbat_seismogram_from_sac.begin_time
-        assert sac_seismogram.end_time == aimbat_seismogram_from_sac.end_time
+        assert (
+            pytest.approx(sac_seismogram.begin_time.timestamp())
+            == aimbat_seismogram_from_sac.begin_time.timestamp()
+        )
+        assert (
+            pytest.approx(sac_seismogram.end_time.timestamp())
+            == aimbat_seismogram_from_sac.end_time.timestamp()
+        )
         assert len(sac_seismogram) == len(aimbat_seismogram_from_sac)
 
 
@@ -57,10 +66,13 @@ class TestSacWrite(TestSacBase):
 
 class TestSacBadFile(TestSacBase):
     def test_t0_missing(
-        self, sac_file_good: Path, fixture_session_with_project: Session
+        self,
+        sac_file_good: Path,
+        fixture_engine_session_with_project: tuple[Engine, Session],
     ) -> None:
+        _, session = fixture_engine_session_with_project
         sac = SAC.from_file(sac_file_good)
         sac.t0 = None
         sac.write(sac_file_good)
-        with pytest.raises(ValidationError):
-            data.add_files_to_project([sac_file_good], DataType.SAC)
+        with pytest.raises(StatementError):
+            data.add_files_to_project(session, [sac_file_good], DataType.SAC)

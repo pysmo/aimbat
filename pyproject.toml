@@ -26,6 +26,8 @@ dependencies = [
     "pyqtgraph>=0.13.7",
     "cyclopts>=3.24.0",
     "pydantic-settings>=2.10.1",
+    "pandas>=3.0.1",
+    "pandas-stubs>=3.0.0.260204",
 ]
 
 [project.urls]

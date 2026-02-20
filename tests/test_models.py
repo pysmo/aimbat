@@ -1,7 +1,9 @@
-from aimbat.lib.models import AimbatSeismogram
+from aimbat.models import AimbatSeismogram
+from aimbat.utils import get_active_event
 from typing import Any
 from collections.abc import Generator
 from sqlmodel import Session
+from sqlalchemy import Engine
 import numpy as np
 import pytest
 import random
@@ -10,9 +12,10 @@ import random
 class TestModelsBase:
     @pytest.fixture
     def session(
-        self, fixture_session_with_active_event: Session
+        self, fixture_engine_session_with_active_event: tuple[Engine, Session]
     ) -> Generator[Session, Any, Any]:
-        yield fixture_session_with_active_event
+        session = fixture_engine_session_with_active_event[1]
+        yield session
 
 
 class TestAimbatSeismogram(TestModelsBase):
@@ -20,7 +23,6 @@ class TestAimbatSeismogram(TestModelsBase):
     def random_seismogram(
         self, session: Session
     ) -> Generator[AimbatSeismogram, Any, Any]:
-        from aimbat.lib.event import get_active_event
 
         yield random.choice(list(get_active_event(session).seismograms))
 

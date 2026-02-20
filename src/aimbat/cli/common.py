@@ -1,9 +1,13 @@
 """Common parameters and functions for the AIMBAT CLI."""
 
-from aimbat.config import settings
+from aimbat import settings
 from dataclasses import dataclass
 from cyclopts import Parameter
 from typing import Callable, Any
+
+# --------------------------------------------------
+# Common parameters
+# --------------------------------------------------
 
 
 @Parameter(name="*")
@@ -17,7 +21,7 @@ class GlobalParameters:
 
     def __post_init__(self) -> None:
         if self.debug:
-            settings.debug = True
+            settings.log_level = "DEBUG"
 
 
 @Parameter(name="*")
@@ -25,6 +29,22 @@ class GlobalParameters:
 class TableParameters:
     short: bool = True
     "Shorten UUIDs and format data."
+
+
+# ------------------------------------------------
+# Hints for error messages
+# ------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CliHints:
+    """Hints for error messages."""
+
+    ACTIVATE_EVENT = "Hint: activate an event with `aimbat event activate <EVENT_ID>`."
+    LIST_EVENTS = "Hint: view available events with `aimbat event list`."
+
+
+HINTS = CliHints()
 
 
 # -------------------------------------------------
@@ -46,7 +66,7 @@ def simple_exception[F: Callable[..., Any]](func: F) -> F:
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        if settings.debug:
+        if settings.log_level in ("TRACE", "DEBUG"):
             return func(*args, **kwargs)
         try:
             return func(*args, **kwargs)

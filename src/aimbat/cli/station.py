@@ -5,41 +5,11 @@ from typing import Annotated
 from cyclopts import App, Parameter
 import uuid
 
-
-@simple_exception
-def _delete_station(
-    station_id: uuid.UUID | str,
-) -> None:
-    from aimbat.lib.common import string_to_uuid
-    from aimbat.lib.db import engine
-    from aimbat.lib.station import delete_station_by_id
-    from aimbat.lib.models import AimbatStation
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        if not isinstance(station_id, uuid.UUID):
-            station_id = string_to_uuid(session, station_id, AimbatStation)
-        delete_station_by_id(session, station_id)
-
-
-@simple_exception
-def _print_station_table(short: bool, all_events: bool) -> None:
-    from aimbat.lib.station import print_station_table
-
-    print_station_table(short, all_events)
-
-
-@simple_exception
-def _dump_station_table() -> None:
-    from aimbat.lib.station import dump_station_table
-
-    dump_station_table()
-
-
 app = App(name="station", help=__doc__, help_format="markdown")
 
 
 @app.command(name="delete")
+@simple_exception
 def cli_station_delete(
     station_id: Annotated[uuid.UUID | str, Parameter(name="id")],
     *,
@@ -50,13 +20,22 @@ def cli_station_delete(
     Args:
         station_id: Station ID.
     """
+    from aimbat.db import engine
+    from aimbat.utils import string_to_uuid
+    from aimbat.core import delete_station_by_id
+    from aimbat.models import AimbatStation
+    from sqlmodel import Session
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_station(station_id=station_id)
+    with Session(engine) as session:
+        if not isinstance(station_id, uuid.UUID):
+            station_id = string_to_uuid(session, station_id, AimbatStation)
+        delete_station_by_id(session, station_id)
 
 
 @app.command(name="list")
+@simple_exception
 def cli_station_list(
     *,
     all_events: Annotated[bool, Parameter(name="all")] = False,
@@ -68,23 +47,33 @@ def cli_station_list(
     Args:
         all_events: Select stations for all events.
     """
+    from aimbat.db import engine
+    from aimbat.core import print_station_table
+    from sqlmodel import Session
 
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_station_table(table_parameters.short, all_events)
+    with Session(engine) as session:
+        print_station_table(session, table_parameters.short, all_events)
 
 
 @app.command(name="dump")
+@simple_exception
 def cli_station_dump(
     *,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Dump the contents of the AIMBAT station table to json."""
 
+    from aimbat.db import engine
+    from aimbat.core import dump_station_table
+    from sqlmodel import Session
+
     global_parameters = global_parameters or GlobalParameters()
 
-    _dump_station_table()
+    with Session(engine) as session:
+        dump_station_table(session)
 
 
 if __name__ == "__main__":

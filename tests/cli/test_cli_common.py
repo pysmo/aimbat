@@ -1,11 +1,11 @@
-from aimbat.config import Settings
+from aimbat._config import Settings
 import pytest
 
 
 def test_simple_exception(
     patch_settings: Settings, capsys: pytest.CaptureFixture
 ) -> None:
-    patch_settings.debug = False
+    patch_settings.log_level = "INFO"
     from aimbat.app import app
 
     with pytest.raises(SystemExit) as e:
