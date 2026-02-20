@@ -2,6 +2,13 @@
 
 ## Code Style and Standards
 
+### General Principles
+
+- Write clean, readable, and maintainable code
+- Write self-documenting code with clear variable and function names
+- Suggest improvements to code style, efficiency, and readability in pull
+  request reviews
+
 ### PEP 8 Compliance
 
 - Follow [PEP 8](https://peps.python.org/pep-0008/) style guide for all Python code
@@ -42,6 +49,7 @@
 #### Docstrings
 
 - Use **Google Style** docstrings for all public functions, classes, and methods
+- Don't add the args and return types in the docstring if they are already specified in the type hints.
 - Format:
 
   ```python

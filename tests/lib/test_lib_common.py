@@ -1,5 +1,6 @@
+from aimbat.models import AimbatStation
 from sqlmodel import Session
-from aimbat.lib.models import AimbatStation
+from sqlalchemy import Engine
 from collections.abc import Iterator
 import pytest
 import uuid
@@ -11,7 +12,7 @@ UUID2 = uuid.UUID("12e6ca37-e03b-42b6-acc4-e9eaba5c1587")
 class TestUuidFunctions:
     @pytest.fixture
     def session_with_stations(
-        self, fixture_session_with_project: Session
+        self, fixture_engine_session_with_project: tuple[Engine, Session]
     ) -> Iterator[Session]:
         station_1 = AimbatStation(
             id=UUID1,
@@ -33,7 +34,7 @@ class TestUuidFunctions:
             longitude=12,
             elevation=12,
         )
-        session = fixture_session_with_project
+        _, session = fixture_engine_session_with_project
         session.add_all([station_1, station_2])
         session.commit()
         yield session
@@ -55,7 +56,7 @@ class TestUuidFunctions:
         uuid_str: str,
         expected: uuid.UUID | Exception,
     ) -> None:
-        from aimbat.lib.common import string_to_uuid
+        from aimbat.utils import string_to_uuid
 
         if isinstance(expected, type) and issubclass(expected, Exception):
             with pytest.raises(expected):
@@ -70,7 +71,7 @@ class TestUuidFunctions:
     def test_uuid_shortener(
         self, session_with_stations: Session, test_uuid: uuid.UUID
     ) -> None:
-        from aimbat.lib.common import uuid_shortener
+        from aimbat.utils import uuid_shortener
 
         aimbat_station = session_with_stations.get(AimbatStation, test_uuid)
         assert aimbat_station is not None

@@ -22,8 +22,6 @@ nav = [
   ] },
   { "API reference" = [
     "api/index.md",
-    "api/cli.md",
-    "api/lib.md",
   ] },
  { "Getting Help" = "help.md"},
  {"Contributors" = "contributors.md"},

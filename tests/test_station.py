@@ -1,10 +1,10 @@
-from aimbat.lib.models import AimbatStation
+from aimbat.models import AimbatStation
 from aimbat.app import app
 from sqlmodel import Session, select
-from importlib import reload
+from sqlalchemy import Engine
 from typing import Any
 from collections.abc import Generator
-import aimbat.lib.station as station
+import aimbat.core._station as station
 import random
 import pytest
 import json
@@ -13,10 +13,10 @@ import json
 class TestStationBase:
     @pytest.fixture(autouse=True)
     def session(
-        self, fixture_session_with_active_event: Session
+        self, fixture_engine_session_with_active_event: tuple[Engine, Session]
     ) -> Generator[Session, Any, Any]:
-        reload(station)
-        yield fixture_session_with_active_event
+        session = fixture_engine_session_with_active_event[1]
+        yield session
 
 
 class TestDeleteStation(TestStationBase):
@@ -49,9 +49,9 @@ class TestDeleteStation(TestStationBase):
         )
 
     def test_cli_delete_station_by_id_with_wrong_id(self) -> None:
-        from aimbat.config import settings
+        from aimbat import settings
 
-        settings.debug = False
+        settings.log_level = "INFO"
 
         import uuid
 
@@ -81,17 +81,17 @@ class TestDeleteStation(TestStationBase):
 
 
 class TestLibStation(TestStationBase):
-    def test_sac_data(self, capsys: pytest.CaptureFixture) -> None:
-        station.print_station_table(short=False)
+    def test_sac_data(self, session: Session, capsys: pytest.CaptureFixture) -> None:
+        station.print_station_table(session, short=False)
         assert "AIMBAT stations for event" in capsys.readouterr().out
 
-        station.print_station_table(short=True)
+        station.print_station_table(session, short=True)
         assert "ID (shortened)" in capsys.readouterr().out
 
-        station.print_station_table(short=False, all_events=True)
+        station.print_station_table(session, short=False, all_events=True)
         assert "AIMBAT stations for all events" in capsys.readouterr().out
 
-        station.print_station_table(short=True, all_events=True)
+        station.print_station_table(session, short=True, all_events=True)
         assert "# Seismograms" in capsys.readouterr().out
 
 
@@ -119,8 +119,10 @@ class TestCliStation(TestStationBase):
 
 
 class TestDumpStation(TestStationBase):
-    def test_lib_dump_data(self, capsys: pytest.CaptureFixture) -> None:
-        station.dump_station_table()
+    def test_lib_dump_data(
+        self, session: Session, capsys: pytest.CaptureFixture
+    ) -> None:
+        station.dump_station_table(session)
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
         assert isinstance(loaded_json, list)

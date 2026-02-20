@@ -5,56 +5,11 @@ from typing import Annotated
 from cyclopts import App, Parameter
 import uuid
 
-
-@simple_exception
-def _create_snapshot(comment: str | None = None) -> None:
-    from aimbat.lib.db import engine
-    from aimbat.lib.snapshot import create_snapshot
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        create_snapshot(session, comment)
-
-
-@simple_exception
-def _rollback_to_snapshot(snapshot_id: uuid.UUID | str) -> None:
-    from aimbat.lib.common import string_to_uuid
-    from aimbat.lib.db import engine
-    from aimbat.lib.models import AimbatSnapshot
-    from aimbat.lib.snapshot import rollback_to_snapshot_by_id
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        if not isinstance(snapshot_id, uuid.UUID):
-            snapshot_id = string_to_uuid(session, snapshot_id, AimbatSnapshot)
-        rollback_to_snapshot_by_id(session, snapshot_id)
-
-
-@simple_exception
-def _delete_snapshot(snapshot_id: uuid.UUID | str) -> None:
-    from aimbat.lib.common import string_to_uuid
-    from aimbat.lib.db import engine
-    from aimbat.lib.models import AimbatSnapshot
-    from aimbat.lib.snapshot import delete_snapshot_by_id
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        if not isinstance(snapshot_id, uuid.UUID):
-            snapshot_id = string_to_uuid(session, snapshot_id, AimbatSnapshot)
-        delete_snapshot_by_id(session, snapshot_id)
-
-
-@simple_exception
-def _print_snapshot_table(short: bool, all_events: bool) -> None:
-    from aimbat.lib.snapshot import print_snapshot_table
-
-    print_snapshot_table(short, all_events)
-
-
 app = App(name="snapshot", help=__doc__, help_format="markdown")
 
 
 @app.command(name="create")
+@simple_exception
 def cli_snapshot_create(
     comment: str | None = None, *, global_parameters: GlobalParameters | None = None
 ) -> None:
@@ -63,13 +18,18 @@ def cli_snapshot_create(
     Args:
         comment: Create snapshot with optional comment.
     """
+    from aimbat.db import engine
+    from aimbat.core import create_snapshot
+    from sqlmodel import Session
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _create_snapshot(comment=comment)
+    with Session(engine) as session:
+        create_snapshot(session, comment)
 
 
 @app.command(name="rollback")
+@simple_exception
 def cli_snapshot_rollback(
     snapshot_id: Annotated[uuid.UUID | str, Parameter(name="id")],
     *,
@@ -80,13 +40,22 @@ def cli_snapshot_rollback(
     Args:
         snapshot_id: Snapshot ID Number.
     """
+    from aimbat.utils import string_to_uuid
+    from aimbat.db import engine
+    from aimbat.models import AimbatSnapshot
+    from aimbat.core import rollback_to_snapshot_by_id
+    from sqlmodel import Session
 
     global_paramaters = global_paramaters or GlobalParameters()
 
-    _rollback_to_snapshot(snapshot_id)
+    with Session(engine) as session:
+        if not isinstance(snapshot_id, uuid.UUID):
+            snapshot_id = string_to_uuid(session, snapshot_id, AimbatSnapshot)
+        rollback_to_snapshot_by_id(session, snapshot_id)
 
 
 @app.command(name="delete")
+@simple_exception
 def cli_snapshop_delete(
     snapshot_id: Annotated[uuid.UUID | str, Parameter(name="id")],
     *,
@@ -97,13 +66,22 @@ def cli_snapshop_delete(
     Args:
         snapshot_id: Snapshot ID Number.
     """
+    from aimbat.db import engine
+    from aimbat.utils import string_to_uuid
+    from aimbat.models import AimbatSnapshot
+    from aimbat.core import delete_snapshot_by_id
+    from sqlmodel import Session
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_snapshot(snapshot_id)
+    with Session(engine) as session:
+        if not isinstance(snapshot_id, uuid.UUID):
+            snapshot_id = string_to_uuid(session, snapshot_id, AimbatSnapshot)
+        delete_snapshot_by_id(session, snapshot_id)
 
 
 @app.command(name="list")
+@simple_exception
 def cli_snapshot_list(
     *,
     all_events: Annotated[bool, Parameter("all")] = False,
@@ -115,11 +93,15 @@ def cli_snapshot_list(
     Args:
         all_events: Select snapshots for all events.
     """
+    from aimbat.db import engine
+    from aimbat.core import print_snapshot_table
+    from sqlmodel import Session
 
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_snapshot_table(table_parameters.short, all_events)
+    with Session(engine) as session:
+        print_snapshot_table(session, table_parameters.short, all_events)
 
 
 if __name__ == "__main__":

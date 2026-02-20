@@ -3,17 +3,17 @@
 from pysmo.classes import SAC
 from pathlib import Path
 from random import choices, randint
-from datetime import timedelta
+from pandas import Timedelta
 
 
-def mk_data(orgfile: Path, newfile: Path, td: timedelta) -> None:
+def mk_data(orgfile: Path, newfile: Path, td: Timedelta) -> None:
     my_sac = SAC.from_file(str(orgfile))
     my_sac.event.time += td
     my_sac.write(str(newfile))
 
 
 def make_data(orgfiles: list[Path], new_event_dir: Path, k: int) -> None:
-    td = timedelta(hours=randint(1000, 10000))
+    td = Timedelta(hours=randint(1000, 10000))
     for orgfile in choices(orgfiles, k=k):
         newfile = new_event_dir / orgfile.name
         mk_data(orgfile, newfile, td)

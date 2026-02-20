@@ -9,7 +9,7 @@ class TestConfig:
     def test_lib_print_defaults(
         self, pretty: bool, expected: str, capsys: pytest.CaptureFixture
     ) -> None:
-        from aimbat.config import print_settings_table
+        from aimbat._config import print_settings_table
 
         print_settings_table(pretty)
         output = capsys.readouterr().out
@@ -42,7 +42,7 @@ class TestConfig:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        from aimbat.config import Settings, print_settings_table
+        from aimbat._config import Settings, print_settings_table
 
         monkeypatch.delitem(Settings.model_config, "env_prefix")
 

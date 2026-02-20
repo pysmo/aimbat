@@ -1,48 +1,17 @@
 """Manage seismogram files in an AIMBAT project."""
 
 from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
-from aimbat.lib.io import DataType
+from aimbat.aimbat_types import DataType
+from sqlmodel import Session
 from cyclopts import App, Parameter, validators
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated
-
-
-@simple_exception
-def _add_files_to_project(
-    seismogram_files: Sequence[Path],
-    filetype: DataType,
-    show_progress_bar: bool,
-) -> None:
-    from aimbat.lib.data import add_files_to_project
-
-    disable_progress_bar = not show_progress_bar
-
-    add_files_to_project(
-        seismogram_files,
-        filetype,
-        disable_progress_bar,
-    )
-
-
-@simple_exception
-def _print_data_table(short: bool, all_events: bool) -> None:
-    from aimbat.lib.data import print_data_table
-
-    print_data_table(short, all_events)
-
-
-@simple_exception
-def _dump_data_table() -> None:
-    from aimbat.lib.data import dump_data_table
-
-    dump_data_table()
-
 
 app = App(name="data", help=__doc__, help_format="markdown")
 
 
 @app.command(name="add")
+@simple_exception
 def cli_data_add(
     seismogram_files: Annotated[
         list[Path],
@@ -62,13 +31,24 @@ def cli_data_add(
         filetype: Specify type of seismogram file.
         show_progress_bar: Display progress bar.
     """
+    from aimbat.db import engine
+    from aimbat.core import add_files_to_project
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _add_files_to_project(seismogram_files, filetype, show_progress_bar)
+    disable_progress_bar = not show_progress_bar
+
+    with Session(engine) as session:
+        add_files_to_project(
+            session,
+            seismogram_files,
+            filetype,
+            disable_progress_bar,
+        )
 
 
 @app.command(name="list")
+@simple_exception
 def cli_data_list(
     *,
     all_events: Annotated[bool, Parameter(name="all")] = False,
@@ -80,23 +60,30 @@ def cli_data_list(
     Args:
         all_events: Select data for all events.
     """
+    from aimbat.db import engine
+    from aimbat.core import print_data_table
 
     table_parameters = table_parameters or TableParameters()
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_data_table(table_parameters.short, all_events)
+    with Session(engine) as session:
+        print_data_table(session, table_parameters.short, all_events)
 
 
 @app.command(name="dump")
+@simple_exception
 def cli_data_dump(
     *,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
     """Dump the contents of the AIMBAT data table to json."""
+    from aimbat.db import engine
+    from aimbat.core import dump_data_table
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _dump_data_table()
+    with Session(engine) as session:
+        dump_data_table(session)
 
 
 if __name__ == "__main__":

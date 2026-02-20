@@ -11,25 +11,11 @@ be viewed or changed via `aimbat default <list/set> sampledata_dir`.
 from aimbat.cli.common import GlobalParameters, simple_exception
 from cyclopts import App
 
-
-@simple_exception
-def _delete_sampledata() -> None:
-    from aimbat.lib.utils.sampledata import delete_sampledata
-
-    delete_sampledata()
-
-
-@simple_exception
-def _download_sampledata(force: bool = False) -> None:
-    from aimbat.lib.utils.sampledata import download_sampledata
-
-    download_sampledata(force)
-
-
 app = App(name="sampledata", help=__doc__, help_format="markdown")
 
 
 @app.command(name="download")
+@simple_exception
 def sampledata_cli_download(
     *, force: bool = False, global_parameters: GlobalParameters | None = None
 ) -> None:
@@ -41,19 +27,22 @@ def sampledata_cli_download(
     Args:
         force: Delete the download directory and re-download."
     """
+    from aimbat.utils import download_sampledata
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _download_sampledata(force)
+    download_sampledata(force)
 
 
 @app.command(name="delete")
+@simple_exception
 def sampledata_cli_delete(*, global_parameters: GlobalParameters | None = None) -> None:
     """Recursively delete sample data directory."""
+    from aimbat.utils import delete_sampledata
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_sampledata()
+    delete_sampledata()
 
 
 if __name__ == "__main__":

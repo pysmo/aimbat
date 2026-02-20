@@ -1,15 +1,18 @@
-from aimbat.lib.io import DataType
+from aimbat.aimbat_types import DataType
 from pysmo.classes import SAC
 from sqlmodel import Session, select
+from sqlalchemy import Engine
 from pathlib import Path
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from importlib import reload
-from aimbat.config import settings, Settings
-import aimbat.lib.db as db
-import aimbat.lib.project as project
-import aimbat.lib.data as data
-import aimbat.lib.event as event
+from aimbat import settings
+from aimbat._config import Settings
+from aimbat.logger import configure_logging
+import aimbat.db as db
+import aimbat.core._project as project
+import aimbat.core._data as data
+import aimbat.core._event as event
 import random
 import shutil
 import pytest
@@ -65,7 +68,9 @@ def patch_settings(request: pytest.FixtureRequest) -> Iterator[Settings]:
 
 @pytest.fixture(autouse=True)
 def patch_debug_setting(patch_settings: Settings) -> Iterator[None]:
-    patch_settings.debug = True
+    patch_settings.log_level = "DEBUG"
+    patch_settings.logfile = Path("aimbat_test.log")
+    configure_logging()
 
     yield
 
@@ -117,18 +122,16 @@ def test_data_string(test_data: list[Path]) -> Iterator[list[str]]:
 
 
 @pytest.fixture
-def fixture_session_empty(
+def fixture_empty_db(
     patch_settings: Settings,
-) -> Iterator[Session]:
+) -> Iterator[tuple[Engine, Session]]:
     db_url: str = r"sqlite+pysqlite:///:memory:"
     patch_settings.db_url = db_url
+    db.engine.dispose()
     reload(db)
-    reload(project)
-    reload(data)
-    reload(event)
 
     with Session(db.engine) as session:
-        yield session
+        yield db.engine, session
     db.engine.dispose()
 
 
@@ -136,39 +139,37 @@ def fixture_session_empty(
 def fixture_session_with_project_file(
     tmp_path_factory: pytest.TempPathFactory,
     patch_settings: Settings,
-) -> Iterator[tuple[Session, Path]]:
+) -> Iterator[tuple[Engine, Session, Path]]:
     db_file = Path(tmp_path_factory.mktemp("test_db")) / "mock.db"
     db_url: str = rf"sqlite+pysqlite:///{db_file}"
 
     patch_settings.db_url = db_url
     patch_settings.project = db_file
 
+    db.engine.dispose()
     reload(db)
-    reload(project)
-    reload(data)
-    reload(event)
-    project.create_project()
+    project.create_project(db.engine)
 
     with Session(db.engine) as session:
-        yield session, db_file
+        yield db.engine, session, db_file
     db.engine.dispose()
 
 
 @pytest.fixture
-def fixture_session_with_project(patch_settings: Settings) -> Iterator[Session]:
+def fixture_engine_session_with_project(
+    patch_settings: Settings,
+) -> Iterator[tuple[Engine, Session]]:
     """Yield a session with a new project."""
 
     db_url: str = r"sqlite+pysqlite:///:memory:"
     patch_settings.db_url = db_url
 
+    db.engine.dispose()
     reload(db)
-    reload(project)
-    reload(data)
-    reload(event)
-    project.create_project()
+    project.create_project(db.engine)
 
     with Session(db.engine) as session:
-        yield session
+        yield db.engine, session
     db.engine.dispose()
 
 
@@ -181,39 +182,35 @@ def fixture_session_with_data(
     db_url: str = r"sqlite+pysqlite:///:memory:"
     patch_settings.db_url = db_url
 
+    db.engine.dispose()
     reload(db)
-    reload(project)
-    reload(data)
-    reload(event)
-    project.create_project()
-    data.add_files_to_project(test_data, DataType.SAC)
+    project.create_project(db.engine)
 
     with Session(db.engine) as session:
+        data.add_files_to_project(session, test_data, DataType.SAC)
         yield session
     db.engine.dispose()
 
 
 @pytest.fixture
-def fixture_session_with_active_event(
+def fixture_engine_session_with_active_event(
     patch_settings: Settings, test_data: list[Path]
-) -> Iterator[Session]:
+) -> Iterator[tuple[Engine, Session]]:
     """Yield a session with an active event."""
 
     db_url: str = r"sqlite+pysqlite:///:memory:"
     patch_settings.db_url = db_url
 
+    db.engine.dispose()
     reload(db)
-    reload(project)
-    reload(data)
-    reload(event)
-    project.create_project()
-    data.add_files_to_project(test_data, DataType.SAC)
+    project.create_project(db.engine)
 
     with Session(db.engine) as session:
+        data.add_files_to_project(session, test_data, DataType.SAC)
         events = session.exec(select(event.AimbatEvent)).all()
         lengths = [len(e.seismograms) for e in events]
         event.set_active_event(session, events[lengths.index(max(lengths))])
-        yield session
+        yield db.engine, session
     db.engine.dispose()
 
 

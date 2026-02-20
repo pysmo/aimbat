@@ -14,7 +14,7 @@ from cyclopts import App, Parameter
 
 @simple_exception
 def _run_checks(sacfiles: list[Path]) -> None:
-    from aimbat.lib.utils.checkdata import run_checks
+    from aimbat.utils import run_checks
 
     run_checks(sacfiles)
 

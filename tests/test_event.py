@@ -1,12 +1,13 @@
-from aimbat.config import settings
-from aimbat.lib.models import AimbatEvent, AimbatStation, AimbatSeismogram
-from aimbat.lib.typing import EventParameter
+from aimbat import settings
+from aimbat.utils import get_active_event
+from aimbat.models import AimbatEvent, AimbatStation, AimbatSeismogram
+from aimbat.aimbat_types import EventParameter
 from pydantic_core import ValidationError
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from typing import Any
 from collections.abc import Generator, Sequence
-import aimbat.lib.event as event
+import aimbat.core._event as event
 import pytest
 import random
 import json
@@ -64,14 +65,10 @@ class TestDeleteEvent(TestEventBase):
         from aimbat.app import app
         from uuid import uuid4
 
-        settings.debug = False
-
         id = uuid4()
 
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(NoResultFound):
             app(["event", "delete", str(id)])
-
-        assert excinfo.value.code == 1
 
     def test_cli_delete_event_by_string(self, session: Session) -> None:
         from aimbat.app import app
@@ -97,7 +94,7 @@ class TestGetActiveEvent(TestEventBase):
         assert all(e.active is None for e in events)
 
         with pytest.raises(NoResultFound):
-            event.get_active_event(session)
+            get_active_event(session)
 
 
 class TestSetActiveEvent(TestEventBase):
@@ -183,7 +180,7 @@ class TestGetEvents(TestEventBase):
     def all_events(
         self, session: Session
     ) -> Generator[Sequence[AimbatEvent], Any, Any]:
-        from aimbat.lib.models import AimbatEvent
+        from aimbat.models import AimbatEvent
 
         yield session.exec(select(AimbatEvent)).all()
 
@@ -191,7 +188,7 @@ class TestGetEvents(TestEventBase):
     def all_seismograms(
         self, session: Session
     ) -> Generator[Sequence[AimbatSeismogram], Any, Any]:
-        from aimbat.lib.models import AimbatSeismogram
+        from aimbat.models import AimbatSeismogram
 
         yield session.exec(select(AimbatSeismogram)).all()
 
@@ -243,11 +240,11 @@ class TestGetEventParameter(TestEventBase):
     ) -> None:
         _ = self.activate_random_event(session)
 
-        event.print_event_table()
+        event.print_event_table(session)
         captured = capsys.readouterr()
         assert "AIMBAT Events" in captured.out
         assert "2012-01-12 19:31:04" in captured.out
-        event.print_event_table(short=False)
+        event.print_event_table(session, short=False)
         captured = capsys.readouterr()
         assert "AIMBAT Events" in captured.out
         assert "2011-09-15 19:31:04.080000+00:00" in captured.out
@@ -326,7 +323,7 @@ class TestEventDump(TestEventBase):
     def test_lib_dump_event(
         self, fixture_session_with_data: Session, capsys: pytest.CaptureFixture
     ) -> None:
-        event.dump_event_table()
+        event.dump_event_table(fixture_session_with_data)
         captured = capsys.readouterr()
         loaded_json = json.loads(captured.out)
         assert isinstance(loaded_json, list)

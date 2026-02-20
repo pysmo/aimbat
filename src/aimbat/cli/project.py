@@ -12,56 +12,44 @@ executed with a database url directly.
 from aimbat.cli.common import GlobalParameters, simple_exception
 from cyclopts import App
 
-
-@simple_exception
-def _create_project() -> None:
-    from aimbat.lib.project import create_project
-
-    create_project()
-
-
-@simple_exception
-def _delete_project() -> None:
-    from aimbat.lib.project import delete_project
-
-    delete_project()
-
-
-@simple_exception
-def _print_project_info() -> None:
-    from aimbat.lib.project import print_project_info
-
-    print_project_info()
-
-
 app = App(name="project", help=__doc__, help_format="markdown")
 
 
 @app.command(name="create")
+@simple_exception
 def cli_project_create(*, global_parameters: GlobalParameters | None = None) -> None:
     """Create new AIMBAT project."""
+    from aimbat.db import engine
+    from aimbat.core import create_project
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _create_project()
+    create_project(engine)
 
 
 @app.command(name="delete")
+@simple_exception
 def cli_project_delete(*, global_parameters: GlobalParameters | None = None) -> None:
     """Delete project (note: this does *not* delete seismogram files)."""
+    from aimbat.db import engine
+    from aimbat.core import delete_project
 
     global_parameters = global_parameters or GlobalParameters()
 
-    _delete_project()
+    delete_project(engine)
 
 
 @app.command(name="info")
+@simple_exception
 def cli_project_info(*, global_parameters: GlobalParameters | None = None) -> None:
     """Show information on an exisiting project."""
 
+    from aimbat.db import engine
+    from aimbat.core import print_project_info
+
     global_parameters = global_parameters or GlobalParameters()
 
-    _print_project_info()
+    print_project_info(engine)
 
 
 if __name__ == "__main__":

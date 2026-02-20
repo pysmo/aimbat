@@ -33,3 +33,4 @@ reset_project.sh
 .envrc
 aimbat.log
 .env
+aimbat_test.log
