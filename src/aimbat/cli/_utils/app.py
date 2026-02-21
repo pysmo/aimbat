@@ -5,8 +5,8 @@ The utils subcommand contains useful tools that
 are not strictly part of an AIMBAT workflow.
 """
 
-from aimbat.cli.common import GlobalParameters, simple_exception
-from aimbat.cli.utils.sampledata import app as sampledata_app
+from .._common import GlobalParameters, simple_exception
+from .sampledata import app as sampledata_app
 from pathlib import Path
 from typing import Annotated
 from cyclopts import App, Parameter

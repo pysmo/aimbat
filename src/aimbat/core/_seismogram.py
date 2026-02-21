@@ -4,7 +4,7 @@ from aimbat.utils import (
     get_active_event,
     make_table,
     TABLE_STYLING,
-    dump_to_json,
+    json_to_table,
 )
 from aimbat.models import (
     AimbatEvent,
@@ -28,6 +28,8 @@ from sqlalchemy.exc import NoResultFound
 from typing import overload
 from collections.abc import Sequence
 from matplotlib.figure import Figure
+from pydantic import TypeAdapter
+from typing import Any, Literal
 import aimbat.core._event as event
 import uuid
 import matplotlib.pyplot as plt
@@ -42,8 +44,10 @@ __all__ = [
     "set_seismogram_parameter_by_id",
     "set_seismogram_parameter",
     "get_selected_seismograms",
+    "dump_seismogram_table_to_json",
     "print_seismogram_table",
-    "dump_seismogram_table",
+    "dump_seismogram_parameter_table_to_json",
+    "print_seismogram_parameter_table",
     "plot_all_seismograms",
 ]
 
@@ -265,6 +269,18 @@ def get_selected_seismograms(
     return seismograms
 
 
+def dump_seismogram_table_to_json(session: Session) -> str:
+    """Create a JSON string from the AimbatSeismogram table data."""
+
+    logger.info("Dumping AIMBAT seismogram table to json.")
+    adapter: TypeAdapter[Sequence[AimbatSeismogram]] = TypeAdapter(
+        Sequence[AimbatSeismogram]
+    )
+    aimbat_seismograms = session.exec(select(AimbatSeismogram)).all()
+
+    return adapter.dump_json(aimbat_seismograms).decode("utf-8")
+
+
 def print_seismogram_table(
     session: Session, short: bool, all_events: bool = False
 ) -> None:
@@ -346,13 +362,77 @@ def print_seismogram_table(
     console.print(table)
 
 
-def dump_seismogram_table(session: Session) -> None:
-    """Dump the table data to json."""
+@overload
+def dump_seismogram_parameter_table_to_json(
+    session: Session, all_events: bool, as_string: Literal[True]
+) -> str: ...
 
-    logger.info("Dumping AIMBAT seismogram table to json.")
 
-    aimbat_seismograms = session.exec(select(AimbatSeismogram)).all()
-    dump_to_json(aimbat_seismograms)
+@overload
+def dump_seismogram_parameter_table_to_json(
+    session: Session, all_events: bool, as_string: Literal[False]
+) -> list[dict[str, Any]]: ...
+
+
+def dump_seismogram_parameter_table_to_json(
+    session: Session, all_events: bool, as_string: bool
+) -> str | list[dict[str, Any]]:
+    """Dump the seismogram parameter table data to json."""
+
+    logger.info("Dumping AimbatSeismogramParameters table to json.")
+
+    adapter: TypeAdapter[Sequence[AimbatSeismogramParameters]] = TypeAdapter(
+        Sequence[AimbatSeismogramParameters]
+    )
+
+    if all_events:
+        parameters = session.exec(select(AimbatSeismogramParameters)).all()
+    else:
+        parameters = session.exec(
+            select(AimbatSeismogramParameters)
+            .join(AimbatSeismogram)
+            .join(AimbatEvent)
+            .where(AimbatEvent.active == 1)
+        ).all()
+
+    if as_string:
+        return adapter.dump_json(parameters).decode("utf-8")
+    return adapter.dump_python(parameters, mode="json")
+
+
+def print_seismogram_parameter_table(session: Session, short: bool) -> None:
+    """Print a pretty table with AIMBAT seismogram parameter values for the active event.
+
+    Args:
+        short: Shorten and format the output to be more human-readable.
+    """
+
+    logger.info("Printing AIMBAT seismogram parameters table for active event.")
+
+    active_event = get_active_event(session)
+    title = f"Seismogram parameters for event: {uuid_shortener(session, active_event) if short else str(active_event.id)}"
+
+    json_to_table(
+        data=dump_seismogram_parameter_table_to_json(
+            session, all_events=False, as_string=False
+        ),
+        title=title,
+        skip_keys=["id"],
+        column_order=["seismogram_id", "select"],
+        common_column_kwargs={"highlight": True},
+        formatters={
+            "seismogram_id": lambda x: (
+                uuid_shortener(session, AimbatSeismogram, str_uuid=x) if short else x
+            ),
+        },
+        column_kwargs={
+            "seismogram_id": {
+                "header": "Seismogram ID (shortened)" if short else "Seismogram ID",
+                "justify": "center",
+                "style": TABLE_STYLING.mine,
+            },
+        },
+    )
 
 
 def plot_all_seismograms(session: Session, use_qt: bool = False) -> Figure:

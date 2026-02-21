@@ -1,11 +1,12 @@
 from aimbat.app import app
+from aimbat.aimbat_types import DataType
+from aimbat.models import AimbatDataSource
 from pysmo.classes import SAC
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import select, Session
 from sqlalchemy import Engine
 from pathlib import Path
-from aimbat.aimbat_types import DataType
-from aimbat.models import AimbatDataSource
+from pydantic import TypeAdapter
 import aimbat.core._data as data
 import pytest
 import numpy as np
@@ -124,15 +125,10 @@ class TestDataDump(TestDataBase):
     def test_lib_dump_data(
         self,
         fixture_session_with_data: Session,
-        capsys: pytest.CaptureFixture,
     ) -> None:
-        data.dump_data_table(fixture_session_with_data)
-        captured = capsys.readouterr()
-        loaded_json = json.loads(captured.out)
-        assert isinstance(loaded_json, list)
-        assert len(loaded_json) > 0
-        for i in loaded_json:
-            _ = AimbatDataSource(**i)
+        json_data = data.dump_data_table_to_json(fixture_session_with_data)
+        adapter = TypeAdapter(list[AimbatDataSource])
+        adapter.validate_json(json_data)
 
     def test_cli_dump_data(
         self,

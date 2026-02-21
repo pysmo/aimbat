@@ -47,6 +47,5 @@ def make_table(title: str | None = None) -> Table:
         expand=False,
         # row_styles=["dim", ""],
         border_style="dim",
-        # highlight=True,
     )
     return table

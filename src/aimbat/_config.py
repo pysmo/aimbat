@@ -169,11 +169,16 @@ def cli_settings_list(
     *,
     pretty: bool = True,
 ) -> None:
-    """Print a table with default settings used in AIMBAT.
+    """Print a table with default settings currently in use by AIMBAT.
 
     These defaults control the default behavior of AIMBAT within a project.
-    They can be changed using environment variables of the same name, or by
-    adding a `.env` file to the current working directory.
+    Overriding these defaults can be done on a per-project basis in the
+    fllowing ways (in order of precedence):
+
+    - By using environment variables of the form `AIMBAT_{SETTING_NAME}`
+      (e.g. `AIMBAT_LOG_LEVEL=DEBUG`).
+    - Setting them in a `.env` file in the current working directory
+      (e.g. `AIMBAT_LOG_LEVEL=DEBUG` in `.env`).
 
     Args:
         pretty: Print the table in a pretty format.

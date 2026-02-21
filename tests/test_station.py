@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from sqlalchemy import Engine
 from typing import Any
 from collections.abc import Generator
+from pydantic import TypeAdapter
 import aimbat.core._station as station
 import random
 import pytest
@@ -119,16 +120,10 @@ class TestCliStation(TestStationBase):
 
 
 class TestDumpStation(TestStationBase):
-    def test_lib_dump_data(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        station.dump_station_table(session)
-        captured = capsys.readouterr()
-        loaded_json = json.loads(captured.out)
-        assert isinstance(loaded_json, list)
-        assert len(loaded_json) > 0
-        for i in loaded_json:
-            _ = AimbatStation(**i)
+    def test_lib_dump_data(self, session: Session) -> None:
+        json_data = station.dump_station_table_to_json(session)
+        type_adapter = TypeAdapter(list[AimbatStation])
+        type_adapter.validate_json(json_data)
 
     def test_cli_dump_data(self, capsys: pytest.CaptureFixture) -> None:
         with pytest.raises(SystemExit) as excinfo:

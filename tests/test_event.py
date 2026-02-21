@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from typing import Any
 from collections.abc import Generator, Sequence
+from pydantic import TypeAdapter
 import aimbat.core._event as event
 import pytest
 import random
@@ -240,7 +241,7 @@ class TestGetEventParameter(TestEventBase):
     ) -> None:
         _ = self.activate_random_event(session)
 
-        event.print_event_table(session)
+        event.print_event_table(session, short=True)
         captured = capsys.readouterr()
         assert "AIMBAT Events" in captured.out
         assert "2012-01-12 19:31:04" in captured.out
@@ -257,13 +258,13 @@ class TestGetEventParameter(TestEventBase):
         _ = self.activate_random_event(session)
 
         with pytest.raises(SystemExit) as excinfo:
-            app(["event", "get", "completed"])
+            app(["event", "parameter", "get", "completed"])
 
         assert excinfo.value.code == 0
         assert "False" in capsys.readouterr().out
 
         with pytest.raises(SystemExit) as excinfo:
-            app(["event", "get", "window_post"])
+            app(["event", "parameter", "get", "window_post"])
 
         assert excinfo.value.code == 0
         assert f"{settings.window_post.total_seconds()}s" in capsys.readouterr().out
@@ -289,18 +290,18 @@ class TestCliEvent(TestEventBase):
         _ = self.activate_random_event(session)
 
         with pytest.raises(SystemExit) as excinfo:
-            app(["event", "get", "completed"])
+            app(["event", "parameter", "get", "completed"])
 
         assert excinfo.value.code == 0
         assert "False" in capsys.readouterr().out
 
         with pytest.raises(SystemExit) as excinfo:
-            app(["event", "set", "completed", "True"])
+            app(["event", "parameter", "set", "completed", "True"])
 
         assert excinfo.value.code == 0
 
         with pytest.raises(SystemExit) as excinfo:
-            app(["event", "get", "completed"])
+            app(["event", "parameter", "get", "completed"])
 
         assert excinfo.value.code == 0
         assert "True" in capsys.readouterr().out
@@ -320,16 +321,10 @@ class TestCliEvent(TestEventBase):
 
 
 class TestEventDump(TestEventBase):
-    def test_lib_dump_event(
-        self, fixture_session_with_data: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        event.dump_event_table(fixture_session_with_data)
-        captured = capsys.readouterr()
-        loaded_json = json.loads(captured.out)
-        assert isinstance(loaded_json, list)
-        assert len(loaded_json) > 0
-        for i in loaded_json:
-            _ = AimbatEvent(**i)
+    def test_lib_dump_event(self, fixture_session_with_data: Session) -> None:
+        json_data = event.dump_event_table_to_json(fixture_session_with_data)
+        adapter = TypeAdapter(list[AimbatEvent])
+        adapter.validate_json(json_data)
 
     def test_cli_dump_data(
         self, fixture_session_with_data: Session, capsys: pytest.CaptureFixture

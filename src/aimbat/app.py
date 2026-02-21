@@ -7,18 +7,20 @@ commands is available by typing `aimbat COMMAND --help`.
 """
 
 from ._config import cli_settings_list
+from .cli import (
+    _align,
+    _data,
+    _event,
+    _pick,
+    _plot,
+    _project,
+    _station,
+    _seismogram,
+    _snapshot,
+    _utils,
+)
 from importlib import metadata
 from cyclopts import App
-from .cli import (
-    data,
-    event,
-    iccs,
-    project,
-    seismogram,
-    snapshot,
-    station,
-    utils,
-)
 from rich.console import Console
 import sys
 
@@ -30,15 +32,17 @@ except Exception:
 console = Console()
 
 app = App(version=__version__, help=__doc__, help_format="markdown", console=console)
-app.command(data.app)
-app.command(event.app)
-app.command(iccs.app)
-app.command(project.app)
-app.command(seismogram.app)
+app.command(_align.app)
+app.command(_data.app)
+app.command(_event.app)
+app.command(_pick.app)
+app.command(_plot.app)
+app.command(_project.app)
+app.command(_station.app)
+app.command(_seismogram.app)
 app.command(cli_settings_list, name="settings")
-app.command(snapshot.app)
-app.command(station.app)
-app.command(utils.app)
+app.command(_snapshot.app)
+app.command(_utils.app)
 
 
 if __name__ == "__main__":

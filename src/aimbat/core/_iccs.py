@@ -1,8 +1,12 @@
 """Processing of data for AIMBAT."""
 
+from typing import cast
+
 from aimbat import settings
 from aimbat.logger import logger
+from aimbat.models import AimbatSeismogram
 from aimbat.utils import get_active_event
+from pysmo.tools.signal import mccc
 from pysmo.tools.iccs import (
     ICCS,
     plot_seismograms as _plot_seismograms,
@@ -16,8 +20,9 @@ from sqlmodel import Session
 __all__ = [
     "create_iccs_instance",
     "run_iccs",
+    "run_mccc",
     "plot_stack",
-    "plot_seismograms",
+    "plot_iccs_seismograms",
     "update_pick",
     "update_timewindow",
     "update_min_ccnorm",
@@ -67,6 +72,38 @@ def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> 
     session.commit()
 
 
+def run_mccc(session: Session, iccs: ICCS, all_seismograms: bool = False) -> None:
+    """Run MCCC algorithm.
+
+    Args:
+        session: Database session.
+        iccs: ICCS instance.
+        all_seismograms: Whether to include all seismograms in the MCCC processing, or just the selected ones.
+    """
+
+    logger.info(f"Running MCCC with {all_seismograms=}.")
+
+    cc_seismograms = (
+        iccs.cc_seismograms
+        if all_seismograms
+        else [s for s in iccs.cc_seismograms if s.parent_seismogram.select]
+    )
+
+    delay_times, delay_stdev, rmse = mccc(cc_seismograms)
+
+    for cc_seismogram, delay_time in zip(cc_seismograms, delay_times):
+        logger.debug(
+            f"Applying MCCC delay time delta {delay_time.total_seconds():.2f} s to seismogram {cast(AimbatSeismogram, cc_seismogram.parent_seismogram).id}."
+        )
+
+        t1 = (
+            cc_seismogram.parent_seismogram.t1
+            or cc_seismogram.parent_seismogram.t0 - delay_time
+        )
+        cc_seismogram.parent_seismogram.t1 = t1
+    session.commit()
+
+
 def plot_stack(iccs: ICCS, context: bool, all: bool) -> None:
     """Plot the ICCS stack.
 
@@ -80,7 +117,7 @@ def plot_stack(iccs: ICCS, context: bool, all: bool) -> None:
     _plot_stack(iccs, context, all)
 
 
-def plot_seismograms(iccs: ICCS, context: bool, all: bool) -> None:
+def plot_iccs_seismograms(iccs: ICCS, context: bool, all: bool) -> None:
     """Plot the ICCS seismograms as an image.
 
     Args:

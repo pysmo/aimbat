@@ -8,7 +8,7 @@ The sample data source url can be viewed or changed via `aimbat default
 be viewed or changed via `aimbat default <list/set> sampledata_dir`.
 """
 
-from aimbat.cli.common import GlobalParameters, simple_exception
+from aimbat.cli._common import GlobalParameters, simple_exception
 from cyclopts import App
 
 app = App(name="sampledata", help=__doc__, help_format="markdown")
