@@ -9,7 +9,7 @@ environment variable to the desired filename. Alternatively, `aimbat` can be
 executed with a database url directly.
 """
 
-from aimbat.cli.common import GlobalParameters, simple_exception
+from ._common import GlobalParameters, simple_exception
 from cyclopts import App
 
 app = App(name="project", help=__doc__, help_format="markdown")

@@ -1,6 +1,6 @@
 """View and manage snapshots."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
+from ._common import GlobalParameters, TableParameters, simple_exception
 from typing import Annotated
 from cyclopts import App, Parameter
 import uuid
@@ -80,10 +80,31 @@ def cli_snapshop_delete(
         delete_snapshot_by_id(session, snapshot_id)
 
 
+@app.command(name="dump")
+@simple_exception
+def cli_snapshot_dump(
+    all_events: Annotated[bool, Parameter("all")] = False,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Dump the contents of the AIMBAT snapshot table to json.
+
+    Args:
+        all_events: Select snapshots for all events.
+    """
+    from aimbat.db import engine
+    from aimbat.core import dump_snapshot_table_to_json
+    from sqlmodel import Session
+    from rich import print_json
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    with Session(engine) as session:
+        print_json(dump_snapshot_table_to_json(session, all_events, as_string=True))
+
+
 @app.command(name="list")
 @simple_exception
 def cli_snapshot_list(
-    *,
     all_events: Annotated[bool, Parameter("all")] = False,
     table_parameters: TableParameters | None = None,
     global_parameters: GlobalParameters | None = None,

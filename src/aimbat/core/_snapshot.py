@@ -12,6 +12,8 @@ from aimbat.models import (
 from sqlmodel import Session, select
 from rich.console import Console
 from collections.abc import Sequence
+from typing import overload, Literal, Any
+from pydantic import TypeAdapter
 import uuid
 
 __all__ = [
@@ -21,6 +23,7 @@ __all__ = [
     "delete_snapshot_by_id",
     "delete_snapshot",
     "get_snapshots",
+    "dump_snapshot_table_to_json",
     "print_snapshot_table",
 ]
 
@@ -194,6 +197,41 @@ def get_snapshots(
         .where(AimbatEvent.active == 1)
     )
     return session.exec(select_active_event_snapshots).all()
+
+
+@overload
+def dump_snapshot_table_to_json(
+    session: Session, all_events: bool, as_string: Literal[True]
+) -> str: ...
+
+
+@overload
+def dump_snapshot_table_to_json(
+    session: Session, all_events: bool, as_string: Literal[False]
+) -> list[dict[str, Any]]: ...
+
+
+def dump_snapshot_table_to_json(
+    session: Session, all_events: bool, as_string: bool
+) -> str | list[dict[str, Any]]:
+    """Dump the `AimbatSnapshot` table data to json."""
+
+    logger.info("Dumping AimbatSeismogramtable to json.")
+
+    adapter: TypeAdapter[Sequence[AimbatSnapshot]] = TypeAdapter(
+        Sequence[AimbatSnapshot]
+    )
+
+    if all_events:
+        parameters = session.exec(select(AimbatSnapshot)).all()
+    else:
+        parameters = session.exec(
+            select(AimbatSnapshot).join(AimbatEvent).where(AimbatEvent.active == 1)
+        ).all()
+
+    if as_string:
+        return adapter.dump_json(parameters).decode("utf-8")
+    return adapter.dump_python(parameters, mode="json")
 
 
 def print_snapshot_table(session: Session, short: bool, all_events: bool) -> None:

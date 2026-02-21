@@ -1,6 +1,6 @@
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
-from aimbat.cli.common import HINTS
+from aimbat.cli._common import HINTS
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 

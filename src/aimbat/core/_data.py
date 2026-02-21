@@ -1,17 +1,12 @@
 from aimbat.logger import logger
 from aimbat.aimbat_types import DataType
 from aimbat.utils import (
-    dump_to_json,
     uuid_shortener,
     get_active_event,
     make_table,
     TABLE_STYLING,
 )
-from aimbat.io import (
-    create_seismogram,
-    create_station,
-    create_event,
-)
+from aimbat.io import create_seismogram, create_station, create_event
 from aimbat.models import (
     AimbatDataSource,
     AimbatDataSourceCreate,
@@ -20,6 +15,7 @@ from aimbat.models import (
     AimbatSeismogram,
 )
 from sqlmodel import Session, select
+from pydantic import TypeAdapter
 from collections.abc import Sequence
 from rich.progress import track
 from rich.console import Console
@@ -29,7 +25,7 @@ __all__ = [
     "add_files_to_project",
     "get_data_for_active_event",
     "print_data_table",
-    "dump_data_table",
+    "dump_data_table_to_json",
 ]
 
 
@@ -241,10 +237,13 @@ def print_data_table(session: Session, short: bool, all_events: bool = False) ->
     console.print(table)
 
 
-def dump_data_table(session: Session) -> None:
+def dump_data_table_to_json(session: Session) -> str:
     """Dump the table data to json."""
 
     logger.info("Dumping AIMBAT datasources table to json.")
 
-    aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
-    dump_to_json(aimbat_data_sources)
+    adapter: TypeAdapter[Sequence[AimbatDataSource]] = TypeAdapter(
+        Sequence[AimbatDataSource]
+    )
+    aimbat_datasource = session.exec(select(AimbatDataSource)).all()
+    return adapter.dump_json(aimbat_datasource).decode("utf-8")

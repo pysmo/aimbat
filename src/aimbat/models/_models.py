@@ -16,6 +16,7 @@ from aimbat.aimbat_types import (
 )
 from datetime import timezone
 from sqlmodel import Relationship, SQLModel, Field
+from pydantic import computed_field
 from typing import TYPE_CHECKING
 from pandas import Timestamp
 import numpy as np
@@ -238,18 +239,22 @@ class AimbatSeismogram(SQLModel, table=True):
     def __len__(self) -> int:
         return np.size(self.data)
 
-    @property
-    def end_time(self) -> Timestamp:
-        if len(self) == 0:
-            return self.begin_time
-        return self.begin_time + self.delta * (len(self) - 1)
-
     if TYPE_CHECKING:
         flip: bool
         select: bool
         t1: Timestamp | None
         data: np.ndarray
+
+        @property
+        def end_time(self) -> Timestamp: ...
+
     else:
+
+        @computed_field
+        def end_time(self) -> PydanticTimestamp:
+            if len(self) == 0:
+                return self.begin_time
+            return self.begin_time + self.delta * (len(self) - 1)
 
         @property
         def flip(self) -> bool:

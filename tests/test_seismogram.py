@@ -6,6 +6,7 @@ from sqlalchemy import Engine
 from typing import Any
 from matplotlib.figure import Figure
 from collections.abc import Generator
+from pydantic import TypeAdapter
 import aimbat.core._seismogram as seismogram
 import pytest
 import random
@@ -135,6 +136,7 @@ class TestGetSeismogramParameter(TestSeismogramBase):
             app(
                 [
                     "seismogram",
+                    "parameter",
                     "get",
                     str(random_seismogram.id),
                     SeismogramParameter.SELECT,
@@ -153,6 +155,7 @@ class TestGetSeismogramParameter(TestSeismogramBase):
             app(
                 [
                     "seismogram",
+                    "parameter",
                     "get",
                     str(random_seismogram.id)[:6],
                     SeismogramParameter.SELECT,
@@ -218,6 +221,7 @@ class TestSetSeismogramParameter(TestSeismogramBase):
             app(
                 [
                     "seismogram",
+                    "parameter",
                     "set",
                     str(random_seismogram.id),
                     SeismogramParameter.SELECT,
@@ -242,6 +246,7 @@ class TestSetSeismogramParameter(TestSeismogramBase):
             app(
                 [
                     "seismogram",
+                    "parameter",
                     "set",
                     str(random_seismogram.id)[:6],
                     SeismogramParameter.SELECT,
@@ -317,16 +322,10 @@ class TestPrintSeismogramTable(TestSeismogramBase):
 
 
 class TestDumpSeismogram(TestSeismogramBase):
-    def test_lib_dump_data(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        seismogram.dump_seismogram_table(session)
-        captured = capsys.readouterr()
-        loaded_json = json.loads(captured.out)
-        assert isinstance(loaded_json, list)
-        assert len(loaded_json) > 0
-        for i in loaded_json:
-            _ = AimbatSeismogram(**i)
+    def test_lib_dump_data(self, session: Session) -> None:
+        json_data = seismogram.dump_seismogram_table_to_json(session)
+        type_adapter = TypeAdapter(list[AimbatSeismogram])
+        type_adapter.validate_json(json_data)
 
     def test_cli_dump_data(self, capsys: pytest.CaptureFixture) -> None:
         with pytest.raises(SystemExit) as excinfo:
@@ -356,6 +355,6 @@ class TestSeismogramPlot(TestSeismogramBase):
 
     def test_cli_plotseis_mpl(self) -> None:
         with pytest.raises(SystemExit) as excinfo:
-            app(["seismogram", "plot"])
+            app(["plot", "data"])
 
         assert excinfo.value.code == 0

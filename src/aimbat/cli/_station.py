@@ -1,6 +1,6 @@
 """View and manage stations."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
+from ._common import GlobalParameters, TableParameters, simple_exception
 from typing import Annotated
 from cyclopts import App, Parameter
 import uuid
@@ -67,13 +67,14 @@ def cli_station_dump(
     """Dump the contents of the AIMBAT station table to json."""
 
     from aimbat.db import engine
-    from aimbat.core import dump_station_table
+    from aimbat.core import dump_station_table_to_json
     from sqlmodel import Session
+    from rich import print_json
 
     global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
-        dump_station_table(session)
+        print_json(dump_station_table_to_json(session))
 
 
 if __name__ == "__main__":

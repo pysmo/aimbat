@@ -16,12 +16,25 @@ class GlobalParameters:
     debug: bool = False
     "Run in debugging mode."
 
-    use_qt: bool = False
-    "Use pyqtgraph instead of matplotlib for plots (where applicable)."
-
     def __post_init__(self) -> None:
         if self.debug:
             settings.log_level = "DEBUG"
+
+
+@Parameter(name="*")
+@dataclass
+class PlotParameters:
+    use_qt: bool = False
+    "Use pyqtgraph instead of matplotlib for plots (where applicable)."
+
+
+@Parameter(name="*")
+@dataclass
+class IccsPlotParameters:
+    context: bool = True
+    "Plot seismograms with extra context instead of the short tapered ones used for cross-correlation."
+    all: bool = False
+    "Include all seismograms in the plot, even if not used in stack."
 
 
 @Parameter(name="*")

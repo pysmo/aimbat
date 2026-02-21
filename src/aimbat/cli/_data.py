@@ -1,6 +1,6 @@
 """Manage seismogram files in an AIMBAT project."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
+from ._common import GlobalParameters, TableParameters, simple_exception
 from aimbat.aimbat_types import DataType
 from sqlmodel import Session
 from cyclopts import App, Parameter, validators
@@ -78,12 +78,13 @@ def cli_data_dump(
 ) -> None:
     """Dump the contents of the AIMBAT data table to json."""
     from aimbat.db import engine
-    from aimbat.core import dump_data_table
+    from aimbat.core import dump_data_table_to_json
+    from rich import print_json
 
     global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
-        dump_data_table(session)
+        print_json(dump_data_table_to_json(session))
 
 
 if __name__ == "__main__":

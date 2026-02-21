@@ -1,7 +1,6 @@
 """View and manage events in the AIMBAT project."""
 
-from aimbat.cli.common import GlobalParameters, TableParameters, simple_exception
-from aimbat.cli.common import HINTS
+from ._common import GlobalParameters, TableParameters, simple_exception, HINTS
 from aimbat.aimbat_types import EventParameter
 from typing import Annotated
 from pandas import Timedelta
@@ -10,7 +9,7 @@ from sqlmodel import Session
 import uuid
 
 
-def string_to_event_uuid(session: Session, event_id: str) -> uuid.UUID:
+def _string_to_event_uuid(session: Session, event_id: str) -> uuid.UUID:
     from aimbat.models import AimbatEvent
     from aimbat.utils import string_to_uuid
 
@@ -23,6 +22,10 @@ def string_to_event_uuid(session: Session, event_id: str) -> uuid.UUID:
 
 
 app = App(name="event", help=__doc__, help_format="markdown")
+parameter = App(
+    name="parameter", help="Manage event parameters.", help_format="markdown"
+)
+app.command(parameter)
 
 
 @app.command(name="delete")
@@ -44,26 +47,8 @@ def cli_event_delete(
 
     with Session(engine) as session:
         if not isinstance(event_id, uuid.UUID):
-            event_id = string_to_event_uuid(session, event_id)
+            event_id = _string_to_event_uuid(session, event_id)
         delete_event_by_id(session, event_id)
-
-
-@app.command(name="list")
-@simple_exception
-def cli_event_list(
-    *,
-    table_parameters: TableParameters | None = None,
-    global_parameters: GlobalParameters | None = None,
-) -> None:
-    """Print information on the events stored in AIMBAT."""
-    from aimbat.db import engine
-    from aimbat.core import print_event_table
-
-    table_parameters = table_parameters or TableParameters()
-    global_parameters = global_parameters or GlobalParameters()
-
-    with Session(engine) as session:
-        print_event_table(session, table_parameters.short)
 
 
 @app.command(name="activate")
@@ -85,11 +70,46 @@ def cli_event_activate(
 
     with Session(engine) as session:
         if not isinstance(event_id, uuid.UUID):
-            event_id = string_to_event_uuid(session, event_id)
+            event_id = _string_to_event_uuid(session, event_id)
         set_active_event_by_id(session, event_id)
 
 
-@app.command(name="get")
+@app.command(name="dump")
+@simple_exception
+def cli_event_dump(
+    *,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Dump the contents of the AIMBAT event table to json."""
+    from aimbat.db import engine
+    from aimbat.core import dump_event_table_to_json
+    from rich import print_json
+
+    global_parameters = global_parameters or GlobalParameters()
+
+    with Session(engine) as session:
+        print_json(dump_event_table_to_json(session))
+
+
+@app.command(name="list")
+@simple_exception
+def cli_event_list(
+    *,
+    table_parameters: TableParameters | None = None,
+    global_parameters: GlobalParameters | None = None,
+) -> None:
+    """Print information on the events stored in AIMBAT."""
+    from aimbat.db import engine
+    from aimbat.core import print_event_table
+
+    table_parameters = table_parameters or TableParameters()
+    global_parameters = global_parameters or GlobalParameters()
+
+    with Session(engine) as session:
+        print_event_table(session, table_parameters.short)
+
+
+@parameter.command(name="get")
 @simple_exception
 def cli_event_parameter_get(
     name: EventParameter,
@@ -116,7 +136,7 @@ def cli_event_parameter_get(
             print(value)
 
 
-@app.command(name="set")
+@parameter.command(name="set")
 @simple_exception
 def cli_event_parameter_set(
     name: EventParameter,
@@ -140,20 +160,55 @@ def cli_event_parameter_set(
         set_event_parameter(session, name, value)
 
 
-@app.command(name="dump")
+@parameter.command(name="dump")
 @simple_exception
-def cli_event_dump(
-    *,
+def cli_event_parameter_dump(
+    all_events: Annotated[
+        bool,
+        Parameter(
+            name="all",
+            help="Dump parameters for all events instead of just the active event.",
+        ),
+    ] = False,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
-    """Dump the contents of the AIMBAT event table to json."""
+    """Dump event parameter table to json."""
     from aimbat.db import engine
-    from aimbat.core import dump_event_table
+    from aimbat.core import dump_event_parameter_table_to_json
+    from sqlmodel import Session
+    from rich import print_json
 
     global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
-        dump_event_table(session)
+        print_json(
+            dump_event_parameter_table_to_json(session, all_events, as_string=True)
+        )
+
+
+@parameter.command(name="list")
+@simple_exception
+def cli_event_parameter_list(
+    all_events: Annotated[
+        bool,
+        Parameter(
+            name="all",
+            help="List parameter values for all events instead of just the active event.",
+        ),
+    ] = False,
+    global_parameters: GlobalParameters | None = None,
+    table_parameters: TableParameters | None = None,
+) -> None:
+    """List parameter values for the active event."""
+    from aimbat.db import engine
+    from aimbat.core import print_event_parameter_table
+    from sqlmodel import Session
+
+    global_parameters = global_parameters or GlobalParameters()
+    table_parameters = table_parameters or TableParameters()
+
+    with Session(engine) as session:
+        print_event_parameter_table(session, table_parameters.short, all_events)
 
 
 if __name__ == "__main__":

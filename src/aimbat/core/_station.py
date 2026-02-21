@@ -1,16 +1,11 @@
 from aimbat.logger import logger
-from aimbat.utils import (
-    dump_to_json,
-    uuid_shortener,
-    make_table,
-    get_active_event,
-    TABLE_STYLING,
-)
+from aimbat.utils import uuid_shortener, make_table, get_active_event, TABLE_STYLING
 from aimbat.models import AimbatStation, AimbatSeismogram, AimbatEvent
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from rich.console import Console
 from collections.abc import Sequence
+from pydantic import TypeAdapter
 import uuid
 
 __all__ = [
@@ -18,7 +13,7 @@ __all__ = [
     "delete_station",
     "get_stations_in_event",
     "print_station_table",
-    "dump_station_table",
+    "dump_station_table_to_json",
 ]
 
 
@@ -174,10 +169,11 @@ def print_station_table(
     console.print(table)
 
 
-def dump_station_table(session: Session) -> None:
-    """Dump the table data to json."""
+def dump_station_table_to_json(session: Session) -> str:
+    """Create a JSON string from the AimbatStation table data."""
 
     logger.info("Dumping AIMBAT station table to json.")
 
-    aimbat_stations = session.exec(select(AimbatStation)).all()
-    dump_to_json(aimbat_stations)
+    adapter: TypeAdapter[Sequence[AimbatStation]] = TypeAdapter(Sequence[AimbatStation])
+    aimbat_station = session.exec(select(AimbatStation)).all()
+    return adapter.dump_json(aimbat_station).decode("utf-8")
