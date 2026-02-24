@@ -42,7 +42,7 @@ class TestAddDataToProject:
             add_data_to_project(
                 session,
                 [sac_file_good],
-                datatype=DataType.SAC,
+                data_type=DataType.SAC,
             )
             seismogram_filename = session.exec(
                 select(AimbatDataSource.sourcename)
@@ -64,7 +64,7 @@ class TestAddDataToProject:
         add_data_to_project(
             session,
             multi_event_data,
-            datatype=DataType.SAC,
+            data_type=DataType.SAC,
         )
 
         seismogram_filenames = session.exec(select(AimbatDataSource.sourcename)).all()
@@ -83,7 +83,7 @@ class TestAddDataToProject:
             add_data_to_project(
                 session,
                 [non_existent_file],
-                datatype=DataType.SAC,
+                data_type=DataType.SAC,
             )
 
     def test_add_mixed_valid_and_invalid_files(
@@ -100,7 +100,7 @@ class TestAddDataToProject:
             add_data_to_project(
                 session,
                 [sac_file_good, non_existent_file],
-                datatype=DataType.SAC,
+                data_type=DataType.SAC,
             )
 
         # Verify that the valid file was not added due to the error
@@ -125,7 +125,7 @@ class TestAddDataToProject:
             add_data_to_project(
                 session,
                 [sac_file_good],
-                datatype=DataType.SAC,
+                data_type=DataType.SAC,
             )
 
     def test_dry_run_all_new(
@@ -144,7 +144,7 @@ class TestAddDataToProject:
         add_data_to_project(
             session,
             multi_event_data,
-            datatype=DataType.SAC,
+            data_type=DataType.SAC,
             dry_run=True,
         )
 
@@ -173,14 +173,14 @@ class TestAddDataToProject:
         add_data_to_project(
             session,
             multi_event_data,
-            datatype=DataType.SAC,
+            data_type=DataType.SAC,
         )
         capsys.readouterr()  # discard output from the real add
 
         add_data_to_project(
             session,
             multi_event_data,
-            datatype=DataType.SAC,
+            data_type=DataType.SAC,
             dry_run=True,
         )
 

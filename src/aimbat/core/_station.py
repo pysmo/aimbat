@@ -80,6 +80,7 @@ def get_stations_in_active_event(
 
     statement = (
         select(AimbatStation)
+        .distinct()
         .join(AimbatSeismogram)
         .join(AimbatEvent)
         .where(AimbatEvent.active == True)  # noqa: E712

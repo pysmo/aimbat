@@ -190,39 +190,41 @@ def _print_dry_run_results(
 
 def add_data_to_project(
     session: Session,
-    datasources: Sequence[str | os.PathLike],
-    datatype: DataType,
+    datas_sources: Sequence[str | os.PathLike],
+    data_type: DataType,
     dry_run: bool = False,
     disable_progress_bar: bool = True,
 ) -> None:
     """Add files to the AIMBAT database.
 
     Args:
-        datasources: List of data sources to add.
-        datatype: Type of data.
-        disable_progress_bar: Do not display progress bar.
+        session: The SQLModel database session.
+        data_sources: List of data sources to add.
+        data_type: Type of data.
         dry_run: If True, do not commit changes to the database.
+        disable_progress_bar: Do not display progress bar.
     """
 
-    logger.info(f"Adding {len(datasources)} {datatype} files to project.")
+    logger.info(f"Adding {len(datas_sources)} {data_type} files to project.")
+
+    # Snapshot existing IDs before entering the savepoint so we can identify
+    # what would be new vs reused when running a dry run.
+    if dry_run:
+        existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
+        existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
+        existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
 
     try:
-        with session.begin_nested():
-            # Snapshot existing IDs before adding so we can tell new from reused.
-            if dry_run:
-                existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
-                existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
-                existing_seismogram_ids = set(
-                    session.exec(select(AimbatSeismogram.id)).all()
-                )
-
-            added_datasources: list[AimbatDataSource] = []
+        added_datasources: list[AimbatDataSource] = []
+        with session.begin_nested() as nested:
             for datasource in track(
-                sequence=datasources,
+                sequence=datas_sources,
                 description="Adding data ...",
                 disable=disable_progress_bar,
             ):
-                added_datasources.append(_add_datasource(session, datasource, datatype))
+                added_datasources.append(
+                    _add_datasource(session, datasource, data_type)
+                )
 
             if dry_run:
                 logger.info("Dry run: displaying data that would be added.")
@@ -233,11 +235,12 @@ def add_data_to_project(
                     existing_event_ids,
                     existing_seismogram_ids,
                 )
-                session.rollback()
+                nested.rollback()
                 logger.info("Dry run complete. Rolling back changes.")
-            else:
-                session.commit()
-                logger.info("Data added successfully.")
+                return
+
+        session.commit()
+        logger.info("Data added successfully.")
 
     except Exception as e:
         logger.error(f"Failed to add data. Rolling back changes. Error: {e}")

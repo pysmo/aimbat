@@ -13,14 +13,16 @@ app = App(name="data", help=__doc__, help_format="markdown")
 @app.command(name="add")
 @simple_exception
 def cli_data_add(
-    datasources: Annotated[
+    data_sources: Annotated[
         list[Path],
         Parameter(
-            name="files", consume_multiple=True, validator=validators.Path(exists=True)
+            name="sources",
+            consume_multiple=True,
+            validator=validators.Path(exists=True),
         ),
     ],
     *,
-    datatype: DataType = DataType.SAC,
+    data_type: Annotated[DataType, Parameter(name="type")] = DataType.SAC,
     dry_run: Annotated[bool, Parameter(name="dry-run")] = False,
     show_progress_bar: Annotated[bool, Parameter(name="progress")] = True,
     global_parameters: GlobalParameters | None = None,
@@ -28,8 +30,8 @@ def cli_data_add(
     """Add or update data files in the AIMBAT project.
 
     Args:
-        seismogram_files: Seismogram files to be added.
-        filetype: Specify type of seismogram file.
+        data_sources: Data sources to be added.
+        data_type: Specify type of seismogram file.
         dry_run: If True, print the files that would be added without modifying the database.
         show_progress_bar: Display progress bar.
     """
@@ -43,8 +45,8 @@ def cli_data_add(
     with Session(engine) as session:
         add_data_to_project(
             session,
-            datasources,
-            datatype,
+            data_sources,
+            data_type,
             dry_run,
             disable_progress_bar,
         )
