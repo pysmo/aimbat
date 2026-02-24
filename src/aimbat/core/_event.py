@@ -1,11 +1,10 @@
 """Module to manage and view events in AIMBAT."""
 
+from aimbat.core import get_active_event
 from aimbat.logger import logger
 from aimbat.cli._common import HINTS
 from aimbat.utils import (
     uuid_shortener,
-    get_active_event,
-    make_table,
     json_to_table,
     TABLE_STYLING,
 )
@@ -13,6 +12,7 @@ from aimbat.models import (
     AimbatEvent,
     AimbatEventParameters,
     AimbatEventParametersBase,
+    AimbatEventRead,
     AimbatStation,
     AimbatSeismogram,
 )
@@ -23,21 +23,16 @@ from aimbat.aimbat_types import (
     EventParameterTimedelta,
 )
 from pydantic import TypeAdapter
-from rich.console import Console
 from sqlmodel import select, Session
 from sqlalchemy.exc import NoResultFound
 from typing import overload, Any, Literal
-from pandas import Timedelta
+from pandas import Timedelta, Timestamp
 from collections.abc import Sequence
 from uuid import UUID
-import aimbat.core._station as station
 
 __all__ = [
     "delete_event_by_id",
     "delete_event",
-    "get_active_event",
-    "set_active_event_by_id",
-    "set_active_event",
     "get_completed_events",
     "get_events_using_station",
     "get_event_parameter",
@@ -81,46 +76,6 @@ def delete_event(session: Session, event: AimbatEvent) -> None:
     logger.info(f"Deleting event {event.id}.")
 
     session.delete(event)
-    session.commit()
-
-
-def set_active_event_by_id(session: Session, event_id: UUID) -> None:
-    """
-    Set the currently selected event (i.e. the one being processed) by its ID.
-
-    Args:
-        session: SQL session.
-        event_id: ID of AIMBAT Event to set as active one.
-
-    Raises:
-        ValueError: If no event with the given ID is found.
-    """
-    logger.info(f"Setting active event to event with id={event_id}.")
-
-    if event_id not in session.exec(select(AimbatEvent.id)).all():
-        raise ValueError(
-            f"No AimbatEvent found with id: {event_id}. {HINTS.LIST_EVENTS}"
-        )
-
-    aimbat_event = session.exec(
-        select(AimbatEvent).where(AimbatEvent.id == event_id)
-    ).one()
-    set_active_event(session, aimbat_event)
-
-
-def set_active_event(session: Session, event: AimbatEvent) -> None:
-    """
-    Set the active event (i.e. the one being processed).
-
-    Args:
-        session: SQL session.
-        event: AIMBAT Event to set as active.
-    """
-
-    logger.info(f"Activating {event=}")
-
-    event.active = True
-    session.add(event)
     session.commit()
 
 
@@ -252,60 +207,32 @@ def set_event_parameter(
     session.commit()
 
 
-def dump_event_table_to_json(session: Session) -> str:
+@overload
+def dump_event_table_to_json(
+    session: Session, as_string: Literal[True] = ...
+) -> str: ...
+
+
+@overload
+def dump_event_table_to_json(
+    session: Session, as_string: Literal[False]
+) -> list[dict[str, Any]]: ...
+
+
+def dump_event_table_to_json(
+    session: Session, as_string: bool = True
+) -> str | list[dict[str, Any]]:
     """Dump the table data to json."""
 
     logger.info("Dumping AIMBAT event table to json.")
-    adapter: TypeAdapter[Sequence[AimbatEvent]] = TypeAdapter(Sequence[AimbatEvent])
-    aimbat_event = session.exec(select(AimbatEvent)).all()
-
-    return adapter.dump_json(aimbat_event).decode("utf-8")
-
-
-def print_event_table(session: Session, short: bool) -> None:
-    """Print a pretty table with AIMBAT events.
-
-    Args:
-        session: Database session.
-        short: Shorten and format the output to be more human-readable.
-    """
-
-    logger.info("Printing AIMBAT events table.")
-
-    table = make_table(title="AIMBAT Events")
-    table.add_column(
-        "ID (shortened)" if short else "ID",
-        justify="center",
-        style=TABLE_STYLING.id,
-        no_wrap=True,
+    events = session.exec(select(AimbatEvent)).all()
+    event_reads = [AimbatEventRead.from_event(e) for e in events]
+    adapter: TypeAdapter[Sequence[AimbatEventRead]] = TypeAdapter(
+        Sequence[AimbatEventRead]
     )
-    table.add_column("Active", justify="center", style=TABLE_STYLING.mine, no_wrap=True)
-    table.add_column(
-        "Date & Time", justify="center", style=TABLE_STYLING.mine, no_wrap=True
-    )
-    table.add_column("Latitude", justify="center", style=TABLE_STYLING.mine)
-    table.add_column("Longitude", justify="center", style=TABLE_STYLING.mine)
-    table.add_column("Depth", justify="center", style=TABLE_STYLING.mine)
-    table.add_column("Completed", justify="center", style=TABLE_STYLING.parameters)
-    table.add_column("# Seismograms", justify="center", style=TABLE_STYLING.linked)
-    table.add_column("# Stations", justify="center", style=TABLE_STYLING.linked)
-
-    for event in session.exec(select(AimbatEvent)).all():
-        logger.debug(f"Adding event with id={event.id} to the table.")
-        table.add_row(
-            uuid_shortener(session, event) if short else str(event.id),
-            TABLE_STYLING.bool_formatter(event.active),
-            TABLE_STYLING.timestamp_formatter(event.time, short),
-            f"{event.latitude:.3f}" if short else str(event.latitude),
-            f"{event.longitude:.3f}" if short else str(event.longitude),
-            f"{event.depth:.0f}" if short else str(event.depth),
-            TABLE_STYLING.bool_formatter(event.parameters.completed),
-            str(len(event.seismograms)),
-            str(len(station.get_stations_in_event(session, event))),
-        )
-
-    console = Console()
-    console.print(table)
+    if as_string:
+        return adapter.dump_json(event_reads).decode("utf-8")
+    return adapter.dump_python(event_reads, mode="json")
 
 
 @overload
@@ -348,6 +275,70 @@ def dump_event_parameter_table_to_json(
     if as_string:
         return active_event.parameters.model_dump_json()
     return active_event.parameters.model_dump(mode="json")
+
+
+def print_event_table(session: Session, short: bool) -> None:
+    """Print a pretty table with AIMBAT events.
+
+    Args:
+        session: Database session.
+        short: Shorten and format the output to be more human-readable.
+    """
+
+    logger.info("Printing AIMBAT events table.")
+
+    json_to_table(
+        data=dump_event_table_to_json(session, as_string=False),
+        title="AIMBAT Events",
+        column_order=[
+            "id",
+            "active",
+            "time",
+            "latitude",
+            "longitude",
+            "depth",
+            "completed",
+            "seismogram_count",
+            "station_count",
+        ],
+        formatters={
+            "id": lambda x: (
+                uuid_shortener(session, AimbatEvent, str_uuid=x) if short else x
+            ),
+            "active": TABLE_STYLING.bool_formatter,
+            "time": lambda x: TABLE_STYLING.timestamp_formatter(Timestamp(x), short),
+            "latitude": lambda x: f"{x:.3f}" if short else str(x),
+            "longitude": lambda x: f"{x:.3f}" if short else str(x),
+            "depth": lambda x: f"{x:.0f}" if short and x is not None else str(x),
+            "completed": TABLE_STYLING.bool_formatter,
+        },
+        common_column_kwargs={"justify": "center"},
+        column_kwargs={
+            "id": {
+                "header": "ID (shortened)" if short else "ID",
+                "style": TABLE_STYLING.id,
+                "no_wrap": True,
+            },
+            "active": {"style": TABLE_STYLING.mine, "no_wrap": True},
+            "time": {
+                "header": "Date & Time",
+                "style": TABLE_STYLING.mine,
+                "no_wrap": True,
+            },
+            "latitude": {"style": TABLE_STYLING.mine},
+            "longitude": {"style": TABLE_STYLING.mine},
+            "depth": {"style": TABLE_STYLING.mine},
+            "completed": {"style": TABLE_STYLING.parameters},
+            "seismogram_count": {
+                "header": "# Seismograms",
+                "style": TABLE_STYLING.linked,
+            },
+            "station_count": {
+                "header": "# Stations",
+                "style": TABLE_STYLING.linked,
+            },
+        },
+    )
 
 
 def print_event_parameter_table(

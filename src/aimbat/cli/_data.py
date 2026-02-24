@@ -13,14 +13,15 @@ app = App(name="data", help=__doc__, help_format="markdown")
 @app.command(name="add")
 @simple_exception
 def cli_data_add(
-    seismogram_files: Annotated[
+    datasources: Annotated[
         list[Path],
         Parameter(
             name="files", consume_multiple=True, validator=validators.Path(exists=True)
         ),
     ],
     *,
-    filetype: DataType = DataType.SAC,
+    datatype: DataType = DataType.SAC,
+    dry_run: Annotated[bool, Parameter(name="dry-run")] = False,
     show_progress_bar: Annotated[bool, Parameter(name="progress")] = True,
     global_parameters: GlobalParameters | None = None,
 ) -> None:
@@ -29,20 +30,22 @@ def cli_data_add(
     Args:
         seismogram_files: Seismogram files to be added.
         filetype: Specify type of seismogram file.
+        dry_run: If True, print the files that would be added without modifying the database.
         show_progress_bar: Display progress bar.
     """
     from aimbat.db import engine
-    from aimbat.core import add_files_to_project
+    from aimbat.core import add_data_to_project
 
     global_parameters = global_parameters or GlobalParameters()
 
     disable_progress_bar = not show_progress_bar
 
     with Session(engine) as session:
-        add_files_to_project(
+        add_data_to_project(
             session,
-            seismogram_files,
-            filetype,
+            datasources,
+            datatype,
+            dry_run,
             disable_progress_bar,
         )
 

@@ -6,8 +6,6 @@ from .._utils import export_module_names
 _internal_names = set(dir())
 
 from ._json import *
-from ._active_event import *
-from ._checkdata import *
 from ._sampledata import *
 from ._style import *
 from ._uuid import *

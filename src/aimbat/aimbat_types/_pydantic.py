@@ -11,7 +11,9 @@ __all__ = [
 ]
 
 
-def _format_timedelta(td: Timedelta) -> float:
+def _format_timedelta(td: Timedelta | None) -> float | None:
+    if td is None:
+        return None
     return td.total_seconds()
 
 
@@ -40,6 +42,8 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
     ) -> CoreSchema:
         # Define how to validate the input (from string, datetime, or object)
         def validate(value: Any) -> T:
+            if value is None:
+                raise ValueError(f"{cls.target_type.__name__} value cannot be None")
             if isinstance(value, cls.target_type):
                 return value
             try:
@@ -63,7 +67,7 @@ type PydanticTimestamp = Annotated[Timestamp, _AnnotatedTimestamp]
 type PydanticTimedelta = Annotated[
     Timedelta,
     _AnnotatedTimedelta,
-    PlainSerializer(_format_timedelta, return_type=float),
+    PlainSerializer(_format_timedelta, return_type=float | None),
 ]
 type PydanticNegativeTimedelta = Annotated[
     PydanticTimedelta, AfterValidator(_must_be_negative_pd_timedelta)

@@ -1,10 +1,12 @@
+import os
+from aimbat.core import get_active_event
 from aimbat.logger import logger
 from aimbat.aimbat_types import DataType
 from aimbat.utils import (
     uuid_shortener,
-    get_active_event,
     make_table,
     TABLE_STYLING,
+    json_to_table,
 )
 from aimbat.io import create_seismogram, create_station, create_event
 from aimbat.models import (
@@ -19,10 +21,9 @@ from pydantic import TypeAdapter
 from collections.abc import Sequence
 from rich.progress import track
 from rich.console import Console
-import os
 
 __all__ = [
-    "add_files_to_project",
+    "add_data_to_project",
     "get_data_for_active_event",
     "print_data_table",
     "dump_data_table_to_json",
@@ -106,10 +107,92 @@ def _create_seismogram(
     return aimbat_seismogram
 
 
-def add_files_to_project(
+def _add_datasource(
+    session: Session, datasource: str | os.PathLike, datatype: DataType
+) -> AimbatDataSource:
+    """Add a data source to the AIMBAT database, creating related station, event and seismogram if necessary."""
+    aimbat_station = _create_station(session, datasource, datatype)
+    aimbat_event = _create_event(session, datasource, datatype)
+    aimbat_seismogram = _create_seismogram(session, datasource, datatype)
+
+    # TODO: perhaps adding potentially updated station and event information should be optional?
+    aimbat_seismogram.station = aimbat_station
+    aimbat_seismogram.event = aimbat_event
+
+    # Create AimbatDataSource instance with relationship to AimbatSeismogram
+    select_aimbat_data_source = select(AimbatDataSource).where(
+        AimbatDataSource.sourcename == str(datasource)
+    )
+    aimbat_data_source = session.exec(select_aimbat_data_source).one_or_none()
+    if aimbat_data_source is None:
+        logger.debug(f"Adding data source {datasource} to project.")
+        aimbat_data_source_create = AimbatDataSourceCreate(
+            sourcename=str(datasource), datatype=datatype
+        )
+        aimbat_data_source = AimbatDataSource.model_validate(
+            aimbat_data_source_create,
+            update={"seismogram": aimbat_seismogram},
+        )
+
+    else:
+        logger.debug(
+            f"Using existing data source {datasource} instead of adding new one."
+        )
+        aimbat_data_source.seismogram = aimbat_seismogram
+    session.add(aimbat_data_source)
+    return aimbat_data_source
+
+
+def _print_dry_run_results(
+    added_datasources: Sequence[AimbatDataSource],
+    existing_station_ids: set,
+    existing_event_ids: set,
+    existing_seismogram_ids: set,
+) -> None:
+    """Print a summary table showing which entities were added vs skipped."""
+    bool_fmt = TABLE_STYLING.bool_formatter
+    json_to_table(
+        [
+            {
+                "Filename": str(ds.sourcename),
+                "Station": ds.seismogram.station_id not in existing_station_ids,
+                "Event": ds.seismogram.event_id not in existing_event_ids,
+                "Seismogram": ds.seismogram_id not in existing_seismogram_ids,
+            }
+            for ds in added_datasources
+        ],
+        title="Dry Run: Data to be added",
+        formatters={
+            "Station": bool_fmt,
+            "Event": bool_fmt,
+            "Seismogram": bool_fmt,
+        },
+    )
+    new_stations = sum(
+        ds.seismogram.station_id not in existing_station_ids for ds in added_datasources
+    )
+    new_events = sum(
+        ds.seismogram.event_id not in existing_event_ids for ds in added_datasources
+    )
+    new_seismograms = sum(
+        ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
+    )
+    console = Console()
+    console.print(
+        f"\n{new_stations} station(s) added, "
+        f"{len(added_datasources) - new_stations} skipped. "
+        f"{new_events} event(s) added, "
+        f"{len(added_datasources) - new_events} skipped. "
+        f"{new_seismograms} seismogram(s) added, "
+        f"{len(added_datasources) - new_seismograms} skipped."
+    )
+
+
+def add_data_to_project(
     session: Session,
     datasources: Sequence[str | os.PathLike],
     datatype: DataType,
+    dry_run: bool = False,
     disable_progress_bar: bool = True,
 ) -> None:
     """Add files to the AIMBAT database.
@@ -118,81 +201,83 @@ def add_files_to_project(
         datasources: List of data sources to add.
         datatype: Type of data.
         disable_progress_bar: Do not display progress bar.
+        dry_run: If True, do not commit changes to the database.
     """
 
     logger.info(f"Adding {len(datasources)} {datatype} files to project.")
 
-    for datasource in track(
-        sequence=datasources,
-        description="Adding files ...",
-        disable=disable_progress_bar,
-    ):
-        aimbat_station = _create_station(session, datasource, datatype)
-        aimbat_event = _create_event(session, datasource, datatype)
-        aimbat_seismogram = _create_seismogram(session, datasource, datatype)
+    try:
+        with session.begin_nested():
+            # Snapshot existing IDs before adding so we can tell new from reused.
+            if dry_run:
+                existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
+                existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
+                existing_seismogram_ids = set(
+                    session.exec(select(AimbatSeismogram.id)).all()
+                )
 
-        # TODO: perhaps adding potentially updated station and event information should be optional?
-        aimbat_seismogram.station = aimbat_station
-        aimbat_seismogram.event = aimbat_event
+            added_datasources: list[AimbatDataSource] = []
+            for datasource in track(
+                sequence=datasources,
+                description="Adding data ...",
+                disable=disable_progress_bar,
+            ):
+                added_datasources.append(_add_datasource(session, datasource, datatype))
 
-        # Create AimbatDataSource instance with relationship to AimbatSeismogram
-        select_aimbat_data_source = select(AimbatDataSource).where(
-            AimbatDataSource.sourcename == str(datasource)
-        )
-        aimbat_data_source = session.exec(select_aimbat_data_source).one_or_none()
-        if aimbat_data_source is None:
-            logger.debug(f"Adding data source {datasource} to project.")
-            aimbat_data_source_create = AimbatDataSourceCreate(
-                sourcename=str(datasource), datatype=datatype
-            )
-            aimbat_data_source = AimbatDataSource.model_validate(
-                aimbat_data_source_create, update={"seismogram": aimbat_seismogram}
-            )
+            if dry_run:
+                logger.info("Dry run: displaying data that would be added.")
+                session.flush()
+                _print_dry_run_results(
+                    added_datasources,
+                    existing_station_ids,
+                    existing_event_ids,
+                    existing_seismogram_ids,
+                )
+                session.rollback()
+                logger.info("Dry run complete. Rolling back changes.")
+            else:
+                session.commit()
+                logger.info("Data added successfully.")
 
-        else:
-            logger.debug(
-                f"Using existing data source {datasource} instead of adding new one."
-            )
-            aimbat_data_source.seismogram = aimbat_seismogram
-        session.add(aimbat_data_source)
-
-    session.commit()
+    except Exception as e:
+        logger.error(f"Failed to add data. Rolling back changes. Error: {e}")
+        raise
 
 
 def get_data_for_active_event(session: Session) -> Sequence[AimbatDataSource]:
-    """Returns the AimbatFiles belonging to the active event.
+    """Returns the data sources belonging to the active event.
 
     Args:
         session: Database session.
 
     Returns:
-        List of AimbatFiles.
+        Sequence of AimbatDataSource objects belonging to the active event.
     """
 
-    logger.info("Getting aimbatfiles in active event.")
+    logger.info("Getting data sources for active event.")
 
-    select_files = (
+    statement = (
         select(AimbatDataSource)
         .join(AimbatSeismogram)
         .join(AimbatEvent)
         .where(AimbatEvent.active == 1)
     )
-    return session.exec(select_files).all()
+    return session.exec(statement).all()
 
 
 def print_data_table(session: Session, short: bool, all_events: bool = False) -> None:
-    """Print a pretty table with AIMBAT data.
+    """Print a pretty table with information about the data sources in the database.
 
     Args:
         short: Shorten UUIDs and format data.
         all_events: Print all files instead of limiting to the active event.
     """
 
-    logger.info("Printing AIMBAT data table.")
+    logger.info("Printing data sources table.")
 
     if all_events:
         aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
-        title = "AIMBAT data for all events"
+        title = "Data sources for all events"
     else:
         active_event = get_active_event(session)
         aimbat_data_sources = get_data_for_active_event(session)
@@ -202,7 +287,7 @@ def print_data_table(session: Session, short: bool, all_events: bool = False) ->
             else active_event.time
         )
         id = uuid_shortener(session, active_event) if short else active_event.id
-        title = f"AIMBAT data for event {time} (ID={id})"
+        title = f"Data sources for event {time} (ID={id})"
 
     logger.debug(f"Found {len(aimbat_data_sources)} files in total.")
 

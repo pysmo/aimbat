@@ -4,6 +4,9 @@ These classes are ORMs that present data stored in a database
 as classes to use with python in AIMBAT.
 """
 
+import numpy as np
+import os
+import uuid
 from ._sqlalchemy import SAPandasTimestamp, SAPandasTimedelta
 from aimbat import settings
 from aimbat._lib._mixins import EventParametersValidatorMixin
@@ -15,13 +18,12 @@ from aimbat.aimbat_types import (
     PydanticPositiveTimedelta,
 )
 from datetime import timezone
-from sqlmodel import Relationship, SQLModel, Field
+from sqlmodel import Relationship, SQLModel, Field, col, select
+from sqlalchemy import func
+from sqlalchemy.orm import column_property
 from pydantic import computed_field
-from typing import TYPE_CHECKING
+from typing import Self, TYPE_CHECKING
 from pandas import Timestamp
-import numpy as np
-import os
-import uuid
 
 __all__ = [
     "AimbatTypes",
@@ -37,65 +39,9 @@ __all__ = [
     "AimbatSeismogramParametersBase",
     "AimbatSeismogramParametersSnapshot",
     "AimbatSnapshot",
+    "AimbatEventRead",
+    "AimbatSnapshotRead",
 ]
-
-
-class AimbatDataSourceCreate(SQLModel):
-    """Class to store data source information."""
-
-    sourcename: str | os.PathLike = Field(unique=True)
-    datatype: DataType = DataType.SAC
-
-
-class AimbatDataSource(SQLModel, table=True):
-    """Class to store data source information."""
-
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    sourcename: str
-    datatype: DataType
-    seismogram_id: uuid.UUID = Field(
-        default=None, foreign_key="aimbatseismogram.id", ondelete="CASCADE"
-    )
-    seismogram: "AimbatSeismogram" = Relationship(back_populates="datasource")
-
-
-class AimbatEvent(SQLModel, table=True):
-    """Store event information."""
-
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    "Unique ID."
-
-    active: bool | None = Field(default=None, unique=True)
-    "Indicates if an event is the active event."
-
-    time: PydanticTimestamp = Field(
-        unique=True, sa_type=SAPandasTimestamp, allow_mutation=False
-    )
-    "Event time."
-
-    latitude: float
-    "Event latitude."
-
-    longitude: float
-    "Event longitude."
-
-    depth: float | None = None
-    "Event depth."
-
-    seismograms: list["AimbatSeismogram"] = Relationship(
-        back_populates="event", cascade_delete=True
-    )
-    "List of seismograms of this event."
-
-    parameters: "AimbatEventParameters" = Relationship(
-        back_populates="event", cascade_delete=True
-    )
-    "Event parameters."
-
-    snapshots: list["AimbatSnapshot"] = Relationship(
-        back_populates="event", cascade_delete=True
-    )
-    "List of snapshots."
 
 
 class AimbatEventParametersBase(SQLModel):
@@ -134,6 +80,74 @@ class AimbatEventParametersBase(SQLModel):
     "Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False)."
 
 
+class AimbatSeismogramParametersBase(SQLModel):
+    """Base class that defines the seismogram parameters used in AIMBAT."""
+
+    flip: bool = False
+    "Whether or not the seismogram should be flipped."
+
+    select: bool = True
+    "Whether or not this seismogram should be used for processing."
+
+    t1: PydanticTimestamp | None = Field(default=None, sa_type=SAPandasTimestamp)
+    """Working pick.
+
+    This pick serves as working as well as output pick. It is changed by:
+
+    1. Picking the phase arrival in the stack.
+    2. Running ICCS.
+    3. Running MCCC.
+    """
+
+
+class AimbatDataSourceCreate(SQLModel):
+    """Class to store data source information."""
+
+    sourcename: str | os.PathLike = Field(unique=True)
+    datatype: DataType = DataType.SAC
+
+
+class AimbatDataSource(SQLModel, table=True):
+    """Class to store data source information."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    sourcename: str
+    datatype: DataType
+    seismogram_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatseismogram.id", ondelete="CASCADE"
+    )
+    seismogram: "AimbatSeismogram" = Relationship(back_populates="datasource")
+
+
+class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
+    """Class to store ICCS processing parameters of a single seismogram."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    seismogram_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatseismogram.id", ondelete="CASCADE"
+    )
+    seismogram: "AimbatSeismogram" = Relationship(back_populates="parameters")
+    snapshots: list["AimbatSeismogramParametersSnapshot"] = Relationship(
+        back_populates="parameters", cascade_delete=True
+    )
+
+
+class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=True):
+    """Class to store a snapshot of ICCS processing parameters of a single seismogram."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    seismogram_parameters_id: uuid.UUID = Field(
+        foreign_key="aimbatseismogramparameters.id", ondelete="CASCADE"
+    )
+    parameters: AimbatSeismogramParameters = Relationship(back_populates="snapshots")
+    snapshot_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatsnapshot.id", ondelete="CASCADE"
+    )
+    snapshot: "AimbatSnapshot" = Relationship(
+        back_populates="seismogram_parameters_snapshots"
+    )
+
+
 class AimbatEventParameters(
     AimbatEventParametersBase, EventParametersValidatorMixin, table=True
 ):
@@ -147,7 +161,7 @@ class AimbatEventParameters(
     )
     "Event ID these parameters are associated with."
 
-    event: AimbatEvent = Relationship(back_populates="parameters")
+    event: "AimbatEvent" = Relationship(back_populates="parameters")
     "Event these parameters are associated with."
 
     snapshots: list["AimbatEventParametersSnapshot"] = Relationship(
@@ -172,37 +186,36 @@ class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
     )
 
 
-class AimbatStation(SQLModel, table=True):
-    """Class to store station information."""
+class AimbatSnapshot(SQLModel, table=True):
+    """Class to store AIMBAT snapshots.
+
+    The AimbatSnapshot class does not actually save any parameter data.
+    It is used to keep track of the AimbatEventParametersSnapshot and
+    AimbatSeismogramParametersSnapshot instances.
+    """
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    "Unique ID."
-
-    name: str = Field(allow_mutation=False)
-    "Station name."
-
-    network: str = Field(allow_mutation=False)
-    "Network name."
-
-    location: str = Field(allow_mutation=False)
-    "Location ID."
-
-    channel: str = Field(allow_mutation=False)
-    "Channel code."
-
-    latitude: float
-    "Station latitude"
-
-    longitude: float
-    "Station longitude"
-
-    elevation: float | None = None
-    "Station elevation."
-
-    seismograms: list["AimbatSeismogram"] = Relationship(
-        back_populates="station", cascade_delete=True
+    date: PydanticTimestamp = Field(
+        default_factory=lambda: Timestamp.now(tz=timezone.utc),
+        unique=True,
+        allow_mutation=False,
+        sa_type=SAPandasTimestamp,
     )
-    "Seismograms recorded at this station."
+    comment: str | None = None
+    event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
+        back_populates="snapshot", cascade_delete=True
+    )
+    seismogram_parameters_snapshots: list[AimbatSeismogramParametersSnapshot] = (
+        Relationship(back_populates="snapshot", cascade_delete=True)
+    )
+
+    event_id: uuid.UUID = Field(
+        default=None, foreign_key="aimbatevent.id", ondelete="CASCADE"
+    )
+    "Event ID this snapshot is associated with."
+
+    event: "AimbatEvent" = Relationship(back_populates="snapshots")
+    "Event this snapshot is associated with."
 
 
 class AimbatSeismogram(SQLModel, table=True):
@@ -226,24 +239,23 @@ class AimbatSeismogram(SQLModel, table=True):
     station_id: uuid.UUID = Field(
         default=None, foreign_key="aimbatstation.id", ondelete="CASCADE"
     )
-    station: AimbatStation = Relationship(back_populates="seismograms")
+    station: "AimbatStation" = Relationship(back_populates="seismograms")
     event_id: uuid.UUID = Field(
         default=None, foreign_key="aimbatevent.id", ondelete="CASCADE"
     )
-    event: AimbatEvent = Relationship(back_populates="seismograms")
+    event: "AimbatEvent" = Relationship(back_populates="seismograms")
     parameters: "AimbatSeismogramParameters" = Relationship(
         back_populates="seismogram",
         cascade_delete=True,
     )
 
-    def __len__(self) -> int:
-        return np.size(self.data)
-
     if TYPE_CHECKING:
-        flip: bool
-        select: bool
-        t1: Timestamp | None
-        data: np.ndarray
+        # Add same default values for type checking purposes
+        # as in AimbatSeismogramParametersBase
+        flip: bool = False
+        select: bool = True
+        t1: Timestamp | None = None
+        data: np.ndarray = np.array([])
 
         @property
         def end_time(self) -> Timestamp: ...
@@ -252,9 +264,9 @@ class AimbatSeismogram(SQLModel, table=True):
 
         @computed_field
         def end_time(self) -> PydanticTimestamp:
-            if len(self) == 0:
+            if len(self.data) == 0:
                 return self.begin_time
-            return self.begin_time + self.delta * (len(self) - 1)
+            return self.begin_time + self.delta * (len(self.data) - 1)
 
         @property
         def flip(self) -> bool:
@@ -297,85 +309,147 @@ class AimbatSeismogram(SQLModel, table=True):
             )
 
 
-class AimbatSeismogramParametersBase(SQLModel):
-    """Base class that defines the seismogram parameters used in AIMBAT."""
-
-    flip: bool = False
-    "Whether or not the seismogram should be flipped."
-
-    select: bool = True
-    "Whether or not this seismogram should be used for processing."
-
-    t1: PydanticTimestamp | None = Field(default=None, sa_type=SAPandasTimestamp)
-    """Working pick.
-
-    This pick serves as working as well as output pick. It is changed by:
-
-    1. Picking the phase arrival in the stack.
-    2. Running ICCS.
-    3. Running MCCC.
-    """
-
-
-class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
-    """Class to store ICCS processing parameters of a single seismogram."""
+class AimbatStation(SQLModel, table=True):
+    """Class to store station information."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    seismogram_id: uuid.UUID = Field(
-        default=None, foreign_key="aimbatseismogram.id", ondelete="CASCADE"
+    "Unique ID."
+
+    name: str = Field(allow_mutation=False)
+    "Station name."
+
+    network: str = Field(allow_mutation=False)
+    "Network name."
+
+    location: str = Field(allow_mutation=False)
+    "Location ID."
+
+    channel: str = Field(allow_mutation=False)
+    "Channel code."
+
+    latitude: float
+    "Station latitude"
+
+    longitude: float
+    "Station longitude"
+
+    elevation: float | None = None
+    "Station elevation."
+
+    seismograms: list[AimbatSeismogram] = Relationship(
+        back_populates="station", cascade_delete=True
     )
-    seismogram: AimbatSeismogram = Relationship(back_populates="parameters")
-    snapshots: list["AimbatSeismogramParametersSnapshot"] = Relationship(
-        back_populates="parameters", cascade_delete=True
-    )
+    "Seismograms recorded at this station."
 
 
-class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=True):
-    """Class to store a snapshot of ICCS processing parameters of a single seismogram."""
+class AimbatEvent(SQLModel, table=True):
+    """Store event information."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    seismogram_parameters_id: uuid.UUID = Field(
-        foreign_key="aimbatseismogramparameters.id", ondelete="CASCADE"
+    "Unique ID."
+
+    active: bool | None = Field(default=None, unique=True)
+    "Indicates if an event is the active event."
+
+    time: PydanticTimestamp = Field(
+        unique=True, sa_type=SAPandasTimestamp, allow_mutation=False
     )
-    parameters: AimbatSeismogramParameters = Relationship(back_populates="snapshots")
-    snapshot_id: uuid.UUID = Field(
-        default=None, foreign_key="aimbatsnapshot.id", ondelete="CASCADE"
+    "Event time."
+
+    latitude: float
+    "Event latitude."
+
+    longitude: float
+    "Event longitude."
+
+    depth: float | None = None
+    "Event depth."
+
+    seismograms: list[AimbatSeismogram] = Relationship(
+        back_populates="event", cascade_delete=True
     )
-    snapshot: "AimbatSnapshot" = Relationship(
-        back_populates="seismogram_parameters_snapshots"
+    "List of seismograms of this event."
+
+    parameters: AimbatEventParameters = Relationship(
+        back_populates="event", cascade_delete=True
     )
+    "Event parameters."
+
+    snapshots: list[AimbatSnapshot] = Relationship(
+        back_populates="event", cascade_delete=True
+    )
+    "List of snapshots."
+
+    if TYPE_CHECKING:
+        seismogram_count: int = 0
+        station_count: int = 0
 
 
-class AimbatSnapshot(SQLModel, table=True):
-    """Class to store AIMBAT snapshots.
+AimbatEvent.seismogram_count = column_property(  # type: ignore[assignment]
+    select(func.count(col(AimbatSeismogram.id)))
+    .where(col(AimbatSeismogram.event_id) == col(AimbatEvent.id))
+    .correlate_except(AimbatSeismogram)
+    .scalar_subquery()
+)
+"Number of seismograms for this event."
 
-    The AimbatSnapshot class does not actually save any parameter data.
-    It is used to keep track of the AimbatEventParametersSnapshot and
-    AimbatSeismogramParametersSnapshot instances.
-    """
+AimbatEvent.station_count = column_property(  # type: ignore[assignment]
+    select(func.count(func.distinct(col(AimbatSeismogram.station_id))))
+    .where(col(AimbatSeismogram.event_id) == col(AimbatEvent.id))
+    .correlate_except(AimbatSeismogram)
+    .scalar_subquery()
+)
+"Number of unique stations for this event."
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    date: PydanticTimestamp = Field(
-        default_factory=lambda: Timestamp.now(tz=timezone.utc),
-        unique=True,
-        allow_mutation=False,
-        sa_type=SAPandasTimestamp,
-    )
-    comment: str | None = None
-    event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
-        back_populates="snapshot", cascade_delete=True
-    )
-    seismogram_parameters_snapshots: list[AimbatSeismogramParametersSnapshot] = (
-        Relationship(back_populates="snapshot", cascade_delete=True)
-    )
 
-    event_id: uuid.UUID = Field(
-        default=None, foreign_key="aimbatevent.id", ondelete="CASCADE"
-    )
-    "Event ID this snapshot is associated with."
+class AimbatEventRead(SQLModel):
+    """Read model for AimbatEvent including computed counts."""
 
-    event: AimbatEvent = Relationship(back_populates="snapshots")
-    "Event this snapshot is associated with."
+    id: uuid.UUID
+    active: bool | None
+    time: PydanticTimestamp
+    latitude: float
+    longitude: float
+    depth: float | None
+    completed: bool = False
+    seismogram_count: int
+    station_count: int
+
+    @classmethod
+    def from_event(cls, event: AimbatEvent) -> Self:
+        """Create an AimbatEventRead from an AimbatEvent ORM instance."""
+        return cls(
+            id=event.id,
+            active=event.active,
+            time=event.time,
+            latitude=event.latitude,
+            longitude=event.longitude,
+            depth=event.depth,
+            completed=event.parameters.completed,
+            seismogram_count=event.seismogram_count,
+            station_count=event.station_count,
+        )
+
+
+class AimbatSnapshotRead(SQLModel):
+    """Read model for AimbatSnapshot with a seismogram count."""
+
+    id: uuid.UUID
+    date: PydanticTimestamp
+    comment: str | None
+    event_id: uuid.UUID
+    seismogram_count: int
+
+    @classmethod
+    def from_snapshot(cls, snapshot: AimbatSnapshot) -> Self:
+        """Create an AimbatSnapshotRead from an AimbatSnapshot ORM instance."""
+        return cls(
+            id=snapshot.id,
+            date=snapshot.date,
+            comment=snapshot.comment,
+            event_id=snapshot.event_id,
+            seismogram_count=len(snapshot.seismogram_parameters_snapshots),
+        )
 
 
 type AimbatTypes = (

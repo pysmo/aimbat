@@ -1,20 +1,23 @@
+import uuid
+import json
+from aimbat.core import get_active_event
 from aimbat.logger import logger
-from aimbat.utils import uuid_shortener, get_active_event, make_table, TABLE_STYLING
+from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
 from aimbat.models import (
     AimbatSeismogramParametersBase,
     AimbatSnapshot,
+    AimbatSnapshotRead,
     AimbatEvent,
     AimbatEventParametersBase,
-    AimbatEventParameters,
     AimbatEventParametersSnapshot,
     AimbatSeismogramParametersSnapshot,
 )
 from sqlmodel import Session, select
-from rich.console import Console
+from sqlalchemy import true
+from pandas import Timestamp
 from collections.abc import Sequence
 from typing import overload, Literal, Any
 from pydantic import TypeAdapter
-import uuid
 
 __all__ = [
     "create_snapshot",
@@ -23,7 +26,7 @@ __all__ = [
     "delete_snapshot_by_id",
     "delete_snapshot",
     "get_snapshots",
-    "dump_snapshot_table_to_json",
+    "dump_snapshot_tables_to_json",
     "print_snapshot_table",
 ]
 
@@ -184,60 +187,83 @@ def get_snapshots(
 
     logger.info("Getting AIMBAT snapshots.")
 
-    if all_events:
-        logger.debug("Getting snapshots for all events.")
-        return session.exec(select(AimbatSnapshot)).all()
-
-    logger.debug("Getting snapshots for active event.")
-    select_active_event_snapshots = (
+    statement = (
         select(AimbatSnapshot)
-        .join(AimbatEventParametersSnapshot)
-        .join(AimbatEventParameters)
         .join(AimbatEvent)
-        .where(AimbatEvent.active == 1)
+        .where(AimbatEvent.active == True if not all_events else true())  # noqa: E712
     )
-    return session.exec(select_active_event_snapshots).all()
+
+    logger.debug(f"Executing statement to get snapshots: {statement}")
+    return session.exec(statement).all()
 
 
 @overload
-def dump_snapshot_table_to_json(
+def dump_snapshot_tables_to_json(
     session: Session, all_events: bool, as_string: Literal[True]
 ) -> str: ...
 
 
 @overload
-def dump_snapshot_table_to_json(
+def dump_snapshot_tables_to_json(
     session: Session, all_events: bool, as_string: Literal[False]
-) -> list[dict[str, Any]]: ...
+) -> dict[str, list[dict[str, Any]]]: ...
 
 
-def dump_snapshot_table_to_json(
+def dump_snapshot_tables_to_json(
     session: Session, all_events: bool, as_string: bool
-) -> str | list[dict[str, Any]]:
-    """Dump the `AimbatSnapshot` table data to json."""
+) -> str | dict[str, list[dict[str, Any]]]:
+    """Dump snapshot data as a dict of lists of dicts.
 
-    logger.info("Dumping AimbatSeismogramtable to json.")
+    Returns a structure with three keys:
 
-    adapter: TypeAdapter[Sequence[AimbatSnapshot]] = TypeAdapter(
-        Sequence[AimbatSnapshot]
+    - ``snapshots``: flat list of snapshot metadata.
+    - ``event_parameters``: flat list of event parameter snapshots.
+    - ``seismogram_parameters``: flat list of seismogram parameter snapshots.
+
+    Each entry includes a ``snapshot_id`` for cross-referencing.
+
+    Args:
+        session: Database session.
+        all_events: Include snapshots for all events.
+        as_string: Return a JSON string when True, otherwise a dict.
+    """
+    logger.info(f"Dumping AimbatSnapshot tables to json with {all_events=}.")
+
+    snapshots = get_snapshots(session, all_events)
+
+    snapshot_adapter: TypeAdapter[Sequence[AimbatSnapshotRead]] = TypeAdapter(
+        Sequence[AimbatSnapshotRead]
+    )
+    event_params_adapter: TypeAdapter[Sequence[AimbatEventParametersSnapshot]] = (
+        TypeAdapter(Sequence[AimbatEventParametersSnapshot])
+    )
+    seis_params_adapter: TypeAdapter[Sequence[AimbatSeismogramParametersSnapshot]] = (
+        TypeAdapter(Sequence[AimbatSeismogramParametersSnapshot])
     )
 
-    if all_events:
-        parameters = session.exec(select(AimbatSnapshot)).all()
-    else:
-        parameters = session.exec(
-            select(AimbatSnapshot).join(AimbatEvent).where(AimbatEvent.active == 1)
-        ).all()
+    snapshot_reads = [AimbatSnapshotRead.from_snapshot(s) for s in snapshots]
+    event_params = [s.event_parameters_snapshot for s in snapshots]
+    seis_params = [sp for s in snapshots for sp in s.seismogram_parameters_snapshots]
 
-    if as_string:
-        return adapter.dump_json(parameters).decode("utf-8")
-    return adapter.dump_python(parameters, mode="json")
+    data: dict[str, list[dict[str, Any]]] = {
+        "snapshots": snapshot_adapter.dump_python(snapshot_reads, mode="json"),
+        "event_parameters": event_params_adapter.dump_python(event_params, mode="json"),
+        "seismogram_parameters": seis_params_adapter.dump_python(
+            seis_params, mode="json"
+        ),
+    }
+
+    return json.dumps(data) if as_string else data
 
 
 def print_snapshot_table(session: Session, short: bool, all_events: bool) -> None:
     """Print a pretty table with AIMBAT snapshots.
 
+    Uses the ``snapshots`` portion of :func:`dump_snapshot_tables_to_json`
+    and renders it via :func:`~aimbat.utils.json_to_table`.
+
     Args:
+        session: Database session.
         short: Shorten and format the output to be more human-readable.
         all_events: Print all snapshots instead of limiting to the active event.
     """
@@ -245,9 +271,6 @@ def print_snapshot_table(session: Session, short: bool, all_events: bool) -> Non
     logger.info("Printing AIMBAT snapshots table.")
 
     title = "AIMBAT snapshots for all events"
-
-    snapshots = get_snapshots(session, all_events)
-    logger.debug(f"Found {len(snapshots)} snapshots for the table.")
 
     if not all_events:
         active_event = get_active_event(session)
@@ -258,36 +281,49 @@ def print_snapshot_table(session: Session, short: bool, all_events: bool) -> Non
                 f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
             )
 
-    table = make_table(title=title)
+    data = dump_snapshot_tables_to_json(session, all_events, as_string=False)
+    snapshot_data = data["snapshots"]
 
-    table.add_column(
-        "ID (shortened)" if short else "ID",
-        justify="center",
-        style=TABLE_STYLING.id,
-        no_wrap=True,
-    )
-    table.add_column(
-        "Date & Time", justify="center", style=TABLE_STYLING.mine, no_wrap=True
-    )
-    table.add_column("Comment", justify="center", style=TABLE_STYLING.mine)
-    table.add_column("# Seismograms", justify="center", style=TABLE_STYLING.linked)
+    column_order = ["id", "date", "comment", "seismogram_count"]
     if all_events:
-        table.add_column("Event ID", justify="center", style=TABLE_STYLING.linked)
+        column_order.append("event_id")
 
-    for snapshot in snapshots:
-        logger.debug(f"Adding snapshot with id={snapshot.id} to the table.")
-        row = [
-            (uuid_shortener(session, snapshot) if short else str(snapshot.id)),
-            TABLE_STYLING.timestamp_formatter(snapshot.date, short),
-            str(snapshot.comment),
-            str(len(snapshot.seismogram_parameters_snapshots)),
-        ]
-        if all_events:
-            aimbat_event = snapshot.event
-            row.append(
-                uuid_shortener(session, aimbat_event) if short else str(aimbat_event.id)
-            )
-        table.add_row(*row)
+    skip_keys = [] if all_events else ["event_id"]
 
-    console = Console()
-    console.print(table)
+    json_to_table(
+        data=snapshot_data,
+        title=title,
+        column_order=column_order,
+        skip_keys=skip_keys,
+        formatters={
+            "id": lambda x: (
+                uuid_shortener(session, AimbatSnapshot, str_uuid=x) if short else x
+            ),
+            "date": lambda x: TABLE_STYLING.timestamp_formatter(Timestamp(x), short),
+            "event_id": lambda x: (
+                uuid_shortener(session, AimbatEvent, str_uuid=x) if short else x
+            ),
+        },
+        common_column_kwargs={"justify": "center"},
+        column_kwargs={
+            "id": {
+                "header": "ID (shortened)" if short else "ID",
+                "style": TABLE_STYLING.id,
+                "no_wrap": True,
+            },
+            "date": {
+                "header": "Date & Time",
+                "style": TABLE_STYLING.mine,
+                "no_wrap": True,
+            },
+            "comment": {"style": TABLE_STYLING.mine},
+            "seismogram_count": {
+                "header": "# Seismograms",
+                "style": TABLE_STYLING.linked,
+            },
+            "event_id": {
+                "header": "Event ID (shortened)" if short else "Event ID",
+                "style": TABLE_STYLING.linked,
+            },
+        },
+    )

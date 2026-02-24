@@ -133,36 +133,55 @@ settings = Settings()
 
 def print_settings_table(pretty: bool) -> None:
     """Print a pretty table with AIMBAT configuration options."""
-    from aimbat.utils import make_table, TABLE_STYLING
-    from rich.console import Console
+    import json
+    from aimbat.utils import TABLE_STYLING
+    from aimbat.utils._json import json_to_table
 
     env_prefix = Settings.model_config.get("env_prefix")
+    values: dict[str, str] = json.loads(settings.model_dump_json())
 
     if not pretty:
-        for k in Settings.model_fields:
-            print(
-                f'{(env_prefix + k).upper() if env_prefix else k}="{getattr(settings, k)}"'
-            )
+        for k, v in values.items():
+            env_key = f"{env_prefix.upper()}{k.upper()}" if env_prefix else k
+            print(f'{env_key}="{v}"')
         return
 
-    table = make_table(title="AIMBAT settings")
-    table.add_column("Name", justify="left", style=TABLE_STYLING.id, no_wrap=True)
-    table.add_column("Value", justify="center", style=TABLE_STYLING.mine)
-    table.add_column("Description", justify="left", style=TABLE_STYLING.linked)
-
-    for k, v in Settings.model_fields.items():
+    rows = []
+    for k, v in values.items():
+        field_info = Settings.model_fields.get(k)
         env_var = (
-            f"Environment variable: {env_prefix.upper()}{str(k).upper()}"
+            f"Environment variable: {env_prefix.upper()}{k.upper()}"
             if env_prefix
             else ""
         )
-        description_with_env_var = (
-            f"{v.description} " if v.description else ""
-        ) + env_var
-        table.add_row(k, str(getattr(settings, k)), description_with_env_var)
+        description = field_info.description if field_info else ""
+        description_with_env_var = (f"{description} " if description else "") + env_var
+        rows.append(
+            {"name": k, "value": str(v), "description": description_with_env_var}
+        )
 
-    console = Console()
-    console.print(table)
+    json_to_table(
+        rows,
+        title="AIMBAT settings",
+        column_kwargs={
+            "name": {
+                "header": "Name",
+                "justify": "left",
+                "style": TABLE_STYLING.id,
+                "no_wrap": True,
+            },
+            "value": {
+                "header": "Value",
+                "justify": "center",
+                "style": TABLE_STYLING.mine,
+            },
+            "description": {
+                "header": "Description",
+                "justify": "left",
+                "style": TABLE_STYLING.linked,
+            },
+        },
+    )
 
 
 def cli_settings_list(

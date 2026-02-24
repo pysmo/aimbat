@@ -77,14 +77,20 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-# xvfb_width = 1920
-# xvfb_height = 1080
 testpaths = [
   "tests",
   "src",
 ]
+markers = [
+    "slow: mark slow tests that may take a long time to run",
+    "cli: mark as command-line interface tests",
+    "gui: mark tests that require a GUI environment",
+    "mpl: mark tests that generate matplotlib figures",
+]
 mpl-generate-summary = "html"
 mpl-use-full-test-name = true
+# xvfb_width = 1920
+# xvfb_height = 1080
 
 [tool.mypy]
 mypy_path = "src"

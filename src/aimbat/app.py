@@ -6,19 +6,6 @@ command (as specified below) to actually do anything. Help for individual
 commands is available by typing `aimbat COMMAND --help`.
 """
 
-from ._config import cli_settings_list
-from .cli import (
-    _align,
-    _data,
-    _event,
-    _pick,
-    _plot,
-    _project,
-    _station,
-    _seismogram,
-    _snapshot,
-    _utils,
-)
 from importlib import metadata
 from cyclopts import App
 from rich.console import Console
@@ -32,17 +19,16 @@ except Exception:
 console = Console()
 
 app = App(version=__version__, help=__doc__, help_format="markdown", console=console)
-app.command(_align.app)
-app.command(_data.app)
-app.command(_event.app)
-app.command(_pick.app)
-app.command(_plot.app)
-app.command(_project.app)
-app.command(_station.app)
-app.command(_seismogram.app)
-app.command(cli_settings_list, name="settings")
-app.command(_snapshot.app)
-app.command(_utils.app)
+app.command("aimbat.cli._align:app", name="align")
+app.command("aimbat.cli._data:app", name="data")
+app.command("aimbat.cli._event:app", name="event")
+app.command("aimbat.cli._pick:app", name="pick")
+app.command("aimbat.cli._plot:app", name="plot")
+app.command("aimbat.cli._project:app", name="project")
+app.command("aimbat.cli._station:app", name="station")
+app.command("aimbat.cli._seismogram:app", name="seismogram")
+app.command("aimbat.cli._snapshot:app", name="snapshot")
+app.command("aimbat.cli._utils:app", name="utils")
 
 
 if __name__ == "__main__":
