@@ -163,7 +163,7 @@ def multi_event_data(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
     for orgfile in orgfiles:
         testfile = tmpdir / orgfile.name
         shutil.copy(orgfile, testfile)
-    return sorted(tmpdir.glob("*.bhz"))
+    return sorted(tmpdir.glob("*.bhz", case_sensitive=False))
 
 
 # ---------------------------------------------------------------------------

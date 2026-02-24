@@ -85,7 +85,7 @@ class TestDataManagement:
         cli_json: Callable[[str], list | dict],
     ) -> None:
         """Verifies that data can be added to the project."""
-        files = " ".join(str(f) for f in multi_event_data)
+        files = " ".join(f.as_posix() for f in multi_event_data)
         cli(f"data add {files} --no-progress")
         events = cli_json("event dump")
         assert len(events) > 0
@@ -100,7 +100,7 @@ class TestDataManagement:
         """Adding the same files twice does not duplicate data."""
         events_before = cli_json("event dump")
 
-        files = " ".join(str(f) for f in multi_event_data)
+        files = " ".join(f.as_posix() for f in multi_event_data)
         cli(f"data add {files} --no-progress")
 
         events_after = cli_json("event dump")
@@ -128,7 +128,7 @@ class TestDataManagement:
         cli_json: Callable[[str], list | dict],
     ) -> None:
         """Verifies that dry-run mode does not modify the database."""
-        files = " ".join(str(f) for f in multi_event_data)
+        files = " ".join(f.as_posix() for f in multi_event_data)
         cli(f"data add {files} --no-progress --dry-run")
         events = cli_json("event dump")
         assert len(events) == 0
@@ -617,7 +617,7 @@ class TestDataReaddWorkflow:
         seis_empty = cli_json("seismogram dump")
         assert len(seis_empty) == 0
 
-        files = " ".join(str(f) for f in multi_event_data)
+        files = " ".join(f.as_posix() for f in multi_event_data)
         cli(f"data add {files} --no-progress")
 
         events_after = cli_json("event dump")
