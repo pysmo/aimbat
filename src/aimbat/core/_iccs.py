@@ -1,11 +1,9 @@
 """Processing of data for AIMBAT."""
 
-from typing import cast
-
+from aimbat.core import get_active_event
 from aimbat import settings
 from aimbat.logger import logger
 from aimbat.models import AimbatSeismogram
-from aimbat.utils import get_active_event
 from pysmo.tools.signal import mccc
 from pysmo.tools.iccs import (
     ICCS,
@@ -16,6 +14,7 @@ from pysmo.tools.iccs import (
     update_timewindow as _update_timewindow,
 )
 from sqlmodel import Session
+from typing import cast
 
 __all__ = [
     "create_iccs_instance",

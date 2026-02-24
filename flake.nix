@@ -23,13 +23,14 @@
     in {
       default = pkgs.mkShell {
         nativeBuildInputs = with pkgs; [
+          bashInteractive
+          sqlitebrowser
           uv
           ruff
           (python314.withPackages (ps: with ps; [tox]))
           python313
           python312
           gnumake
-          sqlitebrowser
         ];
 
         shellHook = ''

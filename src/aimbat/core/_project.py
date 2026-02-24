@@ -1,4 +1,4 @@
-from aimbat.utils import get_active_event
+from aimbat.core import get_active_event
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
@@ -44,36 +44,52 @@ def _project_exists(engine: Engine) -> bool:
 
 
 def create_project(engine: Engine) -> None:
-    """Create a new AIMBAT project."""
+    """Initializes a new AIMBAT project database schema and triggers.
 
-    # import this to create tables below
+    Args:
+        engine: The SQLAlchemy/SQLModel Engine instance connected to the target database.
+
+    Raises:
+        RuntimeError: If a project schema already exists in the target database.
+    """
+
+    # Import locally to ensure SQLModel registers all table metadata before create_all()
     import aimbat.models  # noqa: F401
 
-    logger.info(f"Creating new project in {engine=}.")
+    logger.info(f"Creating new project in {engine.url}")
 
     if _project_exists(engine):
         raise RuntimeError(
-            f"Unable to create a new project: project already exists in {engine=}!"
+            f"Unable to create a new project: project already exists at {engine.url}!"
         )
 
     logger.debug("Creating database tables and loading defaults.")
 
     SQLModel.metadata.create_all(engine)
-    if engine.driver == "pysqlite":
-        with engine.connect() as connection:
-            connection.execute(text("PRAGMA foreign_keys=ON"))  # for SQLite only
 
-    # This trigger ensures that only one event can be active at a time
-    with engine.connect() as connection:
-        connection.execute(text("""CREATE TRIGGER single_active_event
-        BEFORE UPDATE ON aimbatevent
-        FOR EACH ROW
-        WHEN NEW.active = TRUE
-        BEGIN
-            UPDATE aimbatevent SET active = NULL
-        WHERE active = TRUE AND id != NEW.id;
-        END;
-    """))
+    if engine.name == "sqlite":
+        with engine.begin() as connection:
+            # Trigger 1: Handle updates to existing rows
+            connection.execute(text("""
+                CREATE TRIGGER IF NOT EXISTS single_active_event_update
+                BEFORE UPDATE ON aimbatevent
+                FOR EACH ROW WHEN NEW.active = TRUE
+                BEGIN
+                    UPDATE aimbatevent SET active = NULL 
+                    WHERE active = TRUE AND id != NEW.id;
+                END;
+            """))
+
+            # Trigger 2: Handle brand new active events being inserted
+            connection.execute(text("""
+                CREATE TRIGGER IF NOT EXISTS single_active_event_insert
+                BEFORE INSERT ON aimbatevent
+                FOR EACH ROW WHEN NEW.active = TRUE
+                BEGIN
+                    UPDATE aimbatevent SET active = NULL 
+                    WHERE active = TRUE;
+                END;
+            """))
 
 
 def delete_project(engine: Engine) -> None:
@@ -119,8 +135,10 @@ def print_project_info(engine: Engine) -> None:
         grid.add_column()
         grid.add_column(justify="left")
         if engine.driver == "pysqlite":
-            project = str(engine.url.database)
-            grid.add_row("AIMBAT Project File: ", project)
+            if engine.url.database == ":memory:":
+                grid.add_row("AIMBAT Project: ", "in-memory database")
+            else:
+                grid.add_row("AIMBAT Project File: ", str(engine.url.database))
 
         events = len(session.exec(select(AimbatEvent)).all())
         completed_events = len(event.get_completed_events(session))

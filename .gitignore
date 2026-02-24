@@ -34,3 +34,6 @@ reset_project.sh
 aimbat.log
 .env
 aimbat_test.log
+GEMINI.md
+CLAUDE.md
+.claude/settings.local.json

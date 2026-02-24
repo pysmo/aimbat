@@ -1,7 +1,7 @@
+from aimbat.core import get_active_event
 from aimbat.logger import logger
 from aimbat.utils import (
     uuid_shortener,
-    get_active_event,
     make_table,
     TABLE_STYLING,
     json_to_table,
@@ -281,6 +281,44 @@ def dump_seismogram_table_to_json(session: Session) -> str:
     return adapter.dump_json(aimbat_seismograms).decode("utf-8")
 
 
+@overload
+def dump_seismogram_parameter_table_to_json(
+    session: Session, all_events: bool, as_string: Literal[True]
+) -> str: ...
+
+
+@overload
+def dump_seismogram_parameter_table_to_json(
+    session: Session, all_events: bool, as_string: Literal[False]
+) -> list[dict[str, Any]]: ...
+
+
+def dump_seismogram_parameter_table_to_json(
+    session: Session, all_events: bool, as_string: bool
+) -> str | list[dict[str, Any]]:
+    """Dump the seismogram parameter table data to json."""
+
+    logger.info("Dumping AimbatSeismogramParameters table to json.")
+
+    adapter: TypeAdapter[Sequence[AimbatSeismogramParameters]] = TypeAdapter(
+        Sequence[AimbatSeismogramParameters]
+    )
+
+    if all_events:
+        parameters = session.exec(select(AimbatSeismogramParameters)).all()
+    else:
+        parameters = session.exec(
+            select(AimbatSeismogramParameters)
+            .join(AimbatSeismogram)
+            .join(AimbatEvent)
+            .where(AimbatEvent.active == 1)
+        ).all()
+
+    if as_string:
+        return adapter.dump_json(parameters).decode("utf-8")
+    return adapter.dump_python(parameters, mode="json")
+
+
 def print_seismogram_table(
     session: Session, short: bool, all_events: bool = False
 ) -> None:
@@ -335,7 +373,7 @@ def print_seismogram_table(
         row = [
             (uuid_shortener(session, seismogram) if short else str(seismogram.id)),
             TABLE_STYLING.bool_formatter(seismogram.parameters.select),
-            str(len(seismogram)),
+            str(len(seismogram.data)),
             str(seismogram.delta.total_seconds()),
             (
                 uuid_shortener(session, seismogram.datasource)
@@ -360,44 +398,6 @@ def print_seismogram_table(
 
     console = Console()
     console.print(table)
-
-
-@overload
-def dump_seismogram_parameter_table_to_json(
-    session: Session, all_events: bool, as_string: Literal[True]
-) -> str: ...
-
-
-@overload
-def dump_seismogram_parameter_table_to_json(
-    session: Session, all_events: bool, as_string: Literal[False]
-) -> list[dict[str, Any]]: ...
-
-
-def dump_seismogram_parameter_table_to_json(
-    session: Session, all_events: bool, as_string: bool
-) -> str | list[dict[str, Any]]:
-    """Dump the seismogram parameter table data to json."""
-
-    logger.info("Dumping AimbatSeismogramParameters table to json.")
-
-    adapter: TypeAdapter[Sequence[AimbatSeismogramParameters]] = TypeAdapter(
-        Sequence[AimbatSeismogramParameters]
-    )
-
-    if all_events:
-        parameters = session.exec(select(AimbatSeismogramParameters)).all()
-    else:
-        parameters = session.exec(
-            select(AimbatSeismogramParameters)
-            .join(AimbatSeismogram)
-            .join(AimbatEvent)
-            .where(AimbatEvent.active == 1)
-        ).all()
-
-    if as_string:
-        return adapter.dump_json(parameters).decode("utf-8")
-    return adapter.dump_python(parameters, mode="json")
 
 
 def print_seismogram_parameter_table(session: Session, short: bool) -> None:

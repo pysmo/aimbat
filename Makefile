@@ -1,4 +1,4 @@
-.PHONY: help check-uv sync upgrade lint test-figs tests \
+.PHONY: help check-uv sync upgrade lint test-figs tests tests-full \
 	mypy docs live-docs build publish clean python \
 	format format-check changelog
 
@@ -36,7 +36,10 @@ lint: check-uv ## Check formatting with black and lint code with ruff.
 test-figs: check-uv ## Generate baseline figures for testing (then manually move them to the test directories).
 	uv run py.test --mpl-generate-path=baseline
 
-tests: check-uv mypy ## Run all tests with pytest.
+tests: check-uv mypy ## Run tests with pytest (excludes slow functional tests).
+	uv run pytest --cov --cov-report=term-missing --cov-report=html --mpl -m "not slow"
+
+tests-full: check-uv mypy ## Run all tests including slow functional tests.
 	uv run pytest --cov --cov-report=term-missing --cov-report=html --mpl
 
 mypy: check-uv ## Run typing tests with pytest.

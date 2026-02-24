@@ -92,14 +92,14 @@ def cli_snapshot_dump(
         all_events: Select snapshots for all events.
     """
     from aimbat.db import engine
-    from aimbat.core import dump_snapshot_table_to_json
+    from aimbat.core import dump_snapshot_tables_to_json
     from sqlmodel import Session
     from rich import print_json
 
     global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
-        print_json(dump_snapshot_table_to_json(session, all_events, as_string=True))
+        print_json(dump_snapshot_tables_to_json(session, all_events, as_string=True))
 
 
 @app.command(name="list")

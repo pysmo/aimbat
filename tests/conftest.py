@@ -1,75 +1,74 @@
-from aimbat.aimbat_types import DataType
-from pysmo.classes import SAC
-from sqlmodel import Session, select
-from sqlalchemy import Engine
-from pathlib import Path
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
-from importlib import reload
-from aimbat import settings
-from aimbat._config import Settings
-from aimbat.logger import configure_logging
-import aimbat.db as db
-import aimbat.core._project as project
-import aimbat.core._data as data
-import aimbat.core._event as event
-import random
-import shutil
+import aimbat.db
 import pytest
-import matplotlib.pyplot as plt
 import uuid
+import shutil
+import matplotlib.pyplot as plt
+import random
+import json
+import os
+import subprocess
+from aimbat.app import app
+from aimbat.aimbat_types import DataType
+from aimbat.core import add_data_to_project, set_active_event, create_project
+from aimbat.models import AimbatEvent
+from aimbat.logger import configure_logging
+from dataclasses import dataclass, field
+from typing import Any, Literal
+from pathlib import Path
+from collections.abc import Callable, Generator, Sequence
+from sqlmodel import Session, select, create_engine
+from sqlalchemy import Engine, event
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_AIMBAT_LOGFILE = "aimbat_test.log"
+_AIMBAT_LOG_LEVEL: Literal["DEBUG"] = "DEBUG"
+
+
+# ---------------------------------------------------------------------------
+# Test data
+# ---------------------------------------------------------------------------
 
 
 @dataclass
 class TestData:
+    """Container for test data paths.
+
+    Attributes:
+        multi_event: A list of paths to multi-event SAC files.
+        sacfile_good: Path to a known good SAC file.
+    """
+
     multi_event: list[Path] = field(
         default_factory=lambda: sorted(
             Path(__file__).parent.glob("assets/event_*/*.bhz")
         )
     )
-    sacfile_good = Path(__file__).parent / "assets/goodfile.sac"
+    sacfile_good: Path = Path(__file__).parent / "assets/goodfile.sac"
 
 
 TESTDATA = TestData()
 
 
-# https://rednafi.com/python/patch-pydantic-settings-in-pytest/
-@pytest.fixture
-def patch_settings(request: pytest.FixtureRequest) -> Iterator[Settings]:
-    # Make a copy of the original settings
-    original_settings = settings.model_copy()
-
-    # Collect the env vars to patch
-    env_vars_to_patch = getattr(request, "param", {})
-
-    # Patch the settings to use the default values
-    for k, v in Settings.model_fields.items():
-        setattr(settings, k, v.default)
-
-    # Patch the settings with the parametrized env vars
-    for key, val in env_vars_to_patch.items():
-        # Raise an error if the env var is not defined in the settings
-        if not hasattr(settings, key):
-            raise ValueError(f"Unknown setting: {key}")
-
-        # Raise an error if the env var has an invalid type
-        expected_type = getattr(settings, key).__class__
-        if not isinstance(val, expected_type):
-            raise ValueError(
-                f"Invalid type for {key}: {val.__class__} instead of {{expected_type}}"
-            )
-        setattr(settings, key, val)
-
-    yield settings
-
-    # Restore the original settings
-    settings.__dict__.update(original_settings.__dict__)
+# ---------------------------------------------------------------------------
+# Autouse mocks
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=True)
-def patch_debug_setting(patch_settings: Settings) -> Iterator[None]:
-    patch_settings.log_level = "DEBUG"
-    patch_settings.logfile = Path("aimbat_test.log")
+def patch_debug_setting(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Automatically patches settings to enable debug logging for tests.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Yields:
+        None
+    """
+    monkeypatch.setattr(aimbat.settings, "logfile", _AIMBAT_LOGFILE)
+    monkeypatch.setattr(aimbat.settings, "log_level", _AIMBAT_LOG_LEVEL)
     configure_logging()
 
     yield
@@ -77,6 +76,12 @@ def patch_debug_setting(patch_settings: Settings) -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def mock_uuid4(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mocks uuid.uuid4 to produce deterministic UUIDs.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+    """
+
     def make_generator() -> Callable[[], uuid.UUID]:
         rand = random.Random(42)
         return lambda: uuid.UUID(int=rand.getrandbits(128), version=4)
@@ -86,136 +91,56 @@ def mock_uuid4(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def mock_show(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mocks plt.show to prevent plots from displaying during tests.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+    """
     monkeypatch.setattr(plt, "show", lambda: None)
 
 
 @pytest.fixture(autouse=True)
-def increase_columns(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def increase_columns(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Increases the COLUMNS environment variable for wider output in tests.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Yields:
+        None
+    """
     monkeypatch.setenv("COLUMNS", "1000")
     yield
 
 
-@pytest.fixture(scope="session")
-def test_data_dir(
-    tmp_path_factory: pytest.TempPathFactory,
-) -> Iterator[Path]:
-    tmp_dir = Path(tmp_path_factory.mktemp("test_data"))
-
-    yield tmp_dir
-
-    shutil.rmtree(tmp_dir)
+# ---------------------------------------------------------------------------
+# File fixtures
+# ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="session")
-def test_data(test_data_dir: Path) -> Iterator[list[Path]]:
-    data_list: list[Path] = []
-    for orgfile in TESTDATA.multi_event:
-        testfile = test_data_dir / f"{uuid.uuid4()}.sac"
-        shutil.copy(orgfile, testfile)
-        data_list.append(testfile)
-    yield data_list
+@pytest.fixture()
+def db_path(tmp_path: Path) -> Path:
+    """Path for the temporary project database file (does not exist yet).
 
+    Args:
+        tmp_path: The pytest tmp_path fixture.
 
-@pytest.fixture(scope="session")
-def test_data_string(test_data: list[Path]) -> Iterator[list[str]]:
-    yield [str(data) for data in test_data]
-
-
-@pytest.fixture
-def fixture_empty_db(
-    patch_settings: Settings,
-) -> Iterator[tuple[Engine, Session]]:
-    db_url: str = r"sqlite+pysqlite:///:memory:"
-    patch_settings.db_url = db_url
-    db.engine.dispose()
-    reload(db)
-
-    with Session(db.engine) as session:
-        yield db.engine, session
-    db.engine.dispose()
-
-
-@pytest.fixture
-def fixture_session_with_project_file(
-    tmp_path_factory: pytest.TempPathFactory,
-    patch_settings: Settings,
-) -> Iterator[tuple[Engine, Session, Path]]:
-    db_file = Path(tmp_path_factory.mktemp("test_db")) / "mock.db"
-    db_url: str = rf"sqlite+pysqlite:///{db_file}"
-
-    patch_settings.db_url = db_url
-    patch_settings.project = db_file
-
-    db.engine.dispose()
-    reload(db)
-    project.create_project(db.engine)
-
-    with Session(db.engine) as session:
-        yield db.engine, session, db_file
-    db.engine.dispose()
-
-
-@pytest.fixture
-def fixture_engine_session_with_project(
-    patch_settings: Settings,
-) -> Iterator[tuple[Engine, Session]]:
-    """Yield a session with a new project."""
-
-    db_url: str = r"sqlite+pysqlite:///:memory:"
-    patch_settings.db_url = db_url
-
-    db.engine.dispose()
-    reload(db)
-    project.create_project(db.engine)
-
-    with Session(db.engine) as session:
-        yield db.engine, session
-    db.engine.dispose()
-
-
-@pytest.fixture
-def fixture_session_with_data(
-    test_data: list[Path], patch_settings: Settings
-) -> Iterator[Session]:
-    """Yield a session with a test data added."""
-
-    db_url: str = r"sqlite+pysqlite:///:memory:"
-    patch_settings.db_url = db_url
-
-    db.engine.dispose()
-    reload(db)
-    project.create_project(db.engine)
-
-    with Session(db.engine) as session:
-        data.add_files_to_project(session, test_data, DataType.SAC)
-        yield session
-    db.engine.dispose()
-
-
-@pytest.fixture
-def fixture_engine_session_with_active_event(
-    patch_settings: Settings, test_data: list[Path]
-) -> Iterator[tuple[Engine, Session]]:
-    """Yield a session with an active event."""
-
-    db_url: str = r"sqlite+pysqlite:///:memory:"
-    patch_settings.db_url = db_url
-
-    db.engine.dispose()
-    reload(db)
-    project.create_project(db.engine)
-
-    with Session(db.engine) as session:
-        data.add_files_to_project(session, test_data, DataType.SAC)
-        events = session.exec(select(event.AimbatEvent)).all()
-        lengths = [len(e.seismograms) for e in events]
-        event.set_active_event(session, events[lengths.index(max(lengths))])
-        yield db.engine, session
-    db.engine.dispose()
+    Returns:
+        Path to the temporary project database file.
+    """
+    return tmp_path / "test_project.db"
 
 
 @pytest.fixture()
 def sac_file_good(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Provides a path to a temporary copy of a known good SAC file.
+
+    Args:
+        tmp_path_factory: The pytest tmp_path_factory fixture.
+
+    Returns:
+        Path to the temporary SAC file.
+    """
     orgfile = TESTDATA.sacfile_good
     tmpdir = tmp_path_factory.mktemp("aimbat")
     testfile = tmpdir / "good.sac"
@@ -223,10 +148,221 @@ def sac_file_good(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return testfile
 
 
+@pytest.fixture
+def multi_event_data(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
+    """Provides a list of paths to temporary copies of multi-event SAC files.
+
+    Args:
+        tmp_path_factory: The pytest tmp_path_factory fixture.
+
+    Returns:
+        A list of paths to the temporary SAC files.
+    """
+    orgfiles = TESTDATA.multi_event
+    tmpdir = tmp_path_factory.mktemp("aimbat")
+    for orgfile in orgfiles:
+        testfile = tmpdir / orgfile.name
+        shutil.copy(orgfile, testfile)
+    return sorted(tmpdir.glob("*.bhz", case_sensitive=False))
+
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def engine_from_file(
+    db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[Engine, None, None]:
+    """Creates an empty project database backed by a file.
+
+    Args:
+        db_path: Path to the temporary project database file.
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Yields:
+        A SQLAlchemy Engine connected to the file database.
+    """
+    db_url: str = rf"sqlite+pysqlite:///{db_path}"
+    engine: Engine = create_engine(
+        db_url,
+        connect_args={"check_same_thread": False},
+    )
+
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection: Any, connection_record: Any) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    monkeypatch.setattr(aimbat.db, "engine", engine)
+
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def engine() -> Generator[Engine, None, None]:
+    """Creates an in memory database with a new project.
+
+    Yields:
+        A SQLAlchemy Engine connected to the in-memory database with project.
+    """
+    engine: Engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+    )
+
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection: Any, connection_record: Any) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    create_project(engine)
+
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def patched_engine(
+    engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> Generator[Engine, None, None]:
+    """Monkeypatches ``aimbat.db.engine`` so CLI functions use the test database.
+
+    Args:
+        engine: The SQLAlchemy Engine for the test database.
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Yields:
+        The monkeypatched SQLAlchemy Engine.
+    """
+    monkeypatch.setattr(aimbat.db, "engine", engine)
+    yield engine
+
+
 @pytest.fixture()
-def sac_instance_good(sac_file_good: Path) -> Iterator[SAC]:
-    my_sac = SAC.from_file(sac_file_good)
-    try:
-        yield my_sac
-    finally:
-        del my_sac
+def loaded_engine(patched_engine: Engine, multi_event_data: Sequence[Path]) -> Engine:
+    """A patched engine pre-populated with multi-event data and an active event.
+
+    Args:
+        patched_engine: The monkeypatched SQLAlchemy Engine.
+        multi_event_data: Paths to temporary copies of multi-event SAC files.
+
+    Returns:
+        The monkeypatched SQLAlchemy Engine with data loaded.
+    """
+
+    datasources = multi_event_data
+    with Session(patched_engine) as session:
+        add_data_to_project(session, datasources, DataType.SAC)
+        events = session.exec(select(AimbatEvent)).all()
+        lengths = [len(e.seismograms) for e in events]
+    set_active_event(session, events[lengths.index(max(lengths))])
+    return patched_engine
+
+
+@pytest.fixture()
+def patched_session(patched_engine: Engine) -> Generator[Session, None, None]:
+    """A session bound to the patched engine for CLI tests.
+
+    Args:
+        patched_engine: The monkeypatched SQLAlchemy Engine.
+
+    Yields:
+        A SQLModel Session bound to the patched engine.
+    """
+    with Session(patched_engine) as session:
+        yield session
+
+
+@pytest.fixture()
+def loaded_session(loaded_engine: Engine) -> Generator[Session, None, None]:
+    """A session pre-populated with multi-event data and an active event.
+
+    Args:
+        loaded_engine: The monkeypatched SQLAlchemy Engine with data loaded.
+
+    Yields:
+        A SQLModel Session with data populated.
+    """
+    with Session(loaded_engine) as session:
+        yield session
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def cli() -> Callable[[str], None]:
+    """Returns a callable that invokes ``app()`` in-process with command tokens.
+
+    Returns:
+        A callable that accepts a command string and runs it via the app.
+    """
+
+    def _run(command: str) -> None:
+        try:
+            app(command)
+        except SystemExit as exc:
+            if exc.code != 0:
+                raise
+
+    return _run
+
+
+@pytest.fixture()
+def cli_json(capsys: pytest.CaptureFixture[str]) -> Callable[[str], list | dict]:
+    """Returns a callable that runs a ``dump`` sub-command and returns parsed JSON.
+
+    Args:
+        capsys: The pytest capsys fixture.
+
+    Returns:
+        A callable that accepts a command string and returns the parsed JSON output.
+    """
+
+    def _run(command: str) -> list | dict:
+        capsys.readouterr()  # discard output from prior commands
+        try:
+            app(command)
+        except SystemExit as exc:
+            if exc.code != 0:
+                raise
+        captured = capsys.readouterr()
+        return json.loads(captured.out)
+
+    return _run
+
+
+@pytest.fixture()
+def aimbat_subprocess(
+    db_path: Path,
+) -> Callable[[Sequence[str]], subprocess.CompletedProcess[str]]:
+    """Returns a callable that runs ``aimbat <args>`` as a subprocess against the test database.
+
+    Args:
+        db_path: Path to the temporary project database file.
+
+    Returns:
+        A callable that accepts a sequence of CLI arguments and returns the completed process.
+    """
+
+    def _run(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        env["AIMBAT_DB_URL"] = f"sqlite+pysqlite:///{db_path}"
+        env["AIMBAT_LOGFILE"] = _AIMBAT_LOGFILE
+        env["AIMBAT_LOG_LEVEL"] = _AIMBAT_LOG_LEVEL
+        env["COLUMNS"] = "1000"
+        return subprocess.run(
+            ["uv", "run", "aimbat", *args],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    return _run
