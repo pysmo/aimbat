@@ -190,7 +190,7 @@ def _print_dry_run_results(
 
 def add_data_to_project(
     session: Session,
-    datas_sources: Sequence[str | os.PathLike],
+    data_sources: Sequence[str | os.PathLike],
     data_type: DataType,
     dry_run: bool = False,
     disable_progress_bar: bool = True,
@@ -205,7 +205,7 @@ def add_data_to_project(
         disable_progress_bar: Do not display progress bar.
     """
 
-    logger.info(f"Adding {len(datas_sources)} {data_type} files to project.")
+    logger.info(f"Adding {len(data_sources)} {data_type} files to project.")
 
     # Snapshot existing IDs before entering the savepoint so we can identify
     # what would be new vs reused when running a dry run.
@@ -218,7 +218,7 @@ def add_data_to_project(
         added_datasources: list[AimbatDataSource] = []
         with session.begin_nested() as nested:
             for datasource in track(
-                sequence=datas_sources,
+                sequence=data_sources,
                 description="Adding data ...",
                 disable=disable_progress_bar,
             ):

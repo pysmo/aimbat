@@ -11,6 +11,8 @@ import numpy as np
 
 
 class Settings(EventParametersValidatorMixin, BaseSettings):
+    """Global configuration options for the AIMBAT application."""
+
     model_config = SettingsConfigDict(env_prefix="aimbat_", env_file=".env")
 
     project: Path = Field(
@@ -205,5 +207,29 @@ def cli_settings_list(
     print_settings_table(pretty)
 
 
+def generate_settings_table_markdown() -> str:
+    """Generate a markdown table of all AIMBAT default settings."""
+    import json
+
+    env_prefix = Settings.model_config.get("env_prefix", "").upper()
+    values: dict[str, str] = json.loads(settings.model_dump_json())
+
+    lines = [
+        "| Environment Variable | Default | Description |",
+        "|---------------------|---------|-------------|",
+    ]
+
+    for name, value in values.items():
+        field_info = Settings.model_fields.get(name)
+        description = (field_info.description or "" if field_info else "").replace(
+            "|", "\\|"
+        )
+        env_var = f"`{env_prefix}{name.upper()}`"
+        formatted = f"`{value}`" if value != "" else '`""`'
+        lines.append(f"| {env_var} | {formatted} | {description} |")
+
+    return "\n".join(lines) + "\n"
+
+
 if __name__ == "__main__":
-    print(Settings().model_dump())
+    print(generate_settings_table_markdown(), end="")
