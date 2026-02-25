@@ -5,7 +5,13 @@ from pathlib import Path
 from typing import Any
 import pytest
 from rich.console import Console
-from aimbat._config import Settings, settings, print_settings_table, cli_settings_list
+from aimbat._config import (
+    Settings,
+    settings,
+    print_settings_table,
+    cli_settings_list,
+    generate_settings_table_markdown,
+)
 
 
 def _capture_pretty(monkeypatch: pytest.MonkeyPatch) -> str:
@@ -191,6 +197,51 @@ class TestPrintSettingsTablePretty:
         """
         output = _capture_pretty(monkeypatch)
         assert "AIMBAT_" in output
+
+
+class TestGenerateSettingsTableMarkdown:
+    """Tests for generate_settings_table_markdown."""
+
+    def test_returns_string(self) -> None:
+        """Verifies the function returns a string."""
+        assert isinstance(generate_settings_table_markdown(), str)
+
+    def test_contains_table_header(self) -> None:
+        """Verifies the output contains the markdown table header."""
+        output = generate_settings_table_markdown()
+        assert "| Environment Variable |" in output
+        assert "| Default |" in output
+        assert "| Description |" in output
+
+    def test_contains_all_env_var_names(self) -> None:
+        """Verifies that every setting appears as an AIMBAT_ environment variable."""
+        import json
+
+        output = generate_settings_table_markdown()
+        for name in json.loads(Settings().model_dump_json()):
+            assert f"AIMBAT_{name.upper()}" in output
+
+    def test_uses_true_defaults_not_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verifies that env var overrides do not affect the generated table."""
+        monkeypatch.setenv("AIMBAT_LOG_LEVEL", "DEBUG")
+        output = generate_settings_table_markdown()
+        # Default is INFO; DEBUG must not appear as a value
+        lines = [li for li in output.splitlines() if "AIMBAT_LOG_LEVEL" in li]
+        assert len(lines) == 1
+        assert "`INFO`" in lines[0]
+        assert "`DEBUG`" not in lines[0]
+
+    def test_pipe_in_description_is_escaped(self) -> None:
+        """Verifies that pipe characters in descriptions are escaped."""
+        output = generate_settings_table_markdown()
+        # Split into rows and check no unescaped | appears inside a cell
+        for line in output.splitlines():
+            if not line.startswith("|"):
+                continue
+            # Strip the leading/trailing pipes and split on |
+            # Each cell should not contain a raw (unescaped) |
+            inner = line[1:-1]  # remove first and last |
+            assert "\\|" not in inner or inner.count("|") == inner.count("\\|")
 
 
 class TestCliSettingsList:

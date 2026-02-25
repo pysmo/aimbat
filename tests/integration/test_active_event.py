@@ -2,6 +2,7 @@
 
 import pytest
 import uuid
+from unittest.mock import patch
 from aimbat.core import set_active_event, set_active_event_by_id, get_active_event
 from aimbat.models import AimbatEvent
 from sqlmodel import Session, select
@@ -96,6 +97,35 @@ class TestActiveEvent:
 
         with pytest.raises(ValueError):
             set_active_event_by_id(session, uuid.uuid4())
+
+    def test_set_same_event_does_not_clear_cache(self, session: Session) -> None:
+        """Verifies that re-activating the already-active event does not clear the cache.
+
+        Args:
+            session: The database session.
+        """
+        active_event = get_active_event(session)
+
+        with patch("aimbat.core._active_event.clear_seismogram_cache") as mock_clear:
+            set_active_event(session, active_event)
+            mock_clear.assert_not_called()
+
+    def test_set_different_event_clears_cache(self, session: Session) -> None:
+        """Verifies that switching to a different event clears the cache.
+
+        Args:
+            session: The database session.
+        """
+        active_event = get_active_event(session)
+        other_event = next(
+            e
+            for e in session.exec(select(AimbatEvent)).all()
+            if e.id != active_event.id
+        )
+
+        with patch("aimbat.core._active_event.clear_seismogram_cache") as mock_clear:
+            set_active_event(session, other_event)
+            mock_clear.assert_called_once()
 
     def test_get_active_event_no_active(self, session: Session) -> None:
         """Verifies that `get_active_event` returns None if no event is marked as active.

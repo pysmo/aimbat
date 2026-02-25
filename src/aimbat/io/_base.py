@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "clear_seismogram_cache",
     "create_event",
     "create_seismogram",
     "create_station",
@@ -23,12 +24,18 @@ __all__ = [
     "write_seismogram_data",
 ]
 
+_cache: dict[tuple[str, DataType], npt.NDArray[np.float64]] = {}
 
 station_creator = {DataType.SAC: sac.create_station_from_sacfile}
 event_creator = {DataType.SAC: sac.create_event_from_sacfile}
 seismogram_creator = {DataType.SAC: sac.create_seismogram_from_sacfile}
 seismogram_data_reader = {DataType.SAC: sac.read_seismogram_data_from_sacfile}
 seismogram_data_writer = {DataType.SAC: sac.write_seismogram_data_to_sacfile}
+
+
+def clear_seismogram_cache() -> None:
+    """Clear the in-memory seismogram data cache."""
+    _cache.clear()
 
 
 def create_station(datasource: str | PathLike, datatype: DataType) -> AimbatStation:
@@ -126,7 +133,11 @@ def read_seismogram_data(
     data_reader_fn = seismogram_data_reader.get(datatype)
     if data_reader_fn is None:
         raise NotImplementedError(f"I don't know how to read data of type {datatype}.")
-    return data_reader_fn(datasource)
+
+    key = (str(datasource), datatype)
+    if key not in _cache:
+        _cache[key] = data_reader_fn(datasource)
+    return _cache[key]
 
 
 def write_seismogram_data(
@@ -153,3 +164,4 @@ def write_seismogram_data(
             f"I don't know how to write data to file of type {datatype}"
         )
     data_writer_fn(datasource, data)
+    _cache.pop((str(datasource), datatype), None)
