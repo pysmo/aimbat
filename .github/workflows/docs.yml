@@ -27,6 +27,8 @@ jobs:
       - name: Install docs dependencies
         run: |
           uv sync --locked --no-dev --group docs
+      - name: Generate defaults table
+        run: uv run python -m aimbat._config > docs/usage/defaults-table.md
       - name: Build site
         run: uv run zensical build --clean
       - name: Upload artifact

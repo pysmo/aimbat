@@ -16,4 +16,6 @@ and enhanced.
 
 from ._config import settings as settings
 
+__all__ = ["settings"]
+
 name = "aimbat"

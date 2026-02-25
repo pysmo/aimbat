@@ -46,9 +46,11 @@ mypy: check-uv ## Run typing tests with pytest.
 	uv run pytest --mypy -m mypy src tests
 
 docs: check-uv sync ## Build html docs.
+	uv run python -m aimbat._config > docs/usage/defaults-table.md
 	uv run zensical build --clean
 
 live-docs: check-uv sync ## Live build html docs. They are served on http://localhost:8000
+	uv run python -m aimbat._config > docs/usage/defaults-table.md
 	uv run zensical serve
 
 changelog: check-uv sync ## Generate CHANGELOG.md
