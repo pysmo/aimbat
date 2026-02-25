@@ -4,7 +4,11 @@ from aimbat._lib._mixins import EventParametersValidatorMixin
 from aimbat.aimbat_types import PydanticNegativeTimedelta, PydanticPositiveTimedelta
 from pysmo.tools.iccs._defaults import ICCS_DEFAULTS
 from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 from pathlib import Path
 from typing import Literal, Self
 import numpy as np
@@ -211,12 +215,26 @@ def generate_settings_table_markdown() -> str:
     """Generate a markdown table of all AIMBAT default settings."""
     import json
 
+    class _DefaultsOnly(Settings):
+        """Settings subclass that ignores all external sources."""
+
+        @classmethod
+        def settings_customise_sources(
+            cls,
+            settings_cls: type[BaseSettings],
+            init_settings: PydanticBaseSettingsSource,
+            env_settings: PydanticBaseSettingsSource,
+            dotenv_settings: PydanticBaseSettingsSource,
+            file_secret_settings: PydanticBaseSettingsSource,
+        ) -> tuple[PydanticBaseSettingsSource, ...]:
+            return ()
+
     env_prefix = Settings.model_config.get("env_prefix", "").upper()
-    values: dict[str, str] = json.loads(settings.model_dump_json())
+    values: dict[str, str] = json.loads(_DefaultsOnly().model_dump_json())
 
     lines = [
         "| Environment Variable | Default | Description |",
-        "|---------------------|---------|-------------|",
+        "|----------------------|---------|-------------|",
     ]
 
     for name, value in values.items():
