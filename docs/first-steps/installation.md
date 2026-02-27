@@ -12,7 +12,7 @@ installed using the [`pip`](https://pip.pypa.io/en/stable/) module. However, as
 AIMBAT is a standalone application (rather than a library), we recommend
 installing it using [`uv`](https://docs.astral.sh/uv/) instead. `uv` is a
 single binary that doesn't require any dependencies to be installed, and it
-allows to install and run AIMBAT in an isolated environment.
+allows you to install and run AIMBAT in an isolated environment.
 
 ## Running AIMBAT without installing
 

@@ -12,7 +12,7 @@ from aimbat.models import (
     AimbatSeismogramParameters,
 )
 from aimbat.models._parameters import AimbatSeismogramParametersBase
-from aimbat.aimbat_types import (
+from aimbat._types import (
     SeismogramParameter,
     SeismogramParameterBool,
     SeismogramParameterTimestamp,

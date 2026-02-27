@@ -1,6 +1,6 @@
 """Unit tests for aimbat.io._sac."""
 
-from aimbat.io._sac import (
+from aimbat.io.sac import (
     create_event_from_sacfile,
     create_seismogram_from_sacfile_and_pick_header,
     create_station_from_sacfile,

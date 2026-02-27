@@ -11,7 +11,7 @@ automatically when imported.
 """
 
 from __future__ import annotations
-from aimbat.aimbat_types import DataType
+from ._data import DataType
 from aimbat.logger import logger
 from os import PathLike
 from typing import TYPE_CHECKING, Callable

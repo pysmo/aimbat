@@ -4,9 +4,8 @@ import numpy as np
 import numpy.typing as npt
 import os
 import uuid
-from aimbat.io import read_seismogram_data, write_seismogram_data
-from aimbat.aimbat_types import (
-    DataType,
+from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
+from aimbat._types import (
     PydanticTimestamp,
     PydanticPositiveTimedelta,
     SAPandasTimestamp,

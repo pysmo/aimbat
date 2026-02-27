@@ -38,16 +38,15 @@ AIMBAT is a seismological tool for automated and interactive measurement of body
 ```
 src/aimbat/
 ├── app.py           # Cyclopts CLI root — registers all subcommands
-├── cli/             # CLI command definitions (thin layer, delegates to core/)
+├── _cli/             # CLI command definitions (thin layer, delegates to core/)
 ├── core/            # Business logic: ICCS/MCCC algorithms, event/seismogram ops
 │   ├── _active_event.py  # Manages the single active event constraint
 │   ├── _data.py          # SAC ingestion entry point
 │   ├── _iccs.py          # ICCS alignment (wraps pysmo.tools.iccs)
 │   └── _snapshot.py      # Parameter state capture for rollback/comparison
 ├── models/          # SQLModel ORM definitions (Events, Seismograms, Stations, etc.)
-│   └── _sqlalchemy.py    # SAPandasTimestamp / SAPandasTimedelta type decorators
-├── aimbat_types/    # Custom Pydantic types (PydanticTimestamp, enums for parameters)
-├── io/              # File I/O — _base.py defines abstract base; _sac.py implements SAC via pysmo
+├── _types/          # Custom Pydantic types (PydanticTimestamp, enums for parameters)
+├── io/              # File I/O — _base.py defines abstract base; sac.py implements SAC via pysmo
 ├── utils/           # Shared helpers (JSON→table, UUID truncation, styling, sample data)
 ├── _config.py       # Global Settings (pydantic-settings, env prefix AIMBAT_)
 ├── _lib/            # Internal mixins (EventParametersValidatorMixin)
@@ -89,11 +88,11 @@ Settings live in `_config.py` as a `pydantic-settings` class. All settings can b
 
 ### CLI Pattern
 
-Each CLI module in `cli/` creates a Cyclopts `App` instance and registers it with the root app in `app.py`. CLI functions are thin wrappers that open a `Session` from `aimbat.db.engine` and delegate to `core/` functions.
+Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it with the root app in `app.py`. CLI functions are thin wrappers that open a `Session` from `aimbat.db.engine` and delegate to `core/` functions.
 
 ### Custom Types
 
-- Use `PydanticTimestamp` / `PydanticTimedelta` (from `aimbat.aimbat_types`) for pandas-compatible time fields in models
+- Use `PydanticTimestamp` / `PydanticTimedelta` (from `aimbat._types`) for pandas-compatible time fields in models
 - Use `PydanticNegativeTimedelta` / `PydanticPositiveTimedelta` for constrained sign validation
 - Use `SAPandasTimestamp` / `SAPandasTimedelta` (from `aimbat.models._sqlalchemy`) as the `sa_type` in SQLModel fields
 

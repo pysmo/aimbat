@@ -4,13 +4,14 @@ site_description = "Aimbat documentation."
 site_author = "Simon Lloyd"
 site_url = "https://aimbat.pysmo.org/"
 copyright = """
-Copyright &copy; 2012 - 2026 Simon Lloyd
+Copyright &copy; 2012 - present AIMBAT contributors.
 """
 repo_name = "pysmo/aimbat"
 repo_url = "https://github.com/pysmo/aimbat"
 nav = [
   { "Home" = "index.md" },
   { "First steps" = [
+    "first-steps/core-concepts.md",
     {"Installation" = "first-steps/installation.md"},
     {"Data & Conventions" = "first-steps/data.md"},
     {"Workflow & Strategy" = "first-steps/workflow.md"},
@@ -24,8 +25,8 @@ nav = [
   { "API reference" = [
     "api/aimbat.md",
     "api/aimbat/app.md",
-    "api/aimbat/aimbat_types.md",
-    "api/aimbat/cli.md",
+    "api/aimbat/_types.md",
+    "api/aimbat/_cli.md",
     "api/aimbat/core.md",
     "api/aimbat/db.md",
     "api/aimbat/io.md",

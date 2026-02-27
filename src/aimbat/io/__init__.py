@@ -1,21 +1,23 @@
 # flake8: noqa: E402, F403
-"""I/O interface for AIMBAT data sources.
+#
+"""File I/O for AIMBAT.
 
-Data source modules register their read/write and creation capabilities using
-the `register_*` functions exported from this package. Not all data sources
-need to support all capabilities — a source providing waveform data only would
-register a reader and writer but not the creator functions.
+Data source modules plug in by calling the `register_*` functions from this
+package. Not every source needs to implement everything — a source that only
+provides waveform data would register a reader and writer but skip the creator
+functions.
 
-The SAC data source (`aimbat.io._sac`) is included and registers its
-capabilities automatically.
+SAC (`aimbat.io.sac`) and JSON (`aimbat.io.json`) data sources are loaded
+automatically and their capabilities registered on import of this package.
 """
 
 from .._utils import export_module_names
 
 _internal_names = set(dir())
 
+from ._data import *
 from ._base import *
-from ._sac import *
+from . import sac as sac, json as json
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]
 

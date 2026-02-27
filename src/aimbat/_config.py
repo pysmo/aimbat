@@ -1,6 +1,6 @@
 """Global configuration options for the AIMBAT application."""
 
-from aimbat.aimbat_types import PydanticNegativeTimedelta, PydanticPositiveTimedelta
+from aimbat._types import PydanticNegativeTimedelta, PydanticPositiveTimedelta
 from pydantic import Field, model_validator
 from pydantic_settings import (
     BaseSettings,

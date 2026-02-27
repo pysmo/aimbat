@@ -4,6 +4,14 @@ AIMBAT command line interface entrypoint for all other commands.
 This is the main command line interface for AIMBAT. It must be executed with a
 command (as specified below) to actually do anything. Help for individual
 commands is available by typing `aimbat COMMAND --help`.
+
+## IDs
+
+Every record in AIMBAT (event, seismogram, station, snapshot, …) has a UUID.
+Tables display each UUID truncated to the shortest prefix that is unique within
+that table. When a command asks for an ID you may supply any prefix long enough
+to identify the record unambiguously — from the shortest displayed prefix up to
+the full UUID. Dashes are optional.
 """
 
 from importlib import metadata
@@ -19,16 +27,16 @@ except Exception:
 console = Console()
 
 app = App(version=__version__, help=__doc__, help_format="markdown", console=console)
-app.command("aimbat.cli._align:app", name="align")
-app.command("aimbat.cli._data:app", name="data")
-app.command("aimbat.cli._event:app", name="event")
-app.command("aimbat.cli._pick:app", name="pick")
-app.command("aimbat.cli._plot:app", name="plot")
-app.command("aimbat.cli._project:app", name="project")
-app.command("aimbat.cli._station:app", name="station")
-app.command("aimbat.cli._seismogram:app", name="seismogram")
-app.command("aimbat.cli._snapshot:app", name="snapshot")
-app.command("aimbat.cli._utils:app", name="utils")
+app.command("aimbat._cli.align:app", name="align")
+app.command("aimbat._cli.data:app", name="data")
+app.command("aimbat._cli.event:app", name="event")
+app.command("aimbat._cli.pick:app", name="pick")
+app.command("aimbat._cli.plot:app", name="plot")
+app.command("aimbat._cli.project:app", name="project")
+app.command("aimbat._cli.station:app", name="station")
+app.command("aimbat._cli.seismogram:app", name="seismogram")
+app.command("aimbat._cli.snapshot:app", name="snapshot")
+app.command("aimbat._cli.utils:app", name="utils")
 
 
 if __name__ == "__main__":
