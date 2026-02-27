@@ -1,7 +1,7 @@
 """Base classes defining AIMBAT processing parameters."""
 
 from aimbat import settings
-from aimbat.aimbat_types import (
+from aimbat._types import (
     PydanticTimestamp,
     PydanticNegativeTimedelta,
     PydanticPositiveTimedelta,

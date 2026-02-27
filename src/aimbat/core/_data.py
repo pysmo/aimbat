@@ -1,7 +1,8 @@
 import os
+import uuid
 from aimbat.core import get_active_event
 from aimbat.logger import logger
-from aimbat.aimbat_types import DataType
+from aimbat.io import DataType
 from aimbat.utils import (
     uuid_shortener,
     make_table,
@@ -114,49 +115,68 @@ def _create_seismogram(
     return aimbat_seismogram
 
 
-def _add_datasource(
-    session: Session, datasource: str | os.PathLike, datatype: DataType
-) -> AimbatDataSource:
-    """Add a data source to the AIMBAT database, creating related station, event and seismogram if necessary."""
-    missing = [
-        label
-        for supported, label in (
-            (supports_station_creation(datatype), "station creation"),
-            (supports_event_creation(datatype), "event creation"),
-            (supports_seismogram_creation(datatype), "seismogram creation"),
-        )
-        if not supported
-    ]
-    if missing:
+def _process_datasource(
+    session: Session,
+    datasource: str | os.PathLike,
+    datatype: DataType,
+    station_id: uuid.UUID | None,
+    event_id: uuid.UUID | None,
+) -> AimbatDataSource | None:
+    """Process a single data source, creating whichever entities the data type supports.
+
+    Returns an `AimbatDataSource` when seismogram data is created, or `None`
+    for station-only or event-only imports.
+    """
+
+    # Resolve station — use the provided UUID, extract from the source, or skip
+    if station_id is not None:
+        aimbat_station: AimbatStation | None = session.get(AimbatStation, station_id)
+        logger.debug(f"Using station {aimbat_station.name} - {aimbat_station.network} (ID={station_id}).")  # type: ignore[union-attr]
+    elif supports_station_creation(datatype):
+        aimbat_station = _create_station(session, datasource, datatype)
+    else:
+        aimbat_station = None
+
+    # Resolve event — use the provided UUID, extract from the source, or skip
+    if event_id is not None:
+        aimbat_event: AimbatEvent | None = session.get(AimbatEvent, event_id)
+        logger.debug(f"Using event {aimbat_event.time} (ID={event_id}).")  # type: ignore[union-attr]
+    elif supports_event_creation(datatype):
+        aimbat_event = _create_event(session, datasource, datatype)
+    else:
+        aimbat_event = None
+
+    # No seismogram creation → station/event-only import, nothing more to do
+    if not supports_seismogram_creation(datatype):
+        return None
+
+    # Seismogram creation requires both a station and an event to link to
+    if aimbat_station is None:
         raise NotImplementedError(
-            f"{datatype} does not support: {', '.join(missing)}. "
-            "Station and event data must be imported separately before "
-            "adding seismogram-only data sources."
+            f"{datatype} does not support station creation. "
+            "Provide a station UUID via --use-station."
+        )
+    if aimbat_event is None:
+        raise NotImplementedError(
+            f"{datatype} does not support event creation. "
+            "Provide an event UUID via --use-event."
         )
 
-    aimbat_station = _create_station(session, datasource, datatype)
-    aimbat_event = _create_event(session, datasource, datatype)
     aimbat_seismogram = _create_seismogram(session, datasource, datatype)
-
-    # TODO: perhaps adding potentially updated station and event information should be optional?
+    # TODO: perhaps updating station/event info from the source should be optional
     aimbat_seismogram.station = aimbat_station
     aimbat_seismogram.event = aimbat_event
 
-    # Create AimbatDataSource instance with relationship to AimbatSeismogram
     select_aimbat_data_source = select(AimbatDataSource).where(
         AimbatDataSource.sourcename == str(datasource)
     )
     aimbat_data_source = session.exec(select_aimbat_data_source).one_or_none()
     if aimbat_data_source is None:
         logger.debug(f"Adding data source {datasource} to project.")
-        aimbat_data_source_create = _AimbatDataSourceCreate(
-            sourcename=str(datasource), datatype=datatype
-        )
         aimbat_data_source = AimbatDataSource.model_validate(
-            aimbat_data_source_create,
+            _AimbatDataSourceCreate(sourcename=str(datasource), datatype=datatype),
             update={"seismogram": aimbat_seismogram},
         )
-
     else:
         logger.debug(
             f"Using existing data source {datasource} instead of adding new one."
@@ -215,20 +235,42 @@ def add_data_to_project(
     session: Session,
     data_sources: Sequence[str | os.PathLike],
     data_type: DataType,
+    station_id: uuid.UUID | None = None,
+    event_id: uuid.UUID | None = None,
     dry_run: bool = False,
     disable_progress_bar: bool = True,
 ) -> None:
     """Add data sources to the AIMBAT database.
 
+    What gets created depends on which capabilities `data_type` supports:
+
+    - Station + event + seismogram: all three records are created and linked,
+      and an `AimbatDataSource` entry is stored.
+    - Station or event only (e.g. `JSON_STATION`, `JSON_EVENT`): only the
+      relevant metadata records are created; no seismogram or data source entry
+      is stored.
+
+    Use `station_id` or `event_id` to skip extracting station or event metadata
+    from the data source and link to a pre-existing record instead.
+
     Args:
         session: The SQLModel database session.
         data_sources: List of data sources to add.
         data_type: Type of data.
+        station_id: UUID of an existing station to use instead of extracting
+            one from each data source.
+        event_id: UUID of an existing event to use instead of extracting one
+            from each data source.
         dry_run: If True, do not commit changes to the database.
         disable_progress_bar: Do not display progress bar.
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
+
+    if station_id is not None and session.get(AimbatStation, station_id) is None:
+        raise ValueError(f"No station found with ID {station_id}.")
+    if event_id is not None and session.get(AimbatEvent, event_id) is None:
+        raise ValueError(f"No event found with ID {event_id}.")
 
     # Snapshot existing IDs before entering the savepoint so we can identify
     # what would be new vs reused when running a dry run.
@@ -245,19 +287,22 @@ def add_data_to_project(
                 description="Adding data ...",
                 disable=disable_progress_bar,
             ):
-                added_datasources.append(
-                    _add_datasource(session, datasource, data_type)
+                result = _process_datasource(
+                    session, datasource, data_type, station_id, event_id
                 )
+                if result is not None:
+                    added_datasources.append(result)
 
             if dry_run:
                 logger.info("Dry run: displaying data that would be added.")
-                session.flush()
-                _print_dry_run_results(
-                    added_datasources,
-                    existing_station_ids,
-                    existing_event_ids,
-                    existing_seismogram_ids,
-                )
+                if added_datasources:
+                    session.flush()
+                    _print_dry_run_results(
+                        added_datasources,
+                        existing_station_ids,
+                        existing_event_ids,
+                        existing_seismogram_ids,
+                    )
                 nested.rollback()
                 logger.info("Dry run complete. Rolling back changes.")
                 return
@@ -296,7 +341,7 @@ def print_data_table(session: Session, short: bool, all_events: bool = False) ->
 
     Args:
         short: Shorten UUIDs and format data.
-        all_events: Print all files instead of limiting to the active event.
+        all_events: Print all data sources instead of limiting to the active event.
     """
 
     logger.info("Printing data sources table.")

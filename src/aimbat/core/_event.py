@@ -2,7 +2,7 @@
 
 from aimbat.core import get_active_event
 from aimbat.logger import logger
-from aimbat.cli._common import HINTS
+from aimbat._cli.common import HINTS
 from aimbat.utils import (
     uuid_shortener,
     json_to_table,
@@ -16,7 +16,7 @@ from aimbat.models._models import (
     _AimbatEventRead,
 )
 from aimbat.models._parameters import AimbatEventParametersBase
-from aimbat.aimbat_types import (
+from aimbat._types import (
     EventParameter,
     EventParameterBool,
     EventParameterFloat,

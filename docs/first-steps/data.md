@@ -53,7 +53,7 @@ things to be mindful of:
     that apply to all seismograms of an event need to be changed to
     the same value. Organising the data like this means we only need to change
     the parameters in one place. And there are some additional
-    [perks](#snapshots) when setting things up this way!
+    [benefits](#snapshots) when setting things up this way!
 
 [^1]:
     Deleting items from a project simply drops them from the project. AIMBAT
@@ -93,7 +93,7 @@ behaves, as well as defaults for [event](#event-parameters) and
 [seismogram](#seismogram-parameters) parameters when they are instantiated.
 The currently used values for these parameters can be found by running
 `#!bash aimbat settings` in your terminal. As some settings are relevant before
-a project is created, they cannot stored in the project file. To override these
+a project is created, they cannot be stored in the project file. To override these
 settings you can set the corresponding environment variable directly (e.g.
 `export AIMBAT_PROJECT=different_project_name.db`) or place those settings in a
 `.env`[^2] file. Note that if you set them in both places the environment
@@ -124,7 +124,7 @@ The event and seismogram parameters are stored separately from the events and
 seismograms (much like the seismograms link to an event and station instead of
 saving them in the same object). This opens up the possibility to save an
 arbitrary number of copies of these parameters that capture the current state
-of processing. This allows for risk free experimentation with different
+of processing. This allows for risk-free experimentation with different
 parameters - if something goes wrong, you can always roll back to the last (or
 any other) snapshot.
 

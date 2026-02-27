@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 from aimbat.app import app
-from aimbat.aimbat_types import DataType
+from aimbat.io import DataType
 from aimbat.core import add_data_to_project, set_active_event, create_project
 from aimbat.models import AimbatEvent
 from aimbat.logger import configure_logging

@@ -4,7 +4,7 @@
 from aimbat.io import clear_seismogram_cache
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
-from aimbat.cli._common import HINTS
+from aimbat._cli.common import HINTS
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from contextlib import suppress
