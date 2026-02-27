@@ -7,6 +7,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 ### ⚙️ DevOps & Infrastructure
 
 - Artifact@v4
+- Use vcs versioning
 
 ### 🎨 Styling
 
@@ -30,6 +31,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Installation instructions using uv ([#190](https://github.com/pysmo/aimbat/issues/190))
 - Add asciinema
 - Switch to zensical
+- Re-arange api reference
 
 ### 📦 Miscellaneous
 
@@ -80,6 +82,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Single uuid function for all classes
 - Make data reading more modular
 - Move aimbat source to src directory
+- Use pandas Timestamp and Timedelta
 
 ### 🚀 New Features
 
@@ -109,8 +112,11 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Use channel and location in station table
 - Use pysmo defaults for ICCS
 - Add bandpass filtering ([#214](https://github.com/pysmo/aimbat/issues/214))
+- Add mccc
+- Add in-memory seismogram data cache
 
 ### 🧪 Testing
 
 - Add test data for 3 events instead of just a single sac file
+- Add integration and functional test suite ([#218](https://github.com/pysmo/aimbat/issues/218))
 

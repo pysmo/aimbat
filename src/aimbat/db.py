@@ -1,4 +1,17 @@
-"""Module to define the AIMBAT project file and create the database engine."""
+"""Database engine for the AIMBAT project file.
+
+The engine is created from `Settings.db_url` (see `aimbat._config`), which
+defaults to a SQLite database at `aimbat.db` in the current working directory.
+The path can be overridden via environment variable or `.env` file:
+
+```bash
+AIMBAT_PROJECT=/path/to/project.db  # derives db_url automatically
+AIMBAT_DB_URL=sqlite+pysqlite:///absolute/path/to/project.db  # explicit override
+```
+
+For SQLite connections, `PRAGMA foreign_keys=ON` is set automatically on every
+new connection to enforce referential integrity.
+"""
 
 import sqlite3
 from aimbat import settings
@@ -19,7 +32,7 @@ if engine.name == "sqlite":
     def set_sqlite_pragma(
         dbapi_connection: sqlite3.Connection, connection_record: ConnectionPoolEntry
     ) -> None:
-        """Enables foreign key support for SQLite connections."""
+        """Enable foreign key support for each new SQLite connection."""
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()

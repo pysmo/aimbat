@@ -9,6 +9,7 @@ from ._data import *
 from ._event import *
 from ._pydantic import *
 from ._seismogram import *
+from ._sqlalchemy import *
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]
 

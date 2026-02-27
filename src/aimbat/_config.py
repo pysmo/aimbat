@@ -1,38 +1,47 @@
 """Global configuration options for the AIMBAT application."""
 
-from aimbat._lib._mixins import EventParametersValidatorMixin
 from aimbat.aimbat_types import PydanticNegativeTimedelta, PydanticPositiveTimedelta
-from pysmo.tools.iccs._defaults import ICCS_DEFAULTS
 from pydantic import Field, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+from pandas import Timedelta
 from pathlib import Path
 from typing import Literal, Self
-import numpy as np
 
 
-class Settings(EventParametersValidatorMixin, BaseSettings):
+class Settings(BaseSettings):
     """Global configuration options for the AIMBAT application."""
 
     model_config = SettingsConfigDict(env_prefix="aimbat_", env_file=".env")
 
-    project: Path = Field(
-        default=Path("aimbat.db"),
-        description="AIMBAT project file location (ignored if `db_url` is specified).",
+    bandpass_apply: bool = Field(
+        default=False,
+        description="Whether to apply bandpass filter to seismograms.",
     )
-    """AIMBAT project file location."""
+
+    bandpass_fmax: float = Field(
+        default=2,
+        gt=0,
+        description="Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+    )
+
+    bandpass_fmin: float = Field(
+        default=0.05,
+        description="Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+    )
+
+    context_width: PydanticPositiveTimedelta = Field(
+        default=Timedelta(seconds=20),
+        description="Context padding to apply before and after the time window.",
+    )
 
     db_url: str = Field(
         default="",
         description="AIMBAT database url (default value is derived from `project`).",
     )
-    """AIMBAT database url (default is derived from `project`)."""
-
-    logfile: Path = Field(default=Path("aimbat.log"), description="Log file location.")
-    """Log file location."""
 
     log_level: Literal[
         "TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"
@@ -44,91 +53,63 @@ class Settings(EventParametersValidatorMixin, BaseSettings):
             "TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL."
         ),
     )
-    """Logging level.
 
-    Valid loguru levels, from most to least verbose:
+    logfile: Path = Field(default=Path("aimbat.log"), description="Log file location.")
 
-    - ``TRACE``
-    - ``DEBUG``
-    - ``INFO``
-    - ``SUCCESS``
-    - ``WARNING``
-    - ``ERROR``
-    - ``CRITICAL``
-    """
-
-    window_pre: PydanticNegativeTimedelta = Field(
-        default=ICCS_DEFAULTS.window_pre,
-        description="Initial relative begin time of window.",
+    mccc_damp: float = Field(
+        default=0.1, ge=0, description="Damping factor for MCCC algorithm."
     )
-    """Initial relative begin time of window."""
 
-    window_post: PydanticPositiveTimedelta = Field(
-        default=ICCS_DEFAULTS.window_post,
-        description="Initial relative end time of window.",
+    mccc_min_ccnorm: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description="Minimum correlation coefficient required to include a pair in the MCCC inversion.",
     )
-    """Initial relative end time of window."""
 
-    context_width: PydanticPositiveTimedelta = Field(
-        default=ICCS_DEFAULTS.context_width,
-        description="Context padding to apply before and after the time window.",
-    )
-    """Context padding to apply before and after the time window."""
-
-    min_ccnorm: float | np.floating = Field(
-        default=ICCS_DEFAULTS.min_ccnorm,
+    min_ccnorm: float = Field(
+        default=0.5,
         ge=0,
         le=1,
         description="Initial minimum cross correlation coefficient.",
     )
-    """Initial minimum cross correlation coefficient."""
 
-    bandpass_apply: bool = Field(
-        default=ICCS_DEFAULTS.bandpass_apply,
-        description="Whether to apply bandpass filter to seismograms.",
+    min_id_length: int = Field(
+        default=2, ge=1, description="Minimum length of ID string."
     )
-    """Whether to apply bandpass filter to seismograms."""
 
-    bandpass_fmin: float = Field(
-        default=ICCS_DEFAULTS.bandpass_fmin,
-        ge=0,
-        description="Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+    project: Path = Field(
+        default=Path("aimbat.db"),
+        description="AIMBAT project file location (ignored if `db_url` is specified).",
     )
-    """Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False)."""
-
-    bandpass_fmax: float = Field(
-        default=ICCS_DEFAULTS.bandpass_fmax,
-        gt=0,
-        description="Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
-    )
-    """Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False)."""
 
     sac_pick_header: str = Field(
         default="t0", description="SAC header field where initial pick is stored."
     )
-    """SAC header field where initial pick is stored."""
-
-    sampledata_src: str = Field(
-        default="https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip",
-        description="URL where sample data is downloaded from.",
-    )
-    """URL where sample data is downloaded from."""
 
     sampledata_dir: Path = Field(
         default=Path("sample-data"),
         description="Directory to store downloaded sample data.",
     )
-    """Directory to store downloaded sample data."""
 
-    min_id_length: int = Field(
-        default=2, ge=1, description="Minimum length of ID string."
+    sampledata_src: str = Field(
+        default="https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip",
+        description="URL where sample data is downloaded from.",
     )
-    """Minimum length of truncated UUID string."""
+
+    window_post: PydanticPositiveTimedelta = Field(
+        default=Timedelta(seconds=15),
+        description="Initial relative end time of window.",
+    )
+
+    window_pre: PydanticNegativeTimedelta = Field(
+        default=Timedelta(seconds=-15),
+        description="Initial relative begin time of window.",
+    )
 
     @model_validator(mode="after")
     def set_computed_defaults(self) -> Self:
-        """Sets defaults that depend on other fields."""
-        # 1. Handle db_url dependency on project
+        """Set defaults that depend on other fields."""
         if self.db_url == "":
             self.db_url = f"sqlite+pysqlite:///{self.project}"
         return self
@@ -138,7 +119,11 @@ settings = Settings()
 
 
 def print_settings_table(pretty: bool) -> None:
-    """Print a pretty table with AIMBAT configuration options."""
+    """Print a table with AIMBAT configuration options.
+
+    Args:
+        pretty: Print the table in a pretty format.
+    """
     import json
     from aimbat.utils import TABLE_STYLING
     from aimbat.utils._json import json_to_table
@@ -196,9 +181,9 @@ def cli_settings_list(
 ) -> None:
     """Print a table with default settings currently in use by AIMBAT.
 
-    These defaults control the default behavior of AIMBAT within a project.
+    These defaults control the default behaviour of AIMBAT within a project.
     Overriding these defaults can be done on a per-project basis in the
-    fllowing ways (in order of precedence):
+    following ways (in order of precedence):
 
     - By using environment variables of the form `AIMBAT_{SETTING_NAME}`
       (e.g. `AIMBAT_LOG_LEVEL=DEBUG`).

@@ -3,14 +3,16 @@ import json
 from aimbat.core import get_active_event
 from aimbat.logger import logger
 from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
-from aimbat.models import (
-    AimbatSeismogramParametersBase,
+from aimbat.models._models import (
     AimbatSnapshot,
-    AimbatSnapshotRead,
     AimbatEvent,
-    AimbatEventParametersBase,
     AimbatEventParametersSnapshot,
     AimbatSeismogramParametersSnapshot,
+    _AimbatSnapshotRead,
+)
+from aimbat.models._parameters import (
+    AimbatSeismogramParametersBase,
+    AimbatEventParametersBase,
 )
 from sqlmodel import Session, select
 from sqlalchemy import true
@@ -231,8 +233,8 @@ def dump_snapshot_tables_to_json(
 
     snapshots = get_snapshots(session, all_events)
 
-    snapshot_adapter: TypeAdapter[Sequence[AimbatSnapshotRead]] = TypeAdapter(
-        Sequence[AimbatSnapshotRead]
+    snapshot_adapter: TypeAdapter[Sequence[_AimbatSnapshotRead]] = TypeAdapter(
+        Sequence[_AimbatSnapshotRead]
     )
     event_params_adapter: TypeAdapter[Sequence[AimbatEventParametersSnapshot]] = (
         TypeAdapter(Sequence[AimbatEventParametersSnapshot])
@@ -241,7 +243,7 @@ def dump_snapshot_tables_to_json(
         TypeAdapter(Sequence[AimbatSeismogramParametersSnapshot])
     )
 
-    snapshot_reads = [AimbatSnapshotRead.from_snapshot(s) for s in snapshots]
+    snapshot_reads = [_AimbatSnapshotRead.from_snapshot(s) for s in snapshots]
     event_params = [s.event_parameters_snapshot for s in snapshots]
     seis_params = [sp for s in snapshots for sp in s.seismogram_parameters_snapshots]
 

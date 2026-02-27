@@ -34,7 +34,7 @@ reset_project.sh
 aimbat.log
 docs/usage/defaults-table.md
 .env
-aimbat_test.log
+aimbat_test*.log
 GEMINI.md
 CLAUDE.md
 .claude/settings.local.json

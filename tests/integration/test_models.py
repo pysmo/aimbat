@@ -9,7 +9,6 @@ from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
     AimbatEventParameters,
-    AimbatEventParametersBase,
     AimbatEventParametersSnapshot,
     AimbatSeismogram,
     AimbatSeismogramParameters,
@@ -17,6 +16,7 @@ from aimbat.models import (
     AimbatSnapshot,
     AimbatStation,
 )
+from aimbat.models._parameters import AimbatEventParametersBase
 from aimbat.aimbat_types import DataType
 from datetime import timezone
 from pandas import Timedelta, Timestamp

@@ -71,16 +71,20 @@ def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> 
     session.commit()
 
 
-def run_mccc(session: Session, iccs: ICCS, all_seismograms: bool = False) -> None:
+def run_mccc(session: Session, iccs: ICCS, all_seismograms: bool) -> None:
     """Run MCCC algorithm.
 
     Args:
-        session: Database session.
+        session: SQLModel session.
         iccs: ICCS instance.
         all_seismograms: Whether to include all seismograms in the MCCC processing, or just the selected ones.
     """
 
     logger.info(f"Running MCCC with {all_seismograms=}.")
+
+    active_event = get_active_event(session)
+    min_cc = active_event.parameters.mccc_min_ccnorm
+    damping = active_event.parameters.mccc_damp
 
     cc_seismograms = (
         iccs.cc_seismograms
@@ -88,7 +92,7 @@ def run_mccc(session: Session, iccs: ICCS, all_seismograms: bool = False) -> Non
         else [s for s in iccs.cc_seismograms if s.parent_seismogram.select]
     )
 
-    delay_times, delay_stdev, rmse = mccc(cc_seismograms)
+    delay_times, delay_stdev, rmse = mccc(cc_seismograms, min_cc, damping)
 
     for cc_seismogram, delay_time in zip(cc_seismograms, delay_times):
         logger.debug(
