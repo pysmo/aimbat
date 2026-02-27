@@ -25,14 +25,12 @@ app.command(parameter)
 def cli_seismogram_delete(
     seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Delete existing seismogram."""
     from aimbat.db import engine
     from aimbat.core import delete_seismogram_by_id
     from sqlmodel import Session
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         delete_seismogram_by_id(session, seismogram_id)
@@ -42,7 +40,7 @@ def cli_seismogram_delete(
 @simple_exception
 def cli_seismogram_dump(
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump the contents of the AIMBAT seismogram table to JSON.
 
@@ -53,8 +51,6 @@ def cli_seismogram_dump(
     from sqlmodel import Session
     from rich import print_json
 
-    global_parameters = global_parameters or GlobalParameters()
-
     with Session(engine) as session:
         print_json(dump_seismogram_table_to_json(session))
 
@@ -64,16 +60,13 @@ def cli_seismogram_dump(
 def cli_seismogram_list(
     *,
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    table_parameters: TableParameters | None = None,
-    global_parameters: GlobalParameters | None = None,
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the seismograms in the active event."""
     from aimbat.db import engine
     from aimbat.core import print_seismogram_table
     from sqlmodel import Session
-
-    table_parameters = table_parameters or TableParameters()
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_seismogram_table(session, table_parameters.short, all_events)
@@ -85,7 +78,7 @@ def cli_seismogram_parameter_get(
     seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
     name: SeismogramParameter,
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Get the value of a processing parameter.
 
@@ -95,8 +88,6 @@ def cli_seismogram_parameter_get(
     from aimbat.db import engine
     from aimbat.core import get_seismogram_parameter_by_id
     from sqlmodel import Session
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print(get_seismogram_parameter_by_id(session, seismogram_id, name))
@@ -109,7 +100,7 @@ def cli_seismogram_parameter_set(
     name: SeismogramParameter,
     value: str,
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Set value of a processing parameter.
 
@@ -121,8 +112,6 @@ def cli_seismogram_parameter_set(
     from aimbat.core import set_seismogram_parameter_by_id
     from sqlmodel import Session
 
-    global_parameters = global_parameters or GlobalParameters()
-
     with Session(engine) as session:
         set_seismogram_parameter_by_id(session, seismogram_id, name, value)
 
@@ -131,15 +120,13 @@ def cli_seismogram_parameter_set(
 @simple_exception
 def cli_seismogram_parameter_dump(
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump seismogram parameter table to json."""
     from aimbat.db import engine
     from aimbat.core import dump_seismogram_parameter_table_to_json
     from sqlmodel import Session
     from rich import print_json
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_json(
@@ -150,8 +137,8 @@ def cli_seismogram_parameter_dump(
 @parameter.command(name="list")
 @simple_exception
 def cli_seismogram_parameter_list(
-    global_parameters: GlobalParameters | None = None,
-    table_parameters: TableParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
+    table_parameters: TableParameters = TableParameters(),
 ) -> None:
     """List processing parameter values for seismograms in the active event.
 
@@ -162,9 +149,6 @@ def cli_seismogram_parameter_list(
     from aimbat.db import engine
     from aimbat.core import print_seismogram_parameter_table
     from sqlmodel import Session
-
-    global_parameters = global_parameters or GlobalParameters()
-    table_parameters = table_parameters or TableParameters()
 
     with Session(engine) as session:
         print_seismogram_parameter_table(session, table_parameters.short)

@@ -27,13 +27,11 @@ app.command(parameter)
 def cli_event_delete(
     event_id: Annotated[uuid.UUID, id_parameter(AimbatEvent)],
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Delete existing event."""
     from aimbat.db import engine
     from aimbat.core import delete_event_by_id
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         delete_event_by_id(session, event_id)
@@ -44,13 +42,11 @@ def cli_event_delete(
 def cli_event_activate(
     event_id: Annotated[uuid.UUID, id_parameter(AimbatEvent)],
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Select the event to be active for processing."""
     from aimbat.core import set_active_event_by_id
     from aimbat.db import engine
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         set_active_event_by_id(session, event_id)
@@ -60,7 +56,7 @@ def cli_event_activate(
 @simple_exception
 def cli_event_dump(
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump the contents of the AIMBAT event table to JSON.
 
@@ -70,8 +66,6 @@ def cli_event_dump(
     from aimbat.core import dump_event_table_to_json
     from rich import print_json
 
-    global_parameters = global_parameters or GlobalParameters()
-
     with Session(engine) as session:
         print_json(dump_event_table_to_json(session))
 
@@ -80,8 +74,8 @@ def cli_event_dump(
 @simple_exception
 def cli_event_list(
     *,
-    table_parameters: TableParameters | None = None,
-    global_parameters: GlobalParameters | None = None,
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print a table of events stored in the AIMBAT project.
 
@@ -90,9 +84,6 @@ def cli_event_list(
     """
     from aimbat.db import engine
     from aimbat.core import print_event_table
-
-    table_parameters = table_parameters or TableParameters()
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_event_table(session, table_parameters.short)
@@ -103,7 +94,7 @@ def cli_event_list(
 def cli_event_parameter_get(
     name: EventParameter,
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Get parameter value for the active event.
 
@@ -114,8 +105,6 @@ def cli_event_parameter_get(
     from aimbat.db import engine
     from aimbat.core import get_event_parameter
     from sqlmodel import Session
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         value = get_event_parameter(session, name)
@@ -131,7 +120,7 @@ def cli_event_parameter_set(
     name: EventParameter,
     value: Timedelta | str,
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Set parameter value for the active event.
 
@@ -143,8 +132,6 @@ def cli_event_parameter_set(
     from aimbat.core import set_event_parameter
     from sqlmodel import Session
 
-    global_parameters = global_parameters or GlobalParameters()
-
     with Session(engine) as session:
         set_event_parameter(session, name, value)
 
@@ -153,15 +140,13 @@ def cli_event_parameter_set(
 @simple_exception
 def cli_event_parameter_dump(
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump event parameter table to json."""
     from aimbat.db import engine
     from aimbat.core import dump_event_parameter_table_to_json
     from sqlmodel import Session
     from rich import print_json
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_json(
@@ -173,8 +158,8 @@ def cli_event_parameter_dump(
 @simple_exception
 def cli_event_parameter_list(
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters | None = None,
-    table_parameters: TableParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
+    table_parameters: TableParameters = TableParameters(),
 ) -> None:
     """List processing parameter values for the active event.
 
@@ -185,9 +170,6 @@ def cli_event_parameter_list(
     from aimbat.db import engine
     from aimbat.core import print_event_parameter_table
     from sqlmodel import Session
-
-    global_parameters = global_parameters or GlobalParameters()
-    table_parameters = table_parameters or TableParameters()
 
     with Session(engine) as session:
         print_event_parameter_table(session, table_parameters.short, all_events)

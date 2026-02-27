@@ -24,7 +24,9 @@ app = App(name="snapshot", help=__doc__, help_format="markdown")
 @app.command(name="create")
 @simple_exception
 def cli_snapshot_create(
-    comment: str | None = None, *, global_parameters: GlobalParameters | None = None
+    comment: str | None = None,
+    *,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Create a new snapshot of current processing parameters.
 
@@ -38,8 +40,6 @@ def cli_snapshot_create(
     from aimbat.core import create_snapshot
     from sqlmodel import Session
 
-    global_parameters = global_parameters or GlobalParameters()
-
     with Session(engine) as session:
         create_snapshot(session, comment)
 
@@ -49,14 +49,12 @@ def cli_snapshot_create(
 def cli_snapshot_rollback(
     snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
     *,
-    global_paramaters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Rollback to snapshot."""
     from aimbat.db import engine
     from aimbat.core import rollback_to_snapshot_by_id
     from sqlmodel import Session
-
-    global_paramaters = global_paramaters or GlobalParameters()
 
     with Session(engine) as session:
         rollback_to_snapshot_by_id(session, snapshot_id)
@@ -67,14 +65,12 @@ def cli_snapshot_rollback(
 def cli_snapshop_delete(
     snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Delete existing snapshot."""
     from aimbat.db import engine
     from aimbat.core import delete_snapshot_by_id
     from sqlmodel import Session
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         delete_snapshot_by_id(session, snapshot_id)
@@ -84,15 +80,13 @@ def cli_snapshop_delete(
 @simple_exception
 def cli_snapshot_dump(
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump the contents of the AIMBAT snapshot table to json."""
     from aimbat.db import engine
     from aimbat.core import dump_snapshot_tables_to_json
     from sqlmodel import Session
     from rich import print_json
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_json(dump_snapshot_tables_to_json(session, all_events, as_string=True))
@@ -102,16 +96,13 @@ def cli_snapshot_dump(
 @simple_exception
 def cli_snapshot_list(
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    table_parameters: TableParameters | None = None,
-    global_parameters: GlobalParameters | None = None,
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the snapshots for the active event."""
     from aimbat.db import engine
     from aimbat.core import print_snapshot_table
     from sqlmodel import Session
-
-    table_parameters = table_parameters or TableParameters()
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_snapshot_table(session, table_parameters.short, all_events)

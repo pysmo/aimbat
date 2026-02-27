@@ -65,7 +65,7 @@ def cli_data_add(
     event_id: Annotated[uuid.UUID | None, use_event_parameter(AimbatEvent)] = None,
     dry_run: Annotated[bool, Parameter(name="dry-run")] = False,
     show_progress_bar: Annotated[bool, Parameter(name="progress")] = True,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Add or update data sources in the AIMBAT project.
 
@@ -92,8 +92,6 @@ def cli_data_add(
     from aimbat.db import engine
     from aimbat.core import add_data_to_project
 
-    global_parameters = global_parameters or GlobalParameters()
-
     disable_progress_bar = not show_progress_bar
 
     with Session(engine) as session:
@@ -113,15 +111,12 @@ def cli_data_add(
 def cli_data_list(
     *,
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    table_parameters: TableParameters | None = None,
-    global_parameters: GlobalParameters | None = None,
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print a table of data sources registered in the AIMBAT project."""
     from aimbat.db import engine
     from aimbat.core import print_data_table
-
-    table_parameters = table_parameters or TableParameters()
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_data_table(session, table_parameters.short, all_events)
@@ -131,7 +126,7 @@ def cli_data_list(
 @simple_exception
 def cli_data_dump(
     *,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump the contents of the AIMBAT data source table to JSON.
 
@@ -140,8 +135,6 @@ def cli_data_dump(
     from aimbat.db import engine
     from aimbat.core import dump_data_table_to_json
     from rich import print_json
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         print_json(dump_data_table_to_json(session))

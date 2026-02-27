@@ -20,6 +20,9 @@ class GlobalParameters:
     def __post_init__(self) -> None:
         if self.debug:
             settings.log_level = "DEBUG"
+            from aimbat.logger import configure_logging
+
+            configure_logging()
 
 
 @Parameter(name="*")

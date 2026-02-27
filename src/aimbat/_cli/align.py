@@ -18,7 +18,7 @@ def cli_iccs_run(
     *,
     autoflip: bool = False,
     autoselect: bool = False,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Run the ICCS algorithm to align seismograms for the active event.
 
@@ -36,8 +36,6 @@ def cli_iccs_run(
     from aimbat.core import create_iccs_instance, run_iccs
     from sqlmodel import Session
 
-    global_parameters = global_parameters or GlobalParameters()
-
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
         run_iccs(session, iccs, autoflip, autoselect)
@@ -48,7 +46,7 @@ def cli_iccs_run(
 def cli_mccc_run(
     *,
     all_seismograms: Annotated[bool, Parameter(name="all")] = False,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Run the MCCC algorithm to refine arrival time picks for the active event.
 
@@ -62,8 +60,6 @@ def cli_mccc_run(
     from aimbat.db import engine
     from aimbat.core import create_iccs_instance, run_mccc
     from sqlmodel import Session
-
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)

@@ -16,9 +16,9 @@ app = App(name="pick", help=__doc__, help_format="markdown")
 @simple_exception
 def cli_update_phase_pick(
     *,
-    iccs_parameters: IccsPlotParameters | None = None,
+    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Interactively pick a new phase arrival time (t1) for the active event.
 
@@ -32,9 +32,6 @@ def cli_update_phase_pick(
     from aimbat.db import engine
     from aimbat.core import create_iccs_instance, update_pick
     from sqlmodel import Session
-
-    iccs_parameters = iccs_parameters or IccsPlotParameters()
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
@@ -51,9 +48,9 @@ def cli_update_phase_pick(
 @simple_exception
 def cli_pick_timewindow(
     *,
-    iccs_parameters: IccsPlotParameters | None = None,
+    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
-    global_parameters: GlobalParameters | None = None,
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Interactively pick a new cross-correlation time window for the active event.
 
@@ -67,9 +64,6 @@ def cli_pick_timewindow(
     from aimbat.db import engine
     from aimbat.core import create_iccs_instance, update_timewindow
     from sqlmodel import Session
-
-    iccs_parameters = iccs_parameters or IccsPlotParameters()
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
@@ -86,8 +80,8 @@ def cli_pick_timewindow(
 @simple_exception
 def cli_pick_min_ccnorm(
     *,
-    iccs_parameters: IccsPlotParameters | None = None,
-    global_parameters: GlobalParameters | None = None,
+    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Interactively pick a new minimum cross-correlation norm for auto-selection.
 
@@ -98,9 +92,6 @@ def cli_pick_min_ccnorm(
     from aimbat.db import engine
     from aimbat.core import create_iccs_instance, update_min_ccnorm
     from sqlmodel import Session
-
-    iccs_parameters = iccs_parameters or IccsPlotParameters()
-    global_parameters = global_parameters or GlobalParameters()
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
