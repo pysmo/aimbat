@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 from sqlalchemy.engine import Dialect
-from aimbat.models._sqlalchemy import SAPandasTimestamp, SAPandasTimedelta
+from aimbat.aimbat_types import SAPandasTimestamp, SAPandasTimedelta
 
 
 @pytest.fixture

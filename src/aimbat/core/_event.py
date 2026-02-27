@@ -8,14 +8,14 @@ from aimbat.utils import (
     json_to_table,
     TABLE_STYLING,
 )
-from aimbat.models import (
+from aimbat.models._models import (
     AimbatEvent,
     AimbatEventParameters,
-    AimbatEventParametersBase,
-    AimbatEventRead,
     AimbatStation,
     AimbatSeismogram,
+    _AimbatEventRead,
 )
+from aimbat.models._parameters import AimbatEventParametersBase
 from aimbat.aimbat_types import (
     EventParameter,
     EventParameterBool,
@@ -226,9 +226,9 @@ def dump_event_table_to_json(
 
     logger.info("Dumping AIMBAT event table to json.")
     events = session.exec(select(AimbatEvent)).all()
-    event_reads = [AimbatEventRead.from_event(e) for e in events]
-    adapter: TypeAdapter[Sequence[AimbatEventRead]] = TypeAdapter(
-        Sequence[AimbatEventRead]
+    event_reads = [_AimbatEventRead.from_event(e) for e in events]
+    adapter: TypeAdapter[Sequence[_AimbatEventRead]] = TypeAdapter(
+        Sequence[_AimbatEventRead]
     )
     if as_string:
         return adapter.dump_json(event_reads).decode("utf-8")

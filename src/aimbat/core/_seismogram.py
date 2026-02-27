@@ -10,8 +10,8 @@ from aimbat.models import (
     AimbatEvent,
     AimbatSeismogram,
     AimbatSeismogramParameters,
-    AimbatSeismogramParametersBase,
 )
+from aimbat.models._parameters import AimbatSeismogramParametersBase
 from aimbat.aimbat_types import (
     SeismogramParameter,
     SeismogramParameterBool,

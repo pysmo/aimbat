@@ -169,6 +169,7 @@ show_signature_annotations = true
 show_symbol_type_heading = true
 show_symbol_type_toc = true
 signature_crossrefs = true
+extensions = [{griffe_fieldz = {include_inherited = true}}]
 [project.plugins.mkdocstrings.handlers.python.options.extra]
 trim_doctest_flags = true
 type_parameter_headings = true

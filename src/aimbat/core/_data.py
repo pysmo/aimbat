@@ -8,10 +8,17 @@ from aimbat.utils import (
     TABLE_STYLING,
     json_to_table,
 )
-from aimbat.io import create_seismogram, create_station, create_event
-from aimbat.models import (
+from aimbat.io import (
+    create_seismogram,
+    create_station,
+    create_event,
+    supports_station_creation,
+    supports_event_creation,
+    supports_seismogram_creation,
+)
+from aimbat.models._models import (
     AimbatDataSource,
-    AimbatDataSourceCreate,
+    _AimbatDataSourceCreate,
     AimbatStation,
     AimbatEvent,
     AimbatSeismogram,
@@ -111,6 +118,22 @@ def _add_datasource(
     session: Session, datasource: str | os.PathLike, datatype: DataType
 ) -> AimbatDataSource:
     """Add a data source to the AIMBAT database, creating related station, event and seismogram if necessary."""
+    missing = [
+        label
+        for supported, label in (
+            (supports_station_creation(datatype), "station creation"),
+            (supports_event_creation(datatype), "event creation"),
+            (supports_seismogram_creation(datatype), "seismogram creation"),
+        )
+        if not supported
+    ]
+    if missing:
+        raise NotImplementedError(
+            f"{datatype} does not support: {', '.join(missing)}. "
+            "Station and event data must be imported separately before "
+            "adding seismogram-only data sources."
+        )
+
     aimbat_station = _create_station(session, datasource, datatype)
     aimbat_event = _create_event(session, datasource, datatype)
     aimbat_seismogram = _create_seismogram(session, datasource, datatype)
@@ -126,7 +149,7 @@ def _add_datasource(
     aimbat_data_source = session.exec(select_aimbat_data_source).one_or_none()
     if aimbat_data_source is None:
         logger.debug(f"Adding data source {datasource} to project.")
-        aimbat_data_source_create = AimbatDataSourceCreate(
+        aimbat_data_source_create = _AimbatDataSourceCreate(
             sourcename=str(datasource), datatype=datatype
         )
         aimbat_data_source = AimbatDataSource.model_validate(
@@ -154,7 +177,7 @@ def _print_dry_run_results(
     json_to_table(
         [
             {
-                "Filename": str(ds.sourcename),
+                "Source": str(ds.sourcename),
                 "Station": ds.seismogram.station_id not in existing_station_ids,
                 "Event": ds.seismogram.event_id not in existing_event_ids,
                 "Seismogram": ds.seismogram_id not in existing_seismogram_ids,
@@ -195,7 +218,7 @@ def add_data_to_project(
     dry_run: bool = False,
     disable_progress_bar: bool = True,
 ) -> None:
-    """Add files to the AIMBAT database.
+    """Add data sources to the AIMBAT database.
 
     Args:
         session: The SQLModel database session.
@@ -205,7 +228,7 @@ def add_data_to_project(
         disable_progress_bar: Do not display progress bar.
     """
 
-    logger.info(f"Adding {len(data_sources)} {data_type} files to project.")
+    logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
 
     # Snapshot existing IDs before entering the savepoint so we can identify
     # what would be new vs reused when running a dry run.
@@ -292,7 +315,7 @@ def print_data_table(session: Session, short: bool, all_events: bool = False) ->
         id = uuid_shortener(session, active_event) if short else active_event.id
         title = f"Data sources for event {time} (ID={id})"
 
-    logger.debug(f"Found {len(aimbat_data_sources)} files in total.")
+    logger.debug(f"Found {len(aimbat_data_sources)} data sources in total.")
 
     rows = [
         [
@@ -313,7 +336,7 @@ def print_data_table(session: Session, short: bool, all_events: bool = False) ->
         no_wrap=True,
     )
     table.add_column("Datatype", justify="center", style=TABLE_STYLING.mine)
-    table.add_column("Filename", justify="left", style=TABLE_STYLING.mine, no_wrap=True)
+    table.add_column("Source", justify="left", style=TABLE_STYLING.mine, no_wrap=True)
     table.add_column(
         "Seismogram ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
     )

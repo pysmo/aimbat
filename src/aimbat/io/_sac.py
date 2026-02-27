@@ -1,5 +1,6 @@
 from __future__ import annotations
 from aimbat import settings
+from aimbat.aimbat_types import DataType
 from aimbat.logger import logger
 from pysmo.classes import SAC
 from os import PathLike
@@ -10,6 +11,14 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
+
+__all__ = [
+    "read_seismogram_data_from_sacfile",
+    "write_seismogram_data_to_sacfile",
+    "create_station_from_sacfile",
+    "create_event_from_sacfile",
+    "create_seismogram_from_sacfile_and_pick_header",
+]
 
 
 def read_seismogram_data_from_sacfile(
@@ -66,10 +75,13 @@ def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
 
 
 def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
-    """Create an AimbatSeismogram instance from a SAC file.
+    """Create an `AimbatEvent` instance from a SAC file.
 
     Args:
         sacfile: Name of the SAC file.
+
+    Returns:
+        A new `AimbatEvent` instance.
     """
 
     from aimbat.models import AimbatEvent, AimbatEventParameters
@@ -110,3 +122,18 @@ create_seismogram_from_sacfile = partial(
     create_seismogram_from_sacfile_and_pick_header,
     sac_pick_header=settings.sac_pick_header,
 )
+
+# Register SAC capabilities with the io dispatch layer
+from ._base import (  # noqa: E402
+    register_event_creator,
+    register_seismogram_creator,
+    register_seismogram_data_reader,
+    register_seismogram_data_writer,
+    register_station_creator,
+)
+
+register_station_creator(DataType.SAC, create_station_from_sacfile)
+register_event_creator(DataType.SAC, create_event_from_sacfile)
+register_seismogram_creator(DataType.SAC, create_seismogram_from_sacfile)
+register_seismogram_data_reader(DataType.SAC, read_seismogram_data_from_sacfile)
+register_seismogram_data_writer(DataType.SAC, write_seismogram_data_to_sacfile)
