@@ -3,7 +3,6 @@
 import pytest
 from aimbat._cli.common import (
     GlobalParameters,
-    PlotParameters,
     IccsPlotParameters,
     TableParameters,
     CliHints,
@@ -31,20 +30,6 @@ class TestGlobalParameters:
         original = settings.log_level
         GlobalParameters(debug=False)
         assert settings.log_level == original
-
-
-class TestPlotParameters:
-    """Tests for the PlotParameters dataclass."""
-
-    def test_default_use_qt_is_false(self) -> None:
-        """Verifies that use_qt defaults to False."""
-        params = PlotParameters()
-        assert params.use_qt is False
-
-    def test_use_qt_can_be_set_true(self) -> None:
-        """Verifies that use_qt can be set to True."""
-        params = PlotParameters(use_qt=True)
-        assert params.use_qt is True
 
 
 class TestIccsPlotParameters:

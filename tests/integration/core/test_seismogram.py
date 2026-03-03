@@ -10,6 +10,8 @@ from aimbat.core._seismogram import (
     get_seismogram_parameter_by_id,
     set_seismogram_parameter,
     set_seismogram_parameter_by_id,
+    reset_seismogram_parameters,
+    reset_seismogram_parameters_by_id,
     get_selected_seismograms,
     dump_seismogram_table_to_json,
     dump_seismogram_parameter_table_to_json,
@@ -17,6 +19,7 @@ from aimbat.core._seismogram import (
     print_seismogram_parameter_table,
     plot_all_seismograms,
 )
+from aimbat.models._parameters import AimbatSeismogramParametersBase
 from aimbat._types import SeismogramParameter
 from aimbat.models import AimbatSeismogram
 from matplotlib.figure import Figure
@@ -217,6 +220,53 @@ class TestSetSeismogramParameterById:
             )
 
 
+class TestResetSeismogramParameters:
+    """Tests for resetting seismogram parameters to their defaults."""
+
+    def test_reset_parameters(
+        self, session: Session, seismogram: AimbatSeismogram
+    ) -> None:
+        """Verifies that all parameters are restored to their default values after reset.
+
+        Args:
+            session: The database session.
+            seismogram: An AimbatSeismogram whose parameters are modified then reset.
+        """
+        set_seismogram_parameter(session, seismogram, SeismogramParameter.FLIP, True)
+        set_seismogram_parameter(session, seismogram, SeismogramParameter.SELECT, False)
+        set_seismogram_parameter(
+            session, seismogram, SeismogramParameter.T1, seismogram.t0
+        )
+        reset_seismogram_parameters(session, seismogram)
+        defaults = AimbatSeismogramParametersBase()
+        for field_name in AimbatSeismogramParametersBase.model_fields:
+            assert getattr(seismogram.parameters, field_name) == getattr(
+                defaults, field_name
+            )
+
+    def test_reset_parameters_by_id(
+        self, session: Session, seismogram: AimbatSeismogram
+    ) -> None:
+        """Verifies that reset via ID produces the same result as reset by instance.
+
+        Args:
+            session: The database session.
+            seismogram: An AimbatSeismogram whose parameters are modified then reset.
+        """
+        set_seismogram_parameter(session, seismogram, SeismogramParameter.FLIP, True)
+        reset_seismogram_parameters_by_id(session, seismogram.id)
+        assert seismogram.parameters.flip is False
+
+    def test_reset_parameters_by_id_not_found(self, session: Session) -> None:
+        """Verifies that resetting a non-existent seismogram ID raises NoResultFound.
+
+        Args:
+            session: The database session.
+        """
+        with pytest.raises(NoResultFound):
+            reset_seismogram_parameters_by_id(session, uuid.uuid4())
+
+
 class TestGetSelectedSeismograms:
     """Tests for retrieving selected seismograms."""
 
@@ -412,5 +462,5 @@ class TestPlotAllSeismograms:
         Args:
             session: The database session.
         """
-        fig = plot_all_seismograms(session)
+        fig, _ = plot_all_seismograms(session, return_fig=True)
         assert isinstance(fig, Figure)

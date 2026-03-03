@@ -3,7 +3,7 @@ import json
 from aimbat.core import get_active_event
 from aimbat.logger import logger
 from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
-from aimbat.models._models import (
+from aimbat.models import (
     AimbatSnapshot,
     AimbatEvent,
     AimbatEventParametersSnapshot,
@@ -30,6 +30,8 @@ __all__ = [
     "get_snapshots",
     "dump_snapshot_tables_to_json",
     "print_snapshot_table",
+    "print_snapshot_parameters_table_by_id",
+    "print_snapshot_parameters_table",
 ]
 
 
@@ -118,24 +120,27 @@ def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
         f"Using event parameters snapshot with id={snapshot.event_parameters_snapshot.id} for rollback."
     )
     current_event_parameters = snapshot.event.parameters
+
     # setting attributes explicitly brings them into the session
-    for k, v in rollback_event_parameters.model_dump().items():
+    for k in AimbatEventParametersBase.model_fields.keys():
+        v = getattr(rollback_event_parameters, k)
+        logger.debug(f"Setting event parameter {k} to {v!r} for rollback.")
         setattr(current_event_parameters, k, v)
 
     session.add(current_event_parameters)
 
     for seismogram_parameters_snapshot in snapshot.seismogram_parameters_snapshots:
-        # create object with just the parameters
         rollback_seismogram_parameters = AimbatSeismogramParametersBase.model_validate(
             seismogram_parameters_snapshot
         )
         logger.debug(
             f"Using seismogram parameters snapshot with id={seismogram_parameters_snapshot.id} for rollback."
         )
-        # setting attributes explicitly brings them into the session
         current_seismogram_parameters = seismogram_parameters_snapshot.parameters
-        for parameter, value in rollback_seismogram_parameters.model_dump().items():
-            setattr(current_seismogram_parameters, parameter, value)
+        for k in AimbatSeismogramParametersBase.model_fields.keys():
+            v = getattr(rollback_seismogram_parameters, k)
+            logger.debug(f"Setting seismogram parameter {k} to {v!r} for rollback.")
+            setattr(current_seismogram_parameters, k, v)
         session.add(current_seismogram_parameters)
 
     session.commit()
@@ -323,9 +328,49 @@ def print_snapshot_table(session: Session, short: bool, all_events: bool) -> Non
                 "header": "# Seismograms",
                 "style": TABLE_STYLING.linked,
             },
+            "selected_seismogram_count": {
+                "header": "# Selected",
+                "style": TABLE_STYLING.linked,
+            },
+            "flipped_seismogram_count": {
+                "header": "# Flipped",
+                "style": TABLE_STYLING.linked,
+            },
             "event_id": {
                 "header": "Event ID (shortened)" if short else "Event ID",
                 "style": TABLE_STYLING.linked,
+            },
+        },
+    )
+
+
+def print_snapshot_parameters_table_by_id(
+    session: Session, snapshot_id: uuid.UUID, short: bool
+) -> None:
+    """Print a pretty table with AIMBAT snapshot parameters for a given snapshot id."""
+    snapshot = session.get(AimbatSnapshot, snapshot_id)
+
+    if snapshot is None:
+        raise ValueError(
+            f"Unable to print snapshot parameters: snapshot with id={snapshot_id} not found."
+        )
+
+    print_snapshot_parameters_table(session, snapshot.event_parameters_snapshot, short)
+
+
+def print_snapshot_parameters_table(
+    session: Session, snapshot: AimbatEventParametersSnapshot, short: bool
+) -> None:
+    json_to_table(
+        data=snapshot.model_dump(mode="json"),
+        title=f"Saved event parameters in snapshot:: {uuid_shortener(session, snapshot.snapshot) if short else str(snapshot.snapshot.id)}",
+        skip_keys=["id", "snapshot_id", "parameters_id"],
+        common_column_kwargs={"highlight": True},
+        column_kwargs={
+            "Key": {
+                "header": "Parameter",
+                "justify": "left",
+                "style": TABLE_STYLING.id,
             },
         },
     )

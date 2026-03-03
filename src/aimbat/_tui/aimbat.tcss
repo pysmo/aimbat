@@ -1,0 +1,193 @@
+/* AIMBAT TUI styles — semantic variables are resolved by the active theme.
+   $primary / $secondary / $accent / $surface etc. are set by the Theme object. */
+
+/* ---- Active-event status bar ---- */
+#event-bar {
+    dock: top;
+    background: $surface;
+    color: $accent;
+    height: 1;
+    padding: 0 2;
+    text-style: bold;
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+/* ---- Shared modal title + hint styles ---- */
+.modal-title {
+    width: 100%;
+    content-align: center middle;
+    padding-bottom: 1;
+}
+
+.modal-hint {
+    color: $text-muted;
+    width: 100%;
+    content-align: center middle;
+    padding-top: 1;
+}
+
+/* ---- Confirm modal ---- */
+ConfirmModal {
+    align: center middle;
+}
+
+#confirm-dialog {
+    background: $background;
+    border: solid $warning;
+    width: 52;
+    height: auto;
+    padding: 1 2;
+}
+
+#confirm-dialog .modal-title {
+    color: $foreground;
+}
+
+/* ---- Event-switcher modal ---- */
+EventSwitcherModal {
+    align: center middle;
+}
+
+#switcher-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 90%;
+    max-width: 110;
+    height: 70%;
+    padding: 1 2;
+}
+
+#switcher-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+/* ---- Interactive Tools modal ---- */
+InteractiveToolsModal {
+    align: center middle;
+}
+
+#tools-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 58;
+    height: auto;
+    padding: 1 2;
+}
+
+#tools-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#tools-table {
+    height: auto;
+    background: $background;
+    border: none;
+}
+
+#tools-options {
+    color: $foreground;
+    content-align: center middle;
+    padding-top: 1;
+    height: auto;
+}
+
+/* ---- Align modal ---- */
+AlignModal {
+    align: center middle;
+}
+
+#align-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 60;
+    height: auto;
+    padding: 1 2;
+}
+
+#align-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#align-table {
+    height: auto;
+    background: $background;
+    border: none;
+}
+
+#align-options {
+    color: $foreground;
+    content-align: center middle;
+    padding-top: 1;
+    height: auto;
+}
+
+/* ---- Parameter-edit modal ---- */
+ParameterInputModal,
+SnapshotCommentModal {
+    align: center middle;
+}
+
+#param-edit-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 52;
+    height: auto;
+    padding: 1 2;
+}
+
+#param-edit-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#param-edit-dialog Input {
+    background: $surface;
+    border: tall $primary;
+}
+
+/* ---- Snapshot details modal ---- */
+SnapshotDetailsModal {
+    align: center middle;
+}
+
+#snapshot-details-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 60;
+    height: auto;
+    padding: 1 2;
+}
+
+#snapshot-details-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#snapshot-details-table {
+    background: $background;
+    border: none;
+}
+
+/* ---- Row-action menu modal ---- */
+ActionMenuModal {
+    align: center middle;
+}
+
+#action-menu-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 46;
+    height: auto;
+    padding: 1 2;
+}
+
+#action-table {
+    background: $background;
+    border: none;
+}

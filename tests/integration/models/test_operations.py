@@ -1,6 +1,7 @@
 """Integration tests for ORM relationships and cascade deletes in AIMBAT models."""
 
 import pytest
+from aimbat.core import get_active_event
 from aimbat.core._snapshot import create_snapshot
 from aimbat.models import (
     AimbatDataSource,
@@ -244,6 +245,76 @@ class TestSnapshotRelationships:
         create_snapshot(session)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert isinstance(snapshot.event, AimbatEvent)
+
+    def test_snapshot_seismogram_count(self, session: Session) -> None:
+        """Verifies that seismogram_count matches the number of seismogram parameter snapshots.
+
+        Args:
+            session: The database session.
+        """
+        create_snapshot(session)
+        snapshot = session.exec(select(AimbatSnapshot)).one()
+        session.refresh(snapshot)
+        assert snapshot.seismogram_count == len(
+            snapshot.seismogram_parameters_snapshots
+        )
+
+    def test_snapshot_selected_seismogram_count(self, session: Session) -> None:
+        """Verifies that selected_seismogram_count reflects snapshots marked as selected.
+
+        Args:
+            session: The database session.
+        """
+        create_snapshot(session)
+        snapshot = session.exec(select(AimbatSnapshot)).one()
+        session.refresh(snapshot)
+        expected = sum(1 for s in snapshot.seismogram_parameters_snapshots if s.select)
+        assert snapshot.selected_seismogram_count == expected
+
+    def test_snapshot_flipped_seismogram_count(self, session: Session) -> None:
+        """Verifies that flipped_seismogram_count reflects snapshots marked as flipped.
+
+        Args:
+            session: The database session.
+        """
+        create_snapshot(session)
+        snapshot = session.exec(select(AimbatSnapshot)).one()
+        session.refresh(snapshot)
+        expected = sum(1 for s in snapshot.seismogram_parameters_snapshots if s.flip)
+        assert snapshot.flipped_seismogram_count == expected
+
+    def test_snapshot_counts_reflect_toggled_flip_and_select(
+        self, session: Session
+    ) -> None:
+        """Verifies snapshot counts reflect toggled flip and select on seismograms.
+
+        Flips one seismogram and deselects another, then takes a snapshot and
+        checks that flipped_seismogram_count and selected_seismogram_count
+        capture the changes.
+
+        Args:
+            session: The database session.
+        """
+        active_event = get_active_event(session)
+        seismograms = active_event.seismograms
+        assert len(seismograms) >= 2
+
+        to_flip = seismograms[0]
+        to_deselect = seismograms[1]
+
+        to_flip.parameters.flip = True
+        to_deselect.parameters.select = False
+        session.add(to_flip.parameters)
+        session.add(to_deselect.parameters)
+        session.commit()
+
+        create_snapshot(session)
+        snapshot = session.exec(select(AimbatSnapshot)).one()
+        session.refresh(snapshot)
+
+        total = len(snapshot.seismogram_parameters_snapshots)
+        assert snapshot.flipped_seismogram_count == 1
+        assert snapshot.selected_seismogram_count == total - 1
 
 
 # ---------------------------------------------------------------------------

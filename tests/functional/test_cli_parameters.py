@@ -237,6 +237,76 @@ class TestEventParameterSetFloat:
 
 
 # ===================================================================
+# Event parameter — set timedelta
+# ===================================================================
+
+
+@pytest.mark.cli
+class TestEventParameterSetTimedelta:
+    """Tests for setting timedelta event parameters and verifying via dump."""
+
+    def test_set_window_pre_as_bare_number(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """Verifies that a bare number is interpreted as seconds for window_pre.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+        """
+        cli("event parameter set window_pre -20")
+        after = cli_json("event parameter dump")
+        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert after["window_pre"] == pytest.approx(
+            -20.0
+        ), "'window_pre' should be -20.0 seconds after being set with a bare number"
+
+    def test_set_window_post_as_bare_number(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """Verifies that a bare number is interpreted as seconds for window_post.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+        """
+        cli("event parameter set window_post 30")
+        after = cli_json("event parameter dump")
+        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert after["window_post"] == pytest.approx(
+            30.0
+        ), "'window_post' should be 30.0 seconds after being set with a bare number"
+
+    def test_set_window_pre_with_unit_string(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """Verifies that a pandas-style unit string (e.g. '10s') is accepted for window_post.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+        """
+        cli("event parameter set window_post 20s")
+        after = cli_json("event parameter dump")
+        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert after["window_post"] == pytest.approx(
+            20.0
+        ), "'window_post' should be 20.0 seconds after being set with '20s'"
+
+
+# ===================================================================
 # Event parameter — dump
 # ===================================================================
 

@@ -26,47 +26,58 @@ class AimbatEventParametersBase(SQLModel):
     event parameters.
     """
 
-    completed: bool = Field(default=False, description="Mark an event as completed.")
+    completed: bool = Field(
+        default=False,
+        title="Completed",
+        description="Mark an event as completed.",
+    )
 
     min_ccnorm: float = Field(
         ge=0.0,
         le=1.0,
         default_factory=lambda: settings.min_ccnorm,
+        title="Min CC norm",
         description="Minimum cross-correlation used when automatically de-selecting seismograms.",
     )
 
     window_pre: PydanticNegativeTimedelta = Field(
         sa_type=SAPandasTimedelta,
         default_factory=lambda: settings.window_pre,
-        description="Pre-pick window length.",
+        title="Window pre",
+        description="Pre-pick window length in seconds.",
     )
 
     window_post: PydanticPositiveTimedelta = Field(
         sa_type=SAPandasTimedelta,
         default_factory=lambda: settings.window_post,
-        description="Post-pick window length.",
+        title="Window post",
+        description="Post-pick window length in seconds.",
     )
 
     bandpass_apply: bool = Field(
         default_factory=lambda: settings.bandpass_apply,
+        title="Bandpass apply",
         description="Whether to apply bandpass filter to seismograms.",
     )
 
     bandpass_fmin: float = Field(
         default_factory=lambda: settings.bandpass_fmin,
         ge=0,
-        description="Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+        title="Bandpass f min",
+        description="Minimum frequency for bandpass filter in Hz (ignored if `bandpass_apply` is False).",
     )
 
     bandpass_fmax: float = Field(
         default_factory=lambda: settings.bandpass_fmax,
         gt=0,
-        description="Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+        title="Bandpass f max",
+        description="Maximum frequency for bandpass filter in Hz (ignored if `bandpass_apply` is False).",
     )
 
     mccc_damp: float = Field(
         default_factory=lambda: settings.mccc_damp,
         ge=0,
+        title="MCCC damp",
         description="Damping factor for MCCC algorithm.",
     )
 
@@ -74,6 +85,7 @@ class AimbatEventParametersBase(SQLModel):
         default_factory=lambda: settings.mccc_min_ccnorm,
         ge=0,
         le=1,
+        title="MCCC min CC norm",
         description="Minimum correlation coefficient required to include a pair in the MCCC inversion.",
     )
 

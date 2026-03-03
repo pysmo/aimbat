@@ -8,7 +8,7 @@ from aimbat.utils import (
     json_to_table,
     TABLE_STYLING,
 )
-from aimbat.models._models import (
+from aimbat.models import (
     AimbatEvent,
     AimbatEventParameters,
     AimbatStation,
@@ -86,13 +86,13 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
         session: SQL session.
     """
 
-    select_completed_events = (
+    statement = (
         select(AimbatEvent)
         .join(AimbatEventParameters)
         .where(AimbatEventParameters.completed == 1)
     )
 
-    return session.exec(select_completed_events).all()
+    return session.exec(statement).all()
 
 
 def get_events_using_station(
@@ -109,14 +109,14 @@ def get_events_using_station(
 
     logger.info(f"Getting events for station: {station.id}.")
 
-    select_events = (
+    statement = (
         select(AimbatEvent)
         .join(AimbatSeismogram)
         .join(AimbatStation)
         .where(AimbatStation.id == station.id)
     )
 
-    events = session.exec(select_events).all()
+    events = session.exec(statement).all()
 
     logger.debug(f"Found {len(events)}.")
 

@@ -45,14 +45,14 @@ def _create_station(
 
     new_aimbat_station = create_station(datasource, datatype)
 
-    select_aimbat_station = (
+    statement = (
         select(AimbatStation)
         .where(AimbatStation.name == new_aimbat_station.name)
         .where(AimbatStation.network == new_aimbat_station.network)
         .where(AimbatStation.channel == new_aimbat_station.channel)
         .where(AimbatStation.location == new_aimbat_station.location)
     )
-    aimbat_station = session.exec(select_aimbat_station).one_or_none()
+    aimbat_station = session.exec(statement).one_or_none()
 
     if aimbat_station is None:
         aimbat_station = new_aimbat_station
@@ -74,10 +74,8 @@ def _create_event(
 
     new_aimbat_event = create_event(datasource, datatype)
 
-    select_aimbat_event = select(AimbatEvent).where(
-        AimbatEvent.time == new_aimbat_event.time
-    )
-    aimbat_event = session.exec(select_aimbat_event).one_or_none()
+    statement = select(AimbatEvent).where(AimbatEvent.time == new_aimbat_event.time)
+    aimbat_event = session.exec(statement).one_or_none()
 
     if aimbat_event is None:
         aimbat_event = new_aimbat_event
@@ -97,13 +95,13 @@ def _create_seismogram(
 
     new_aimbat_seismogram = create_seismogram(datasource, datatype)
 
-    select_aimbat_seismogram = (
+    statement = (
         select(AimbatSeismogram)
         .join(AimbatDataSource)
         .where(AimbatDataSource.sourcename == str(datasource))
     )
 
-    aimbat_seismogram = session.exec(select_aimbat_seismogram).one_or_none()
+    aimbat_seismogram = session.exec(statement).one_or_none()
     if aimbat_seismogram is None:
         logger.debug(f"Adding seismogram with data source {datasource} to project.")
         aimbat_seismogram = new_aimbat_seismogram
@@ -131,7 +129,9 @@ def _process_datasource(
     # Resolve station — use the provided UUID, extract from the source, or skip
     if station_id is not None:
         aimbat_station: AimbatStation | None = session.get(AimbatStation, station_id)
-        logger.debug(f"Using station {aimbat_station.name} - {aimbat_station.network} (ID={station_id}).")  # type: ignore[union-attr]
+        logger.debug(
+            f"Using station {getattr(aimbat_station, 'name', 'Unknown')} - {getattr(aimbat_station, 'network', 'Unknown')} (ID={station_id})."
+        )
     elif supports_station_creation(datatype):
         aimbat_station = _create_station(session, datasource, datatype)
     else:
@@ -167,10 +167,10 @@ def _process_datasource(
     aimbat_seismogram.station = aimbat_station
     aimbat_seismogram.event = aimbat_event
 
-    select_aimbat_data_source = select(AimbatDataSource).where(
+    statement = select(AimbatDataSource).where(
         AimbatDataSource.sourcename == str(datasource)
     )
-    aimbat_data_source = session.exec(select_aimbat_data_source).one_or_none()
+    aimbat_data_source = session.exec(statement).one_or_none()
     if aimbat_data_source is None:
         logger.debug(f"Adding data source {datasource} to project.")
         aimbat_data_source = AimbatDataSource.model_validate(

@@ -41,6 +41,7 @@ def cli_update_phase_pick(
             iccs_parameters.context,
             iccs_parameters.all,
             use_seismogram_image,
+            return_fig=False,
         )
 
 
@@ -73,6 +74,7 @@ def cli_pick_timewindow(
             iccs_parameters.context,
             iccs_parameters.all,
             use_seismogram_image,
+            return_fig=False,
         )
 
 
@@ -95,7 +97,13 @@ def cli_pick_min_ccnorm(
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        update_min_ccnorm(session, iccs, iccs_parameters.context, iccs_parameters.all)
+        update_min_ccnorm(
+            session,
+            iccs,
+            iccs_parameters.context,
+            iccs_parameters.all,
+            return_fig=False,
+        )
 
 
 if __name__ == "__main__":

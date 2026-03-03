@@ -1,3 +1,7 @@
+import aimbat.core._event as event
+import uuid
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from aimbat.core import get_active_event
 from aimbat.logger import logger
 from aimbat.utils import (
@@ -19,7 +23,7 @@ from aimbat._types import (
 )
 from pysmo import MiniSeismogram
 from pysmo.functions import detrend, normalize, clone_to_mini
-from pysmo.tools.plotutils import time_array, unix_time_array
+from pysmo.tools.plotutils import time_array
 from pysmo.tools.azdist import distance
 from pandas import Timestamp
 from rich.console import Console
@@ -27,14 +31,8 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from typing import overload
 from collections.abc import Sequence
-from matplotlib.figure import Figure
 from pydantic import TypeAdapter
 from typing import Any, Literal
-import aimbat.core._event as event
-import uuid
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import pyqtgraph as pg  # type: ignore
 
 __all__ = [
     "delete_seismogram_by_id",
@@ -43,6 +41,8 @@ __all__ = [
     "get_seismogram_parameter",
     "set_seismogram_parameter_by_id",
     "set_seismogram_parameter",
+    "reset_seismogram_parameters_by_id",
+    "reset_seismogram_parameters",
     "get_selected_seismograms",
     "dump_seismogram_table_to_json",
     "print_seismogram_table",
@@ -82,6 +82,48 @@ def delete_seismogram(session: Session, seismogram: AimbatSeismogram) -> None:
     logger.info(f"Deleting seismogram {seismogram.id}.")
 
     session.delete(seismogram)
+    session.commit()
+
+
+def reset_seismogram_parameters_by_id(
+    session: Session, seismogram_id: uuid.UUID
+) -> None:
+    """Reset an AimbatSeismogram's parameters to their default values by ID.
+
+    Args:
+        session: Database session.
+        seismogram_id: Seismogram ID.
+
+    Raises:
+        NoResultFound: If no AimbatSeismogram is found with the given ID.
+    """
+
+    logger.debug(f"Getting seismogram with id={seismogram_id}.")
+
+    seismogram = session.get(AimbatSeismogram, seismogram_id)
+    if seismogram is None:
+        raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
+    reset_seismogram_parameters(session, seismogram)
+
+
+def reset_seismogram_parameters(session: Session, seismogram: AimbatSeismogram) -> None:
+    """Reset an AimbatSeismogram's parameters to their default values.
+
+    All fields defined on AimbatSeismogramParametersBase are reset to the
+    values produced by a fresh default instance, so newly added fields are
+    picked up automatically.
+
+    Args:
+        session: Database session.
+        seismogram: Seismogram whose parameters should be reset.
+    """
+
+    logger.info(f"Resetting parameters for seismogram {seismogram.id}.")
+
+    defaults = AimbatSeismogramParametersBase()
+    for field_name in AimbatSeismogramParametersBase.model_fields:
+        setattr(seismogram.parameters, field_name, getattr(defaults, field_name))
+    session.add(seismogram)
     session.commit()
 
 
@@ -247,14 +289,14 @@ def get_selected_seismograms(
 
     if all_events is True:
         logger.debug("Selecting seismograms for all events.")
-        select_seismograms = (
+        statement = (
             select(AimbatSeismogram)
             .join(AimbatSeismogramParameters)
             .where(AimbatSeismogramParameters.select == 1)
         )
     else:
         logger.debug("Selecting seismograms for active event only.")
-        select_seismograms = (
+        statement = (
             select(AimbatSeismogram)
             .join(AimbatSeismogramParameters)
             .join(AimbatEvent)
@@ -262,7 +304,7 @@ def get_selected_seismograms(
             .where(AimbatEvent.active == 1)
         )
 
-    seismograms = session.exec(select_seismograms).all()
+    seismograms = session.exec(statement).all()
 
     logger.debug(f"Found {len(seismograms)} selected seismograms.")
 
@@ -435,21 +477,33 @@ def print_seismogram_parameter_table(session: Session, short: bool) -> None:
     )
 
 
-def plot_all_seismograms(session: Session, use_qt: bool = False) -> Figure:
+@overload
+def plot_all_seismograms(
+    session: Session, return_fig: Literal[True]
+) -> tuple[plt.Figure, plt.Axes]: ...
+
+
+@overload
+def plot_all_seismograms(session: Session, return_fig: Literal[False]) -> None: ...
+
+
+def plot_all_seismograms(
+    session: Session, return_fig: bool
+) -> tuple[plt.Figure, plt.Axes] | None:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Args:
-        use_qt: Plot with pqtgraph instead of pyplot
+        session: Database session.
+        return_fig: Whether to return the figure and axes objects instead of showing the plot.
+
+    Returns:
+        figure and axes objects if return_fig is True, otherwise None.
     """
 
-    active_event = get_active_event(session)
-
-    if active_event is None:
+    if (active_event := get_active_event(session)) is None:
         raise RuntimeError("No active event set.")
 
-    seismograms = active_event.seismograms
-
-    if len(seismograms) == 0:
+    if len(seismograms := active_event.seismograms) == 0:
         raise RuntimeError("No seismograms found in active event.")
 
     distance_dict = {
@@ -464,38 +518,27 @@ def plot_all_seismograms(session: Session, use_qt: bool = False) -> Figure:
     xlabel = "Time of day"
     ylabel = "Epicentral distance [km]"
 
-    plot_widget = None
-    if use_qt:
-        plot_widget = pg.plot(title=title)
-        axis = pg.DateAxisItem()
-        plot_widget.setAxisItems({"bottom": axis})
-        plot_widget.setLabel("bottom", xlabel)
-        plot_widget.setLabel("left", ylabel)
-    else:
-        fig, ax = plt.subplots()
+    fig, ax = plt.subplots()
 
     for seismogram in seismograms:
         clone = clone_to_mini(MiniSeismogram, seismogram)
         detrend(clone)
         normalize(clone)
         plot_data = clone.data * scaling_factor + distance_dict[seismogram.id]
-        if use_qt and plot_widget is not None:
-            times = unix_time_array(clone)
-            plot_widget.plot(times, plot_data)
-        else:
-            times = time_array(clone)
-            ax.plot(
-                times,
-                plot_data,
-                scalex=True,
-                scaley=True,
-            )
-    if not use_qt:
-        plt.xlabel(xlabel=xlabel)
-        plt.ylabel(ylabel=ylabel)
-        plt.gcf().autofmt_xdate()
-        fmt = mdates.DateFormatter("%H:%M:%S")
-        plt.gca().xaxis.set_major_formatter(fmt)
-        plt.title(title)
-        plt.show()
-    return fig
+        times = time_array(clone)
+        ax.plot(
+            times,
+            plot_data,
+            scalex=True,
+            scaley=True,
+        )
+    plt.xlabel(xlabel=xlabel)
+    plt.ylabel(ylabel=ylabel)
+    plt.gcf().autofmt_xdate()
+    fmt = mdates.DateFormatter("%H:%M:%S")
+    plt.gca().xaxis.set_major_formatter(fmt)
+    plt.title(title)
+    if return_fig:
+        return fig, ax
+    plt.show()
+    return None

@@ -118,7 +118,7 @@ def cli_event_parameter_get(
 @simple_exception
 def cli_event_parameter_set(
     name: EventParameter,
-    value: Timedelta | str,
+    value: str,
     *,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
@@ -126,14 +126,23 @@ def cli_event_parameter_set(
 
     Args:
         name: Event parameter name.
-        value: Event parameter value.
+        value: Event parameter value. For timedelta parameters, bare numbers
+            are interpreted as seconds.
     """
     from aimbat.db import engine
     from aimbat.core import set_event_parameter
     from sqlmodel import Session
 
+    _TIMEDELTA_PARAMS = (EventParameter.WINDOW_PRE, EventParameter.WINDOW_POST)
+    parsed_value: Timedelta | str = value
+    if name in _TIMEDELTA_PARAMS:
+        try:
+            parsed_value = Timedelta(seconds=float(value))
+        except ValueError:
+            parsed_value = Timedelta(value)
+
     with Session(engine) as session:
-        set_event_parameter(session, name, value)
+        set_event_parameter(session, name, parsed_value)
 
 
 @parameter.command(name="dump")

@@ -107,6 +107,17 @@ class Settings(BaseSettings):
         description="Initial relative begin time of window.",
     )
 
+    tui_dark_theme: str = Field(
+        default="catppuccin-mocha",
+        min_length=1,
+        description="TUI dark theme name (from available Textual themes).",
+    )
+    tui_light_theme: str = Field(
+        default="catppuccin-latte",
+        min_length=1,
+        description="TUI light theme name (from available Textual themes).",
+    )
+
     @model_validator(mode="after")
     def set_computed_defaults(self) -> Self:
         """Set defaults that depend on other fields."""
