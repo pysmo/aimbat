@@ -1,0 +1,1 @@
+"""AIMBAT Terminal User Interface."""

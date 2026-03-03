@@ -13,7 +13,6 @@ waveform context, and `--all` to include de-selected seismograms.
 from .common import (
     GlobalParameters,
     IccsPlotParameters,
-    PlotParameters,
     simple_exception,
 )
 from cyclopts import App
@@ -25,23 +24,15 @@ app = App(name="plot", help=__doc__, help_format="markdown")
 @simple_exception
 def cli_seismogram_plot(
     *,
-    plot_parameters: PlotParameters = PlotParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Plot raw seismograms for the active event sorted by epicentral distance."""
     from aimbat.db import engine
     from aimbat.core import plot_all_seismograms
     from sqlmodel import Session
-    import pyqtgraph as pg  # type: ignore
-
-    if plot_parameters.use_qt:
-        pg.mkQApp()
 
     with Session(engine) as session:
-        plot_all_seismograms(session, plot_parameters.use_qt)
-
-    if plot_parameters.use_qt:
-        pg.exec()
+        plot_all_seismograms(session, return_fig=False)
 
 
 @app.command(name="stack")
@@ -58,7 +49,7 @@ def cli_iccs_plot_stack(
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        plot_stack(iccs, iccs_parameters.context, iccs_parameters.all)
+        plot_stack(iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False)
 
 
 @app.command(name="image")
@@ -75,7 +66,9 @@ def cli_iccs_plot_image(
 
     with Session(engine) as session:
         iccs = create_iccs_instance(session)
-        plot_iccs_seismograms(iccs, iccs_parameters.context, iccs_parameters.all)
+        plot_iccs_seismograms(
+            iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False
+        )
 
 
 if __name__ == "__main__":

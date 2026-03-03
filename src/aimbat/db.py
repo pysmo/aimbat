@@ -36,3 +36,13 @@ if engine.name == "sqlite":
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+
+    @event.listens_for(engine, "handle_error")
+    def _handle_missing_schema(exception_context) -> None:  # type: ignore[no-untyped-def]
+        """Convert 'no such table' errors to a user-friendly RuntimeError."""
+        if not exception_context.is_disconnect and "no such table" in str(
+            exception_context.original_exception
+        ):
+            raise RuntimeError(
+                "No AIMBAT project found. Run: aimbat project create"
+            ) from exception_context.original_exception

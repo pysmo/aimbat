@@ -14,10 +14,12 @@ from aimbat._types import (
 from ._parameters import AimbatEventParametersBase, AimbatSeismogramParametersBase
 from datetime import timezone
 from sqlmodel import Relationship, SQLModel, Field, col, select
-from sqlalchemy import func
+from sqlalchemy import func, Column, PickleType
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import column_property
 from pydantic import computed_field
-from typing import Self, TYPE_CHECKING
+from collections.abc import Hashable
+from typing import Any, TYPE_CHECKING
 from pandas import Timestamp
 
 __all__ = [
@@ -192,6 +194,12 @@ class AimbatSnapshot(SQLModel, table=True):
     event: "AimbatEvent" = Relationship(back_populates="snapshots")
     "The event this snapshot belongs to."
 
+    if TYPE_CHECKING:
+        # defined as column properties below, but add same default values for type checking purposes
+        seismogram_count: int = 0
+        selected_seismogram_count: int = 0
+        flipped_seismogram_count: int = 0
+
 
 class AimbatSeismogram(SQLModel, table=True):
     """Class to store seismogram metadata."""
@@ -225,6 +233,11 @@ class AimbatSeismogram(SQLModel, table=True):
         foreign_key="aimbatevent.id",
         ondelete="CASCADE",
         description="Foreign key referencing the parent event.",
+    )
+    extra: dict[Hashable, Any] = Field(
+        default_factory=dict,
+        sa_column=Column(MutableDict.as_mutable(PickleType)),
+        description="Dictionary to store any additional metadata for the seismogram.",
     )
     event: "AimbatEvent" = Relationship(back_populates="seismograms")
     "The event this seismogram belongs to."
@@ -357,9 +370,14 @@ class AimbatEvent(SQLModel, table=True):
     "List of snapshots."
 
     if TYPE_CHECKING:
+        # Column properties defined below, but add same default values for type checking purposes
         seismogram_count: int = 0
         station_count: int = 0
 
+
+# ----------------------------------------------------
+# Column properties
+# -----------------------------------------------------
 
 AimbatEvent.seismogram_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatSeismogram.id)))
@@ -377,55 +395,37 @@ AimbatEvent.station_count = column_property(  # type: ignore[assignment]
 )
 "Number of unique stations for this event."
 
+AimbatSnapshot.seismogram_count = column_property(  # type: ignore[assignment]
+    select(func.count(col(AimbatSeismogramParametersSnapshot.id)))
+    .where(
+        col(AimbatSeismogramParametersSnapshot.snapshot_id) == col(AimbatSnapshot.id)
+    )
+    .correlate_except(AimbatSeismogramParametersSnapshot)
+    .scalar_subquery()
+)
+"Number of seismogram parameter snapshots associated with this snapshot."
 
-class _AimbatEventRead(SQLModel):
-    """Read model for AimbatEvent including computed counts."""
+AimbatSnapshot.selected_seismogram_count = column_property(  # type: ignore[assignment]
+    select(func.count(col(AimbatSeismogramParametersSnapshot.id)))
+    .where(
+        (col(AimbatSeismogramParametersSnapshot.snapshot_id) == col(AimbatSnapshot.id))
+        & (col(AimbatSeismogramParametersSnapshot.select) == True)  # noqa: E712
+    )
+    .correlate_except(AimbatSeismogramParametersSnapshot)
+    .scalar_subquery()
+)
+"Number of seismogram parameter snapshots associated with this snapshot that are marked as selected."
 
-    id: uuid.UUID
-    active: bool | None
-    time: PydanticTimestamp
-    latitude: float
-    longitude: float
-    depth: float | None
-    completed: bool = False
-    seismogram_count: int
-    station_count: int
-
-    @classmethod
-    def from_event(cls, event: AimbatEvent) -> Self:
-        """Create an AimbatEventRead from an AimbatEvent ORM instance."""
-        return cls(
-            id=event.id,
-            active=event.active,
-            time=event.time,
-            latitude=event.latitude,
-            longitude=event.longitude,
-            depth=event.depth,
-            completed=event.parameters.completed,
-            seismogram_count=event.seismogram_count,
-            station_count=event.station_count,
-        )
-
-
-class _AimbatSnapshotRead(SQLModel):
-    """Read model for AimbatSnapshot with a seismogram count."""
-
-    id: uuid.UUID
-    date: PydanticTimestamp
-    comment: str | None
-    event_id: uuid.UUID
-    seismogram_count: int
-
-    @classmethod
-    def from_snapshot(cls, snapshot: AimbatSnapshot) -> Self:
-        """Create an AimbatSnapshotRead from an AimbatSnapshot ORM instance."""
-        return cls(
-            id=snapshot.id,
-            date=snapshot.date,
-            comment=snapshot.comment,
-            event_id=snapshot.event_id,
-            seismogram_count=len(snapshot.seismogram_parameters_snapshots),
-        )
+AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assignment]
+    select(func.count(col(AimbatSeismogramParametersSnapshot.id)))
+    .where(
+        (col(AimbatSeismogramParametersSnapshot.snapshot_id) == col(AimbatSnapshot.id))
+        & (col(AimbatSeismogramParametersSnapshot.flip) == True)  # noqa: E712
+    )
+    .correlate_except(AimbatSeismogramParametersSnapshot)
+    .scalar_subquery()
+)
+"Number of seismogram parameter snapshots associated with this snapshot that are marked as flipped."
 
 
 type AimbatTypes = (

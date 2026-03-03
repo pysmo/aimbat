@@ -572,3 +572,86 @@ class TestSnapshotList:
         assert (
             len(capsys.readouterr().out) > 0
         ), "Expected output from snapshot list --short"
+
+
+# ===================================================================
+# Snapshot details
+# ===================================================================
+
+
+@pytest.mark.cli
+class TestSnapshotDetails:
+    """Tests for the ``snapshot details`` CLI command."""
+
+    def test_details_produces_output(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verifies that the details command produces output for a valid snapshot ID.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            capsys: The pytest capsys fixture.
+        """
+        cli("snapshot create")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict), "Dump should return a dict"
+        snapshot_id = data["snapshots"][0]["id"]
+
+        cli(f"snapshot details {snapshot_id}")
+        assert len(capsys.readouterr().out) > 0, "Expected output from snapshot details"
+
+    def test_details_produces_output_with_short_id(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verifies that the details command works with a shortened snapshot ID.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            capsys: The pytest capsys fixture.
+        """
+        cli("snapshot create")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict), "Dump should return a dict"
+        short_id = data["snapshots"][0]["id"][:8]
+
+        cli(f"snapshot details {short_id}")
+        assert (
+            len(capsys.readouterr().out) > 0
+        ), "Expected output from snapshot details with short ID"
+
+    def test_details_short_flag(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verifies that ``--short`` produces output.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            capsys: The pytest capsys fixture.
+        """
+        cli("snapshot create")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict), "Dump should return a dict"
+        snapshot_id = data["snapshots"][0]["id"]
+
+        cli(f"snapshot details {snapshot_id} --short")
+        assert (
+            len(capsys.readouterr().out) > 0
+        ), "Expected output from snapshot details --short"

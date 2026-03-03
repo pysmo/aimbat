@@ -27,13 +27,6 @@ class GlobalParameters:
 
 @Parameter(name="*")
 @dataclass
-class PlotParameters:
-    use_qt: bool = False
-    "Use pyqtgraph instead of matplotlib for plots (where applicable)."
-
-
-@Parameter(name="*")
-@dataclass
 class IccsPlotParameters:
     context: bool = True
     "Plot seismograms with extra context instead of the short tapered ones used for cross-correlation."

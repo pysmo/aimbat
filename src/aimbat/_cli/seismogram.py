@@ -116,6 +116,22 @@ def cli_seismogram_parameter_set(
         set_seismogram_parameter_by_id(session, seismogram_id, name, value)
 
 
+@parameter.command(name="reset")
+@simple_exception
+def cli_seismogram_parameter_reset(
+    seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
+    *,
+    global_parameters: GlobalParameters = GlobalParameters(),
+) -> None:
+    """Reset all processing parameters to their default values."""
+    from aimbat.db import engine
+    from aimbat.core import reset_seismogram_parameters_by_id
+    from sqlmodel import Session
+
+    with Session(engine) as session:
+        reset_seismogram_parameters_by_id(session, seismogram_id)
+
+
 @parameter.command(name="dump")
 @simple_exception
 def cli_seismogram_parameter_dump(

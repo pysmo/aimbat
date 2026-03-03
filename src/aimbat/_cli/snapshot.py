@@ -108,5 +108,23 @@ def cli_snapshot_list(
         print_snapshot_table(session, table_parameters.short, all_events)
 
 
+@app.command(name="details")
+@simple_exception
+def cli_snapshot_details(
+    snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
+) -> None:
+    """Print information on the event parameters saved in a snapshot."""
+    from aimbat.db import engine
+    from aimbat.core import print_snapshot_parameters_table_by_id
+    from sqlmodel import Session
+
+    with Session(engine) as session:
+        print_snapshot_parameters_table_by_id(
+            session, snapshot_id, table_parameters.short
+        )
+
+
 if __name__ == "__main__":
     app()

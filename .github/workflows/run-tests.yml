@@ -1,6 +1,8 @@
 name: unit tests
 
 on: [push, pull_request]
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -11,10 +13,6 @@ jobs:
         python-version: ["3.12", "3.13", "3.14"]
 
     steps:
-      - uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: freeglut3-dev
-        if: matrix.os == 'ubuntu-latest'
       - uses: actions/checkout@v4
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -31,7 +29,6 @@ jobs:
           uv run black . --check --diff --color
           uv run ruff check
           uv run py.test --mpl --mypy --cov src --cov-append --cov-report=term-missing  --junitxml=junit.xml
-
       - name: Store coverage results as artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -40,9 +37,10 @@ jobs:
           include-hidden-files: true
         if: matrix.os == 'ubuntu-latest'
       - name: Upload test results to Codecov
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          report_type: test_results
         if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
 
   coverage-combine:
@@ -54,6 +52,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install uv
         uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - name: Download coverage results
         uses: actions/download-artifact@v4
         with:

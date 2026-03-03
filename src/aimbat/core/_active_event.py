@@ -33,13 +33,13 @@ def get_active_event(session: Session) -> AimbatEvent:
 
     logger.debug("Attempting to determine active event.")
 
-    select_active_event = select(AimbatEvent).where(AimbatEvent.active == 1)
+    statement = select(AimbatEvent).where(AimbatEvent.active == 1)
 
     # NOTE: While there technically can be no active event in the database,
     # we typically don't really want to go beyond this point when that is the
     # case. Hence we call `one` rather than `one_or_none`.
     try:
-        active_event = session.exec(select_active_event).one()
+        active_event = session.exec(statement).one()
     except NoResultFound:
         raise NoResultFound(f"No active event found. {HINTS.ACTIVATE_EVENT}")
 
