@@ -20,7 +20,7 @@ def cli_iccs_run(
     autoselect: bool = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Run the ICCS algorithm to align seismograms for the active event.
+    """Run the ICCS algorithm to align seismograms for the default event.
 
     Iteratively cross-correlates seismograms against a running stack to refine
     arrival time picks (`t1`). If `t1` is not yet set, `t0` is used as the
@@ -33,12 +33,12 @@ def cli_iccs_run(
             cross-correlation with the stack falls below `min_ccnorm`.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_iccs, get_active_event
+    from aimbat.core import create_iccs_instance, run_iccs, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        iccs = create_iccs_instance(session, active_event).iccs
+        event = resolve_event(session, global_parameters.event_id)
+        iccs = create_iccs_instance(session, event).iccs
         run_iccs(session, iccs, autoflip, autoselect)
 
 
@@ -49,7 +49,7 @@ def cli_mccc_run(
     all_seismograms: Annotated[bool, Parameter(name="all")] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Run the MCCC algorithm to refine arrival time picks for the active event.
+    """Run the MCCC algorithm to refine arrival time picks for the default event.
 
     Multi-channel cross-correlation simultaneously determines the optimal time
     shifts for all seismograms. Results are stored in `t1`.
@@ -59,13 +59,13 @@ def cli_mccc_run(
             the currently selected ones.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_mccc, get_active_event
+    from aimbat.core import create_iccs_instance, run_mccc, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        iccs = create_iccs_instance(session, active_event).iccs
-        run_mccc(session, active_event, iccs, all_seismograms)
+        event = resolve_event(session, global_parameters.event_id)
+        iccs = create_iccs_instance(session, event).iccs
+        run_mccc(session, event, iccs, all_seismograms)
 
 
 if __name__ == "__main__":

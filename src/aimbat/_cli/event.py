@@ -3,6 +3,7 @@
 from .common import (
     GlobalParameters,
     TableParameters,
+    DebugTrait,
     simple_exception,
     id_parameter,
     ALL_EVENTS_PARAMETER,
@@ -37,19 +38,19 @@ def cli_event_delete(
         delete_event_by_id(session, event_id)
 
 
-@app.command(name="activate")
+@app.command(name="default")
 @simple_exception
-def cli_event_activate(
-    event_id: Annotated[uuid.UUID, id_parameter(AimbatEvent)],
+def cli_event_default(
+    new_default_event_id: Annotated[uuid.UUID, id_parameter(AimbatEvent)],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    global_parameters: DebugTrait = DebugTrait(),
 ) -> None:
-    """Select the event to be active for processing."""
-    from aimbat.core import set_active_event_by_id
+    """Select the event to be default for processing."""
+    from aimbat.core import set_default_event_by_id
     from aimbat.db import engine
 
     with Session(engine) as session:
-        set_active_event_by_id(session, event_id)
+        set_default_event_by_id(session, new_default_event_id)
 
 
 @parameter.command(name="get")
@@ -59,19 +60,19 @@ def cli_event_parameter_get(
     *,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Get parameter value for the active event.
+    """Get parameter value for an event.
 
     Args:
         name: Event parameter name.
     """
 
     from aimbat.db import engine
-    from aimbat.core import get_event_parameter, get_active_event
+    from aimbat.core import get_event_parameter, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        value = get_event_parameter(session, active_event, name)
+        event = resolve_event(session, global_parameters.event_id)
+        value = get_event_parameter(session, event, name)
         if isinstance(value, Timedelta):
             print(f"{value.total_seconds()}s")
         else:
@@ -86,7 +87,7 @@ def cli_event_parameter_set(
     *,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Set parameter value for the active event.
+    """Set parameter value for an event.
 
     Args:
         name: Event parameter name.
@@ -94,7 +95,7 @@ def cli_event_parameter_set(
             are interpreted as seconds.
     """
     from aimbat.db import engine
-    from aimbat.core import set_event_parameter, get_active_event
+    from aimbat.core import set_event_parameter, resolve_event
     from sqlmodel import Session
 
     _TIMEDELTA_PARAMS = (EventParameter.WINDOW_PRE, EventParameter.WINDOW_POST)
@@ -106,8 +107,8 @@ def cli_event_parameter_set(
             parsed_value = Timedelta(value)
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        set_event_parameter(session, active_event, name, parsed_value)
+        event = resolve_event(session, global_parameters.event_id)
+        set_event_parameter(session, event, name, parsed_value)
 
 
 @parameter.command(name="dump")
@@ -118,15 +119,19 @@ def cli_event_parameter_dump(
 ) -> None:
     """Dump event parameter table to json."""
     from aimbat.db import engine
-    from aimbat.core import dump_event_parameter_table_to_json, get_active_event
+    from aimbat.core import dump_event_parameter_table_to_json, resolve_event
     from sqlmodel import Session
     from rich import print_json
 
     with Session(engine) as session:
-        active_event = get_active_event(session) if not all_events else None
+        event = (
+            resolve_event(session, global_parameters.event_id)
+            if not all_events
+            else None
+        )
         print_json(
             dump_event_parameter_table_to_json(
-                session, all_events, as_string=True, event=active_event
+                session, all_events, as_string=True, event=event
             )
         )
 
@@ -158,7 +163,7 @@ def cli_event_list(
 ) -> None:
     """Print a table of events stored in the AIMBAT project.
 
-    The active event is highlighted. Use `event activate` to change which event
+    The default event is highlighted. Use `event default` to change which event
     is processed by subsequent commands.
     """
     from aimbat.db import engine
@@ -177,7 +182,7 @@ def cli_event_list(
             title="AIMBAT Events",
             column_order=[
                 "id",
-                "active",
+                "is_default",
                 "time",
                 "latitude",
                 "longitude",
@@ -190,7 +195,7 @@ def cli_event_list(
                 "id": lambda x: (
                     uuid_shortener(session, AimbatEvent, str_uuid=x) if short else x
                 ),
-                "active": TABLE_STYLING.bool_formatter,
+                "is_default": TABLE_STYLING.bool_formatter,
                 "time": lambda x: TABLE_STYLING.timestamp_formatter(
                     Timestamp(x), short
                 ),
@@ -209,7 +214,11 @@ def cli_event_list(
                     "style": TABLE_STYLING.id,
                     "no_wrap": True,
                 },
-                "active": {"style": TABLE_STYLING.mine, "no_wrap": True},
+                "is_default": {
+                    "header": "Default",
+                    "style": TABLE_STYLING.mine,
+                    "no_wrap": True,
+                },
                 "time": {
                     "header": "Date & Time",
                     "style": TABLE_STYLING.mine,
@@ -243,14 +252,14 @@ def cli_event_parameter_list(
     global_parameters: GlobalParameters = GlobalParameters(),
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
-    """List processing parameter values for the active event.
+    """List processing parameter values for the default event.
 
     Displays all event-level parameters (e.g. time window, bandpass filter
     settings, minimum ccnorm) in a table.
     """
 
     from aimbat.db import engine
-    from aimbat.core import dump_event_parameter_table_to_json, get_active_event
+    from aimbat.core import dump_event_parameter_table_to_json, resolve_event
     from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
     from aimbat.logger import logger
 
@@ -287,12 +296,12 @@ def cli_event_parameter_list(
                 },
             )
         else:
-            logger.info("Printing AIMBAT event parameters table for active event.")
+            logger.info("Printing AIMBAT event parameters table for default event.")
 
-            active_event = get_active_event(session)
+            event = resolve_event(session, global_parameters.event_id)
             json_to_table(
-                data=active_event.parameters.model_dump(mode="json"),
-                title=f"Event parameters for event: {uuid_shortener(session, active_event) if short else str(active_event.id)}",
+                data=event.parameters.model_dump(mode="json"),
+                title=f"Event parameters for event: {uuid_shortener(session, event) if short else str(event.id)}",
                 skip_keys=["id", "event_id"],
                 common_column_kwargs={"highlight": True},
                 column_kwargs={

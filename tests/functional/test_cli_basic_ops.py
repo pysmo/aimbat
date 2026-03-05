@@ -158,43 +158,43 @@ class TestEventOperations:
         events = cli_json("event dump")
         assert len(events) > 1
 
-    def test_activate_event(
+    def test_default_event(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that an event can be activated."""
+        """Verifies that an event can be set as default."""
         events = cli_json("event dump")
 
-        inactive = [e for e in events if e["active"] is None]
-        assert len(inactive) > 0
-        target_id = inactive[0]["id"]
+        non_default_events = [e for e in events if e["is_default"] is None]
+        assert len(non_default_events) > 0
+        target_id = non_default_events[0]["id"]
 
-        cli(f"event activate {target_id}")
+        cli(f"event default {target_id}")
 
         events_after = cli_json("event dump")
-        active = [e for e in events_after if e["active"] is True]
-        assert len(active) == 1
-        assert active[0]["id"] == target_id
+        default_events = [e for e in events_after if e["is_default"] is True]
+        assert len(default_events) == 1
+        assert default_events[0]["id"] == target_id
 
-    def test_activate_switches_active(
+    def test_default_switches_previous(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Activating a different event deactivates the previous one."""
+        """Setting a different default event replaces the previous one."""
         events = cli_json("event dump")
         ids = [e["id"] for e in events]
 
-        cli(f"event activate {ids[0]}")
-        cli(f"event activate {ids[1]}")
+        cli(f"event default {ids[0]}")
+        cli(f"event default {ids[1]}")
 
         events_after = cli_json("event dump")
-        active = [e for e in events_after if e["active"] is True]
-        assert len(active) == 1
-        assert active[0]["id"] == ids[1]
+        default_events = [e for e in events_after if e["is_default"] is True]
+        assert len(default_events) == 1
+        assert default_events[0]["id"] == ids[1]
 
     def test_delete_event(
         self,
@@ -213,13 +213,13 @@ class TestEventOperations:
         assert target_id not in remaining_ids
         assert len(events_after) == len(events_before) - 1
 
-    def test_activate_event_with_short_id(
+    def test_default_event_with_short_id(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that an event can be activated using a shortened ID.
+        """Verifies that an event can be set as default using a shortened ID.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -227,17 +227,17 @@ class TestEventOperations:
             cli_json: The in-process CLI JSON dump callable.
         """
         events = cli_json("event dump")
-        inactive = [e for e in events if e["active"] is None]
-        assert len(inactive) > 0
-        target_id = inactive[0]["id"]
+        non_default_events = [e for e in events if e["is_default"] is None]
+        assert len(non_default_events) > 0
+        target_id = non_default_events[0]["id"]
         short_id = target_id[:8]
 
-        cli(f"event activate {short_id}")
+        cli(f"event default {short_id}")
 
         events_after = cli_json("event dump")
-        active = [e for e in events_after if e["active"] is True]
-        assert len(active) == 1
-        assert active[0]["id"] == target_id
+        default_events = [e for e in events_after if e["is_default"] is True]
+        assert len(default_events) == 1
+        assert default_events[0]["id"] == target_id
 
     def test_delete_event_with_short_id(
         self,

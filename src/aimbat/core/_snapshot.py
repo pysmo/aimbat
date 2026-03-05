@@ -44,7 +44,7 @@ def create_snapshot(
     event_parameters_snapshot = AimbatEventParametersSnapshot.model_validate(
         event.parameters,
         update={
-            "id": uuid.uuid4(),  # we don't want to carry over the id from the active parameters
+            "id": uuid.uuid4(),  # we don't want to carry over the id from the input event parameters
             "parameters_id": event.parameters.id,
         },
     )
@@ -57,7 +57,7 @@ def create_snapshot(
         seismogram_parameter_snapshot = AimbatSeismogramParametersSnapshot.model_validate(
             aimbat_seismogram.parameters,
             update={
-                "id": uuid.uuid4(),  # we don't want to carry over the id from the active parameters
+                "id": uuid.uuid4(),  # we don't want to carry over the id from the input seismogram parameters
                 "seismogram_parameters_id": aimbat_seismogram.parameters.id,
             },
         )

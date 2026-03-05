@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
-from aimbat.core import get_active_event
+from aimbat.core import get_default_event
 from aimbat.core._station import (
     delete_station,
     delete_station_by_id,
@@ -20,7 +20,7 @@ from aimbat.models import AimbatStation
 
 @pytest.fixture
 def session(loaded_session: Session) -> Session:
-    """Provides a session with multi-event data and an active event pre-loaded.
+    """Provides a session with multi-event data and an default event pre-loaded.
 
     Args:
         loaded_session: A SQLModel Session with data populated.
@@ -33,16 +33,16 @@ def session(loaded_session: Session) -> Session:
 
 @pytest.fixture
 def station(session: Session) -> AimbatStation:
-    """Provides the first station associated with the active event.
+    """Provides the first station associated with the default event.
 
     Args:
         session: The database session.
 
     Returns:
-        The first AimbatStation in the active event.
+        The first AimbatStation in the default event.
     """
-    active_event = get_active_event(session)
-    return active_event.seismograms[0].station
+    default_event = get_default_event(session)
+    return default_event.seismograms[0].station
 
 
 class TestDeleteStation:
@@ -86,18 +86,18 @@ class TestDeleteStation:
             delete_station_by_id(session, uuid.uuid4())
 
 
-class TestGetStationsInActiveEvent:
-    """Tests for retrieving stations in the active event."""
+class TestGetStationsInDefaultEvent:
+    """Tests for retrieving stations in the default event."""
 
     def test_returns_stations(self, session: Session) -> None:
-        """Verifies that stations for the active event are returned.
+        """Verifies that stations for the default event are returned.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        stations = get_stations_in_event(session, active_event, as_json=False)
-        assert len(stations) > 0, "Expected at least one station for the active event"
+        default_event = get_default_event(session)
+        stations = get_stations_in_event(session, default_event, as_json=False)
+        assert len(stations) > 0, "Expected at least one station for the default event"
 
     def test_returns_aimbat_station_instances(self, session: Session) -> None:
         """Verifies that all returned items are AimbatStation instances.
@@ -105,8 +105,8 @@ class TestGetStationsInActiveEvent:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        stations = get_stations_in_event(session, active_event, as_json=False)
+        default_event = get_default_event(session)
+        stations = get_stations_in_event(session, default_event, as_json=False)
         assert all(
             isinstance(s, AimbatStation) for s in stations
         ), "All returned items should be AimbatStation instances"
@@ -117,8 +117,8 @@ class TestGetStationsInActiveEvent:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        result = get_stations_in_event(session, active_event, as_json=True)
+        default_event = get_default_event(session)
+        result = get_stations_in_event(session, default_event, as_json=True)
         assert isinstance(result, list), "Expected a list when as_json=True"
         assert all(
             isinstance(item, dict) for item in result
@@ -130,26 +130,26 @@ class TestGetStationsInActiveEvent:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        objects = get_stations_in_event(session, active_event, as_json=False)
-        json_list = get_stations_in_event(session, active_event, as_json=True)
+        default_event = get_default_event(session)
+        objects = get_stations_in_event(session, default_event, as_json=False)
+        json_list = get_stations_in_event(session, default_event, as_json=True)
         assert len(objects) == len(
             json_list
         ), "Object and JSON representations should have the same length"
 
-    def test_stations_belong_to_active_event(self, session: Session) -> None:
-        """Verifies that the returned stations are associated with the active event.
+    def test_stations_belong_to_default_event(self, session: Session) -> None:
+        """Verifies that the returned stations are associated with the default event.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        active_station_ids = {s.station_id for s in active_event.seismograms}
-        stations = get_stations_in_event(session, active_event, as_json=False)
+        default_event = get_default_event(session)
+        default_station_ids = {s.station_id for s in default_event.seismograms}
+        stations = get_stations_in_event(session, default_event, as_json=False)
         returned_ids = {s.id for s in stations}
         assert (
-            returned_ids == active_station_ids
-        ), "Returned station IDs should match those linked to the active event"
+            returned_ids == default_station_ids
+        ), "Returned station IDs should match those linked to the default event"
 
 
 class TestGetStationsInEvent:
@@ -161,8 +161,8 @@ class TestGetStationsInEvent:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        stations = get_stations_in_event(session, active_event)
+        default_event = get_default_event(session)
+        stations = get_stations_in_event(session, default_event)
         assert len(stations) > 0, "Expected at least one station for the given event"
 
     def test_returns_aimbat_station_instances(self, session: Session) -> None:
@@ -171,8 +171,8 @@ class TestGetStationsInEvent:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        stations = get_stations_in_event(session, active_event)
+        default_event = get_default_event(session)
+        stations = get_stations_in_event(session, default_event)
         assert all(
             isinstance(s, AimbatStation) for s in stations
         ), "All returned items should be AimbatStation instances"
@@ -183,9 +183,9 @@ class TestGetStationsInEvent:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        expected_ids = {s.station_id for s in active_event.seismograms}
-        returned_ids = {s.id for s in get_stations_in_event(session, active_event)}
+        default_event = get_default_event(session)
+        expected_ids = {s.station_id for s in default_event.seismograms}
+        returned_ids = {s.id for s in get_stations_in_event(session, default_event)}
         assert (
             returned_ids == expected_ids
         ), "Station IDs should match those linked to the event's seismograms"

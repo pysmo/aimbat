@@ -460,13 +460,13 @@ class TestSnapshotDump:
             "seismogram_parameters" in data
         ), "Dump should contain 'seismogram_parameters' key"
 
-    def test_dump_all_events_includes_active(
+    def test_dump_all_events_includes_default(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that ``--all`` includes at least the active event's snapshots.
+        """Verifies that ``--all`` includes at least the default event's snapshots.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -474,13 +474,13 @@ class TestSnapshotDump:
             cli_json: The in-process CLI JSON dump callable.
         """
         cli("snapshot create")
-        active_data = cli_json("snapshot dump")
+        default_data = cli_json("snapshot dump")
         all_data = cli_json("snapshot dump --all")
-        assert isinstance(active_data, dict), "Active dump should return a dict"
+        assert isinstance(default_data, dict), "Default dump should return a dict"
         assert isinstance(all_data, dict), "All-events dump should return a dict"
         assert len(all_data["snapshots"]) >= len(
-            active_data["snapshots"]
-        ), "--all should return at least as many snapshots as the active-event dump"
+            default_data["snapshots"]
+        ), "--all should return at least as many snapshots as the default-event dump"
 
     def test_dump_snapshot_ids_are_consistent(
         self,
@@ -518,13 +518,13 @@ class TestSnapshotDump:
 class TestSnapshotList:
     """Tests for the ``snapshot list`` CLI command."""
 
-    def test_list_active_event(
+    def test_list_default_event(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Verifies that the list command produces output for the active event.
+        """Verifies that the list command produces output for the default event.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.

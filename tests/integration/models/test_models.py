@@ -1,6 +1,6 @@
 """Integration tests for AIMBAT SQLModel ORM classes.
 
-Tests cover cascade deletes, the single-active-event constraint,
+Tests cover cascade deletes, the single-default-event constraint,
 type validation, and round-trip persistence of custom time types.
 """
 
@@ -65,14 +65,14 @@ def _make_event(
     session: Session,
     *,
     time: str = "2010-02-27T06:34:14",
-    active: bool | None = None,
+    is_default: bool | None = None,
 ) -> AimbatEvent:
     """Insert and return an event together with its mandatory parameters.
 
     Args:
         session (Session): Database session.
         time (str): Event time string (default: "2010-02-27T06:34:14").
-        active (bool | None): Whether the event is active (default: None).
+        is_default (bool | None): Whether the event is is_default (default: None).
 
     Returns:
         AimbatEvent: The created event.
@@ -82,7 +82,7 @@ def _make_event(
         latitude=-36.12,
         longitude=-72.90,
         depth=22.9,
-        active=active,
+        is_default=is_default,
     )
     session.add(ev)
     session.flush()
@@ -218,16 +218,16 @@ class TestCascadeDeleteEvent:
         Args:
             session (Session): Database session.
         """
-        ev = _make_event(session, active=True)
+        ev = _make_event(session, is_default=True)
         sta = _make_station(session)
         _make_seismogram(session, ev, sta)
         session.commit()
 
-        # Create a snapshot via the core helper (uses the active event).
-        from aimbat.core import create_snapshot, get_active_event
+        # Create a snapshot via the core helper (uses the default event).
+        from aimbat.core import create_snapshot, get_default_event
 
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event, comment="before delete")
+        default_event = get_default_event(session)
+        create_snapshot(session, default_event, comment="before delete")
         assert len(session.exec(select(AimbatSnapshot)).all()) == 1
         assert len(session.exec(select(AimbatEventParametersSnapshot)).all()) == 1
         assert len(session.exec(select(AimbatSeismogramParametersSnapshot)).all()) == 1
@@ -291,15 +291,15 @@ class TestCascadeDeleteSnapshot:
         Args:
             session (Session): Database session.
         """
-        ev = _make_event(session, active=True)
+        ev = _make_event(session, is_default=True)
         sta = _make_station(session)
         _make_seismogram(session, ev, sta)
         session.commit()
 
-        from aimbat.core import create_snapshot, get_active_event
+        from aimbat.core import create_snapshot, get_default_event
 
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event)
+        default_event = get_default_event(session)
+        create_snapshot(session, default_event)
 
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.delete(snapshot)
@@ -310,53 +310,53 @@ class TestCascadeDeleteSnapshot:
 
 
 # ===================================================================
-# Single active event constraint
+# Single default event constraint
 # ===================================================================
 
 
-class TestSingleActiveEvent:
-    """The DB trigger ensures at most one event has active=True."""
+class TestSingleDefaultEvent:
+    """The DB trigger ensures at most one event has is_default=True."""
 
-    def test_only_one_active_event_via_insert(self, session: Session) -> None:
-        """Inserting a new active event deactivates the previous one.
+    def test_only_one_default_event_via_insert(self, session: Session) -> None:
+        """Inserting a new default event deactivates the previous one.
 
         Args:
             session (Session): Database session.
         """
-        ev1 = _make_event(session, active=True)
+        ev1 = _make_event(session, is_default=True)
         session.commit()
         session.refresh(ev1)
-        assert ev1.active is True
+        assert ev1.is_default is True
 
-        ev2 = _make_event(session, time="2011-03-11T05:46:24", active=True)
+        ev2 = _make_event(session, time="2011-03-11T05:46:24", is_default=True)
         session.commit()
 
         session.refresh(ev1)
         session.refresh(ev2)
-        assert ev1.active is None
-        assert ev2.active is True
+        assert ev1.is_default is None
+        assert ev2.is_default is True
 
-    def test_only_one_active_event_via_update(self, session: Session) -> None:
-        """Updating an event to active deactivates the previous one.
+    def test_only_one_default_event_via_update(self, session: Session) -> None:
+        """Updating an event to the default event replaces the previous one.
 
         Args:
             session (Session): Database session.
         """
-        ev1 = _make_event(session, active=True)
+        ev1 = _make_event(session, is_default=True)
         ev2 = _make_event(session, time="2011-03-11T05:46:24")
         session.commit()
 
-        ev2.active = True
+        ev2.is_default = True
         session.add(ev2)
         session.commit()
 
         session.refresh(ev1)
         session.refresh(ev2)
-        assert ev1.active is None
-        assert ev2.active is True
+        assert ev1.is_default is None
+        assert ev2.is_default is True
 
-    def test_multiple_inactive_events_allowed(self, session: Session) -> None:
-        """Multiple events may exist without any being active.
+    def test_multiple_non_default_events_allowed(self, session: Session) -> None:
+        """Multiple events may exist without any being the default.
 
         Args:
             session (Session): Database session.
@@ -366,33 +366,33 @@ class TestSingleActiveEvent:
         _make_event(session, time="2012-01-01T00:00:00")
         session.commit()
 
-        active = session.exec(
-            select(AimbatEvent).where(AimbatEvent.active == True)  # noqa: E712
+        is_default_events = session.exec(
+            select(AimbatEvent).where(AimbatEvent.is_default == True)  # noqa: E712
         ).all()
-        assert len(active) == 0
+        assert len(is_default_events) == 0
 
-    def test_cycling_active_through_three_events(self, session: Session) -> None:
-        """Verifies cycling active status through multiple events ensures only one is active at a time.
+    def test_cycling_default_through_three_events(self, session: Session) -> None:
+        """Verifies cycling default status through multiple events ensures only one is the default at a time.
 
         Args:
             session (Session): Database session.
         """
-        ev1 = _make_event(session, time="2010-01-01T00:00:00", active=True)
+        ev1 = _make_event(session, time="2010-01-01T00:00:00", is_default=True)
         ev2 = _make_event(session, time="2011-01-01T00:00:00")
         ev3 = _make_event(session, time="2012-01-01T00:00:00")
         session.commit()
 
         for target in [ev2, ev3, ev1]:
-            target.active = True
+            target.is_default = True
             session.add(target)
             session.commit()
 
-            active = session.exec(
-                select(AimbatEvent).where(AimbatEvent.active == True)  # noqa: E712
+            is_default_events = session.exec(
+                select(AimbatEvent).where(AimbatEvent.is_default == True)  # noqa: E712
             ).all()
-            assert len(active) == 1
+            assert len(is_default_events) == 1
             session.refresh(target)
-            assert target.active is True
+            assert target.is_default is True
 
 
 # ===================================================================

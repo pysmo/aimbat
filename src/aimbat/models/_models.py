@@ -338,10 +338,10 @@ class AimbatEvent(SQLModel, table=True):
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
 
-    active: bool | None = Field(
+    is_default: bool | None = Field(
         default=None,
         unique=True,
-        description="Indicates if an event is the active event.",
+        description="Indicates if an event is the default event.",
     )
 
     time: PydanticTimestamp = Field(

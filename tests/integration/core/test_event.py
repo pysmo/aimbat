@@ -3,11 +3,10 @@
 import json
 import uuid
 import pytest
-from unittest.mock import patch
 from aimbat.core import (
-    set_active_event,
-    set_active_event_by_id,
-    get_active_event,
+    set_default_event,
+    set_default_event_by_id,
+    get_default_event,
     delete_event,
     delete_event_by_id,
     get_completed_events,
@@ -26,7 +25,7 @@ from sqlalchemy.exc import NoResultFound
 
 @pytest.fixture
 def session(loaded_session: Session) -> Session:
-    """Provides a session with multi-event data and an active event pre-loaded.
+    """Provides a session with multi-event data and a default event pre-loaded.
 
     Args:
         loaded_session: A SQLModel Session with data populated.
@@ -38,68 +37,68 @@ def session(loaded_session: Session) -> Session:
 
 
 # ===================================================================
-# Active event
+# Default event
 # ===================================================================
 
 
-class TestActiveEvent:
-    """Tests for retrieving and switching the active event."""
+class TestDefaultEvent:
+    """Tests for retrieving and switching the default event."""
 
     def test_get(self, session: Session) -> None:
-        """Verifies that `get_active_event` returns the event marked as active in the DB.
+        """Verifies that `get_default_event` returns the event marked as default in the DB.
 
         Args:
             session (Session): The database session.
         """
-        active_event = session.exec(
-            select(AimbatEvent).where(AimbatEvent.active == 1)
+        default_event = session.exec(
+            select(AimbatEvent).where(AimbatEvent.is_default == 1)
         ).one()
-        assert active_event == get_active_event(session)
+        assert default_event == get_default_event(session)
 
     def test_switch(self, session: Session) -> None:
-        """Verifies switching the active event using an event object.
+        """Verifies switching the default event using an event object.
 
         Args:
             session (Session): The database session.
         """
-        active_event = get_active_event(session)
-        assert active_event is not None, "expected an active event in the test data"
+        default_event = get_default_event(session)
+        assert default_event is not None, "expected a default event in the test data"
 
         all_events = list(session.exec(select(AimbatEvent)).all())
         assert len(all_events) > 1, "expected multiple events in the test data"
 
-        all_events.remove(active_event)
-        new_active_event = all_events.pop()
+        all_events.remove(default_event)
+        new_default_event = all_events.pop()
         assert (
-            new_active_event != active_event
+            new_default_event != default_event
         ), "expected a different event to switch to"
 
-        set_active_event(session, new_active_event)
-        assert get_active_event(session) == new_active_event
+        set_default_event(session, new_default_event)
+        assert get_default_event(session) == new_default_event
 
     def test_switch_by_id(self, session: Session) -> None:
-        """Verifies switching the active event using an event ID.
+        """Verifies switching the default event using an event ID.
 
         Args:
             session (Session): The database session.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         event_ids = list(session.exec(select(AimbatEvent.id)).all())
 
-        event_ids.remove(active_event.id)
-        new_active_event_id = event_ids.pop()
+        event_ids.remove(default_event.id)
+        new_default_event_id = event_ids.pop()
         assert (
-            new_active_event_id != active_event.id
+            new_default_event_id != default_event.id
         ), "expected a different event id to switch to"
 
-        set_active_event_by_id(session, new_active_event_id)
+        set_default_event_by_id(session, new_default_event_id)
 
         assert (
-            get_active_event(session).id == new_active_event_id
-        ), "expected the active event to switch to the new event by id"
+            get_default_event(session).id == new_default_event_id
+        ), "expected the default event to switch to the new event by id"
 
     def test_switch_by_id_invalid(self, session: Session) -> None:
-        """Verifies that switching the active event using an invalid event ID raises an error."""
+        """Verifies that switching the default event using an invalid event ID raises an error."""
 
         new_uuid = uuid.uuid4()
         assert (
@@ -112,53 +111,24 @@ class TestActiveEvent:
         ), "expected no event with the generated UUID in the test data"
 
         with pytest.raises(ValueError):
-            set_active_event_by_id(session, uuid.uuid4())
+            set_default_event_by_id(session, uuid.uuid4())
 
-    def test_set_same_event_does_not_clear_cache(self, session: Session) -> None:
-        """Verifies that re-activating the already-active event does not clear the cache.
-
-        Args:
-            session: The database session.
-        """
-        active_event = get_active_event(session)
-
-        with patch("aimbat.core._active_event.clear_seismogram_cache") as mock_clear:
-            set_active_event(session, active_event)
-            mock_clear.assert_not_called()
-
-    def test_set_different_event_clears_cache(self, session: Session) -> None:
-        """Verifies that switching to a different event clears the cache.
-
-        Args:
-            session: The database session.
-        """
-        active_event = get_active_event(session)
-        other_event = next(
-            e
-            for e in session.exec(select(AimbatEvent)).all()
-            if e.id != active_event.id
-        )
-
-        with patch("aimbat.core._active_event.clear_seismogram_cache") as mock_clear:
-            set_active_event(session, other_event)
-            mock_clear.assert_called_once()
-
-    def test_get_active_event_no_active(self, session: Session) -> None:
-        """Verifies that `get_active_event` returns None if no event is marked as active.
+    def test_get_default_event_no_default(self, session: Session) -> None:
+        """Verifies that `get_default_event` returns None if no event is marked as default.
 
         Args:
             session (Session): The database session.
         """
-        active_event = get_active_event(session)
-        assert active_event is not None, "expected an active event in the test data"
-        active_event.active = None
+        default_event = get_default_event(session)
+        assert default_event is not None, "expected a default event in the test data"
+        default_event.is_default = None
         assert (
-            session.exec(select(AimbatEvent).where(AimbatEvent.active == 1)).first()
+            session.exec(select(AimbatEvent).where(AimbatEvent.is_default == 1)).first()
             is None
-        ), "expected no active event in the database after deactivating"
+        ), "expected no default event in the database after deactivating"
 
         with pytest.raises(NoResultFound):
-            get_active_event(session)
+            get_default_event(session)
 
 
 # ===================================================================
@@ -177,13 +147,13 @@ class TestDeleteEvent:
         """
         events = session.exec(select(AimbatEvent)).all()
         count_before = len(events)
-        non_active = next(e for e in events if not e.active)
+        non_default = next(e for e in events if not e.is_default)
 
-        delete_event(session, non_active)
+        delete_event(session, non_default)
 
         remaining = session.exec(select(AimbatEvent)).all()
         assert len(remaining) == count_before - 1
-        assert non_active not in remaining
+        assert non_default not in remaining
 
     def test_delete_event_by_id(self, session: Session) -> None:
         """Verifies that an event is removed from the database when deleted by ID.
@@ -193,9 +163,9 @@ class TestDeleteEvent:
         """
         events = session.exec(select(AimbatEvent)).all()
         count_before = len(events)
-        non_active = next(e for e in events if not e.active)
+        non_default = next(e for e in events if not e.is_default)
 
-        delete_event_by_id(session, non_active.id)
+        delete_event_by_id(session, non_default.id)
 
         remaining = session.exec(select(AimbatEvent)).all()
         assert len(remaining) == count_before - 1
@@ -289,7 +259,7 @@ class TestGetEventsUsingStation:
 
 
 class TestGetEventParameter:
-    """Tests for reading parameter values from the active event."""
+    """Tests for reading parameter values from the default event."""
 
     def test_get_timedelta_parameter(self, session: Session) -> None:
         """Verifies that a Timedelta parameter is returned as a Timedelta.
@@ -297,8 +267,8 @@ class TestGetEventParameter:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        value = get_event_parameter(session, active_event, EventParameter.WINDOW_PRE)
+        default_event = get_default_event(session)
+        value = get_event_parameter(session, default_event, EventParameter.WINDOW_PRE)
         assert isinstance(value, Timedelta)
 
     def test_get_float_parameter(self, session: Session) -> None:
@@ -307,8 +277,8 @@ class TestGetEventParameter:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        value = get_event_parameter(session, active_event, EventParameter.MIN_CCNORM)
+        default_event = get_default_event(session)
+        value = get_event_parameter(session, default_event, EventParameter.MIN_CCNORM)
         assert isinstance(value, float)
 
     def test_get_bool_parameter(self, session: Session) -> None:
@@ -317,13 +287,13 @@ class TestGetEventParameter:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        value = get_event_parameter(session, active_event, EventParameter.COMPLETED)
+        default_event = get_default_event(session)
+        value = get_event_parameter(session, default_event, EventParameter.COMPLETED)
         assert isinstance(value, bool)
 
 
 class TestSetEventParameter:
-    """Tests for writing parameter values to the active event."""
+    """Tests for writing parameter values to the default event."""
 
     def test_set_timedelta_parameter(self, session: Session) -> None:
         """Verifies that a Timedelta parameter is persisted correctly.
@@ -331,13 +301,13 @@ class TestSetEventParameter:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         new_value = Timedelta(seconds=20)
         set_event_parameter(
-            session, active_event, EventParameter.WINDOW_POST, new_value
+            session, default_event, EventParameter.WINDOW_POST, new_value
         )
         assert (
-            get_event_parameter(session, active_event, EventParameter.WINDOW_POST)
+            get_event_parameter(session, default_event, EventParameter.WINDOW_POST)
             == new_value
         )
 
@@ -347,11 +317,13 @@ class TestSetEventParameter:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         new_value = 0.75
-        set_event_parameter(session, active_event, EventParameter.MIN_CCNORM, new_value)
+        set_event_parameter(
+            session, default_event, EventParameter.MIN_CCNORM, new_value
+        )
         assert (
-            get_event_parameter(session, active_event, EventParameter.MIN_CCNORM)
+            get_event_parameter(session, default_event, EventParameter.MIN_CCNORM)
             == new_value
         )
 
@@ -361,10 +333,11 @@ class TestSetEventParameter:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        set_event_parameter(session, active_event, EventParameter.COMPLETED, True)
+        default_event = get_default_event(session)
+        set_event_parameter(session, default_event, EventParameter.COMPLETED, True)
         assert (
-            get_event_parameter(session, active_event, EventParameter.COMPLETED) is True
+            get_event_parameter(session, default_event, EventParameter.COMPLETED)
+            is True
         )
 
 
@@ -398,21 +371,21 @@ class TestDumpEventTableToJson:
         assert isinstance(result, list)
         assert len(result) > 0
         assert "id" in result[0]
-        assert "active" in result[0]
+        assert "is_default" in result[0]
 
 
 class TestDumpEventParameterTableToJson:
     """Tests for serialising the event parameter table to JSON."""
 
-    def test_active_event_as_string(self, session: Session) -> None:
-        """Verifies that a JSON string of the active event parameters is returned.
+    def test_default_event_as_string(self, session: Session) -> None:
+        """Verifies that a JSON string of the default event parameters is returned.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         result = dump_event_parameter_table_to_json(
-            session, all_events=False, as_string=True, event=active_event
+            session, all_events=False, as_string=True, event=default_event
         )
         assert isinstance(result, str)
         parsed = json.loads(result)
@@ -420,15 +393,15 @@ class TestDumpEventParameterTableToJson:
         assert "window_pre" in parsed
         assert "window_post" in parsed
 
-    def test_active_event_as_dict(self, session: Session) -> None:
-        """Verifies that a dict of the active event parameters is returned.
+    def test_default_event_as_dict(self, session: Session) -> None:
+        """Verifies that a dict of the default event parameters is returned.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         result = dump_event_parameter_table_to_json(
-            session, all_events=False, as_string=False, event=active_event
+            session, all_events=False, as_string=False, event=default_event
         )
         assert isinstance(result, dict)
         assert "min_ccnorm" in result

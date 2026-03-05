@@ -13,7 +13,7 @@ class _AimbatEventRead(SQLModel):
     """Read model for AimbatEvent including computed counts."""
 
     id: uuid.UUID
-    active: bool | None
+    is_default: bool | None
     time: PydanticTimestamp
     latitude: float
     longitude: float
@@ -28,7 +28,7 @@ class _AimbatEventRead(SQLModel):
         """Create an AimbatEventRead from an AimbatEvent ORM instance."""
         return cls(
             id=event.id,
-            active=event.active,
+            is_default=event.is_default,
             time=event.time,
             latitude=event.latitude,
             longitude=event.longitude,

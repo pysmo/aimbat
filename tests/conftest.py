@@ -9,7 +9,7 @@ import os
 import subprocess
 from aimbat.app import app
 from aimbat.io import DataType
-from aimbat.core import add_data_to_project, set_active_event, create_project
+from aimbat.core import add_data_to_project, set_default_event, create_project
 from aimbat.models import AimbatEvent
 from aimbat.logger import configure_logging
 from dataclasses import dataclass, field
@@ -245,7 +245,7 @@ def patched_engine(
 
 @pytest.fixture()
 def loaded_engine(patched_engine: Engine, multi_event_data: Sequence[Path]) -> Engine:
-    """A patched engine pre-populated with multi-event data and an active event.
+    """A patched engine pre-populated with multi-event data and an default event.
 
     Args:
         patched_engine: The monkeypatched SQLAlchemy Engine.
@@ -260,7 +260,7 @@ def loaded_engine(patched_engine: Engine, multi_event_data: Sequence[Path]) -> E
         add_data_to_project(session, datasources, DataType.SAC)
         events = session.exec(select(AimbatEvent)).all()
         lengths = [len(e.seismograms) for e in events]
-    set_active_event(session, events[lengths.index(max(lengths))])
+        set_default_event(session, events[lengths.index(max(lengths))])
     return patched_engine
 
 
@@ -280,7 +280,7 @@ def patched_session(patched_engine: Engine) -> Generator[Session, None, None]:
 
 @pytest.fixture()
 def loaded_session(loaded_engine: Engine) -> Generator[Session, None, None]:
-    """A session pre-populated with multi-event data and an active event.
+    """A session pre-populated with multi-event data and an default event.
 
     Args:
         loaded_engine: The monkeypatched SQLAlchemy Engine with data loaded.

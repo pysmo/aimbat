@@ -52,7 +52,7 @@ def cli_project_info(
 
     from aimbat.db import engine
     from aimbat.core._project import _project_exists
-    from aimbat.core import get_active_event
+    from aimbat.core import resolve_event
     from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
     from aimbat.logger import logger
     from sqlmodel import Session, select
@@ -95,21 +95,27 @@ def cli_project_info(
         )
 
         try:
-            active_event = get_active_event(session)
-            active_event_id = active_event.id
-            active_stations = len(station.get_stations_in_event(session, active_event))
-            seismograms_in_event = len(active_event.seismograms)
+            target_event = resolve_event(session, global_parameters.event_id)
+            target_event_id = target_event.id
+            active_stations = len(station.get_stations_in_event(session, target_event))
+            seismograms_in_event = len(target_event.seismograms)
             selected_seismograms_in_event = len(
-                seismogram.get_selected_seismograms(session, event=active_event)
+                seismogram.get_selected_seismograms(session, event=target_event)
             )
-        except NoResultFound:
-            active_event_id = None
+        except (NoResultFound, ValueError, RuntimeError):
+            target_event_id = None
             active_stations = None
             seismograms_in_event = None
             selected_seismograms_in_event = None
-        grid.add_row("Active Event ID: ", f"{active_event_id}")
+
+        event_label = (
+            "Selected Event ID: "
+            if global_parameters.event_id
+            else "Default Event ID: "
+        )
+        grid.add_row(event_label, f"{target_event_id}")
         grid.add_row(
-            "Number of Stations in Project (total/active event): ",
+            "Number of Stations in Project (total/selected event): ",
             f"({stations}/{active_stations})",
         )
 
@@ -118,7 +124,7 @@ def cli_project_info(
             f"({seismograms}/{selected_seismograms})",
         )
         grid.add_row(
-            "Number of Seismograms in Active Event (total/selected): ",
+            "Number of Seismograms in Selected Event (total/selected): ",
             f"({seismograms_in_event}/{selected_seismograms_in_event})",
         )
 

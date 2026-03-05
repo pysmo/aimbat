@@ -198,7 +198,7 @@ def plot_stack(iccs: ICCS, context: bool, all: bool, return_fig: bool) -> tuple 
         A tuple of (Figure, Axes) if return_fig is True, otherwise None.
     """
 
-    logger.info("Plotting ICCS stack for active event.")
+    logger.info("Plotting ICCS stack for default event.")
     return _plot_stack(iccs, context, all, return_fig=return_fig)  # type: ignore[call-overload]
 
 
@@ -217,7 +217,7 @@ def plot_iccs_seismograms(
         A tuple of (Figure, Axes) if return_fig is True, otherwise None.
     """
 
-    logger.info("Plotting ICCS seismograms for active event.")
+    logger.info("Plotting ICCS seismograms for default event.")
 
     return _plot_seismograms(iccs, context, all, return_fig=return_fig)  # type: ignore[call-overload]
 
@@ -230,7 +230,7 @@ def update_pick(
     use_seismogram_image: bool,
     return_fig: bool,
 ) -> tuple | None:
-    """Update the pick for the active event.
+    """Update the pick for the default event.
 
     Args:
         iccs: ICCS instance.
@@ -243,7 +243,7 @@ def update_pick(
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
     """
 
-    logger.info("Updating pick for active event.")
+    logger.info("Updating pick for default event.")
 
     result = _update_pick(  # type: ignore[call-overload]
         iccs, context, all, use_seismogram_image, return_fig=return_fig

@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 
 
 __all__ = [
-    "clear_seismogram_cache",
     "create_event",
     "create_seismogram",
     "create_station",
@@ -154,11 +153,6 @@ def supports_seismogram_data_writing(datatype: DataType) -> bool:
     return datatype in _seismogram_data_writers
 
 
-def clear_seismogram_cache() -> None:
-    """Clear the in-memory seismogram data cache."""
-    _cache.clear()
-
-
 def create_station(datasource: str | PathLike, datatype: DataType) -> AimbatStation:
     """Create an `AimbatStation` from a data source.
 
@@ -228,7 +222,7 @@ def read_seismogram_data(
 
     Results are cached in memory by `(datasource, datatype)` key. The cache
     entry is invalidated when `write_seismogram_data` is called for the same
-    key, and can be cleared manually with `clear_seismogram_cache`.
+    key.
 
     Args:
         datasource: Data source path or name.
