@@ -37,11 +37,12 @@ def cli_snapshot_create(
         comment: Optional description to help identify this snapshot later.
     """
     from aimbat.db import engine
-    from aimbat.core import create_snapshot
+    from aimbat.core import create_snapshot, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        create_snapshot(session, comment)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event, comment)
 
 
 @app.command(name="rollback")
@@ -84,12 +85,17 @@ def cli_snapshot_dump(
 ) -> None:
     """Dump the contents of the AIMBAT snapshot table to json."""
     from aimbat.db import engine
-    from aimbat.core import dump_snapshot_tables_to_json
+    from aimbat.core import dump_snapshot_tables_to_json, get_active_event
     from sqlmodel import Session
     from rich import print_json
 
     with Session(engine) as session:
-        print_json(dump_snapshot_tables_to_json(session, all_events, as_string=True))
+        active_event = get_active_event(session) if not all_events else None
+        print_json(
+            dump_snapshot_tables_to_json(
+                session, all_events, as_string=True, event=active_event
+            )
+        )
 
 
 @app.command(name="list")
@@ -101,11 +107,86 @@ def cli_snapshot_list(
 ) -> None:
     """Print information on the snapshots for the active event."""
     from aimbat.db import engine
-    from aimbat.core import print_snapshot_table
+    from aimbat.core import get_active_event, dump_snapshot_tables_to_json
+    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
+    from aimbat.logger import logger
+    from aimbat.models import AimbatEvent
+    from pandas import Timestamp
     from sqlmodel import Session
 
+    short = table_parameters.short
+
     with Session(engine) as session:
-        print_snapshot_table(session, table_parameters.short, all_events)
+        logger.info("Printing AIMBAT snapshots table.")
+
+        title = "AIMBAT snapshots for all events"
+
+        active_event = None
+        if not all_events:
+            active_event = get_active_event(session)
+            if short:
+                title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
+            else:
+                title = f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
+
+        data = dump_snapshot_tables_to_json(
+            session, all_events, as_string=False, event=active_event
+        )
+        snapshot_data = data["snapshots"]
+
+        column_order = ["id", "date", "comment", "seismogram_count"]
+        if all_events:
+            column_order.append("event_id")
+
+        skip_keys = [] if all_events else ["event_id"]
+
+        json_to_table(
+            data=snapshot_data,
+            title=title,
+            column_order=column_order,
+            skip_keys=skip_keys,
+            formatters={
+                "id": lambda x: (
+                    uuid_shortener(session, AimbatSnapshot, str_uuid=x) if short else x
+                ),
+                "date": lambda x: TABLE_STYLING.timestamp_formatter(
+                    Timestamp(x), short
+                ),
+                "event_id": lambda x: (
+                    uuid_shortener(session, AimbatEvent, str_uuid=x) if short else x
+                ),
+            },
+            common_column_kwargs={"justify": "center"},
+            column_kwargs={
+                "id": {
+                    "header": "ID (shortened)" if short else "ID",
+                    "style": TABLE_STYLING.id,
+                    "no_wrap": True,
+                },
+                "date": {
+                    "header": "Date & Time",
+                    "style": TABLE_STYLING.mine,
+                    "no_wrap": True,
+                },
+                "comment": {"style": TABLE_STYLING.mine},
+                "seismogram_count": {
+                    "header": "# Seismograms",
+                    "style": TABLE_STYLING.linked,
+                },
+                "selected_seismogram_count": {
+                    "header": "# Selected",
+                    "style": TABLE_STYLING.linked,
+                },
+                "flipped_seismogram_count": {
+                    "header": "# Flipped",
+                    "style": TABLE_STYLING.linked,
+                },
+                "event_id": {
+                    "header": "Event ID (shortened)" if short else "Event ID",
+                    "style": TABLE_STYLING.linked,
+                },
+            },
+        )
 
 
 @app.command(name="details")
@@ -117,12 +198,32 @@ def cli_snapshot_details(
 ) -> None:
     """Print information on the event parameters saved in a snapshot."""
     from aimbat.db import engine
-    from aimbat.core import print_snapshot_parameters_table_by_id
+    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
     from sqlmodel import Session
 
+    short = table_parameters.short
+
     with Session(engine) as session:
-        print_snapshot_parameters_table_by_id(
-            session, snapshot_id, table_parameters.short
+        snapshot = session.get(AimbatSnapshot, snapshot_id)
+
+        if snapshot is None:
+            raise ValueError(
+                f"Unable to print snapshot parameters: snapshot with id={snapshot_id} not found."
+            )
+
+        parameters_snapshot = snapshot.event_parameters_snapshot
+        json_to_table(
+            data=parameters_snapshot.model_dump(mode="json"),
+            title=f"Saved event parameters in snapshot: {uuid_shortener(session, parameters_snapshot.snapshot) if short else str(parameters_snapshot.snapshot.id)}",
+            skip_keys=["id", "snapshot_id", "parameters_id"],
+            common_column_kwargs={"highlight": True},
+            column_kwargs={
+                "Key": {
+                    "header": "Parameter",
+                    "justify": "left",
+                    "style": TABLE_STYLING.id,
+                },
+            },
         )
 
 

@@ -33,11 +33,12 @@ def cli_iccs_run(
             cross-correlation with the stack falls below `min_ccnorm`.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_iccs
+    from aimbat.core import create_iccs_instance, run_iccs, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        iccs = create_iccs_instance(session)
+        active_event = get_active_event(session)
+        iccs = create_iccs_instance(session, active_event).iccs
         run_iccs(session, iccs, autoflip, autoselect)
 
 
@@ -58,12 +59,13 @@ def cli_mccc_run(
             the currently selected ones.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_mccc
+    from aimbat.core import create_iccs_instance, run_mccc, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        iccs = create_iccs_instance(session)
-        run_mccc(session, iccs, all_seismograms)
+        active_event = get_active_event(session)
+        iccs = create_iccs_instance(session, active_event).iccs
+        run_mccc(session, active_event, iccs, all_seismograms)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ Re-adding a data source that is already in the project is safe — existing
 records are reused rather than duplicated.
 """
 
+import uuid
 from .common import (
     GlobalParameters,
     TableParameters,
@@ -35,13 +36,12 @@ from .common import (
     use_station_parameter,
     use_event_parameter,
 )
-from aimbat.models import AimbatEvent, AimbatStation
+from aimbat.models import AimbatEvent, AimbatStation, AimbatDataSource
 from aimbat.io import DataType
-from sqlmodel import Session
+from sqlmodel import Session, select
 from cyclopts import App, Parameter, validators
 from pathlib import Path
 from typing import Annotated
-import uuid
 
 app = App(name="data", help=__doc__, help_format="markdown")
 
@@ -106,22 +106,6 @@ def cli_data_add(
         )
 
 
-@app.command(name="list")
-@simple_exception
-def cli_data_list(
-    *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
-) -> None:
-    """Print a table of data sources registered in the AIMBAT project."""
-    from aimbat.db import engine
-    from aimbat.core import print_data_table
-
-    with Session(engine) as session:
-        print_data_table(session, table_parameters.short, all_events)
-
-
 @app.command(name="dump")
 @simple_exception
 def cli_data_dump(
@@ -138,6 +122,79 @@ def cli_data_dump(
 
     with Session(engine) as session:
         print_json(dump_data_table_to_json(session))
+
+
+@app.command(name="list")
+@simple_exception
+def cli_data_list(
+    *,
+    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
+) -> None:
+    """Print a table of data sources registered in the AIMBAT project."""
+    from aimbat.db import engine
+    from aimbat.core import get_active_event, get_data_for_event
+    from aimbat.utils import uuid_shortener, make_table, TABLE_STYLING
+    from aimbat.logger import logger
+    from rich.console import Console
+
+    short = table_parameters.short
+
+    with Session(engine) as session:
+        logger.info("Printing data sources table.")
+
+        if all_events:
+            aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
+            title = "Data sources for all events"
+        else:
+            active_event = get_active_event(session)
+            aimbat_data_sources = get_data_for_event(session, active_event)
+            time = (
+                active_event.time.strftime("%Y-%m-%d %H:%M:%S")
+                if short
+                else active_event.time
+            )
+            id = uuid_shortener(session, active_event) if short else active_event.id
+            title = f"Data sources for event {time} (ID={id})"
+
+        logger.debug(f"Found {len(aimbat_data_sources)} data sources in total.")
+
+        rows = [
+            [
+                uuid_shortener(session, a) if short else str(a.id),
+                str(a.datatype),
+                str(a.sourcename),
+                (
+                    uuid_shortener(session, a.seismogram)
+                    if short
+                    else str(a.seismogram.id)
+                ),
+            ]
+            for a in aimbat_data_sources
+        ]
+
+        table = make_table(title=title)
+
+        table.add_column(
+            "ID (shortened)" if short else "ID",
+            justify="center",
+            style=TABLE_STYLING.id,
+            no_wrap=True,
+        )
+        table.add_column("Datatype", justify="center", style=TABLE_STYLING.mine)
+        table.add_column(
+            "Source", justify="left", style=TABLE_STYLING.mine, no_wrap=True
+        )
+        table.add_column(
+            "Seismogram ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
+        )
+
+        for row in rows:
+            table.add_row(*row)
+
+        console = Console()
+        console.print(table)
 
 
 if __name__ == "__main__":

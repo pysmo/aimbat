@@ -18,6 +18,7 @@ class _AimbatEventRead(SQLModel):
     latitude: float
     longitude: float
     depth: float | None
+    last_modified: PydanticTimestamp | None = None
     completed: bool = False
     seismogram_count: int
     station_count: int
@@ -32,6 +33,7 @@ class _AimbatEventRead(SQLModel):
             latitude=event.latitude,
             longitude=event.longitude,
             depth=event.depth,
+            last_modified=event.last_modified,
             completed=event.parameters.completed,
             seismogram_count=event.seismogram_count,
             station_count=event.station_count,

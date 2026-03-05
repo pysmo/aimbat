@@ -1,4 +1,4 @@
-# Defaults
+# AIMBAT defaults
 
 AIMBAT behaviour can be customised via the following settings.
 Each setting can be overridden on a per-project basis (in order of precedence):

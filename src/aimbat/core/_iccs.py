@@ -1,13 +1,11 @@
 """Processing of data for AIMBAT."""
 
-from aimbat.core import get_active_event
-from aimbat import settings
-from aimbat.logger import logger
-from aimbat.models import AimbatSeismogram
-from aimbat.models._parameters import (
-    AimbatEventParametersBase,
-    AimbatSeismogramParametersBase,
-)
+from dataclasses import dataclass
+from uuid import UUID
+
+from pandas import Timestamp
+from sqlmodel import Session
+from pysmo.functions import clone_to_mini
 from pysmo.tools.iccs import (
     ICCS,
     MiniICCSSeismogram,
@@ -17,10 +15,16 @@ from pysmo.tools.iccs import (
     update_pick as _update_pick,
     update_timewindow as _update_timewindow,
 )
-from pysmo.functions import clone_to_mini
-from sqlmodel import Session
+from aimbat import settings
+from aimbat.logger import logger
+from aimbat.models import AimbatSeismogram, AimbatEvent
+from aimbat.models._parameters import (
+    AimbatEventParametersBase,
+    AimbatSeismogramParametersBase,
+)
 
 __all__ = [
+    "BoundICCS",
     "create_iccs_instance",
     "sync_iccs_parameters",
     "run_iccs",
@@ -33,30 +37,55 @@ __all__ = [
 ]
 
 
-def create_iccs_instance(session: Session) -> ICCS:
-    """Create an ICCS instance for the active event.
+@dataclass
+class BoundICCS:
+    """An ICCS instance explicitly bound to a specific event.
+
+    Use `is_stale` to detect whether the event's parameters have been modified
+    (e.g. by a CLI command) since this instance was created.
+    """
+
+    iccs: ICCS
+    event_id: UUID
+    created_at: Timestamp
+
+    def is_stale(self, event: AimbatEvent) -> bool:
+        """Return True if the event has been modified since this ICCS was created.
+
+        Args:
+            event: The event to check against.
+        """
+        if event.id != self.event_id:
+            return True
+        if event.last_modified is None:
+            return False
+        return event.last_modified > self.created_at
+
+
+def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
+    """Create a BoundICCS instance for the given event.
 
     Seismogram data is copied into MiniICCSSeismogram objects so the session
     does not need to remain open after this call.
 
     Args:
         session: Database session.
+        event: AimbatEvent.
 
     Returns:
-        ICCS instance.
+        BoundICCS instance tied to the given event.
     """
 
-    logger.info("Creating ICCS instance for active event.")
+    logger.info(f"Creating ICCS instance for event {event.id}.")
 
-    active_event = get_active_event(session)
-    p = active_event.parameters
+    p = event.parameters
 
     seismograms = [
         clone_to_mini(MiniICCSSeismogram, seis, update={"extra": {"id": seis.id}})
-        for seis in active_event.seismograms
+        for seis in event.seismograms
     ]
 
-    return ICCS(
+    iccs = ICCS(
         seismograms=seismograms,
         window_pre=p.window_pre,
         window_post=p.window_post,
@@ -66,6 +95,7 @@ def create_iccs_instance(session: Session) -> ICCS:
         min_ccnorm=p.min_ccnorm,
         context_width=settings.context_width,
     )
+    return BoundICCS(iccs=iccs, event_id=event.id, created_at=Timestamp.now("UTC"))
 
 
 def _write_back_seismograms(session: Session, iccs: ICCS) -> None:
@@ -84,7 +114,7 @@ def _write_back_seismograms(session: Session, iccs: ICCS) -> None:
     session.commit()
 
 
-def sync_iccs_parameters(session: Session, iccs: ICCS) -> None:
+def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
     """Sync an existing ICCS instance's parameters from the database.
 
     Updates event-level and per-seismogram parameters without re-reading waveform
@@ -93,13 +123,13 @@ def sync_iccs_parameters(session: Session, iccs: ICCS) -> None:
 
     Args:
         session: Database session.
+        event: AimbatEvent.
         iccs: ICCS instance to update in-place.
     """
 
-    logger.info("Syncing ICCS parameters from database.")
+    logger.info(f"Syncing ICCS parameters from database for event {event.id}.")
 
-    active_event = get_active_event(session)
-    event_params = AimbatEventParametersBase.model_validate(active_event.parameters)
+    event_params = AimbatEventParametersBase.model_validate(event.parameters)
     for field_name in AimbatEventParametersBase.model_fields:
         if hasattr(iccs, field_name):
             setattr(iccs, field_name, getattr(event_params, field_name))
@@ -133,22 +163,24 @@ def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> 
     _write_back_seismograms(session, iccs)
 
 
-def run_mccc(session: Session, iccs: ICCS, all_seismograms: bool) -> None:
+def run_mccc(
+    session: Session, event: AimbatEvent, iccs: ICCS, all_seismograms: bool
+) -> None:
     """Run MCCC algorithm.
 
     Args:
         session: Database session.
+        event: AimbatEvent.
         iccs: ICCS instance.
         all_seismograms: Whether to include all seismograms in the MCCC processing, or just the selected ones.
     """
 
-    logger.info(f"Running MCCC with {all_seismograms=}.")
+    logger.info(f"Running MCCC for event {event.id} with {all_seismograms=}.")
 
-    active_event = get_active_event(session)
     iccs.run_mccc(
         all_seismograms=all_seismograms,
-        min_cc=active_event.parameters.mccc_min_ccnorm,
-        damping=active_event.parameters.mccc_damp,
+        min_cc=event.parameters.mccc_min_ccnorm,
+        damping=event.parameters.mccc_damp,
     )
     _write_back_seismograms(session, iccs)
 
@@ -229,15 +261,18 @@ def update_pick(
 
 def update_timewindow(
     session: Session,
+    event: AimbatEvent,
     iccs: ICCS,
     context: bool,
     all: bool,
     use_seismogram_image: bool,
     return_fig: bool,
 ) -> tuple | None:
-    """Update the time window for the active event.
+    """Update the time window for the given event.
 
     Args:
+        session: Database session.
+        event: AimbatEvent.
         iccs: ICCS instance.
         context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
@@ -248,16 +283,15 @@ def update_timewindow(
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
     """
 
-    logger.info("Updating time window for active event.")
+    logger.info(f"Updating time window for event {event.id}.")
 
     result = _update_timewindow(  # type: ignore[call-overload]
         iccs, context, all, use_seismogram_image, return_fig=return_fig
     )
 
     if not return_fig:
-        active_event = get_active_event(session)
-        active_event.parameters.window_pre = iccs.window_pre
-        active_event.parameters.window_post = iccs.window_post
+        event.parameters.window_pre = iccs.window_pre
+        event.parameters.window_post = iccs.window_post
         session.commit()
         return None
 
@@ -268,11 +302,18 @@ def update_timewindow(
 
 
 def update_min_ccnorm(
-    session: Session, iccs: ICCS, context: bool, all: bool, return_fig: bool
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all: bool,
+    return_fig: bool,
 ) -> tuple | None:
-    """Update the minimum cross correlation coefficient for the active event.
+    """Update the minimum cross correlation coefficient for the given event.
 
     Args:
+        session: Database session.
+        event: AimbatEvent.
         iccs: ICCS instance.
         context: Whether to use seismograms with extra context.
         all: Whether to plot all seismograms.
@@ -282,13 +323,12 @@ def update_min_ccnorm(
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
     """
 
-    logger.info("Updating minimum cross correlation coefficient for active event.")
+    logger.info(f"Updating minimum cross correlation coefficient for event {event.id}.")
 
     result = _update_min_ccnorm(iccs, context, all, return_fig=return_fig)  # type: ignore[call-overload]
 
     if not return_fig:
-        active_event = get_active_event(session)
-        active_event.parameters.min_ccnorm = float(iccs.min_ccnorm)
+        event.parameters.min_ccnorm = float(iccs.min_ccnorm)
         session.commit()
         return None
 

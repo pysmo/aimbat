@@ -1,24 +1,17 @@
 # Data
 
-Because a lot of operations in AIMBAT involve adjusting parameters that do
-*not* require reading entire seismograms, the time series components of the
-seismograms are kept separate from the rest of the data. If this were not the
-case, doing something like adjusting the time window for the cross-correlation
-for an event with 200 seismograms, would require reading all 200 seismograms
-from disk, even though their data are not actually used for that operation. Not
-having to do this naturally benefits performance, but also means that an AIMBAT
-project does not really use up much disk space at all. As this is true for any
-amount of seismograms, we can include multiple events in a single project.
+AIMBAT treats input data as read-only. Processing parameters and results are
+stored separately from the data in a database. Once imported into a project,
+the data sources (e.g. SAC files) are only used to read the waveforms. All
+metadata (e.g. event and station information) is stored in the database.
 
 ## Data hierarchy
 
 Moving away from storing all data in individual files means things are
-organised differently. Most importantly, seismograms, after importing them into
-a project, no longer each contain event and station information. Instead they
-use (and share) separately stored events and stations. Thus a single event will
-contain multiple seismograms. The same is true for a single station, while the
-seismograms themselves use exactly one event, one station, and one data source
-(containing the time series).
+organised differently. For example, a seismogram in AIMBAT is no longer a file;
+it is an object in the database that links to a data source, station and event.
+Stations and events are also objects in the database, and they are shared
+between seismograms.
 
 ```mermaid
 ---
@@ -32,21 +25,25 @@ erDiagram
 
 ```
 
-While all of this happens transparently to the user, there are still some
-things to be mindful of:
+!!! Tip
+    Seismograms that are supposed to be processed together are identified only
+    by their shared event and station in the database. You can therefore be
+    quite flexible in how you organise your data on disk, but you must make
+    sure they reference the exact same station and event information — small
+    differences in the metadata (e.g. a different number of decimal places) may
+    lead to AIMBAT treating seismograms as belonging to different events or
+    stations.
 
-- Seismograms that are supposed to be processed together are no longer
-  identified e.g. by being stored in the same directory, but instead from using
-  the same event and station. Thus the files they are created from when adding
-  them to an AIMBAT project *must* contain identical station and event data.
+## Deleting items
+
+All of the above happens transparently to the user, but there are some things to
+be mindful of when it comes to deleting items from a project:
+
 - Deleting[^1] an event or station from a project will remove all related
   seismograms.
-- Conversely, deleting a seismogram will *not* remove the event or
-  station. This remains true even if an event or station end up not being used
-  by any seismograms in the project.
-- After importing a seismogram into a project, it no longer accesses the
-  metadata stored in the source file. It does, however, still need to be able
-  to read the time series data from it.
+- Conversely, deleting a seismogram will *not* remove the event or station.
+  This remains true even if an event or station end up not being used by any
+  seismograms in the project.
 
 !!! Tip
     If this all seems overly complicated to you, remember that often parameters
@@ -88,18 +85,13 @@ processing:
 
 ### AIMBAT Defaults
 
-AIMBAT defaults are global settings that control how the application itself
-behaves, as well as defaults for [event](#event-parameters) and
-[seismogram](#seismogram-parameters) parameters when they are instantiated.
-The currently used values for these parameters can be found by running
-`#!bash aimbat settings` in your terminal. As some settings are relevant before
-a project is created, they cannot be stored in the project file. To override these
-settings you can set the corresponding environment variable directly (e.g.
-`export AIMBAT_PROJECT=different_project_name.db`) or place those settings in a
-`.env`[^2] file. Note that if you set them in both places the environment
-variable is used.
-
-[^2]: The file must be named exactly `.env`, and not `SOMENAME.env`!
+AIMBAT [defaults](../usage/defaults.md) are global settings that control how
+the application itself behaves, as well as defaults for
+[event](#event-parameters) and [seismogram](#seismogram-parameters) parameters
+when they are instantiated. The currently used values for these parameters can
+be listed by running `#!bash aimbat utils settings` in the terminal. As some
+settings are relevant before a project is created, they cannot be stored in
+the project file.
 
 ### Event Parameters
 
@@ -108,14 +100,14 @@ specific to an event (e.g. if an event should be marked as completed), or
 parameters that are shared across all seismograms of that event (e.g. time
 window for the cross-correlation, filter parameters, etc.).
 These parameters are attributes of the
-[`AimbatEventParametersBase`][aimbat.lib.models.AimbatEventParametersBase]
+[`AimbatEventParametersBase`][aimbat.models.AimbatEventParametersBase]
 class.
 
 ### Seismogram Parameters
 
 Seismogram parameters are also used during processing. Most notably the time
 picks belong to this tier. These parameters are attributes of the
-[`AimbatSeismogramParametersBase`][aimbat.lib.models.AimbatSeismogramParametersBase]
+[`AimbatSeismogramParametersBase`][aimbat.models.AimbatSeismogramParametersBase]
 class.
 
 ## Snapshots
@@ -138,7 +130,7 @@ Internally, the items in a project use
 [UUIDs](https://en.wikipedia.org/wiki/Universally_unique_identifier) to
 identify themselves. They look something like this:
 
-```
+```text
 37a8245f-c508-46a7-9bbc-d1c601e42983
 ```
 
@@ -149,7 +141,7 @@ easier, they are typically presented in a truncated form to the user (but
 always long enough to be unique). For example, if there are only four
 seismograms and they have these UUIDS:
 
-```
+```text
 6a4acdf7-6c7b-4523-aaaa-0a674cdc5f2d
 647568aa-8361-45ef-bfc8-61f873847f17
 c980918d-106d-44d9-a3fa-5740f58edf4e
@@ -158,7 +150,7 @@ c980918d-106d-44d9-a3fa-5740f58edf4e
 
 they can still be unambiguously identified using only the first two characters:
 
-```
+```text
 6a
 64
 c9

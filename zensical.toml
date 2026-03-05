@@ -18,9 +18,12 @@ nav = [
   ] },
   { "Usage" = [
     {"Using AIMBAT" = "usage/index.md"},
-    "usage/cli.md",
-    "usage/gui.md",
-    "usage/defaults.md",
+    {"CLI" = "usage/cli.md"},
+    {"Shell" = "usage/shell.md"},
+    {"TUI" = "usage/tui.md"},
+    {"GUI" = "usage/gui.md"},
+    {"API" = "usage/api.md"},
+    {"Defaults" = "usage/defaults.md"},
   ] },
   { "API reference" = [
     "api/aimbat.md",

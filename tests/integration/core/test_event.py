@@ -4,8 +4,10 @@ import json
 import uuid
 import pytest
 from unittest.mock import patch
-from aimbat.core import set_active_event, set_active_event_by_id, get_active_event
-from aimbat.core._event import (
+from aimbat.core import (
+    set_active_event,
+    set_active_event_by_id,
+    get_active_event,
     delete_event,
     delete_event_by_id,
     get_completed_events,
@@ -14,8 +16,6 @@ from aimbat.core._event import (
     set_event_parameter,
     dump_event_table_to_json,
     dump_event_parameter_table_to_json,
-    print_event_table,
-    print_event_parameter_table,
 )
 from aimbat._types import EventParameter
 from aimbat.models import AimbatEvent, AimbatStation
@@ -297,7 +297,8 @@ class TestGetEventParameter:
         Args:
             session: The database session.
         """
-        value = get_event_parameter(session, EventParameter.WINDOW_PRE)
+        active_event = get_active_event(session)
+        value = get_event_parameter(session, active_event, EventParameter.WINDOW_PRE)
         assert isinstance(value, Timedelta)
 
     def test_get_float_parameter(self, session: Session) -> None:
@@ -306,7 +307,8 @@ class TestGetEventParameter:
         Args:
             session: The database session.
         """
-        value = get_event_parameter(session, EventParameter.MIN_CCNORM)
+        active_event = get_active_event(session)
+        value = get_event_parameter(session, active_event, EventParameter.MIN_CCNORM)
         assert isinstance(value, float)
 
     def test_get_bool_parameter(self, session: Session) -> None:
@@ -315,7 +317,8 @@ class TestGetEventParameter:
         Args:
             session: The database session.
         """
-        value = get_event_parameter(session, EventParameter.COMPLETED)
+        active_event = get_active_event(session)
+        value = get_event_parameter(session, active_event, EventParameter.COMPLETED)
         assert isinstance(value, bool)
 
 
@@ -328,9 +331,15 @@ class TestSetEventParameter:
         Args:
             session: The database session.
         """
+        active_event = get_active_event(session)
         new_value = Timedelta(seconds=20)
-        set_event_parameter(session, EventParameter.WINDOW_POST, new_value)
-        assert get_event_parameter(session, EventParameter.WINDOW_POST) == new_value
+        set_event_parameter(
+            session, active_event, EventParameter.WINDOW_POST, new_value
+        )
+        assert (
+            get_event_parameter(session, active_event, EventParameter.WINDOW_POST)
+            == new_value
+        )
 
     def test_set_float_parameter(self, session: Session) -> None:
         """Verifies that a float parameter is persisted correctly.
@@ -338,9 +347,13 @@ class TestSetEventParameter:
         Args:
             session: The database session.
         """
+        active_event = get_active_event(session)
         new_value = 0.75
-        set_event_parameter(session, EventParameter.MIN_CCNORM, new_value)
-        assert get_event_parameter(session, EventParameter.MIN_CCNORM) == new_value
+        set_event_parameter(session, active_event, EventParameter.MIN_CCNORM, new_value)
+        assert (
+            get_event_parameter(session, active_event, EventParameter.MIN_CCNORM)
+            == new_value
+        )
 
     def test_set_bool_parameter(self, session: Session) -> None:
         """Verifies that a bool parameter is persisted correctly.
@@ -348,8 +361,11 @@ class TestSetEventParameter:
         Args:
             session: The database session.
         """
-        set_event_parameter(session, EventParameter.COMPLETED, True)
-        assert get_event_parameter(session, EventParameter.COMPLETED) is True
+        active_event = get_active_event(session)
+        set_event_parameter(session, active_event, EventParameter.COMPLETED, True)
+        assert (
+            get_event_parameter(session, active_event, EventParameter.COMPLETED) is True
+        )
 
 
 # ===================================================================
@@ -394,8 +410,9 @@ class TestDumpEventParameterTableToJson:
         Args:
             session: The database session.
         """
+        active_event = get_active_event(session)
         result = dump_event_parameter_table_to_json(
-            session, all_events=False, as_string=True
+            session, all_events=False, as_string=True, event=active_event
         )
         assert isinstance(result, str)
         parsed = json.loads(result)
@@ -409,8 +426,9 @@ class TestDumpEventParameterTableToJson:
         Args:
             session: The database session.
         """
+        active_event = get_active_event(session)
         result = dump_event_parameter_table_to_json(
-            session, all_events=False, as_string=False
+            session, all_events=False, as_string=False, event=active_event
         )
         assert isinstance(result, dict)
         assert "min_ccnorm" in result
@@ -443,60 +461,3 @@ class TestDumpEventParameterTableToJson:
         assert isinstance(result, list)
         assert len(result) > 0
         assert "min_ccnorm" in result[0]
-
-
-# ===================================================================
-# Print tables
-# ===================================================================
-
-
-class TestPrintEventTable:
-    """Tests for printing the event table."""
-
-    def test_print_short(self, session: Session, capsys: pytest.CaptureFixture) -> None:
-        """Verifies that print_event_table produces output with short=True.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_event_table(session, short=True)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_long(self, session: Session, capsys: pytest.CaptureFixture) -> None:
-        """Verifies that print_event_table produces output with short=False.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_event_table(session, short=False)
-        assert len(capsys.readouterr().out) > 0
-
-
-class TestPrintEventParameterTable:
-    """Tests for printing the event parameter table."""
-
-    def test_print_active_event(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that print_event_parameter_table produces output for the active event.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_event_parameter_table(session, short=False, all_events=False)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_all_events(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that print_event_parameter_table produces output for all events.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_event_parameter_table(session, short=False, all_events=True)
-        assert len(capsys.readouterr().out) > 0

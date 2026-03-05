@@ -12,9 +12,6 @@ from aimbat.core._snapshot import (
     rollback_to_snapshot,
     rollback_to_snapshot_by_id,
     dump_snapshot_tables_to_json,
-    print_snapshot_table,
-    print_snapshot_parameters_table,
-    print_snapshot_parameters_table_by_id,
 )
 from aimbat.core import get_active_event
 from aimbat.models import AimbatSnapshot, AimbatSeismogram
@@ -44,7 +41,8 @@ def snapshot(session: Session) -> AimbatSnapshot:
     Returns:
         An AimbatSnapshot for the active event.
     """
-    create_snapshot(session)
+    active_event = get_active_event(session)
+    create_snapshot(session, active_event)
     return session.exec(select(AimbatSnapshot)).one()
 
 
@@ -58,7 +56,8 @@ class TestCreateSnapshot:
             session: The database session.
         """
         assert len(session.exec(select(AimbatSnapshot)).all()) == 0
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         assert len(session.exec(select(AimbatSnapshot)).all()) == 1
 
     def test_snapshot_linked_to_active_event(self, session: Session) -> None:
@@ -68,7 +67,7 @@ class TestCreateSnapshot:
             session: The database session.
         """
         active_event = get_active_event(session)
-        create_snapshot(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.event_id == active_event.id
 
@@ -78,7 +77,8 @@ class TestCreateSnapshot:
         Args:
             session: The database session.
         """
-        create_snapshot(session, comment="test comment")
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event, comment="test comment")
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment == "test comment"
 
@@ -88,7 +88,8 @@ class TestCreateSnapshot:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment is None
 
@@ -101,7 +102,7 @@ class TestCreateSnapshot:
         active_event = get_active_event(session)
         n_seismograms = len(active_event.seismograms)
 
-        create_snapshot(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert len(snapshot.seismogram_parameters_snapshots) == n_seismograms
 
@@ -311,7 +312,8 @@ class TestGetSnapshots:
         Args:
             session: The database session.
         """
-        assert len(get_snapshots(session)) == 0
+        active_event = get_active_event(session)
+        assert len(get_snapshots(session, event=active_event)) == 0
 
     def test_get_snapshots_for_active_event(
         self, session: Session, snapshot: AimbatSnapshot
@@ -322,7 +324,8 @@ class TestGetSnapshots:
             session: The database session.
             snapshot: An AimbatSnapshot for the active event.
         """
-        snapshots = get_snapshots(session, all_events=False)
+        active_event = get_active_event(session)
+        snapshots = get_snapshots(session, event=active_event, all_events=False)
         assert len(snapshots) == 1
         assert snapshots[0].id == snapshot.id
 
@@ -344,9 +347,10 @@ class TestGetSnapshots:
         Args:
             session: The database session.
         """
-        create_snapshot(session, comment="first")
-        create_snapshot(session, comment="second")
-        assert len(get_snapshots(session)) == 2
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event, comment="first")
+        create_snapshot(session, active_event, comment="second")
+        assert len(get_snapshots(session, event=active_event)) == 2
 
 
 class TestDumpSnapshotTablesToJson:
@@ -359,7 +363,10 @@ class TestDumpSnapshotTablesToJson:
             session: The database session.
             snapshot: An AimbatSnapshot to include in the dump.
         """
-        result = dump_snapshot_tables_to_json(session, all_events=False, as_string=True)
+        active_event = get_active_event(session)
+        result = dump_snapshot_tables_to_json(
+            session, all_events=False, as_string=True, event=active_event
+        )
         assert isinstance(result, str)
         parsed = json.loads(result)
         assert "snapshots" in parsed
@@ -373,8 +380,9 @@ class TestDumpSnapshotTablesToJson:
             session: The database session.
             snapshot: An AimbatSnapshot to include in the dump.
         """
+        active_event = get_active_event(session)
         result = dump_snapshot_tables_to_json(
-            session, all_events=False, as_string=False
+            session, all_events=False, as_string=False, event=active_event
         )
         assert isinstance(result, dict)
         assert "snapshots" in result
@@ -389,8 +397,9 @@ class TestDumpSnapshotTablesToJson:
             session: The database session.
             snapshot: An AimbatSnapshot to include in the dump.
         """
+        active_event = get_active_event(session)
         active_only = dump_snapshot_tables_to_json(
-            session, all_events=False, as_string=False
+            session, all_events=False, as_string=False, event=active_event
         )
         all_events = dump_snapshot_tables_to_json(
             session, all_events=True, as_string=False
@@ -409,136 +418,3 @@ class TestDumpSnapshotTablesToJson:
         n_seismograms = len(session.exec(select(AimbatSeismogram)).all())
         result = dump_snapshot_tables_to_json(session, all_events=True, as_string=False)
         assert len(result["seismogram_parameters"]) <= n_seismograms
-
-
-class TestPrintSnapshotParametersTable:
-    """Tests for printing the snapshot parameters table."""
-
-    def test_print_short(
-        self,
-        session: Session,
-        snapshot: AimbatSnapshot,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        """Verifies that output is produced with short=True.
-
-        Args:
-            session: The database session.
-            snapshot: An AimbatSnapshot whose event parameters are displayed.
-            capsys: The pytest capsys fixture.
-        """
-        print_snapshot_parameters_table(
-            session, snapshot.event_parameters_snapshot, short=True
-        )
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_long(
-        self,
-        session: Session,
-        snapshot: AimbatSnapshot,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        """Verifies that output is produced with short=False.
-
-        Args:
-            session: The database session.
-            snapshot: An AimbatSnapshot whose event parameters are displayed.
-            capsys: The pytest capsys fixture.
-        """
-        print_snapshot_parameters_table(
-            session, snapshot.event_parameters_snapshot, short=False
-        )
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_by_id_short(
-        self,
-        session: Session,
-        snapshot: AimbatSnapshot,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        """Verifies that output is produced when looking up by snapshot ID with short=True.
-
-        Args:
-            session: The database session.
-            snapshot: An AimbatSnapshot whose ID is used for lookup.
-            capsys: The pytest capsys fixture.
-        """
-        print_snapshot_parameters_table_by_id(session, snapshot.id, short=True)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_by_id_long(
-        self,
-        session: Session,
-        snapshot: AimbatSnapshot,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        """Verifies that output is produced when looking up by snapshot ID with short=False.
-
-        Args:
-            session: The database session.
-            snapshot: An AimbatSnapshot whose ID is used for lookup.
-            capsys: The pytest capsys fixture.
-        """
-        print_snapshot_parameters_table_by_id(session, snapshot.id, short=False)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_by_id_not_found(self, session: Session) -> None:
-        """Verifies that a ValueError is raised for an unknown snapshot ID.
-
-        Args:
-            session: The database session.
-        """
-        with pytest.raises(ValueError):
-            print_snapshot_parameters_table_by_id(session, uuid.uuid4(), short=False)
-
-
-class TestPrintSnapshotTable:
-    """Tests for printing the snapshot table."""
-
-    def test_print_active_event_short(
-        self,
-        session: Session,
-        snapshot: AimbatSnapshot,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        """Verifies that output is produced for the active event with short=True.
-
-        Args:
-            session: The database session.
-            snapshot: An AimbatSnapshot to display.
-            capsys: The pytest capsys fixture.
-        """
-        print_snapshot_table(session, short=True, all_events=False)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_active_event_long(
-        self,
-        session: Session,
-        snapshot: AimbatSnapshot,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        """Verifies that output is produced for the active event with short=False.
-
-        Args:
-            session: The database session.
-            snapshot: An AimbatSnapshot to display.
-            capsys: The pytest capsys fixture.
-        """
-        print_snapshot_table(session, short=False, all_events=False)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_all_events(
-        self,
-        session: Session,
-        snapshot: AimbatSnapshot,
-        capsys: pytest.CaptureFixture,
-    ) -> None:
-        """Verifies that output is produced when printing snapshots for all events.
-
-        Args:
-            session: The database session.
-            snapshot: An AimbatSnapshot to display.
-            capsys: The pytest capsys fixture.
-        """
-        print_snapshot_table(session, short=False, all_events=True)
-        assert len(capsys.readouterr().out) > 0

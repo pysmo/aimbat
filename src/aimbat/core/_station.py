@@ -1,23 +1,20 @@
 import uuid
-from aimbat.core import get_active_event
-from aimbat.logger import logger
-from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
-from aimbat.models import AimbatStation, AimbatSeismogram, AimbatEvent
 from typing import overload, Literal, Any
 from sqlmodel import Session, select, col
 from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
 from collections.abc import Sequence
 from pydantic import TypeAdapter
+from aimbat.logger import logger
+from aimbat.models import AimbatStation, AimbatSeismogram, AimbatEvent
 
 __all__ = [
     "delete_station_by_id",
     "delete_station",
     "get_stations_in_event",
-    "get_stations_in_active_event",
-    "get_stations_with_event_seismogram_count",
     "dump_station_table_to_json",
-    "print_station_table",
+    "dump_station_table_with_counts",
+    "get_stations_with_event_and_seismogram_count",
 ]
 
 
@@ -55,35 +52,36 @@ def delete_station(session: Session, station: AimbatStation) -> None:
 
 
 @overload
-def get_stations_in_active_event(
-    session: Session, as_json: Literal[False]
+def get_stations_in_event(
+    session: Session, event: AimbatEvent, as_json: Literal[False] = ...
 ) -> Sequence[AimbatStation]: ...
 
 
 @overload
-def get_stations_in_active_event(
-    session: Session, as_json: Literal[True]
+def get_stations_in_event(
+    session: Session, event: AimbatEvent, as_json: Literal[True]
 ) -> list[dict[str, Any]]: ...
 
 
-def get_stations_in_active_event(
-    session: Session, as_json: bool
+def get_stations_in_event(
+    session: Session, event: AimbatEvent, as_json: bool = False
 ) -> Sequence[AimbatStation] | list[dict[str, Any]]:
-    """Get the stations for the active event.
+    """Get the stations for a particular event.
 
     Args:
         session: Database session.
+        event: Event to return stations for.
+        as_json: Whether to return the result as JSON.
 
-    Returns: Stations in active event.
+    Returns: Stations in event.
     """
-    logger.info("Getting stations for active event.")
+    logger.info(f"Getting stations for event: {event.id}.")
 
     statement = (
         select(AimbatStation)
         .distinct()
         .join(AimbatSeismogram)
-        .join(AimbatEvent)
-        .where(AimbatEvent.active == True)  # noqa: E712
+        .where(AimbatSeismogram.event_id == event.id)
     )
 
     logger.debug(f"Executing query: {statement}")
@@ -97,55 +95,16 @@ def get_stations_in_active_event(
     return adapter.dump_python(results, mode="json")
 
 
-def get_stations_in_event(
-    session: Session, event: AimbatEvent
-) -> Sequence[AimbatStation]:
-    """Get the stations for a particular event.
-
-    Args:
-        session: Database session.
-        event: Event to return stations for.
-
-    Returns: Stations in event.
-    """
-    logger.info(f"Getting stations for event: {event.id}.")
-
-    statement = (
-        select(AimbatStation)
-        .join(AimbatSeismogram)
-        .join(AimbatEvent)
-        .where(AimbatEvent.id == event.id)
-    )
-
-    logger.debug(f"Executing query: {statement}")
-    stations = session.exec(statement).all()
-
-    return stations
-
-
-@overload
-def get_stations_with_event_seismogram_count(
-    session: Session, as_json: Literal[False]
-) -> Sequence[tuple[AimbatStation, int, int]]: ...
-
-
-@overload
-def get_stations_with_event_seismogram_count(
-    session: Session, as_json: Literal[True]
-) -> list[dict[str, Any]]: ...
-
-
-def get_stations_with_event_seismogram_count(
-    session: Session, as_json: bool
-) -> Sequence[tuple[AimbatStation, int, int]] | list[dict[str, Any]]:
+def get_stations_with_event_and_seismogram_count(
+    session: Session,
+) -> Sequence[tuple[AimbatStation, int, int]]:
     """Get stations along with the count of seismograms and events they are associated with.
 
     Args:
         session: Database session.
-        as_json: Whether to return the result as JSON.
 
     Returns: A sequence of tuples containing the station, count of seismograms
-        and count of events, or a JSON string if as_json is True.
+        and count of events.
     """
     logger.info("Getting stations with associated seismogram and event counts.")
 
@@ -162,22 +121,27 @@ def get_stations_with_event_seismogram_count(
     )
 
     logger.debug(f"Executing query: {statement}")
-    results = session.exec(statement).all()
+    return session.exec(statement).all()
 
-    if not as_json:
-        return results
 
+def dump_station_table_with_counts(session: Session) -> list[dict[str, Any]]:
+    """Dump station table with associated seismogram and event counts to a list of dicts.
+
+    Each dict represents a station and includes additional keys for the
+    seismogram and event counts.
+
+    Args:
+        session: Database session.
+
+    Returns: A list of dictionaries representing the stations with counts.
+    """
+    results = get_stations_with_event_and_seismogram_count(session)
     formatted_results = []
 
     for row in results:
-        # 1. Dump the station to a dict. mode="json" safely converts UUIDs/Datetimes to strings!
         station_dict = row[0].model_dump(mode="json")
-
-        # 2. Add the counts directly to the dictionary
         station_dict["seismogram_count"] = row[1]
         station_dict["event_count"] = row[2]
-
-        # 3. Add to our final list
         formatted_results.append(station_dict)
 
     return formatted_results
@@ -191,119 +155,3 @@ def dump_station_table_to_json(session: Session) -> str:
     adapter: TypeAdapter[Sequence[AimbatStation]] = TypeAdapter(Sequence[AimbatStation])
     aimbat_station = session.exec(select(AimbatStation)).all()
     return adapter.dump_json(aimbat_station).decode("utf-8")
-
-
-def print_station_table(
-    session: Session, short: bool, all_events: bool = False
-) -> None:
-    """Prints a pretty table with AIMBAT stations.
-
-    Args:
-        session: Database session.
-        short: Shorten and format the output to be more human-readable.
-        all_events: Print stations for all events.
-    """
-    logger.info("Printing station table.")
-
-    title = "AIMBAT stations for all events"
-
-    if all_events:
-        logger.debug("Selecting all AIMBAT stations.")
-        data = get_stations_with_event_seismogram_count(session, as_json=True)
-    else:
-        logger.debug("Selecting AIMBAT stations used by active event.")
-        active_event = get_active_event(session)
-        data = get_stations_in_active_event(session, as_json=True)
-
-        if short:
-            title = f"AIMBAT stations for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
-        else:
-            title = (
-                f"AIMBAT stations for event {active_event.time} (ID={active_event.id})"
-            )
-
-    column_order = [
-        "id",
-        "name",
-        "network",
-        "channel",
-        "location",
-        "latitude",
-        "longitude",
-        "elevation",
-    ]
-    if all_events:
-        column_order.extend(["seismogram_count", "event_count"])
-
-    column_kwargs: dict[str, dict[str, Any]] = {
-        "id": {
-            "header": "ID (shortened)" if short else "ID",
-            "style": TABLE_STYLING.id,
-            "justify": "center",
-            "no_wrap": True,
-        },
-        "name": {
-            "header": "Name",
-            "style": TABLE_STYLING.mine,
-            "justify": "center",
-            "no_wrap": True,
-        },
-        "network": {
-            "header": "Network",
-            "style": TABLE_STYLING.mine,
-            "justify": "center",
-            "no_wrap": True,
-        },
-        "channel": {
-            "header": "Channel",
-            "style": TABLE_STYLING.mine,
-            "justify": "center",
-        },
-        "location": {
-            "header": "Location",
-            "style": TABLE_STYLING.mine,
-            "justify": "center",
-        },
-        "latitude": {
-            "header": "Latitude",
-            "style": TABLE_STYLING.mine,
-            "justify": "center",
-        },
-        "longitude": {
-            "header": "Longitude",
-            "style": TABLE_STYLING.mine,
-            "justify": "center",
-        },
-        "elevation": {
-            "header": "Elevation",
-            "style": TABLE_STYLING.mine,
-            "justify": "center",
-        },
-        "seismogram_count": {
-            "header": "# Seismograms",
-            "style": TABLE_STYLING.linked,
-            "justify": "center",
-        },
-        "event_count": {
-            "header": "# Events",
-            "style": TABLE_STYLING.linked,
-            "justify": "center",
-        },
-    }
-
-    formatters = {
-        "id": lambda x: (
-            uuid_shortener(session, AimbatStation, str_uuid=x) if short else str(x)
-        ),
-        "latitude": lambda x: f"{x:.3f}" if short else str(x),
-        "longitude": lambda x: f"{x:.3f}" if short else str(x),
-        "elevation": lambda x: f"{x:.0f}" if short else str(x),
-    }
-
-    json_to_table(
-        data,
-        title=title,
-        column_order=column_order,
-        column_kwargs=column_kwargs,
-        formatters=formatters,
-    )

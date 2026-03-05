@@ -28,6 +28,7 @@ dependencies = [
     "pandas-stubs>=3.0.0.260204",
     "textual>=8.0.0",
     "textual-fspicker>=1.0.0",
+    "prompt-toolkit>=3.0.52",
 ]
 
 [project.urls]

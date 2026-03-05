@@ -1,14 +1,14 @@
 """Get and set the active event (i.e. the one being processed)."""
 
 # WARNING: Do not import other modules from `aimbat.core` here to avoid circular imports
-from aimbat.io import clear_seismogram_cache
-from aimbat.logger import logger
-from aimbat.models import AimbatEvent
-from aimbat._cli.common import HINTS
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
 from contextlib import suppress
 from uuid import UUID
+from aimbat.io import clear_seismogram_cache
+from aimbat.logger import logger
+from aimbat.models import AimbatEvent
+from aimbat._cli.common import HINTS
 
 __all__ = [
     "get_active_event",

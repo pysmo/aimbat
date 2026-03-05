@@ -28,11 +28,12 @@ def cli_seismogram_plot(
 ) -> None:
     """Plot raw seismograms for the active event sorted by epicentral distance."""
     from aimbat.db import engine
-    from aimbat.core import plot_all_seismograms
+    from aimbat.core import plot_all_seismograms, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        plot_all_seismograms(session, return_fig=False)
+        active_event = get_active_event(session)
+        plot_all_seismograms(session, active_event, return_fig=False)
 
 
 @app.command(name="stack")
@@ -44,11 +45,12 @@ def cli_iccs_plot_stack(
 ) -> None:
     """Plot the ICCS stack of the active event."""
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, plot_stack
+    from aimbat.core import create_iccs_instance, plot_stack, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        iccs = create_iccs_instance(session)
+        active_event = get_active_event(session)
+        iccs = create_iccs_instance(session, active_event).iccs
         plot_stack(iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False)
 
 
@@ -61,11 +63,16 @@ def cli_iccs_plot_image(
 ) -> None:
     """Plot the ICCS seismograms of the active event as an image."""
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, plot_iccs_seismograms
+    from aimbat.core import (
+        create_iccs_instance,
+        plot_iccs_seismograms,
+        get_active_event,
+    )
     from sqlmodel import Session
 
     with Session(engine) as session:
-        iccs = create_iccs_instance(session)
+        active_event = get_active_event(session)
+        iccs = create_iccs_instance(session, active_event).iccs
         plot_iccs_seismograms(
             iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False
         )

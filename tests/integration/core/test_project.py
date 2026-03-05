@@ -6,7 +6,7 @@ This is to verify that the project creation and deletion works as expected.
 import pytest
 from pathlib import Path
 from aimbat.core import create_project, delete_project
-from aimbat.core._project import _project_exists, print_project_info
+from aimbat.core._project import _project_exists
 from collections.abc import Generator
 from sqlalchemy import Engine
 
@@ -104,28 +104,4 @@ class TestPrintProjectInfo:
             capsys: The pytest capsys fixture.
         """
         with pytest.raises(RuntimeError):
-            print_project_info(engine_from_file)
-
-    def test_with_empty_project(
-        self, patched_engine: Engine, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that output is produced for a project with no data or active event.
-
-        Args:
-            patched_engine: The monkeypatched SQLAlchemy Engine.
-            capsys: The pytest capsys fixture.
-        """
-        print_project_info(patched_engine)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_with_data_and_active_event(
-        self, loaded_engine: Engine, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that output is produced for a project with data and an active event.
-
-        Args:
-            loaded_engine: The monkeypatched SQLAlchemy Engine with data loaded.
-            capsys: The pytest capsys fixture.
-        """
-        print_project_info(loaded_engine)
-        assert len(capsys.readouterr().out) > 0
+            delete_project(engine_from_file)

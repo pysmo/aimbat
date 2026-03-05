@@ -55,23 +55,6 @@ def cli_seismogram_dump(
         print_json(dump_seismogram_table_to_json(session))
 
 
-@app.command(name="list")
-@simple_exception
-def cli_seismogram_list(
-    *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
-) -> None:
-    """Print information on the seismograms in the active event."""
-    from aimbat.db import engine
-    from aimbat.core import print_seismogram_table
-    from sqlmodel import Session
-
-    with Session(engine) as session:
-        print_seismogram_table(session, table_parameters.short, all_events)
-
-
 @parameter.command(name="get")
 @simple_exception
 def cli_seismogram_parameter_get(
@@ -140,13 +123,16 @@ def cli_seismogram_parameter_dump(
 ) -> None:
     """Dump seismogram parameter table to json."""
     from aimbat.db import engine
-    from aimbat.core import dump_seismogram_parameter_table_to_json
+    from aimbat.core import dump_seismogram_parameter_table_to_json, get_active_event
     from sqlmodel import Session
     from rich import print_json
 
     with Session(engine) as session:
+        active_event = get_active_event(session) if not all_events else None
         print_json(
-            dump_seismogram_parameter_table_to_json(session, all_events, as_string=True)
+            dump_seismogram_parameter_table_to_json(
+                session, all_events, as_string=True, event=active_event
+            )
         )
 
 
@@ -163,11 +149,135 @@ def cli_seismogram_parameter_list(
     """
 
     from aimbat.db import engine
-    from aimbat.core import print_seismogram_parameter_table
+    from aimbat.core import get_active_event, dump_seismogram_parameter_table_to_json
+    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
+    from aimbat.logger import logger
     from sqlmodel import Session
 
+    short = table_parameters.short
+
     with Session(engine) as session:
-        print_seismogram_parameter_table(session, table_parameters.short)
+        logger.info("Printing AIMBAT seismogram parameters table for active event.")
+
+        active_event = get_active_event(session)
+        title = f"Seismogram parameters for event: {uuid_shortener(session, active_event) if short else str(active_event.id)}"
+
+        json_to_table(
+            data=dump_seismogram_parameter_table_to_json(
+                session, all_events=False, as_string=False, event=active_event
+            ),
+            title=title,
+            skip_keys=["id"],
+            column_order=["seismogram_id", "select"],
+            common_column_kwargs={"highlight": True},
+            formatters={
+                "seismogram_id": lambda x: (
+                    uuid_shortener(session, AimbatSeismogram, str_uuid=x)
+                    if short
+                    else x
+                ),
+            },
+            column_kwargs={
+                "seismogram_id": {
+                    "header": "Seismogram ID (shortened)" if short else "Seismogram ID",
+                    "justify": "center",
+                    "style": TABLE_STYLING.mine,
+                },
+            },
+        )
+
+
+@app.command(name="list")
+@simple_exception
+def cli_seismogram_list(
+    *,
+    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
+) -> None:
+    """Print information on the seismograms in the active event."""
+    from aimbat.db import engine
+    from aimbat.core import get_active_event
+    from aimbat.utils import uuid_shortener, make_table, TABLE_STYLING
+    from aimbat.logger import logger
+    from rich.console import Console
+    from sqlmodel import Session, select
+
+    short = table_parameters.short
+
+    with Session(engine) as session:
+        logger.info("Printing AIMBAT seismogram table.")
+
+        title = "AIMBAT seismograms for all events"
+
+        if all_events:
+            logger.debug("Selecting seismograms for all events.")
+            seismograms = session.exec(select(AimbatSeismogram)).all()
+        else:
+            logger.debug("Selecting seismograms for active event only.")
+            active_event = get_active_event(session)
+            seismograms = active_event.seismograms
+            if short:
+                title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
+            else:
+                title = f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
+
+        logger.debug(f"Found {len(seismograms)} seismograms for the table.")
+
+        table = make_table(title=title)
+        table.add_column(
+            "ID (shortened)" if short else "ID",
+            justify="center",
+            style=TABLE_STYLING.id,
+            no_wrap=True,
+        )
+        table.add_column(
+            "Selected", justify="center", style=TABLE_STYLING.mine, no_wrap=True
+        )
+        table.add_column(
+            "NPTS", justify="center", style=TABLE_STYLING.mine, no_wrap=True
+        )
+        table.add_column(
+            "Delta", justify="center", style=TABLE_STYLING.mine, no_wrap=True
+        )
+        table.add_column(
+            "Data ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
+        )
+        table.add_column("Station ID", justify="center", style=TABLE_STYLING.linked)
+        table.add_column("Station Name", justify="center", style=TABLE_STYLING.linked)
+        if all_events:
+            table.add_column("Event ID", justify="center", style=TABLE_STYLING.linked)
+
+        for seismogram in seismograms:
+            logger.debug(f"Adding seismogram with ID {seismogram.id} to the table.")
+            row = [
+                (uuid_shortener(session, seismogram) if short else str(seismogram.id)),
+                TABLE_STYLING.bool_formatter(seismogram.parameters.select),
+                str(len(seismogram.data)),
+                str(seismogram.delta.total_seconds()),
+                (
+                    uuid_shortener(session, seismogram.datasource)
+                    if short
+                    else str(seismogram.datasource.id)
+                ),
+                (
+                    uuid_shortener(session, seismogram.station)
+                    if short
+                    else str(seismogram.station.id)
+                ),
+                f"{seismogram.station.name} - {seismogram.station.network}",
+            ]
+
+            if all_events:
+                row.append(
+                    uuid_shortener(session, seismogram.event)
+                    if short
+                    else str(seismogram.event.id)
+                )
+            table.add_row(*row)
+
+        console = Console()
+        console.print(table)
 
 
 if __name__ == "__main__":
