@@ -4,9 +4,9 @@
 All functions take a SQLModel `Session` and work with the models in
 `aimbat.models`. The main areas covered are:
 
-- **Active event** — get and set the active event (`get_active_event`,
-  `set_active_event`). Only one event is processed at a time; switching clears
-  the seismogram data cache.
+- **Default event** — get and set the default event (`get_default_event`,
+  `set_default_event`). Only one event is set as default at a time; switching
+  clears the seismogram data cache.
 - **Data** — add data to the project, linking each source to its station,
   event, and seismogram records (`add_data_to_project`).
 - **Events, seismograms, stations** — query, update, and delete records; read
@@ -24,7 +24,7 @@ from .._utils import export_module_names
 
 _internal_names = set(dir())
 
-from ._active_event import *
+from ._default_event import *
 from ._data import *
 from ._event import *
 from ._iccs import *

@@ -14,7 +14,7 @@ from aimbat.core import (
     add_data_to_project,
     get_data_for_event,
     dump_data_table_to_json,
-    get_active_event,
+    get_default_event,
 )
 from aimbat.models import (
     AimbatDataSource,
@@ -266,15 +266,15 @@ class TestGetDataSources:
         """
         yield loaded_session
 
-    def test_get_data_sources_for_active_event(self, session: Session) -> None:
+    def test_get_data_sources_for_default_event(self, session: Session) -> None:
         """Verifies that get_data_sources returns the expected data sources.
 
         Args:
             session (Session): Database session.
         """
-        active_event = get_active_event(session)
-        data_sources = get_data_for_event(session, active_event)
-        assert len(data_sources) != 0, "Expected data sources for the active event."
+        default_event = get_default_event(session)
+        data_sources = get_data_for_event(session, default_event)
+        assert len(data_sources) != 0, "Expected data sources for the default event."
         assert all(
             isinstance(ds, AimbatDataSource) for ds in data_sources
         ), "expected all items to be AimbatDataSource instances"

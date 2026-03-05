@@ -1,8 +1,8 @@
 """Interactively pick phase arrival times and processing parameters.
 
-These commands open an interactive matplotlib plot for the active event.
+These commands open an interactive matplotlib plot for the default event.
 Click on the plot to set the chosen value, then close the window to save it.
-Use `aimbat event activate` to switch the active event before picking.
+Use `aimbat event default` to switch the default event before picking.
 """
 
 from typing import Annotated
@@ -20,7 +20,7 @@ def cli_update_phase_pick(
     use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Interactively pick a new phase arrival time (t1) for the active event.
+    """Interactively pick a new phase arrival time (t1) for the default event.
 
     Opens an interactive plot; click on the waveform to place the new pick,
     then close the window to save. The pick is stored as `t1` for each
@@ -30,12 +30,12 @@ def cli_update_phase_pick(
         use_seismogram_image: Use the seismogram image to update pick.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_pick, get_active_event
+    from aimbat.core import create_iccs_instance, update_pick, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        iccs = create_iccs_instance(session, active_event).iccs
+        event = resolve_event(session, global_parameters.event_id)
+        iccs = create_iccs_instance(session, event).iccs
         update_pick(
             session,
             iccs,
@@ -54,7 +54,7 @@ def cli_pick_timewindow(
     use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Interactively pick a new cross-correlation time window for the active event.
+    """Interactively pick a new cross-correlation time window for an event.
 
     Opens an interactive plot; click to set the left and right window boundaries,
     then close the window to save. The window controls which portion of the
@@ -64,15 +64,15 @@ def cli_pick_timewindow(
         use_seismogram_image: Use the seismogram image to pick the time window.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_timewindow, get_active_event
+    from aimbat.core import create_iccs_instance, update_timewindow, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        iccs = create_iccs_instance(session, active_event).iccs
+        event = resolve_event(session, global_parameters.event_id)
+        iccs = create_iccs_instance(session, event).iccs
         update_timewindow(
             session,
-            active_event,
+            event,
             iccs,
             iccs_parameters.context,
             iccs_parameters.all,
@@ -95,15 +95,15 @@ def cli_pick_min_ccnorm(
     automatically de-selected when running ICCS with `--autoselect`.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_min_ccnorm, get_active_event
+    from aimbat.core import create_iccs_instance, update_min_ccnorm, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        iccs = create_iccs_instance(session, active_event).iccs
+        event = resolve_event(session, global_parameters.event_id)
+        iccs = create_iccs_instance(session, event).iccs
         update_min_ccnorm(
             session,
-            active_event,
+            event,
             iccs,
             iccs_parameters.context,
             iccs_parameters.all,

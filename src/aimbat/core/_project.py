@@ -58,23 +58,23 @@ def create_project(engine: Engine) -> None:
         with engine.begin() as connection:
             # Trigger 1: Handle updates to existing rows
             connection.execute(text("""
-                CREATE TRIGGER IF NOT EXISTS single_active_event_update
+                CREATE TRIGGER IF NOT EXISTS single_default_event_update
                 BEFORE UPDATE ON aimbatevent
-                FOR EACH ROW WHEN NEW.active = TRUE
+                FOR EACH ROW WHEN NEW.is_default = TRUE
                 BEGIN
-                    UPDATE aimbatevent SET active = NULL 
-                    WHERE active = TRUE AND id != NEW.id;
+                    UPDATE aimbatevent SET is_default = NULL 
+                    WHERE is_default = TRUE AND id != NEW.id;
                 END;
             """))
 
-            # Trigger 2: Handle brand new active events being inserted
+            # Trigger 2: Handle brand new default events being inserted
             connection.execute(text("""
-                CREATE TRIGGER IF NOT EXISTS single_active_event_insert
+                CREATE TRIGGER IF NOT EXISTS single_default_event_insert
                 BEFORE INSERT ON aimbatevent
-                FOR EACH ROW WHEN NEW.active = TRUE
+                FOR EACH ROW WHEN NEW.is_default = TRUE
                 BEGIN
-                    UPDATE aimbatevent SET active = NULL
-                    WHERE active = TRUE;
+                    UPDATE aimbatevent SET is_default = NULL
+                    WHERE is_default = TRUE;
                 END;
             """))
 

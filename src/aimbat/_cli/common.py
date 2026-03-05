@@ -3,53 +3,12 @@
 from aimbat import settings
 from dataclasses import dataclass
 from cyclopts import Parameter, Token
-from typing import Callable, Any
+from typing import Callable, Any, Annotated
 import uuid
-
-# -----------------------------------------------------------------------
-# Common parameters
-# -----------------------------------------------------------------------
-
-
-@Parameter(name="*")
-@dataclass
-class GlobalParameters:
-    debug: bool = False
-    "Run in debugging mode."
-
-    def __post_init__(self) -> None:
-        if self.debug:
-            settings.log_level = "DEBUG"
-            from aimbat.logger import configure_logging
-
-            configure_logging()
-
-
-@Parameter(name="*")
-@dataclass
-class IccsPlotParameters:
-    context: bool = True
-    "Plot seismograms with extra context instead of the short tapered ones used for cross-correlation."
-    all: bool = False
-    "Include all seismograms in the plot, even if not used in stack."
-
-
-@Parameter(name="*")
-@dataclass
-class TableParameters:
-    short: bool = True
-    "Shorten UUIDs and format data."
-
 
 # -----------------------------------------------------------------------
 # Shared Parameter instances and factories
 # -----------------------------------------------------------------------
-
-#: Shared Parameter for --all (all events) flags.
-ALL_EVENTS_PARAMETER = Parameter(
-    name="all",
-    help="Include records from all events instead of just the active one.",
-)
 
 
 def _make_uuid_converter(model_class: type) -> Callable[..., uuid.UUID]:
@@ -69,6 +28,13 @@ def _make_uuid_converter(model_class: type) -> Callable[..., uuid.UUID]:
                 return string_to_uuid(session, value, model_class)
 
     return converter
+
+
+def _event_id_converter(hint: type, tokens: tuple[Token, ...]) -> uuid.UUID:
+    """Converter for the global --event parameter with late-bound model import."""
+    from aimbat.models import AimbatEvent
+
+    return _make_uuid_converter(AimbatEvent)(hint, tokens)
 
 
 def id_parameter(model_class: type) -> Parameter:
@@ -100,6 +66,67 @@ def use_event_parameter(model_class: type) -> Parameter:
     )
 
 
+#: Shared Parameter for --all (all events) flags.
+ALL_EVENTS_PARAMETER = Parameter(
+    name="all",
+    help="Include records from all events instead of just the default one.",
+)
+
+# -----------------------------------------------------------------------
+# Common parameters
+# -----------------------------------------------------------------------
+
+
+@Parameter(name="*")
+@dataclass
+class DebugTrait:
+    debug: bool = False
+    """Enable verbose logging for troubleshooting."""
+
+    # NOTE: only one __post_init__ is allowed per dataclass
+    def __post_init__(self) -> None:
+        if self.debug:
+            settings.log_level = "DEBUG"
+            from aimbat.logger import configure_logging
+
+            configure_logging()
+
+
+@Parameter(name="*")
+@dataclass
+class EventContextTrait:
+    event_id: Annotated[
+        uuid.UUID | None,
+        Parameter(
+            name=["event", "event-id"],
+            help="Process a specific event instead of the default one. "
+            "Full UUID or any unique prefix as shown in the table.",
+            converter=_event_id_converter,
+        ),
+    ] = None
+
+
+@dataclass
+class GlobalParameters(DebugTrait, EventContextTrait):
+    pass
+
+
+@Parameter(name="*")
+@dataclass
+class IccsPlotParameters:
+    context: bool = True
+    "Plot seismograms with extra context instead of the short tapered ones used for cross-correlation."
+    all: bool = False
+    "Include all seismograms in the plot, even if not used in stack."
+
+
+@Parameter(name="*")
+@dataclass
+class TableParameters:
+    short: bool = True
+    "Shorten UUIDs and format data."
+
+
 # ------------------------------------------------
 # Hints for error messages
 # ------------------------------------------------
@@ -109,7 +136,9 @@ def use_event_parameter(model_class: type) -> Parameter:
 class CliHints:
     """Hints for error messages."""
 
-    ACTIVATE_EVENT = "Hint: activate an event with `aimbat event activate <EVENT_ID>`."
+    SET_DEFAULT_EVENT = (
+        "Hint: set a default event with `aimbat event default <EVENT_ID>`."
+    )
     LIST_EVENTS = "Hint: view available events with `aimbat event list`."
 
 

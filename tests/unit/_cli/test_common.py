@@ -73,10 +73,10 @@ class TestTableParameters:
 class TestCliHints:
     """Tests for the CliHints frozen dataclass."""
 
-    def test_activate_event_hint_content(self) -> None:
-        """Verifies that ACTIVATE_EVENT hint references the activate command."""
-        assert "activate" in CliHints.ACTIVATE_EVENT
-        assert "aimbat event activate" in CliHints.ACTIVATE_EVENT
+    def test_set_default_event_hint_content(self) -> None:
+        """Verifies that SET_DEFAULT_EVENT hint references the default command."""
+        assert "default" in CliHints.SET_DEFAULT_EVENT
+        assert "aimbat event default" in CliHints.SET_DEFAULT_EVENT
 
     def test_list_events_hint_content(self) -> None:
         """Verifies that LIST_EVENTS hint references the list command."""
@@ -86,11 +86,11 @@ class TestCliHints:
     def test_hints_instance_is_frozen(self) -> None:
         """Verifies that the CliHints dataclass is frozen (immutable)."""
         with pytest.raises((AttributeError, TypeError)):
-            HINTS.ACTIVATE_EVENT = "new value"
+            HINTS.SET_DEFAULT_EVENT = "new value"
 
     def test_hints_singleton_values(self) -> None:
         """Verifies that the HINTS singleton has the expected attribute values."""
-        assert HINTS.ACTIVATE_EVENT == CliHints.ACTIVATE_EVENT
+        assert HINTS.SET_DEFAULT_EVENT == CliHints.SET_DEFAULT_EVENT
         assert HINTS.LIST_EVENTS == CliHints.LIST_EVENTS
 
 

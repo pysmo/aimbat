@@ -3,7 +3,7 @@
 Available plots:
 
 - **data**: raw seismograms sorted by epicentral distance
-- **stack**: the ICCS cross-correlation stack for the active event
+- **stack**: the ICCS cross-correlation stack for the default event
 - **image**: seismograms displayed as a 2-D image (wiggle plot)
 
 Most plot commands support `--context` / `--no-context` to toggle extra
@@ -26,14 +26,14 @@ def cli_seismogram_plot(
     *,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Plot raw seismograms for the active event sorted by epicentral distance."""
+    """Plot raw seismograms for the default event sorted by epicentral distance."""
     from aimbat.db import engine
-    from aimbat.core import plot_all_seismograms, get_active_event
+    from aimbat.core import plot_all_seismograms, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        plot_all_seismograms(session, active_event, return_fig=False)
+        event = resolve_event(session, global_parameters.event_id)
+        plot_all_seismograms(session, event, return_fig=False)
 
 
 @app.command(name="stack")
@@ -43,14 +43,14 @@ def cli_iccs_plot_stack(
     iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Plot the ICCS stack of the active event."""
+    """Plot the ICCS stack of an event."""
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, plot_stack, get_active_event
+    from aimbat.core import create_iccs_instance, plot_stack, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        iccs = create_iccs_instance(session, active_event).iccs
+        event = resolve_event(session, global_parameters.event_id)
+        iccs = create_iccs_instance(session, event).iccs
         plot_stack(iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False)
 
 
@@ -61,18 +61,18 @@ def cli_iccs_plot_image(
     iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Plot the ICCS seismograms of the active event as an image."""
+    """Plot the ICCS seismograms of an event as an image."""
     from aimbat.db import engine
     from aimbat.core import (
         create_iccs_instance,
         plot_iccs_seismograms,
-        get_active_event,
+        resolve_event,
     )
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        iccs = create_iccs_instance(session, active_event).iccs
+        event = resolve_event(session, global_parameters.event_id)
+        iccs = create_iccs_instance(session, event).iccs
         plot_iccs_seismograms(
             iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False
         )

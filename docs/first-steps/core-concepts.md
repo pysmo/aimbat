@@ -1,43 +1,34 @@
 # Core concepts
 
-## Motivation
+## The problem
 
-Precise phase arrival picks are the foundation of travel time tomography —
-the accuracy of the resulting images of Earth's interior depends directly on
-the quality of these measurements. Obtaining them requires picking the phase
-arrival and assessing data quality for every seismogram, across every event
-in the dataset. With modern seismic arrays recording each earthquake on
-increasingly large numbers of seismometers, doing this seismogram by seismogram
-quickly becomes impractical.
+Teleseismic travel time tomography requires accurate phase arrival picks across
+large seismic arrays. Picking each trace individually does not scale — and
+doing so in isolation discards the most useful information available: the
+coherence of the wavefield across the array.
 
-AIMBAT addresses this by shifting the focus from individual seismograms to the
-dataset as a whole. Rather than assessing and processing each trace in
-isolation, the focus is at the array level — where data quality and phase
-arrivals can be judged in the context of all seismograms at once. Decisions
-about filter settings, time windows, and which seismograms to include apply to
-the entire dataset, and picks are refined across all traces simultaneously.
-Everything is processed in bulk.
+AIMBAT works at the array level. Filter settings, time windows, and data
+quality decisions apply to the whole dataset, and picks are refined across all
+traces simultaneously using cross-correlation.
 
-## Semi-automatic
+## Workflow
 
-This bulk processing happens in a semi-automatic way, whereby initial picks
-surrounded by large time windows are iteratively refined into accurate phase
-arrival picks with narrow time windows. Selecting high quality seismograms and
-updating picks (for all stations simultaneously) are either performed manually,
-or automatically by the ICCS algorithm. The automatically refined picks depend
-on user-adjustable parameters, which are typically tuned between iterations to
-achieve the best results. Once satisfied with the picks and parameter settings,
-MCCC is run to produce the final relative arrival time measurements.
+Processing follows a standard pattern:
 
-## Snapshots and rollback
+1. **Initial picks** — broad time windows are placed around approximate phase
+   arrivals, typically from a reference model.
+2. **ICCS** — the Iterative Cross-Correlation and Stack algorithm refines picks
+   and windows across all seismograms simultaneously. Parameters controlling
+   the algorithm are adjusted between iterations until the results are
+   satisfactory.
+3. **Quality control** — seismograms can be selected or deselected manually, or
+   automatically by ICCS based on cross-correlation quality.
+4. **MCCC** — Multi-Channel Cross-Correlation produces the final relative
+   arrival time measurements from the refined picks.
 
-The iterative nature of the workflow means exploring different parameter
-combinations is central to the process. This is safe to do because the
-seismogram data themselves are never modified — AIMBAT only stores and updates
-processing parameters separately from the data.
+## Snapshots
 
-To support this further, snapshots of the current parameter state can be saved
-at any point during processing — including before any changes are made.
-Rolling back to a snapshot restores the parameters exactly as they were, but
-does not delete any other snapshots, so it is possible to switch freely between
-saved states.
+Because tuning parameters is an inherently iterative process, AIMBAT supports
+snapshots — named saves of the current parameter state. Rolling back to a
+snapshot restores parameters exactly, without removing other snapshots. This
+makes it safe to explore parameter space without losing previous results.

@@ -123,15 +123,19 @@ def cli_seismogram_parameter_dump(
 ) -> None:
     """Dump seismogram parameter table to json."""
     from aimbat.db import engine
-    from aimbat.core import dump_seismogram_parameter_table_to_json, get_active_event
+    from aimbat.core import dump_seismogram_parameter_table_to_json, resolve_event
     from sqlmodel import Session
     from rich import print_json
 
     with Session(engine) as session:
-        active_event = get_active_event(session) if not all_events else None
+        event = (
+            resolve_event(session, global_parameters.event_id)
+            if not all_events
+            else None
+        )
         print_json(
             dump_seismogram_parameter_table_to_json(
-                session, all_events, as_string=True, event=active_event
+                session, all_events, as_string=True, event=event
             )
         )
 
@@ -142,14 +146,14 @@ def cli_seismogram_parameter_list(
     global_parameters: GlobalParameters = GlobalParameters(),
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
-    """List processing parameter values for seismograms in the active event.
+    """List processing parameter values for seismograms in an event.
 
     Displays per-seismogram parameters (e.g. `select`, `flip`, `t1` pick)
     in a table. Use `seismogram parameter set` to modify individual values.
     """
 
     from aimbat.db import engine
-    from aimbat.core import get_active_event, dump_seismogram_parameter_table_to_json
+    from aimbat.core import resolve_event, dump_seismogram_parameter_table_to_json
     from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
     from aimbat.logger import logger
     from sqlmodel import Session
@@ -157,14 +161,14 @@ def cli_seismogram_parameter_list(
     short = table_parameters.short
 
     with Session(engine) as session:
-        logger.info("Printing AIMBAT seismogram parameters table for active event.")
+        logger.info("Printing AIMBAT seismogram parameters table.")
 
-        active_event = get_active_event(session)
-        title = f"Seismogram parameters for event: {uuid_shortener(session, active_event) if short else str(active_event.id)}"
+        event = resolve_event(session, global_parameters.event_id)
+        title = f"Seismogram parameters for event: {uuid_shortener(session, event) if short else str(event.id)}"
 
         json_to_table(
             data=dump_seismogram_parameter_table_to_json(
-                session, all_events=False, as_string=False, event=active_event
+                session, all_events=False, as_string=False, event=event
             ),
             title=title,
             skip_keys=["id"],
@@ -195,9 +199,9 @@ def cli_seismogram_list(
     table_parameters: TableParameters = TableParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Print information on the seismograms in the active event."""
+    """Print information on the seismograms in an event."""
     from aimbat.db import engine
-    from aimbat.core import get_active_event
+    from aimbat.core import resolve_event
     from aimbat.utils import uuid_shortener, make_table, TABLE_STYLING
     from aimbat.logger import logger
     from rich.console import Console
@@ -214,13 +218,13 @@ def cli_seismogram_list(
             logger.debug("Selecting seismograms for all events.")
             seismograms = session.exec(select(AimbatSeismogram)).all()
         else:
-            logger.debug("Selecting seismograms for active event only.")
-            active_event = get_active_event(session)
-            seismograms = active_event.seismograms
+            logger.debug("Selecting seismograms for event.")
+            event = resolve_event(session, global_parameters.event_id)
+            seismograms = event.seismograms
             if short:
-                title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
+                title = f"AIMBAT seismograms for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
             else:
-                title = f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
+                title = f"AIMBAT seismograms for event {event.time} (ID={event.id})"
 
         logger.debug(f"Found {len(seismograms)} seismograms for the table.")
 

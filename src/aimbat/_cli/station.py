@@ -59,10 +59,10 @@ def cli_station_list(
     table_parameters: TableParameters = TableParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Print information on the stations used in the active event."""
+    """Print information on the stations used in an event."""
     from aimbat.db import engine
     from aimbat.core import (
-        get_active_event,
+        resolve_event,
         get_stations_in_event,
     )
     from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
@@ -83,14 +83,14 @@ def cli_station_list(
 
             data = dump_station_table_with_counts(session)
         else:
-            logger.debug("Selecting AIMBAT stations used by active event.")
-            active_event = get_active_event(session)
-            data = get_stations_in_event(session, active_event, as_json=True)
+            logger.debug("Selecting AIMBAT stations used by event.")
+            event = resolve_event(session, global_parameters.event_id)
+            data = get_stations_in_event(session, event, as_json=True)
 
             if short:
-                title = f"AIMBAT stations for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
+                title = f"AIMBAT stations for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
             else:
-                title = f"AIMBAT stations for event {active_event.time} (ID={active_event.id})"
+                title = f"AIMBAT stations for event {event.time} (ID={event.id})"
 
         column_order = [
             "id",

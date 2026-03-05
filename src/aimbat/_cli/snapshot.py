@@ -30,19 +30,19 @@ def cli_snapshot_create(
 ) -> None:
     """Create a new snapshot of current processing parameters.
 
-    Saves the current event and seismogram parameters for the active event so
+    Saves the current event and seismogram parameters for an event so
     they can be restored later with `snapshot rollback`.
 
     Args:
         comment: Optional description to help identify this snapshot later.
     """
     from aimbat.db import engine
-    from aimbat.core import create_snapshot, get_active_event
+    from aimbat.core import create_snapshot, resolve_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event, comment)
+        event = resolve_event(session, global_parameters.event_id)
+        create_snapshot(session, event, comment)
 
 
 @app.command(name="rollback")
@@ -85,15 +85,19 @@ def cli_snapshot_dump(
 ) -> None:
     """Dump the contents of the AIMBAT snapshot table to json."""
     from aimbat.db import engine
-    from aimbat.core import dump_snapshot_tables_to_json, get_active_event
+    from aimbat.core import dump_snapshot_tables_to_json, resolve_event
     from sqlmodel import Session
     from rich import print_json
 
     with Session(engine) as session:
-        active_event = get_active_event(session) if not all_events else None
+        event = (
+            resolve_event(session, global_parameters.event_id)
+            if not all_events
+            else None
+        )
         print_json(
             dump_snapshot_tables_to_json(
-                session, all_events, as_string=True, event=active_event
+                session, all_events, as_string=True, event=event
             )
         )
 
@@ -105,9 +109,9 @@ def cli_snapshot_list(
     table_parameters: TableParameters = TableParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Print information on the snapshots for the active event."""
+    """Print information on the snapshots for an event."""
     from aimbat.db import engine
-    from aimbat.core import get_active_event, dump_snapshot_tables_to_json
+    from aimbat.core import resolve_event, dump_snapshot_tables_to_json
     from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
     from aimbat.logger import logger
     from aimbat.models import AimbatEvent
@@ -121,16 +125,16 @@ def cli_snapshot_list(
 
         title = "AIMBAT snapshots for all events"
 
-        active_event = None
+        event = None
         if not all_events:
-            active_event = get_active_event(session)
+            event = resolve_event(session, global_parameters.event_id)
             if short:
-                title = f"AIMBAT snapshots for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, active_event)})"
+                title = f"AIMBAT snapshots for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
             else:
-                title = f"AIMBAT snapshots for event {active_event.time} (ID={active_event.id})"
+                title = f"AIMBAT snapshots for event {event.time} (ID={event.id})"
 
         data = dump_snapshot_tables_to_json(
-            session, all_events, as_string=False, event=active_event
+            session, all_events, as_string=False, event=event
         )
         snapshot_data = data["snapshots"]
 

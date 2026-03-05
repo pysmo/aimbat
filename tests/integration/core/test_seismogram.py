@@ -16,7 +16,7 @@ from aimbat.core import (
     dump_seismogram_table_to_json,
     dump_seismogram_parameter_table_to_json,
     plot_all_seismograms,
-    get_active_event,
+    get_default_event,
 )
 from aimbat.models._parameters import AimbatSeismogramParametersBase
 from aimbat._types import SeismogramParameter
@@ -29,7 +29,7 @@ from sqlalchemy.exc import NoResultFound
 
 @pytest.fixture
 def session(loaded_session: Session) -> Session:
-    """Provides a session with multi-event data and an active event pre-loaded.
+    """Provides a session with multi-event data and an default event pre-loaded.
 
     Args:
         loaded_session: A SQLModel Session with data populated.
@@ -42,13 +42,13 @@ def session(loaded_session: Session) -> Session:
 
 @pytest.fixture
 def seismogram(session: Session) -> AimbatSeismogram:
-    """Provides the first seismogram from the active event.
+    """Provides the first seismogram from the default event.
 
     Args:
         session: The database session.
 
     Returns:
-        An AimbatSeismogram from the active event.
+        An AimbatSeismogram from the default event.
     """
     return session.exec(select(AimbatSeismogram)).first()  # type: ignore[return-value]
 
@@ -270,13 +270,13 @@ class TestGetSelectedSeismograms:
     """Tests for retrieving selected seismograms."""
 
     def test_all_selected_by_default(self, session: Session) -> None:
-        """Verifies that all seismograms in the active event are selected by default.
+        """Verifies that all seismograms in the default event are selected by default.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        selected = get_selected_seismograms(session, event=active_event)
+        default_event = get_default_event(session)
+        selected = get_selected_seismograms(session, event=default_event)
         assert len(selected) > 0
 
     def test_after_deselecting_one(
@@ -288,11 +288,11 @@ class TestGetSelectedSeismograms:
             session: The database session.
             seismogram: An AimbatSeismogram to deselect.
         """
-        active_event = get_active_event(session)
-        count_before = len(get_selected_seismograms(session, event=active_event))
+        default_event = get_default_event(session)
+        count_before = len(get_selected_seismograms(session, event=default_event))
         set_seismogram_parameter(session, seismogram, SeismogramParameter.SELECT, False)
         assert (
-            len(get_selected_seismograms(session, event=active_event))
+            len(get_selected_seismograms(session, event=default_event))
             == count_before - 1
         )
 
@@ -302,12 +302,12 @@ class TestGetSelectedSeismograms:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        selected_active = get_selected_seismograms(
-            session, event=active_event, all_events=False
+        default_event = get_default_event(session)
+        selected_default = get_selected_seismograms(
+            session, event=default_event, all_events=False
         )
         selected_all = get_selected_seismograms(session, all_events=True)
-        assert len(selected_all) >= len(selected_active)
+        assert len(selected_all) >= len(selected_default)
 
 
 class TestDumpSeismogramTableToJson:
@@ -329,30 +329,30 @@ class TestDumpSeismogramTableToJson:
 class TestDumpSeismogramParameterTableToJson:
     """Tests for serialising the seismogram parameter table to JSON."""
 
-    def test_active_event_as_string(self, session: Session) -> None:
-        """Verifies that a JSON string of the active event's parameters is returned.
+    def test_default_event_as_string(self, session: Session) -> None:
+        """Verifies that a JSON string of the default event's parameters is returned.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         result = dump_seismogram_parameter_table_to_json(
-            session, all_events=False, as_string=True, event=active_event
+            session, all_events=False, as_string=True, event=default_event
         )
         assert isinstance(result, str)
         parsed = json.loads(result)
         assert isinstance(parsed, list)
         assert len(parsed) > 0
 
-    def test_active_event_as_list(self, session: Session) -> None:
-        """Verifies that a list of dicts of the active event's parameters is returned.
+    def test_default_event_as_list(self, session: Session) -> None:
+        """Verifies that a list of dicts of the default event's parameters is returned.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         result = dump_seismogram_parameter_table_to_json(
-            session, all_events=False, as_string=False, event=active_event
+            session, all_events=False, as_string=False, event=default_event
         )
         assert isinstance(result, list)
         assert len(result) > 0
@@ -385,20 +385,20 @@ class TestDumpSeismogramParameterTableToJson:
         assert len(result) > 0
         assert "select" in result[0]
 
-    def test_all_events_returns_more_than_active_only(self, session: Session) -> None:
-        """Verifies that all_events=True returns more rows than active event only.
+    def test_all_events_returns_more_than_default_only(self, session: Session) -> None:
+        """Verifies that all_events=True returns more rows than default event only.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        active_only = dump_seismogram_parameter_table_to_json(
-            session, all_events=False, as_string=False, event=active_event
+        default_event = get_default_event(session)
+        default_only = dump_seismogram_parameter_table_to_json(
+            session, all_events=False, as_string=False, event=default_event
         )
         all_events = dump_seismogram_parameter_table_to_json(
             session, all_events=True, as_string=False
         )
-        assert len(all_events) >= len(active_only)
+        assert len(all_events) >= len(default_only)
 
 
 class TestPlotAllSeismograms:
@@ -410,6 +410,6 @@ class TestPlotAllSeismograms:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        fig, _ = plot_all_seismograms(session, event=active_event, return_fig=True)
+        default_event = get_default_event(session)
+        fig, _ = plot_all_seismograms(session, event=default_event, return_fig=True)
         assert isinstance(fig, Figure)

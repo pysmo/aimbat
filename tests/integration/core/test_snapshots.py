@@ -13,14 +13,14 @@ from aimbat.core._snapshot import (
     rollback_to_snapshot_by_id,
     dump_snapshot_tables_to_json,
 )
-from aimbat.core import get_active_event
+from aimbat.core import get_default_event
 from aimbat.models import AimbatSnapshot, AimbatSeismogram
 from sqlmodel import Session, select
 
 
 @pytest.fixture
 def session(loaded_session: Session) -> Session:
-    """Provides a session with multi-event data and an active event pre-loaded.
+    """Provides a session with multi-event data and an default event pre-loaded.
 
     Args:
         loaded_session: A SQLModel Session with data populated.
@@ -33,16 +33,16 @@ def session(loaded_session: Session) -> Session:
 
 @pytest.fixture
 def snapshot(session: Session) -> AimbatSnapshot:
-    """Provides a snapshot of the active event's current parameters.
+    """Provides a snapshot of the default event's current parameters.
 
     Args:
         session: The database session.
 
     Returns:
-        An AimbatSnapshot for the active event.
+        An AimbatSnapshot for the default event.
     """
-    active_event = get_active_event(session)
-    create_snapshot(session, active_event)
+    default_event = get_default_event(session)
+    create_snapshot(session, default_event)
     return session.exec(select(AimbatSnapshot)).one()
 
 
@@ -56,20 +56,20 @@ class TestCreateSnapshot:
             session: The database session.
         """
         assert len(session.exec(select(AimbatSnapshot)).all()) == 0
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event)
+        default_event = get_default_event(session)
+        create_snapshot(session, default_event)
         assert len(session.exec(select(AimbatSnapshot)).all()) == 1
 
-    def test_snapshot_linked_to_active_event(self, session: Session) -> None:
-        """Verifies that the snapshot is associated with the active event.
+    def test_snapshot_linked_to_default_event(self, session: Session) -> None:
+        """Verifies that the snapshot is associated with the default event.
 
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event)
+        default_event = get_default_event(session)
+        create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
-        assert snapshot.event_id == active_event.id
+        assert snapshot.event_id == default_event.id
 
     def test_snapshot_with_comment(self, session: Session) -> None:
         """Verifies that the optional comment is stored on the snapshot.
@@ -77,8 +77,8 @@ class TestCreateSnapshot:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event, comment="test comment")
+        default_event = get_default_event(session)
+        create_snapshot(session, default_event, comment="test comment")
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment == "test comment"
 
@@ -88,8 +88,8 @@ class TestCreateSnapshot:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event)
+        default_event = get_default_event(session)
+        create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment is None
 
@@ -99,10 +99,10 @@ class TestCreateSnapshot:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        n_seismograms = len(active_event.seismograms)
+        default_event = get_default_event(session)
+        n_seismograms = len(default_event.seismograms)
 
-        create_snapshot(session, active_event)
+        create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert len(snapshot.seismogram_parameters_snapshots) == n_seismograms
 
@@ -113,12 +113,12 @@ class TestCreateSnapshot:
 
         Args:
             session: The database session.
-            snapshot: An AimbatSnapshot for the active event.
+            snapshot: An AimbatSnapshot for the default event.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         assert (
             snapshot.event_parameters_snapshot.parameters_id
-            == active_event.parameters.id
+            == default_event.parameters.id
         )
 
 
@@ -169,18 +169,18 @@ class TestRollbackToSnapshot:
             session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         original_min_ccnorm = snapshot.event_parameters_snapshot.min_ccnorm
 
         # Mutate the parameter after taking the snapshot
-        active_event.parameters.min_ccnorm = 0.0
-        session.add(active_event)
+        default_event.parameters.min_ccnorm = 0.0
+        session.add(default_event)
         session.commit()
-        assert active_event.parameters.min_ccnorm == 0.0
+        assert default_event.parameters.min_ccnorm == 0.0
 
         rollback_to_snapshot(session, snapshot)
-        session.refresh(active_event)
-        assert active_event.parameters.min_ccnorm == original_min_ccnorm
+        session.refresh(default_event)
+        assert default_event.parameters.min_ccnorm == original_min_ccnorm
 
     def test_rollback_restores_seismogram_parameters(
         self, session: Session, snapshot: AimbatSnapshot
@@ -191,8 +191,8 @@ class TestRollbackToSnapshot:
             session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        active_event = get_active_event(session)
-        seismogram = active_event.seismograms[0]
+        default_event = get_default_event(session)
+        seismogram = default_event.seismograms[0]
         original_select = snapshot.seismogram_parameters_snapshots[0].select
 
         # Mutate the parameter after taking the snapshot
@@ -211,16 +211,16 @@ class TestRollbackToSnapshot:
             session: The database session.
             snapshot: An AimbatSnapshot to roll back to.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         original_min_ccnorm = snapshot.event_parameters_snapshot.min_ccnorm
 
-        active_event.parameters.min_ccnorm = 0.0
-        session.add(active_event)
+        default_event.parameters.min_ccnorm = 0.0
+        session.add(default_event)
         session.commit()
 
         rollback_to_snapshot_by_id(session, snapshot.id)
-        session.refresh(active_event)
-        assert active_event.parameters.min_ccnorm == original_min_ccnorm
+        session.refresh(default_event)
+        assert default_event.parameters.min_ccnorm == original_min_ccnorm
 
     def test_rollback_restores_all_event_parameters(
         self, session: Session, snapshot: AimbatSnapshot
@@ -231,8 +231,8 @@ class TestRollbackToSnapshot:
             session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        active_event = get_active_event(session)
-        params = active_event.parameters
+        default_event = get_default_event(session)
+        params = default_event.parameters
         snap = snapshot.event_parameters_snapshot
 
         # Mutate every event parameter to a value distinct from the snapshot
@@ -270,8 +270,8 @@ class TestRollbackToSnapshot:
             session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        active_event = get_active_event(session)
-        seismogram = active_event.seismograms[0]
+        default_event = get_default_event(session)
+        seismogram = default_event.seismograms[0]
         params = seismogram.parameters
         snap = next(
             s
@@ -312,20 +312,20 @@ class TestGetSnapshots:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        assert len(get_snapshots(session, event=active_event)) == 0
+        default_event = get_default_event(session)
+        assert len(get_snapshots(session, event=default_event)) == 0
 
-    def test_get_snapshots_for_active_event(
+    def test_get_snapshots_for_default_event(
         self, session: Session, snapshot: AimbatSnapshot
     ) -> None:
-        """Verifies that snapshots for the active event are returned.
+        """Verifies that snapshots for the default event are returned.
 
         Args:
             session: The database session.
-            snapshot: An AimbatSnapshot for the active event.
+            snapshot: An AimbatSnapshot for the default event.
         """
-        active_event = get_active_event(session)
-        snapshots = get_snapshots(session, event=active_event, all_events=False)
+        default_event = get_default_event(session)
+        snapshots = get_snapshots(session, event=default_event, all_events=False)
         assert len(snapshots) == 1
         assert snapshots[0].id == snapshot.id
 
@@ -336,7 +336,7 @@ class TestGetSnapshots:
 
         Args:
             session: The database session.
-            snapshot: An AimbatSnapshot for the active event.
+            snapshot: An AimbatSnapshot for the default event.
         """
         all_snapshots = get_snapshots(session, all_events=True)
         assert len(all_snapshots) >= 1
@@ -347,10 +347,10 @@ class TestGetSnapshots:
         Args:
             session: The database session.
         """
-        active_event = get_active_event(session)
-        create_snapshot(session, active_event, comment="first")
-        create_snapshot(session, active_event, comment="second")
-        assert len(get_snapshots(session, event=active_event)) == 2
+        default_event = get_default_event(session)
+        create_snapshot(session, default_event, comment="first")
+        create_snapshot(session, default_event, comment="second")
+        assert len(get_snapshots(session, event=default_event)) == 2
 
 
 class TestDumpSnapshotTablesToJson:
@@ -363,9 +363,9 @@ class TestDumpSnapshotTablesToJson:
             session: The database session.
             snapshot: An AimbatSnapshot to include in the dump.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         result = dump_snapshot_tables_to_json(
-            session, all_events=False, as_string=True, event=active_event
+            session, all_events=False, as_string=True, event=default_event
         )
         assert isinstance(result, str)
         parsed = json.loads(result)
@@ -380,9 +380,9 @@ class TestDumpSnapshotTablesToJson:
             session: The database session.
             snapshot: An AimbatSnapshot to include in the dump.
         """
-        active_event = get_active_event(session)
+        default_event = get_default_event(session)
         result = dump_snapshot_tables_to_json(
-            session, all_events=False, as_string=False, event=active_event
+            session, all_events=False, as_string=False, event=default_event
         )
         assert isinstance(result, dict)
         assert "snapshots" in result
@@ -391,25 +391,25 @@ class TestDumpSnapshotTablesToJson:
     def test_all_events_includes_more_snapshots(
         self, session: Session, snapshot: AimbatSnapshot
     ) -> None:
-        """Verifies that all_events=True returns at least as many snapshots as active only.
+        """Verifies that all_events=True returns at least as many snapshots as default only.
 
         Args:
             session: The database session.
             snapshot: An AimbatSnapshot to include in the dump.
         """
-        active_event = get_active_event(session)
-        active_only = dump_snapshot_tables_to_json(
-            session, all_events=False, as_string=False, event=active_event
+        default_event = get_default_event(session)
+        default_only = dump_snapshot_tables_to_json(
+            session, all_events=False, as_string=False, event=default_event
         )
         all_events = dump_snapshot_tables_to_json(
             session, all_events=True, as_string=False
         )
-        assert len(all_events["snapshots"]) >= len(active_only["snapshots"])
+        assert len(all_events["snapshots"]) >= len(default_only["snapshots"])
 
     def test_seismogram_parameters_count(
         self, session: Session, snapshot: AimbatSnapshot
     ) -> None:
-        """Verifies that seismogram_parameters count matches the active event's seismograms.
+        """Verifies that seismogram_parameters count matches the default event's seismograms.
 
         Args:
             session: The database session.

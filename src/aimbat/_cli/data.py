@@ -20,7 +20,7 @@ data type supports it.
 aimbat project create
 aimbat data add *.sac
 aimbat event list          # find the event ID
-aimbat event activate <ID>
+aimbat event default <ID>
 ```
 
 Re-adding a data source that is already in the project is safe — existing
@@ -134,7 +134,7 @@ def cli_data_list(
 ) -> None:
     """Print a table of data sources registered in the AIMBAT project."""
     from aimbat.db import engine
-    from aimbat.core import get_active_event, get_data_for_event
+    from aimbat.core import resolve_event, get_data_for_event
     from aimbat.utils import uuid_shortener, make_table, TABLE_STYLING
     from aimbat.logger import logger
     from rich.console import Console
@@ -148,14 +148,10 @@ def cli_data_list(
             aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
             title = "Data sources for all events"
         else:
-            active_event = get_active_event(session)
-            aimbat_data_sources = get_data_for_event(session, active_event)
-            time = (
-                active_event.time.strftime("%Y-%m-%d %H:%M:%S")
-                if short
-                else active_event.time
-            )
-            id = uuid_shortener(session, active_event) if short else active_event.id
+            event = resolve_event(session, global_parameters.event_id)
+            aimbat_data_sources = get_data_for_event(session, event)
+            time = event.time.strftime("%Y-%m-%d %H:%M:%S") if short else event.time
+            id = uuid_shortener(session, event) if short else event.id
             title = f"Data sources for event {time} (ID={id})"
 
         logger.debug(f"Found {len(aimbat_data_sources)} data sources in total.")

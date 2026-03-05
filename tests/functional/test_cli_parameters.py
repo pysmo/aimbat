@@ -115,13 +115,13 @@ class TestEventParameterSetBool:
             cli_json: The in-process CLI JSON dump callable.
         """
         before = cli_json("event parameter dump")
-        assert isinstance(before, dict), "Dump should return a dict for active event"
+        assert isinstance(before, dict), "Dump should return a dict for default event"
         assert before["completed"] is False, "'completed' should default to False"
 
         cli("event parameter set completed true")
 
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert after["completed"] is True, "'completed' should be True after being set"
 
     def test_set_completed_false(
@@ -140,7 +140,7 @@ class TestEventParameterSetBool:
         cli("event parameter set completed true")
         cli("event parameter set completed false")
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert (
             after["completed"] is False
         ), "'completed' should be False after being set back"
@@ -159,13 +159,13 @@ class TestEventParameterSetBool:
             cli_json: The in-process CLI JSON dump callable.
         """
         before = cli_json("event parameter dump")
-        assert isinstance(before, dict), "Dump should return a dict for active event"
+        assert isinstance(before, dict), "Dump should return a dict for default event"
         original = before["bandpass_apply"]
 
         cli(f"event parameter set bandpass_apply {not original}".lower())
 
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert (
             after["bandpass_apply"] is not original
         ), "'bandpass_apply' should have toggled after set"
@@ -190,7 +190,7 @@ class TestEventParameterSetFloat:
         """
         cli("event parameter set min_ccnorm 0.42")
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert after["min_ccnorm"] == pytest.approx(
             0.42
         ), "'min_ccnorm' should be 0.42 after being set"
@@ -210,7 +210,7 @@ class TestEventParameterSetFloat:
         """
         cli("event parameter set bandpass_fmin 0.1")
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert after["bandpass_fmin"] == pytest.approx(
             0.1
         ), "'bandpass_fmin' should be 0.1 after being set"
@@ -230,7 +230,7 @@ class TestEventParameterSetFloat:
         """
         cli("event parameter set bandpass_fmax 2.0")
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert after["bandpass_fmax"] == pytest.approx(
             2.0
         ), "'bandpass_fmax' should be 2.0 after being set"
@@ -260,7 +260,7 @@ class TestEventParameterSetTimedelta:
         """
         cli("event parameter set window_pre -20")
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert after["window_pre"] == pytest.approx(
             -20.0
         ), "'window_pre' should be -20.0 seconds after being set with a bare number"
@@ -280,7 +280,7 @@ class TestEventParameterSetTimedelta:
         """
         cli("event parameter set window_post 30")
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert after["window_post"] == pytest.approx(
             30.0
         ), "'window_post' should be 30.0 seconds after being set with a bare number"
@@ -300,7 +300,7 @@ class TestEventParameterSetTimedelta:
         """
         cli("event parameter set window_post 20s")
         after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for active event"
+        assert isinstance(after, dict), "Dump should return a dict for default event"
         assert after["window_post"] == pytest.approx(
             20.0
         ), "'window_post' should be 20.0 seconds after being set with '20s'"
@@ -315,12 +315,12 @@ class TestEventParameterSetTimedelta:
 class TestEventParameterDump:
     """Tests for ``event parameter dump``."""
 
-    def test_active_event_returns_dict(
+    def test_default_event_returns_dict(
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that the active-event dump returns a dict.
+        """Verifies that the default-event dump returns a dict.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -329,7 +329,7 @@ class TestEventParameterDump:
         data = cli_json("event parameter dump")
         assert isinstance(data, dict), "Active-event dump should be a dict"
 
-    def test_active_event_contains_all_parameter_keys(
+    def test_default_event_contains_all_parameter_keys(
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
@@ -391,7 +391,7 @@ class TestEventParameterDump:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that a parameter change to the active event appears in the all-events dump.
+        """Verifies that a parameter change to the default event appears in the all-events dump.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -401,9 +401,9 @@ class TestEventParameterDump:
         cli("event parameter set completed true")
         all_data = cli_json("event parameter dump --all")
         assert isinstance(all_data, list), "All-events dump should be a list"
-        active_entries = [e for e in all_data if e.get("completed") is True]
+        default_entries = [e for e in all_data if e.get("completed") is True]
         assert (
-            len(active_entries) == 1
+            len(default_entries) == 1
         ), "Exactly one event should have completed=True after setting it"
 
 
@@ -712,7 +712,7 @@ class TestSeismogramParameterSet:
         ), "Seismogram parameter dump should be a list"
         assert (
             len(params_before) > 1
-        ), "Need at least two seismograms in the active event for this test"
+        ), "Need at least two seismograms in the default event for this test"
         target_id = params_before[0]["seismogram_id"]
         other_id = params_before[1]["seismogram_id"]
         other_select_before = params_before[1]["select"]
@@ -779,23 +779,23 @@ class TestSeismogramParameterDump:
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that ``--all`` returns at least as many entries as the active-event dump.
+        """Verifies that ``--all`` returns at least as many entries as the default-event dump.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
             cli_json: The in-process CLI JSON dump callable.
         """
-        active_data = cli_json("seismogram parameter dump")
+        default_data = cli_json("seismogram parameter dump")
         all_data = cli_json("seismogram parameter dump --all")
         assert isinstance(
-            active_data, list
+            default_data, list
         ), "Active-event seismogram parameter dump should be a list"
         assert isinstance(
             all_data, list
         ), "All-events seismogram parameter dump should be a list"
         assert len(all_data) >= len(
-            active_data
-        ), "--all should return at least as many entries as the active-event dump"
+            default_data
+        ), "--all should return at least as many entries as the default-event dump"
 
     def test_count_matches_seismogram_dump(
         self,
