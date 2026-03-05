@@ -11,10 +11,9 @@ from aimbat.core._station import (
     delete_station,
     delete_station_by_id,
     dump_station_table_to_json,
-    get_stations_in_active_event,
     get_stations_in_event,
-    get_stations_with_event_seismogram_count,
-    print_station_table,
+    get_stations_with_event_and_seismogram_count,
+    dump_station_table_with_counts,
 )
 from aimbat.models import AimbatStation
 
@@ -96,7 +95,8 @@ class TestGetStationsInActiveEvent:
         Args:
             session: The database session.
         """
-        stations = get_stations_in_active_event(session, as_json=False)
+        active_event = get_active_event(session)
+        stations = get_stations_in_event(session, active_event, as_json=False)
         assert len(stations) > 0, "Expected at least one station for the active event"
 
     def test_returns_aimbat_station_instances(self, session: Session) -> None:
@@ -105,7 +105,8 @@ class TestGetStationsInActiveEvent:
         Args:
             session: The database session.
         """
-        stations = get_stations_in_active_event(session, as_json=False)
+        active_event = get_active_event(session)
+        stations = get_stations_in_event(session, active_event, as_json=False)
         assert all(
             isinstance(s, AimbatStation) for s in stations
         ), "All returned items should be AimbatStation instances"
@@ -116,7 +117,8 @@ class TestGetStationsInActiveEvent:
         Args:
             session: The database session.
         """
-        result = get_stations_in_active_event(session, as_json=True)
+        active_event = get_active_event(session)
+        result = get_stations_in_event(session, active_event, as_json=True)
         assert isinstance(result, list), "Expected a list when as_json=True"
         assert all(
             isinstance(item, dict) for item in result
@@ -128,8 +130,9 @@ class TestGetStationsInActiveEvent:
         Args:
             session: The database session.
         """
-        objects = get_stations_in_active_event(session, as_json=False)
-        json_list = get_stations_in_active_event(session, as_json=True)
+        active_event = get_active_event(session)
+        objects = get_stations_in_event(session, active_event, as_json=False)
+        json_list = get_stations_in_event(session, active_event, as_json=True)
         assert len(objects) == len(
             json_list
         ), "Object and JSON representations should have the same length"
@@ -142,7 +145,7 @@ class TestGetStationsInActiveEvent:
         """
         active_event = get_active_event(session)
         active_station_ids = {s.station_id for s in active_event.seismograms}
-        stations = get_stations_in_active_event(session, as_json=False)
+        stations = get_stations_in_event(session, active_event, as_json=False)
         returned_ids = {s.id for s in stations}
         assert (
             returned_ids == active_station_ids
@@ -198,7 +201,7 @@ class TestGetStationsWithEventSeismogramCount:
             session: The database session.
         """
         all_stations = session.exec(select(AimbatStation)).all()
-        results = get_stations_with_event_seismogram_count(session, as_json=False)
+        results = get_stations_with_event_and_seismogram_count(session)
         assert len(results) == len(
             all_stations
         ), "Expected one row per station in the database"
@@ -209,7 +212,7 @@ class TestGetStationsWithEventSeismogramCount:
         Args:
             session: The database session.
         """
-        results = get_stations_with_event_seismogram_count(session, as_json=False)
+        results = get_stations_with_event_and_seismogram_count(session)
         for row in results:
             station, seismogram_count, event_count = row
             assert isinstance(
@@ -228,7 +231,7 @@ class TestGetStationsWithEventSeismogramCount:
         Args:
             session: The database session.
         """
-        results = get_stations_with_event_seismogram_count(session, as_json=False)
+        results = get_stations_with_event_and_seismogram_count(session)
         for _, seismogram_count, event_count in results:
             assert seismogram_count >= 0, "Seismogram count should be non-negative"
             assert event_count >= 0, "Event count should be non-negative"
@@ -239,7 +242,7 @@ class TestGetStationsWithEventSeismogramCount:
         Args:
             session: The database session.
         """
-        results = get_stations_with_event_seismogram_count(session, as_json=True)
+        results = dump_station_table_with_counts(session)
         assert isinstance(results, list), "Expected a list when as_json=True"
         for item in results:
             assert isinstance(item, dict), "Each element should be a dict"
@@ -252,8 +255,8 @@ class TestGetStationsWithEventSeismogramCount:
         Args:
             session: The database session.
         """
-        objects = get_stations_with_event_seismogram_count(session, as_json=False)
-        json_list = get_stations_with_event_seismogram_count(session, as_json=True)
+        objects = get_stations_with_event_and_seismogram_count(session)
+        json_list = dump_station_table_with_counts(session)
         assert len(objects) == len(
             json_list
         ), "Object and JSON representations should have the same number of rows"
@@ -294,49 +297,3 @@ class TestDumpStationTableToJson:
         result = json.loads(dump_station_table_to_json(session))
         for entry in result:
             assert "id" in entry, "Each station entry should have an 'id' field"
-
-
-class TestPrintStationTable:
-    """Tests for printing the station table."""
-
-    def test_print_active_event_short(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that output is produced for the active event with short=True.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_station_table(session, short=True, all_events=False)
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output when printing station table (short, active event)"
-
-    def test_print_active_event_long(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that output is produced for the active event with short=False.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_station_table(session, short=False, all_events=False)
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output when printing station table (long, active event)"
-
-    def test_print_all_events(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that output is produced when printing stations for all events.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_station_table(session, short=False, all_events=True)
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output when printing station table for all events"

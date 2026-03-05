@@ -30,11 +30,12 @@ def cli_update_phase_pick(
         use_seismogram_image: Use the seismogram image to update pick.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_pick
+    from aimbat.core import create_iccs_instance, update_pick, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        iccs = create_iccs_instance(session)
+        active_event = get_active_event(session)
+        iccs = create_iccs_instance(session, active_event).iccs
         update_pick(
             session,
             iccs,
@@ -63,13 +64,15 @@ def cli_pick_timewindow(
         use_seismogram_image: Use the seismogram image to pick the time window.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_timewindow
+    from aimbat.core import create_iccs_instance, update_timewindow, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        iccs = create_iccs_instance(session)
+        active_event = get_active_event(session)
+        iccs = create_iccs_instance(session, active_event).iccs
         update_timewindow(
             session,
+            active_event,
             iccs,
             iccs_parameters.context,
             iccs_parameters.all,
@@ -92,13 +95,15 @@ def cli_pick_min_ccnorm(
     automatically de-selected when running ICCS with `--autoselect`.
     """
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_min_ccnorm
+    from aimbat.core import create_iccs_instance, update_min_ccnorm, get_active_event
     from sqlmodel import Session
 
     with Session(engine) as session:
-        iccs = create_iccs_instance(session)
+        active_event = get_active_event(session)
+        iccs = create_iccs_instance(session, active_event).iccs
         update_min_ccnorm(
             session,
+            active_event,
             iccs,
             iccs_parameters.context,
             iccs_parameters.all,

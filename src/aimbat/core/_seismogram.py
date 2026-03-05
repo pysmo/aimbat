@@ -1,15 +1,18 @@
-import aimbat.core._event as event
 import uuid
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from aimbat.core import get_active_event
+from pandas import Timestamp
+from sqlmodel import Session, select
+from sqlalchemy.exc import NoResultFound
+from typing import overload
+from collections.abc import Sequence
+from pydantic import TypeAdapter
+from typing import Any, Literal
+from pysmo import MiniSeismogram
+from pysmo.functions import detrend, normalize, clone_to_mini
+from pysmo.tools.plotutils import time_array
+from pysmo.tools.azdist import distance
 from aimbat.logger import logger
-from aimbat.utils import (
-    uuid_shortener,
-    make_table,
-    TABLE_STYLING,
-    json_to_table,
-)
 from aimbat.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -21,18 +24,6 @@ from aimbat._types import (
     SeismogramParameterBool,
     SeismogramParameterTimestamp,
 )
-from pysmo import MiniSeismogram
-from pysmo.functions import detrend, normalize, clone_to_mini
-from pysmo.tools.plotutils import time_array
-from pysmo.tools.azdist import distance
-from pandas import Timestamp
-from rich.console import Console
-from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
-from typing import overload
-from collections.abc import Sequence
-from pydantic import TypeAdapter
-from typing import Any, Literal
 
 __all__ = [
     "delete_seismogram_by_id",
@@ -45,9 +36,7 @@ __all__ = [
     "reset_seismogram_parameters",
     "get_selected_seismograms",
     "dump_seismogram_table_to_json",
-    "print_seismogram_table",
     "dump_seismogram_parameter_table_to_json",
-    "print_seismogram_parameter_table",
     "plot_all_seismograms",
 ]
 
@@ -274,12 +263,13 @@ def set_seismogram_parameter(
 
 
 def get_selected_seismograms(
-    session: Session, all_events: bool = False
+    session: Session, event: AimbatEvent | None = None, all_events: bool = False
 ) -> Sequence[AimbatSeismogram]:
-    """Get the selected seismograms for the active avent.
+    """Get the selected seismograms for the given event.
 
     Args:
         session: Database session.
+        event: Event to return selected seismograms for.
         all_events: Get the selected seismograms for all events.
 
     Returns: Selected seismograms.
@@ -295,13 +285,14 @@ def get_selected_seismograms(
             .where(AimbatSeismogramParameters.select == 1)
         )
     else:
-        logger.debug("Selecting seismograms for active event only.")
+        if event is None:
+            raise ValueError("An event must be provided when all_events is False.")
+        logger.debug(f"Selecting seismograms for event {event.id} only.")
         statement = (
             select(AimbatSeismogram)
             .join(AimbatSeismogramParameters)
-            .join(AimbatEvent)
             .where(AimbatSeismogramParameters.select == 1)
-            .where(AimbatEvent.active == 1)
+            .where(AimbatSeismogram.event_id == event.id)
         )
 
     seismograms = session.exec(statement).all()
@@ -325,20 +316,36 @@ def dump_seismogram_table_to_json(session: Session) -> str:
 
 @overload
 def dump_seismogram_parameter_table_to_json(
-    session: Session, all_events: bool, as_string: Literal[True]
+    session: Session,
+    all_events: bool,
+    as_string: Literal[True],
+    event: AimbatEvent | None = None,
 ) -> str: ...
 
 
 @overload
 def dump_seismogram_parameter_table_to_json(
-    session: Session, all_events: bool, as_string: Literal[False]
+    session: Session,
+    all_events: bool,
+    as_string: Literal[False],
+    event: AimbatEvent | None = None,
 ) -> list[dict[str, Any]]: ...
 
 
 def dump_seismogram_parameter_table_to_json(
-    session: Session, all_events: bool, as_string: bool
+    session: Session,
+    all_events: bool,
+    as_string: bool,
+    event: AimbatEvent | None = None,
 ) -> str | list[dict[str, Any]]:
-    """Dump the seismogram parameter table data to json."""
+    """Dump the seismogram parameter table data to json.
+
+    Args:
+        session: Database session.
+        all_events: Include parameters for all events.
+        as_string: Return as JSON string.
+        event: Event to dump parameters for (only used when all_events is False).
+    """
 
     logger.info("Dumping AimbatSeismogramParameters table to json.")
 
@@ -349,11 +356,12 @@ def dump_seismogram_parameter_table_to_json(
     if all_events:
         parameters = session.exec(select(AimbatSeismogramParameters)).all()
     else:
+        if event is None:
+            raise ValueError("An event must be provided when all_events is False.")
         parameters = session.exec(
             select(AimbatSeismogramParameters)
             .join(AimbatSeismogram)
-            .join(AimbatEvent)
-            .where(AimbatEvent.active == 1)
+            .where(AimbatSeismogram.event_id == event.id)
         ).all()
 
     if as_string:
@@ -361,150 +369,34 @@ def dump_seismogram_parameter_table_to_json(
     return adapter.dump_python(parameters, mode="json")
 
 
-def print_seismogram_table(
-    session: Session, short: bool, all_events: bool = False
-) -> None:
-    """Prints a pretty table with AIMBAT seismograms.
-
-    Args:
-        short: Shorten and format the output to be more human-readable.
-        all_events: Print seismograms for all events.
-    """
-
-    logger.info("Printing AIMBAT seismogram table.")
-
-    title = "AIMBAT seismograms for all events"
-    seismograms = None
-
-    if all_events:
-        logger.debug("Selecting seismograms for all events.")
-        seismograms = session.exec(select(AimbatSeismogram)).all()
-    else:
-        logger.debug("Selecting seismograms for active event only.")
-        active_event = get_active_event(session)
-        seismograms = active_event.seismograms
-        if short:
-            title = f"AIMBAT seismograms for event {active_event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={event.uuid_shortener(session, active_event)})"
-        else:
-            title = f"AIMBAT seismograms for event {active_event.time} (ID={active_event.id})"
-
-    logger.debug(f"Found {len(seismograms)} seismograms for the table.")
-
-    table = make_table(title=title)
-    table.add_column(
-        "ID (shortened)" if short else "ID",
-        justify="center",
-        style=TABLE_STYLING.id,
-        no_wrap=True,
-    )
-    table.add_column(
-        "Selected", justify="center", style=TABLE_STYLING.mine, no_wrap=True
-    )
-    table.add_column("NPTS", justify="center", style=TABLE_STYLING.mine, no_wrap=True)
-    table.add_column("Delta", justify="center", style=TABLE_STYLING.mine, no_wrap=True)
-    table.add_column(
-        "Data ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
-    )
-    table.add_column("Station ID", justify="center", style=TABLE_STYLING.linked)
-    table.add_column("Station Name", justify="center", style=TABLE_STYLING.linked)
-    if all_events:
-        table.add_column("Event ID", justify="center", style=TABLE_STYLING.linked)
-
-    for seismogram in seismograms:
-        logger.debug(f"Adding seismogram with ID {seismogram.id} to the table.")
-        row = [
-            (uuid_shortener(session, seismogram) if short else str(seismogram.id)),
-            TABLE_STYLING.bool_formatter(seismogram.parameters.select),
-            str(len(seismogram.data)),
-            str(seismogram.delta.total_seconds()),
-            (
-                uuid_shortener(session, seismogram.datasource)
-                if short
-                else str(seismogram.datasource.id)
-            ),
-            (
-                uuid_shortener(session, seismogram.station)
-                if short
-                else str(seismogram.station.id)
-            ),
-            f"{seismogram.station.name} - {seismogram.station.network}",
-        ]
-
-        if all_events:
-            row.append(
-                uuid_shortener(session, seismogram.event)
-                if short
-                else str(seismogram.event.id)
-            )
-        table.add_row(*row)
-
-    console = Console()
-    console.print(table)
-
-
-def print_seismogram_parameter_table(session: Session, short: bool) -> None:
-    """Print a pretty table with AIMBAT seismogram parameter values for the active event.
-
-    Args:
-        short: Shorten and format the output to be more human-readable.
-    """
-
-    logger.info("Printing AIMBAT seismogram parameters table for active event.")
-
-    active_event = get_active_event(session)
-    title = f"Seismogram parameters for event: {uuid_shortener(session, active_event) if short else str(active_event.id)}"
-
-    json_to_table(
-        data=dump_seismogram_parameter_table_to_json(
-            session, all_events=False, as_string=False
-        ),
-        title=title,
-        skip_keys=["id"],
-        column_order=["seismogram_id", "select"],
-        common_column_kwargs={"highlight": True},
-        formatters={
-            "seismogram_id": lambda x: (
-                uuid_shortener(session, AimbatSeismogram, str_uuid=x) if short else x
-            ),
-        },
-        column_kwargs={
-            "seismogram_id": {
-                "header": "Seismogram ID (shortened)" if short else "Seismogram ID",
-                "justify": "center",
-                "style": TABLE_STYLING.mine,
-            },
-        },
-    )
-
-
 @overload
 def plot_all_seismograms(
-    session: Session, return_fig: Literal[True]
+    session: Session, event: AimbatEvent, return_fig: Literal[True]
 ) -> tuple[plt.Figure, plt.Axes]: ...
 
 
 @overload
-def plot_all_seismograms(session: Session, return_fig: Literal[False]) -> None: ...
+def plot_all_seismograms(
+    session: Session, event: AimbatEvent, return_fig: Literal[False]
+) -> None: ...
 
 
 def plot_all_seismograms(
-    session: Session, return_fig: bool
+    session: Session, event: AimbatEvent, return_fig: bool
 ) -> tuple[plt.Figure, plt.Axes] | None:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Args:
         session: Database session.
+        event: AimbatEvent.
         return_fig: Whether to return the figure and axes objects instead of showing the plot.
 
     Returns:
         figure and axes objects if return_fig is True, otherwise None.
     """
 
-    if (active_event := get_active_event(session)) is None:
-        raise RuntimeError("No active event set.")
-
-    if len(seismograms := active_event.seismograms) == 0:
-        raise RuntimeError("No seismograms found in active event.")
+    if len(seismograms := event.seismograms) == 0:
+        raise RuntimeError(f"No seismograms found in event {event.id}.")
 
     distance_dict = {
         seismogram.id: distance(seismogram.station, seismogram.event) / 1000

@@ -9,10 +9,10 @@ __all__ = [
 
 
 class SeismogramParameter(StrEnum):
-    """[`AimbatSeismograParameters`][aimbat.lib.models.AimbatSeismogramParameters] enum class for typing.
+    """[`AimbatSeismograParameters`][aimbat.models.AimbatSeismogramParameters] enum class for typing.
 
     This enum class is used for typing, cli args etc. The attributes must be
-    the same as in the [`AimbatParameters`][aimbat.lib.models.AimbatParameters] model.
+    the same as in the [`AimbatParameters`][aimbat.models.AimbatParameters] model.
     """
 
     SELECT = auto()

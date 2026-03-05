@@ -1,7 +1,7 @@
 """AIMBAT styling."""
 
 from dataclasses import dataclass
-from pandas import Timestamp
+from pandas import Timestamp, NaT
 from typing import Any
 from rich import box
 from rich.table import Table
@@ -32,6 +32,8 @@ class TableStyling:
 
     @staticmethod
     def timestamp_formatter(dt: Timestamp, short: bool) -> str:
+        if dt is NaT:
+            return "-"
         if short:
             return dt.strftime("%Y-%m-%d [light_sea_green]%H:%M:%S[/]")
         return str(dt)

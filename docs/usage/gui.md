@@ -1,1 +1,1 @@
-# Graphical UI
+# Graphical User Interface (GUI)

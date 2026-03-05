@@ -3,7 +3,7 @@
 import json
 import uuid
 import pytest
-from aimbat.core._seismogram import (
+from aimbat.core import (
     delete_seismogram,
     delete_seismogram_by_id,
     get_seismogram_parameter,
@@ -15,9 +15,8 @@ from aimbat.core._seismogram import (
     get_selected_seismograms,
     dump_seismogram_table_to_json,
     dump_seismogram_parameter_table_to_json,
-    print_seismogram_table,
-    print_seismogram_parameter_table,
     plot_all_seismograms,
+    get_active_event,
 )
 from aimbat.models._parameters import AimbatSeismogramParametersBase
 from aimbat._types import SeismogramParameter
@@ -276,7 +275,8 @@ class TestGetSelectedSeismograms:
         Args:
             session: The database session.
         """
-        selected = get_selected_seismograms(session)
+        active_event = get_active_event(session)
+        selected = get_selected_seismograms(session, event=active_event)
         assert len(selected) > 0
 
     def test_after_deselecting_one(
@@ -288,9 +288,13 @@ class TestGetSelectedSeismograms:
             session: The database session.
             seismogram: An AimbatSeismogram to deselect.
         """
-        count_before = len(get_selected_seismograms(session))
+        active_event = get_active_event(session)
+        count_before = len(get_selected_seismograms(session, event=active_event))
         set_seismogram_parameter(session, seismogram, SeismogramParameter.SELECT, False)
-        assert len(get_selected_seismograms(session)) == count_before - 1
+        assert (
+            len(get_selected_seismograms(session, event=active_event))
+            == count_before - 1
+        )
 
     def test_all_events(self, session: Session) -> None:
         """Verifies that get_selected_seismograms returns seismograms across all events.
@@ -298,7 +302,10 @@ class TestGetSelectedSeismograms:
         Args:
             session: The database session.
         """
-        selected_active = get_selected_seismograms(session, all_events=False)
+        active_event = get_active_event(session)
+        selected_active = get_selected_seismograms(
+            session, event=active_event, all_events=False
+        )
         selected_all = get_selected_seismograms(session, all_events=True)
         assert len(selected_all) >= len(selected_active)
 
@@ -328,8 +335,9 @@ class TestDumpSeismogramParameterTableToJson:
         Args:
             session: The database session.
         """
+        active_event = get_active_event(session)
         result = dump_seismogram_parameter_table_to_json(
-            session, all_events=False, as_string=True
+            session, all_events=False, as_string=True, event=active_event
         )
         assert isinstance(result, str)
         parsed = json.loads(result)
@@ -342,8 +350,9 @@ class TestDumpSeismogramParameterTableToJson:
         Args:
             session: The database session.
         """
+        active_event = get_active_event(session)
         result = dump_seismogram_parameter_table_to_json(
-            session, all_events=False, as_string=False
+            session, all_events=False, as_string=False, event=active_event
         )
         assert isinstance(result, list)
         assert len(result) > 0
@@ -382,75 +391,14 @@ class TestDumpSeismogramParameterTableToJson:
         Args:
             session: The database session.
         """
+        active_event = get_active_event(session)
         active_only = dump_seismogram_parameter_table_to_json(
-            session, all_events=False, as_string=False
+            session, all_events=False, as_string=False, event=active_event
         )
         all_events = dump_seismogram_parameter_table_to_json(
             session, all_events=True, as_string=False
         )
         assert len(all_events) >= len(active_only)
-
-
-class TestPrintSeismogramTable:
-    """Tests for printing the seismogram table."""
-
-    def test_active_event_short(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that output is produced for the active event with short=True.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_seismogram_table(session, short=True, all_events=False)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_active_event_long(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that output is produced for the active event with short=False.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_seismogram_table(session, short=False, all_events=False)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_all_events(self, session: Session, capsys: pytest.CaptureFixture) -> None:
-        """Verifies that output is produced when printing seismograms for all events.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_seismogram_table(session, short=False, all_events=True)
-        assert len(capsys.readouterr().out) > 0
-
-
-class TestPrintSeismogramParameterTable:
-    """Tests for printing the seismogram parameter table."""
-
-    def test_print_short(self, session: Session, capsys: pytest.CaptureFixture) -> None:
-        """Verifies that output is produced with short=True.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_seismogram_parameter_table(session, short=True)
-        assert len(capsys.readouterr().out) > 0
-
-    def test_print_long(self, session: Session, capsys: pytest.CaptureFixture) -> None:
-        """Verifies that output is produced with short=False.
-
-        Args:
-            session: The database session.
-            capsys: The pytest capsys fixture.
-        """
-        print_seismogram_parameter_table(session, short=False)
-        assert len(capsys.readouterr().out) > 0
 
 
 class TestPlotAllSeismograms:
@@ -462,5 +410,6 @@ class TestPlotAllSeismograms:
         Args:
             session: The database session.
         """
-        fig, _ = plot_all_seismograms(session, return_fig=True)
+        active_event = get_active_event(session)
+        fig, _ = plot_all_seismograms(session, event=active_event, return_fig=True)
         assert isinstance(fig, Figure)

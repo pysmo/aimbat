@@ -224,9 +224,10 @@ class TestCascadeDeleteEvent:
         session.commit()
 
         # Create a snapshot via the core helper (uses the active event).
-        from aimbat.core import create_snapshot
+        from aimbat.core import create_snapshot, get_active_event
 
-        create_snapshot(session, comment="before delete")
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event, comment="before delete")
         assert len(session.exec(select(AimbatSnapshot)).all()) == 1
         assert len(session.exec(select(AimbatEventParametersSnapshot)).all()) == 1
         assert len(session.exec(select(AimbatSeismogramParametersSnapshot)).all()) == 1
@@ -295,9 +296,10 @@ class TestCascadeDeleteSnapshot:
         _make_seismogram(session, ev, sta)
         session.commit()
 
-        from aimbat.core import create_snapshot
+        from aimbat.core import create_snapshot, get_active_event
 
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
 
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.delete(snapshot)

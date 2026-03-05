@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from rich.console import Console
 from rich.panel import Panel
 
-from pandas import Timedelta
+from pandas import Timedelta, Timestamp
 from pysmo.tools.iccs import ICCS
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session
@@ -32,6 +32,7 @@ from textual_fspicker import FileOpen, Filters
 from aimbat._types import EventParameter, SeismogramParameter
 from aimbat.models._parameters import AimbatEventParametersBase
 from aimbat.core import (
+    BoundICCS,
     add_data_to_project,
     create_iccs_instance,
     create_snapshot,
@@ -125,7 +126,8 @@ class AimbatTUI(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        self._iccs: ICCS | None = None
+        self._bound_iccs: BoundICCS | None = None
+        self._iccs_last_modified_seen: Timestamp | None = None
         self._active_tab: str = "tab-seismograms"
 
         self.theme = _DEFAULT_THEME
@@ -135,6 +137,7 @@ class AimbatTUI(App[None]):
         self._setup_station_table()
         self._setup_snapshot_table()
 
+        self.set_interval(5, self._check_iccs_staleness)
         self._create_iccs()
         self.refresh_all()
 
@@ -164,7 +167,7 @@ class AimbatTUI(App[None]):
 
         ICCS construction reads waveform data, so it must not block the asyncio event loop.
         """
-        self._iccs = None
+        self._bound_iccs = None
         self._worker_create_iccs()
 
     @work(thread=True)
@@ -172,7 +175,8 @@ class AimbatTUI(App[None]):
         """Background worker: create ICCS instance without blocking the UI."""
         try:
             with Session(engine) as session:
-                new_iccs = create_iccs_instance(session)
+                active_event = get_active_event(session)
+                bound_iccs = create_iccs_instance(session, active_event)
         except (NoResultFound, RuntimeError):
             return
         except Exception as exc:
@@ -180,11 +184,11 @@ class AimbatTUI(App[None]):
                 self.notify, f"ICCS init failed: {exc}", severity="error"
             )
             return
-        self.call_from_thread(self._assign_iccs, new_iccs)
+        self.call_from_thread(self._assign_iccs, bound_iccs)
 
-    def _assign_iccs(self, iccs: ICCS) -> None:
-        """Main-thread callback: store the new ICCS instance and refresh status."""
-        self._iccs = iccs
+    def _assign_iccs(self, bound_iccs: BoundICCS) -> None:
+        """Main-thread callback: store the new BoundICCS instance and refresh status."""
+        self._bound_iccs = bound_iccs
         self._refresh_event_bar()
         self._refresh_seismograms()
 
@@ -227,22 +231,49 @@ class AimbatTUI(App[None]):
         self._refresh_stations()
         self._refresh_snapshots()
 
-    def _refresh_event_bar(self) -> None:
-        bar = self.query_one("#event-bar", Static)
-        iccs_status = " ● ICCS ready" if self._iccs is not None else " ○ no ICCS"
+    def _check_iccs_staleness(self) -> None:
+        """Trigger ICCS recreation if the active event has been modified externally.
+
+        When ICCS creation previously failed (e.g. due to an invalid parameter set via
+        the CLI), retries whenever ``event.last_modified`` changes. On any detected
+        change the full UI is refreshed so panels reflect the new DB state immediately.
+        """
         try:
             with Session(engine) as session:
                 event = get_active_event(session)
+                changed = False
+                if self._bound_iccs is not None:
+                    if self._bound_iccs.is_stale(event):
+                        self._iccs_last_modified_seen = event.last_modified
+                        self._create_iccs()
+                        changed = True
+                elif event.last_modified != self._iccs_last_modified_seen:
+                    self._iccs_last_modified_seen = event.last_modified
+                    self._create_iccs()
+                    changed = True
+        except (NoResultFound, RuntimeError):
+            return
+        if changed:
+            self.refresh_all()
+
+    def _refresh_event_bar(self) -> None:
+        bar = self.query_one("#event-bar", Static)
+        try:
+            with Session(engine) as session:
+                event = get_active_event(session)
+                iccs_status = (
+                    " ● ICCS ready" if self._bound_iccs is not None else " ○ no ICCS"
+                )
                 time_str = str(event.time)[:19] if event.time else "unknown"
                 lat = f"{event.latitude:.3f}°" if event.latitude is not None else "?"
                 lon = f"{event.longitude:.3f}°" if event.longitude is not None else "?"
-                depth = (
-                    f"  depth {event.depth / 1000:.1f} km"
-                    if event.depth is not None
+                modified = (
+                    f"  modified: {str(event.last_modified)[:19]}"
+                    if event.last_modified is not None
                     else ""
                 )
                 bar.update(
-                    f"Active event: {time_str}  |  {lat}, {lon}{depth}"
+                    f"Active event: {time_str}  |  {lat}, {lon}{modified}"
                     f"  [dim]{iccs_status}  e = switch event[/dim]"
                 )
         except NoResultFound:
@@ -256,10 +287,10 @@ class AimbatTUI(App[None]):
         table.clear()
 
         ccnorm_map: dict[uuid.UUID, float] = {}
-        if self._iccs is not None:
+        if self._bound_iccs is not None:
             try:
                 for iccs_seis, ccnorm in zip(
-                    self._iccs.seismograms, self._iccs.ccnorms
+                    self._bound_iccs.iccs.seismograms, self._bound_iccs.iccs.ccnorms
                 ):
                     ccnorm_map[iccs_seis.extra["id"]] = float(ccnorm)
             except Exception:
@@ -467,23 +498,27 @@ class AimbatTUI(App[None]):
 
     def _apply_parameter(self, attr: str, value: object) -> None:
         """Write a parameter to the DB and sync to the in-memory ICCS object."""
+        iccs = self._bound_iccs.iccs if self._bound_iccs is not None else None
+
         # Validate with ICCS first — before touching the DB — so invalid values
         # are rejected without being persisted.
-        if self._iccs is not None and hasattr(self._iccs, attr):
+        if iccs is not None and hasattr(iccs, attr):
             try:
-                setattr(self._iccs, attr, value)
-                self._iccs.clear_cache()
+                setattr(iccs, attr, value)
+                iccs.clear_cache()
             except ValueError as exc:
                 self.notify(str(exc), severity="error")
                 return
 
         try:
             with Session(engine) as session:
+                active_event = get_active_event(session)
                 if attr in {p.value for p in EventParameter}:
-                    set_event_parameter(session, EventParameter(attr), value)  # type: ignore[call-overload]
+                    set_event_parameter(
+                        session, active_event, EventParameter(attr), value
+                    )  # type: ignore[call-overload]
                 else:
                     # mccc_damp / mccc_min_ccnorm — not in EventParameter enum
-                    active_event = get_active_event(session)
                     validated = AimbatEventParametersBase.model_validate(
                         active_event.parameters, update={attr: value}
                     )
@@ -502,9 +537,12 @@ class AimbatTUI(App[None]):
             self._create_iccs()  # revert ICCS to DB state
             return
 
-        # Parameter change may have fixed previously invalid ranges.
-        if self._iccs is None:
+        if self._bound_iccs is None:
+            # Parameter change may have fixed previously invalid ranges.
             self._create_iccs()
+        else:
+            # Acknowledge our own write so staleness check doesn't recreate.
+            self._bound_iccs.created_at = Timestamp.now("UTC")
 
         self._refresh_parameters()
         self._refresh_seismograms()
@@ -550,11 +588,12 @@ class AimbatTUI(App[None]):
                 setattr(seis.parameters, param, new_value)
                 session.add(seis)
                 session.commit()
-            if self._iccs is not None:
-                for iccs_seis in self._iccs.seismograms:
+            if self._bound_iccs is not None:
+                for iccs_seis in self._bound_iccs.iccs.seismograms:
                     if iccs_seis.extra.get("id") == seis_uuid:
                         setattr(iccs_seis, param, new_value)
-                        self._iccs.clear_cache()
+                        self._bound_iccs.iccs.clear_cache()
+                        self._bound_iccs.created_at = Timestamp.now("UTC")
                         break
             self._refresh_seismograms()
             self.notify(f"{param} toggled", timeout=2)
@@ -635,9 +674,13 @@ class AimbatTUI(App[None]):
             try:
                 with Session(engine) as session:
                     rollback_to_snapshot_by_id(session, uuid.UUID(snap_id))
-                    if self._iccs is not None:
-                        sync_iccs_parameters(session, self._iccs)
-                if self._iccs is None:
+                    if self._bound_iccs is not None:
+                        active_event = get_active_event(session)
+                        sync_iccs_parameters(
+                            session, active_event, self._bound_iccs.iccs
+                        )
+                        self._bound_iccs.created_at = Timestamp.now("UTC")
+                if self._bound_iccs is None:
                     self._create_iccs()
                 self.refresh_all()
                 self.notify("Rolled back to snapshot", timeout=3)
@@ -696,9 +739,23 @@ class AimbatTUI(App[None]):
 
         self.push_screen(ActionMenuModal("Add Data", actions), on_type)
 
+    def _require_iccs(self) -> bool:
+        """Return True if ICCS is ready; show a contextual warning and return False otherwise."""
+        if self._bound_iccs is not None:
+            return True
+        try:
+            with Session(engine) as session:
+                get_active_event(session)
+            self.notify(
+                "ICCS not ready — check event parameters (Parameters tab)",
+                severity="warning",
+            )
+        except (NoResultFound, RuntimeError):
+            self.notify("No active event — press e to select one", severity="warning")
+        return False
+
     def action_open_interactive_tools(self) -> None:
-        if self._iccs is None:
-            self.notify("No active event — activate one first", severity="warning")
+        if not self._require_iccs():
             return
 
         def on_result(result: tuple[str, bool, bool] | None) -> None:
@@ -714,7 +771,7 @@ class AimbatTUI(App[None]):
         matplotlib on the main thread via App.suspend(), which is the correct
         Textual pattern for blocking terminal-adjacent processes.
         """
-        if self._iccs is None:
+        if self._bound_iccs is None:
             self.notify("ICCS not ready — please wait", severity="warning")
             return
         _TOOL_LABELS = {
@@ -738,10 +795,11 @@ class AimbatTUI(App[None]):
                     )
                 )
                 with Session(engine) as session:
+                    active_event = get_active_event(session)
                     if tool == "phase":
                         update_pick(
                             session,
-                            self._iccs,
+                            self._bound_iccs.iccs,
                             context,
                             all_seis,
                             False,
@@ -750,7 +808,8 @@ class AimbatTUI(App[None]):
                     elif tool == "window":
                         update_timewindow(
                             session,
-                            self._iccs,
+                            active_event,
+                            self._bound_iccs.iccs,
                             context,
                             all_seis,
                             False,
@@ -759,7 +818,8 @@ class AimbatTUI(App[None]):
                     elif tool == "ccnorm":
                         update_min_ccnorm(
                             session,
-                            self._iccs,
+                            active_event,
+                            self._bound_iccs.iccs,
                             context,
                             all_seis,
                             return_fig=False,
@@ -768,19 +828,19 @@ class AimbatTUI(App[None]):
         except Exception as exc:
             self.notify(str(exc), severity="error")
             return
+        self._bound_iccs.created_at = Timestamp.now("UTC")
         self._refresh_parameters()
         self._refresh_seismograms()
         self._refresh_event_bar()
         self.notify("Done", timeout=2)
 
     def action_open_align(self) -> None:
-        if self._iccs is None:
-            self.notify("No active event — activate one first", severity="warning")
+        if not self._require_iccs():
             return
 
         def on_result(result: tuple[str, bool, bool, bool] | None) -> None:
             if result is not None:
-                self._run_align_tool(self._iccs, *result)
+                self._run_align_tool(self._bound_iccs.iccs, *result)  # type: ignore[union-attr]
 
         self.push_screen(AlignModal(), on_result)
 
@@ -799,13 +859,18 @@ class AimbatTUI(App[None]):
                 if algorithm == "iccs":
                     run_iccs(session, iccs, autoflip, autoselect)
                 elif algorithm == "mccc":
-                    run_mccc(session, iccs, all_seis)
+                    active_event = get_active_event(session)
+                    run_mccc(session, active_event, iccs, all_seis)
         except Exception as exc:
             self.call_from_thread(self.notify, str(exc), severity="error")
             return
         self.call_from_thread(self._post_align_complete)
 
     def _post_align_complete(self) -> None:
+        # Acknowledge our own writes (t1/flip/select written back by ICCS/MCCC)
+        # so the staleness check doesn't recreate an ICCS we just ran.
+        if self._bound_iccs is not None:
+            self._bound_iccs.created_at = Timestamp.now("UTC")
         self.refresh_all()
         self.notify("Alignment complete", timeout=3)
 
@@ -815,7 +880,8 @@ class AimbatTUI(App[None]):
                 return
             try:
                 with Session(engine) as session:
-                    create_snapshot(session, comment or None)
+                    active_event = get_active_event(session)
+                    create_snapshot(session, active_event, comment or None)
                 self._refresh_snapshots()
                 self.notify("Snapshot created", timeout=2)
             except Exception as exc:

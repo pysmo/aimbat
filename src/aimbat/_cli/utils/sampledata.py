@@ -17,7 +17,7 @@ app = App(name="sampledata", help=__doc__, help_format="markdown")
 @app.command(name="download")
 @simple_exception
 def sampledata_cli_download(
-    *, force: bool = False, global_parameters: GlobalParameters | None = None
+    *, force: bool = False, global_parameters: GlobalParameters = GlobalParameters()
 ) -> None:
     """Download AIMBAT sample data.
 
@@ -29,18 +29,16 @@ def sampledata_cli_download(
     """
     from aimbat.utils import download_sampledata
 
-    global_parameters = global_parameters or GlobalParameters()
-
     download_sampledata(force)
 
 
 @app.command(name="delete")
 @simple_exception
-def sampledata_cli_delete(*, global_parameters: GlobalParameters | None = None) -> None:
+def sampledata_cli_delete(
+    *, global_parameters: GlobalParameters = GlobalParameters()
+) -> None:
     """Recursively delete sample data directory."""
     from aimbat.utils import delete_sampledata
-
-    global_parameters = global_parameters or GlobalParameters()
 
     delete_sampledata()
 

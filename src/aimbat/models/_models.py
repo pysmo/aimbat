@@ -354,6 +354,11 @@ class AimbatEvent(SQLModel, table=True):
     latitude: float = Field(description="Event latitude.")
     longitude: float = Field(description="Event longitude.")
     depth: float | None = Field(default=None, description="Event depth.")
+    last_modified: PydanticTimestamp | None = Field(
+        default=None,
+        sa_type=SAPandasTimestamp,
+        description="Timestamp of the last modification to this event's parameters.",
+    )
     seismograms: list[AimbatSeismogram] = Relationship(
         back_populates="event", cascade_delete=True
     )

@@ -1,11 +1,13 @@
 import os
 import uuid
-from aimbat.core import get_active_event
+from sqlmodel import Session, select
+from pydantic import TypeAdapter
+from collections.abc import Sequence
+from rich.progress import track
+from rich.console import Console
 from aimbat.logger import logger
 from aimbat.io import DataType
 from aimbat.utils import (
-    uuid_shortener,
-    make_table,
     TABLE_STYLING,
     json_to_table,
 )
@@ -24,16 +26,10 @@ from aimbat.models._models import (
     AimbatEvent,
     AimbatSeismogram,
 )
-from sqlmodel import Session, select
-from pydantic import TypeAdapter
-from collections.abc import Sequence
-from rich.progress import track
-from rich.console import Console
 
 __all__ = [
     "add_data_to_project",
-    "get_data_for_active_event",
-    "print_data_table",
+    "get_data_for_event",
     "dump_data_table_to_json",
 ]
 
@@ -315,82 +311,27 @@ def add_data_to_project(
         raise
 
 
-def get_data_for_active_event(session: Session) -> Sequence[AimbatDataSource]:
-    """Returns the data sources belonging to the active event.
+def get_data_for_event(
+    session: Session, event: AimbatEvent
+) -> Sequence[AimbatDataSource]:
+    """Returns the data sources belonging to the given event.
 
     Args:
         session: Database session.
+        event: AimbatEvent.
 
     Returns:
-        Sequence of AimbatDataSource objects belonging to the active event.
+        Sequence of AimbatDataSource objects belonging to the event.
     """
 
-    logger.info("Getting data sources for active event.")
+    logger.info(f"Getting data sources for event {event.id}.")
 
     statement = (
         select(AimbatDataSource)
         .join(AimbatSeismogram)
-        .join(AimbatEvent)
-        .where(AimbatEvent.active == 1)
+        .where(AimbatSeismogram.event_id == event.id)
     )
     return session.exec(statement).all()
-
-
-def print_data_table(session: Session, short: bool, all_events: bool = False) -> None:
-    """Print a pretty table with information about the data sources in the database.
-
-    Args:
-        short: Shorten UUIDs and format data.
-        all_events: Print all data sources instead of limiting to the active event.
-    """
-
-    logger.info("Printing data sources table.")
-
-    if all_events:
-        aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
-        title = "Data sources for all events"
-    else:
-        active_event = get_active_event(session)
-        aimbat_data_sources = get_data_for_active_event(session)
-        time = (
-            active_event.time.strftime("%Y-%m-%d %H:%M:%S")
-            if short
-            else active_event.time
-        )
-        id = uuid_shortener(session, active_event) if short else active_event.id
-        title = f"Data sources for event {time} (ID={id})"
-
-    logger.debug(f"Found {len(aimbat_data_sources)} data sources in total.")
-
-    rows = [
-        [
-            uuid_shortener(session, a) if short else str(a.id),
-            str(a.datatype),
-            str(a.sourcename),
-            (uuid_shortener(session, a.seismogram) if short else str(a.seismogram.id)),
-        ]
-        for a in aimbat_data_sources
-    ]
-
-    table = make_table(title=title)
-
-    table.add_column(
-        "ID (shortened)" if short else "ID",
-        justify="center",
-        style=TABLE_STYLING.id,
-        no_wrap=True,
-    )
-    table.add_column("Datatype", justify="center", style=TABLE_STYLING.mine)
-    table.add_column("Source", justify="left", style=TABLE_STYLING.mine, no_wrap=True)
-    table.add_column(
-        "Seismogram ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
-    )
-
-    for row in rows:
-        table.add_row(*row)
-
-    console = Console()
-    console.print(table)
 
 
 def dump_data_table_to_json(session: Session) -> str:

@@ -12,9 +12,9 @@ from pysmo.classes import SAC
 from aimbat.io import DataType
 from aimbat.core import (
     add_data_to_project,
-    get_data_for_active_event,
-    print_data_table,
+    get_data_for_event,
     dump_data_table_to_json,
+    get_active_event,
 )
 from aimbat.models import (
     AimbatDataSource,
@@ -272,7 +272,8 @@ class TestGetDataSources:
         Args:
             session (Session): Database session.
         """
-        data_sources = get_data_for_active_event(session)
+        active_event = get_active_event(session)
+        data_sources = get_data_for_event(session, active_event)
         assert len(data_sources) != 0, "Expected data sources for the active event."
         assert all(
             isinstance(ds, AimbatDataSource) for ds in data_sources
@@ -291,98 +292,6 @@ class TestGetDataSources:
         expected_ids = map(str, session.exec(select(AimbatDataSource.id)).all())
         returned_ids = [item["id"] for item in json_data]
         assert set(expected_ids) == set(returned_ids), "Expected IDs to match."
-
-    def test_print_data_table_for_all_events(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that print_data_table produces output for all events.
-
-        Args:
-            session (Session): Database session.
-            capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
-        """
-        print_data_table(session, short=False, all_events=True)
-
-        expected_ids = session.exec(select(AimbatDataSource.id)).all()
-
-        captured = capsys.readouterr()
-        assert "Data sources for all events" in captured.out
-        for id in expected_ids:
-            assert (
-                str(id) in captured.out
-            ), "expected data source ID to be in the output table"
-
-    def test_print_data_table_for_all_events_short(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that print_data_table produces short output for all events.
-
-        Args:
-            session (Session): Database session.
-            capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
-        """
-        expected_ids = session.exec(select(AimbatDataSource.id)).all()
-
-        print_data_table(session, short=True, all_events=True)
-
-        captured = capsys.readouterr()
-        assert "Data sources for all events" in captured.out
-        for id in expected_ids:
-            assert (
-                str(id)[:2] in captured.out
-            ), "expected data source ID to be in the output table"
-
-    def test_print_data_table_for_active_event(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that print_data_table produces output for the active event.
-
-        Args:
-            session (Session): Database session.
-            capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
-        """
-        statement = (
-            select(AimbatDataSource.id)
-            .join(AimbatSeismogram)
-            .join(AimbatEvent)
-            .where(AimbatEvent.active == 1)
-        )
-        expected_ids = session.exec(statement).all()
-
-        print_data_table(session, short=False, all_events=False)
-
-        captured = capsys.readouterr()
-        assert "Data sources for event" in captured.out
-        for id in expected_ids:
-            assert (
-                str(id) in captured.out
-            ), "expected data source ID to be in the output table"
-
-    def test_print_data_table_for_active_event_short(
-        self, session: Session, capsys: pytest.CaptureFixture
-    ) -> None:
-        """Verifies that print_data_table produces short output for the active event.
-
-        Args:
-            session (Session): Database session.
-            capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
-        """
-        statement = (
-            select(AimbatDataSource.id)
-            .join(AimbatSeismogram)
-            .join(AimbatEvent)
-            .where(AimbatEvent.active == 1)
-        )
-        expected_ids = session.exec(statement).all()
-
-        print_data_table(session, short=True, all_events=False)
-
-        captured = capsys.readouterr()
-        assert "Data sources for event" in captured.out
-        for id in expected_ids:
-            assert (
-                str(id)[:2] in captured.out
-            ), "expected data source ID to be in the output table"
 
 
 # ===================================================================

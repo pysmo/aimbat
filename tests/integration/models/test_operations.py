@@ -214,7 +214,8 @@ class TestSnapshotRelationships:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert isinstance(
             snapshot.event_parameters_snapshot, AimbatEventParametersSnapshot
@@ -228,7 +229,8 @@ class TestSnapshotRelationships:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert len(snapshot.seismogram_parameters_snapshots) > 0
         assert all(
@@ -242,7 +244,8 @@ class TestSnapshotRelationships:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert isinstance(snapshot.event, AimbatEvent)
 
@@ -252,7 +255,8 @@ class TestSnapshotRelationships:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
         assert snapshot.seismogram_count == len(
@@ -265,7 +269,8 @@ class TestSnapshotRelationships:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
         expected = sum(1 for s in snapshot.seismogram_parameters_snapshots if s.select)
@@ -277,7 +282,8 @@ class TestSnapshotRelationships:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
         expected = sum(1 for s in snapshot.seismogram_parameters_snapshots if s.flip)
@@ -308,7 +314,7 @@ class TestSnapshotRelationships:
         session.add(to_deselect.parameters)
         session.commit()
 
-        create_snapshot(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
 
@@ -365,7 +371,7 @@ class TestCascadeDeleteEvent:
             session: The database session.
             event: An AimbatEvent to delete.
         """
-        create_snapshot(session)
+        create_snapshot(session, event)
         session.refresh(event)
         assert len(event.snapshots) > 0
         snapshot_ids = [s.id for s in event.snapshots]
@@ -385,7 +391,7 @@ class TestCascadeDeleteEvent:
             session: The database session.
             event: An AimbatEvent to delete.
         """
-        create_snapshot(session)
+        create_snapshot(session, event)
         session.refresh(event)
 
         session.delete(event)
@@ -497,7 +503,8 @@ class TestCascadeDeleteSeismogram:
             session: The database session.
             seismogram: An AimbatSeismogram to delete.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         parameters_id = seismogram.parameters.id
 
         session.delete(seismogram)
@@ -517,7 +524,8 @@ class TestCascadeDeleteSnapshot:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         ep_snapshot_id = snapshot.event_parameters_snapshot.id
 
@@ -532,7 +540,8 @@ class TestCascadeDeleteSnapshot:
         Args:
             session: The database session.
         """
-        create_snapshot(session)
+        active_event = get_active_event(session)
+        create_snapshot(session, active_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         sp_snapshot_ids = [s.id for s in snapshot.seismogram_parameters_snapshots]
         assert len(sp_snapshot_ids) > 0

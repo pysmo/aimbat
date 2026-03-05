@@ -30,6 +30,7 @@ _internal_names = set(dir())
 
 from ._models import *
 from ._readers import *
+from ._parameters import *
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]
 
