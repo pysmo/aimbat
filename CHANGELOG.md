@@ -19,6 +19,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Fix importlib error for Python 3.7
 - Fix typo on readme
 - Listing snapshots when there were non causes error
+- Debug flag from cli commands didn't do anything
 
 ### 📚 Documentation
 
@@ -83,6 +84,9 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Make data reading more modular
 - Move aimbat source to src directory
 - Use pandas Timestamp and Timedelta
+- Improve docstrings, io DI pattern, and data source terminology
+- **(core)** Re-arange core, move set_default_event and friends out of core.
+- Active event -> default event
 
 ### 🚀 New Features
 
@@ -114,6 +118,9 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Add bandpass filtering ([#214](https://github.com/pysmo/aimbat/issues/214))
 - Add mccc
 - Add in-memory seismogram data cache
+- Add JSON datasource
+- Add TUI and supporting changes
+- Implement interactive shell and major documentation update for v2
 
 ### 🧪 Testing
 

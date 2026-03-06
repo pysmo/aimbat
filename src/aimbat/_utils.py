@@ -1,3 +1,6 @@
+from contextlib import suppress
+
+
 def export_module_names(globals_dict: dict, module_name: str) -> None:
     """
     Updates the __module__ attribute of all objects in __all__ to match
@@ -12,9 +15,5 @@ def export_module_names(globals_dict: dict, module_name: str) -> None:
     for name in all_names:
         obj = globals_dict.get(name)
         if obj is not None and hasattr(obj, "__module__"):
-            try:
-                # Attempt to write the module name
+            with suppress(AttributeError, TypeError):
                 obj.__module__ = module_name
-            except (AttributeError, TypeError):
-                # Safely ignore objects with read-only __module__ attributes
-                pass

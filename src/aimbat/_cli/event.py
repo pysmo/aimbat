@@ -108,7 +108,7 @@ def cli_event_parameter_set(
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
-        set_event_parameter(session, event, name, parsed_value)
+        set_event_parameter(session, event, name, parsed_value, validate_iccs=True)
 
 
 @parameter.command(name="dump")

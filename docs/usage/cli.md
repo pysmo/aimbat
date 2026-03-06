@@ -3,11 +3,11 @@
 The CLI is the primary tool for project administration, data import, and batch
 processing. Every command has a `--help` flag that prints its full option list.
 
-!!! warning "Parameter validation"
-    The CLI writes parameter values directly to the database without
-    data-aware validation. For example, it will not prevent you from setting a
-    time window that extends beyond the available data. Use the
-    [TUI](tui.md) or [Shell](shell.md) when validation matters.
+!!! note "Parameter validation"
+    Event parameters (e.g. time window, bandpass settings) are validated against
+    the seismogram data before being written to the database — invalid values are
+    rejected with an error message. Other fields (e.g. raw seismogram or station
+    attributes) are written directly without data-aware checks.
 
 ## Project location
 

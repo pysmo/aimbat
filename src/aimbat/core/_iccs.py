@@ -5,7 +5,6 @@ from uuid import UUID
 
 from pandas import Timestamp
 from sqlmodel import Session
-from pysmo.functions import clone_to_mini
 from pysmo.tools.iccs import (
     ICCS,
     MiniICCSSeismogram,
@@ -23,9 +22,16 @@ from aimbat.models._parameters import (
     AimbatSeismogramParametersBase,
 )
 
+_RETURN_FIG_WARNING = (
+    "Returning figure and axes objects instead of showing the plot. "
+    "This is intended for testing purposes; in normal usage, return_fig should be False."
+)
+
 __all__ = [
     "BoundICCS",
     "create_iccs_instance",
+    "clear_iccs_cache",
+    "validate_iccs_construction",
     "sync_iccs_parameters",
     "run_iccs",
     "run_mccc",
@@ -62,30 +68,41 @@ class BoundICCS:
         return event.last_modified > self.created_at
 
 
-def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
-    """Create a BoundICCS instance for the given event.
+# Process-level ICCS cache. In normal CLI use this is always cold (one command
+# per process). In the shell a warm entry is reused across commands, avoiding
+# redundant data loading and ICCS computation.
+_iccs_cache: dict[UUID, BoundICCS] = {}
 
-    Seismogram data is copied into MiniICCSSeismogram objects so the session
-    does not need to remain open after this call.
+
+def clear_iccs_cache() -> None:
+    """Clear the process-level ICCS cache."""
+    _iccs_cache.clear()
+
+
+def _build_iccs(event: AimbatEvent) -> ICCS:
+    """Build an ICCS instance from an event's current parameters and seismograms.
 
     Args:
-        session: Database session.
         event: AimbatEvent.
 
     Returns:
-        BoundICCS instance tied to the given event.
+        A freshly constructed ICCS instance.
     """
-
-    logger.info(f"Creating ICCS instance for event {event.id}.")
-
     p = event.parameters
-
     seismograms = [
-        clone_to_mini(MiniICCSSeismogram, seis, update={"extra": {"id": seis.id}})
+        MiniICCSSeismogram(
+            begin_time=seis.begin_time,
+            delta=seis.delta,
+            data=seis.data,
+            t0=seis.t0,
+            t1=seis.t1,
+            flip=seis.flip,
+            select=seis.select,
+            extra={"id": seis.id},
+        )
         for seis in event.seismograms
     ]
-
-    iccs = ICCS(
+    return ICCS(
         seismograms=seismograms,
         window_pre=p.window_pre,
         window_post=p.window_post,
@@ -95,7 +112,55 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
         min_ccnorm=p.min_ccnorm,
         context_width=settings.context_width,
     )
-    return BoundICCS(iccs=iccs, event_id=event.id, created_at=Timestamp.now("UTC"))
+
+
+def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
+    """Return a BoundICCS instance for the given event.
+
+    Returns the cached instance when it is still fresh (i.e. `event.last_modified`
+    has not advanced since the instance was created). Otherwise builds a new one
+    and updates the cache.
+
+    `MiniICCSSeismogram` instances are constructed directly from each
+    `AimbatSeismogram`, passing `data` by reference to the read-only io cache.
+    No waveform data is copied. The session does not need to remain open after
+    this call.
+
+    Args:
+        session: Database session.
+        event: AimbatEvent.
+
+    Returns:
+        BoundICCS instance tied to the given event.
+    """
+    cached = _iccs_cache.get(event.id)
+    if cached is not None and not cached.is_stale(event):
+        logger.debug(f"Returning cached BoundICCS for event {event.id}.")
+        return cached
+
+    logger.info(f"Creating ICCS instance for event {event.id}.")
+    bound = BoundICCS(
+        iccs=_build_iccs(event),
+        event_id=event.id,
+        created_at=Timestamp.now("UTC"),
+    )
+    _iccs_cache[event.id] = bound
+    return bound
+
+
+def validate_iccs_construction(event: AimbatEvent) -> None:
+    """Try to construct an ICCS instance for the event without caching the result.
+
+    Use this to check whether the event's current (possibly uncommitted) parameters
+    are compatible with ICCS construction before persisting them to the database.
+
+    Args:
+        event: AimbatEvent.
+
+    Raises:
+        Any exception raised by ICCS construction (e.g. invalid parameter values).
+    """
+    _build_iccs(event)
 
 
 def _write_back_seismograms(session: Session, iccs: ICCS) -> None:
@@ -253,9 +318,7 @@ def update_pick(
         _write_back_seismograms(session, iccs)
         return None
 
-    logger.warning(
-        "Returning figure and axes objects instead of showing the plot. This is intended for testing purposes; in normal usage, return_fig should be False."
-    )
+    logger.warning(_RETURN_FIG_WARNING)
     return result
 
 
@@ -295,9 +358,7 @@ def update_timewindow(
         session.commit()
         return None
 
-    logger.warning(
-        "Returning figure and axes objects instead of showing the plot. This is intended for testing purposes; in normal usage, return_fig should be False."
-    )
+    logger.warning(_RETURN_FIG_WARNING)
     return result
 
 
@@ -332,7 +393,5 @@ def update_min_ccnorm(
         session.commit()
         return None
 
-    logger.warning(
-        "Returning figure and axes objects instead of showing the plot. This is intended for testing purposes; in normal usage, return_fig should be False."
-    )
+    logger.warning(_RETURN_FIG_WARNING)
     return result

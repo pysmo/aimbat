@@ -5,8 +5,7 @@ All functions take a SQLModel `Session` and work with the models in
 `aimbat.models`. The main areas covered are:
 
 - **Default event** — get and set the default event (`get_default_event`,
-  `set_default_event`). Only one event is set as default at a time; switching
-  clears the seismogram data cache.
+  `set_default_event`).
 - **Data** — add data to the project, linking each source to its station,
   event, and seismogram records (`add_data_to_project`).
 - **Events, seismograms, stations** — query, update, and delete records; read

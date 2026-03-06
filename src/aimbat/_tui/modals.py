@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 from enum import StrEnum
 
-from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 from textual import on
 from textual.app import ComposeResult
@@ -108,11 +107,10 @@ class EventSwitcherModal(ModalScreen[tuple[uuid.UUID, bool] | None]):
         try:
             with Session(engine) as session:
                 events = session.exec(select(AimbatEvent)).all()
-                default_id: uuid.UUID | None = None
-                try:
-                    default_id = get_default_event(session).id
-                except NoResultFound:
-                    pass
+                _default = get_default_event(session)
+                default_id: uuid.UUID | None = (
+                    _default.id if _default is not None else None
+                )
 
                 for event in events:
                     is_default = event.id == default_id

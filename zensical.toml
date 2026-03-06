@@ -18,12 +18,12 @@ nav = [
   ] },
   { "Usage" = [
     {"Using AIMBAT" = "usage/index.md"},
-    {"CLI" = "usage/cli.md"},
+    {"Command line" = "usage/cli.md"},
     {"Shell" = "usage/shell.md"},
-    {"TUI" = "usage/tui.md"},
-    {"GUI" = "usage/gui.md"},
-    {"API" = "usage/api.md"},
-    {"Defaults" = "usage/defaults.md"},
+    {"Terminal UI" = "usage/tui.md"},
+    {"Graphical UI" = "usage/gui.md"},
+    {"Python API" = "usage/api.md"},
+    {"Aimbat Defaults" = "usage/defaults.md"},
   ] },
   { "API reference" = [
     "api/aimbat.md",

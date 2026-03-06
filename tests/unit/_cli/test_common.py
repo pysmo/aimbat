@@ -5,8 +5,6 @@ from aimbat._cli.common import (
     GlobalParameters,
     IccsPlotParameters,
     TableParameters,
-    CliHints,
-    HINTS,
     simple_exception,
 )
 from aimbat import settings
@@ -68,30 +66,6 @@ class TestTableParameters:
         """Verifies that short can be set to False."""
         params = TableParameters(short=False)
         assert params.short is False
-
-
-class TestCliHints:
-    """Tests for the CliHints frozen dataclass."""
-
-    def test_set_default_event_hint_content(self) -> None:
-        """Verifies that SET_DEFAULT_EVENT hint references the default command."""
-        assert "default" in CliHints.SET_DEFAULT_EVENT
-        assert "aimbat event default" in CliHints.SET_DEFAULT_EVENT
-
-    def test_list_events_hint_content(self) -> None:
-        """Verifies that LIST_EVENTS hint references the list command."""
-        assert "list" in CliHints.LIST_EVENTS
-        assert "aimbat event list" in CliHints.LIST_EVENTS
-
-    def test_hints_instance_is_frozen(self) -> None:
-        """Verifies that the CliHints dataclass is frozen (immutable)."""
-        with pytest.raises((AttributeError, TypeError)):
-            HINTS.SET_DEFAULT_EVENT = "new value"
-
-    def test_hints_singleton_values(self) -> None:
-        """Verifies that the HINTS singleton has the expected attribute values."""
-        assert HINTS.SET_DEFAULT_EVENT == CliHints.SET_DEFAULT_EVENT
-        assert HINTS.LIST_EVENTS == CliHints.LIST_EVENTS
 
 
 class TestSimpleException:

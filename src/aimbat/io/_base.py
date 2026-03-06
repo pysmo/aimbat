@@ -220,16 +220,17 @@ def read_seismogram_data(
 ) -> npt.NDArray[np.float64]:
     """Read seismogram waveform data from a data source.
 
-    Results are cached in memory by `(datasource, datatype)` key. The cache
-    entry is invalidated when `write_seismogram_data` is called for the same
-    key.
+    Results are cached in memory by `(datasource, datatype)` key. The returned
+    array is read-only; to write new data use `write_seismogram_data`. The
+    cache entry is invalidated when `write_seismogram_data` is called for the
+    same key.
 
     Args:
         datasource: Data source path or name.
         datatype: Data type of the source.
 
     Returns:
-        Seismogram waveform data as a NumPy array.
+        Read-only seismogram waveform data as a NumPy array.
 
     Raises:
         NotImplementedError: If `datatype` has no registered data reader.
@@ -242,7 +243,9 @@ def read_seismogram_data(
         )
     key = (str(datasource), datatype)
     if key not in _cache:
-        _cache[key] = reader(datasource)
+        arr = reader(datasource)
+        arr.flags.writeable = False
+        _cache[key] = arr
     return _cache[key]
 
 

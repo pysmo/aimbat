@@ -227,6 +227,7 @@ class TestCascadeDeleteEvent:
         from aimbat.core import create_snapshot, get_default_event
 
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event, comment="before delete")
         assert len(session.exec(select(AimbatSnapshot)).all()) == 1
         assert len(session.exec(select(AimbatEventParametersSnapshot)).all()) == 1
@@ -299,6 +300,7 @@ class TestCascadeDeleteSnapshot:
         from aimbat.core import create_snapshot, get_default_event
 
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
 
         snapshot = session.exec(select(AimbatSnapshot)).one()

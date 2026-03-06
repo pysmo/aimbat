@@ -42,6 +42,7 @@ def snapshot(session: Session) -> AimbatSnapshot:
         An AimbatSnapshot for the default event.
     """
     default_event = get_default_event(session)
+    assert default_event is not None
     create_snapshot(session, default_event)
     return session.exec(select(AimbatSnapshot)).one()
 
@@ -57,6 +58,7 @@ class TestCreateSnapshot:
         """
         assert len(session.exec(select(AimbatSnapshot)).all()) == 0
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         assert len(session.exec(select(AimbatSnapshot)).all()) == 1
 
@@ -67,6 +69,7 @@ class TestCreateSnapshot:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.event_id == default_event.id
@@ -78,6 +81,7 @@ class TestCreateSnapshot:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event, comment="test comment")
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment == "test comment"
@@ -89,6 +93,7 @@ class TestCreateSnapshot:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment is None
@@ -100,6 +105,7 @@ class TestCreateSnapshot:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         n_seismograms = len(default_event.seismograms)
 
         create_snapshot(session, default_event)
@@ -116,6 +122,7 @@ class TestCreateSnapshot:
             snapshot: An AimbatSnapshot for the default event.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         assert (
             snapshot.event_parameters_snapshot.parameters_id
             == default_event.parameters.id
@@ -170,6 +177,7 @@ class TestRollbackToSnapshot:
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         original_min_ccnorm = snapshot.event_parameters_snapshot.min_ccnorm
 
         # Mutate the parameter after taking the snapshot
@@ -192,6 +200,7 @@ class TestRollbackToSnapshot:
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         seismogram = default_event.seismograms[0]
         original_select = snapshot.seismogram_parameters_snapshots[0].select
 
@@ -212,6 +221,7 @@ class TestRollbackToSnapshot:
             snapshot: An AimbatSnapshot to roll back to.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         original_min_ccnorm = snapshot.event_parameters_snapshot.min_ccnorm
 
         default_event.parameters.min_ccnorm = 0.0
@@ -232,6 +242,7 @@ class TestRollbackToSnapshot:
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         params = default_event.parameters
         snap = snapshot.event_parameters_snapshot
 
@@ -271,6 +282,7 @@ class TestRollbackToSnapshot:
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         seismogram = default_event.seismograms[0]
         params = seismogram.parameters
         snap = next(
@@ -313,6 +325,7 @@ class TestGetSnapshots:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         assert len(get_snapshots(session, event=default_event)) == 0
 
     def test_get_snapshots_for_default_event(
@@ -325,6 +338,7 @@ class TestGetSnapshots:
             snapshot: An AimbatSnapshot for the default event.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         snapshots = get_snapshots(session, event=default_event, all_events=False)
         assert len(snapshots) == 1
         assert snapshots[0].id == snapshot.id
@@ -348,6 +362,7 @@ class TestGetSnapshots:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event, comment="first")
         create_snapshot(session, default_event, comment="second")
         assert len(get_snapshots(session, event=default_event)) == 2
@@ -364,6 +379,7 @@ class TestDumpSnapshotTablesToJson:
             snapshot: An AimbatSnapshot to include in the dump.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         result = dump_snapshot_tables_to_json(
             session, all_events=False, as_string=True, event=default_event
         )
@@ -381,6 +397,7 @@ class TestDumpSnapshotTablesToJson:
             snapshot: An AimbatSnapshot to include in the dump.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         result = dump_snapshot_tables_to_json(
             session, all_events=False, as_string=False, event=default_event
         )
@@ -398,6 +415,7 @@ class TestDumpSnapshotTablesToJson:
             snapshot: An AimbatSnapshot to include in the dump.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         default_only = dump_snapshot_tables_to_json(
             session, all_events=False, as_string=False, event=default_event
         )

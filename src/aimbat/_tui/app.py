@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -39,10 +40,10 @@ from aimbat.core import (
     create_snapshot,
     delete_seismogram_by_id,
     reset_seismogram_parameters_by_id,
-    sync_iccs_parameters,
     delete_snapshot_by_id,
     delete_station_by_id,
     get_default_event,
+    resolve_event,
     rollback_to_snapshot_by_id,
     run_iccs,
     run_mccc,
@@ -173,13 +174,11 @@ class AimbatTUI(App[None]):
 
         # Prime _last_known_default_id so the first poll doesn't fire a
         # spurious refresh_all().
-        try:
-            with Session(engine) as session:
-                self._last_known_default_id: uuid.UUID | None = get_default_event(
-                    session
-                ).id
-        except (NoResultFound, RuntimeError):
-            self._last_known_default_id = None
+        with Session(engine) as session:
+            _default = get_default_event(session)
+            self._last_known_default_id: uuid.UUID | None = (
+                _default.id if _default is not None else None
+            )
 
         self.set_interval(5, self._check_iccs_staleness)
         self._create_iccs()
@@ -191,10 +190,8 @@ class AimbatTUI(App[None]):
             self._active_tab = event.pane.id
             self.refresh_bindings()
             if not isinstance(self.focused, Tabs):
-                try:
+                with suppress(Exception):
                     event.pane.query_one(DataTable).focus()
-                except Exception:
-                    pass
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         tab = getattr(self, "_active_tab", "")
@@ -217,7 +214,7 @@ class AimbatTUI(App[None]):
             if event is not None:
                 return event
             self._current_event_id = None
-        return get_default_event(session)
+        return resolve_event(session)
 
     # ------------------------------------------------------------------
     # ICCS lifecycle
@@ -309,10 +306,10 @@ class AimbatTUI(App[None]):
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
-                try:
-                    default_id: uuid.UUID | None = get_default_event(session).id
-                except NoResultFound:
-                    default_id = None
+                _default = get_default_event(session)
+                default_id: uuid.UUID | None = (
+                    _default.id if _default is not None else None
+                )
                 changed = False
                 if default_id != self._last_known_default_id:
                     self._last_known_default_id = default_id
@@ -336,10 +333,8 @@ class AimbatTUI(App[None]):
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
-                try:
-                    default_id = get_default_event(session).id
-                except NoResultFound:
-                    default_id = None
+                _default = get_default_event(session)
+                default_id = _default.id if _default is not None else None
                 marker = "●" if event.id == default_id else "▶"
                 iccs_status = (
                     " ● ICCS ready" if self._bound_iccs is not None else " ○ no ICCS"
@@ -368,15 +363,13 @@ class AimbatTUI(App[None]):
 
         ccnorm_map: dict[uuid.UUID, float] = {}
         if self._bound_iccs is not None:
-            try:
+            with suppress(Exception):
                 for iccs_seis, ccnorm in zip(
                     self._bound_iccs.iccs.seismograms, self._bound_iccs.iccs.ccnorms
                 ):
                     ccnorm_map[iccs_seis.extra["id"]] = float(ccnorm)
-            except Exception:
-                pass
 
-        try:
+        with suppress(NoResultFound, RuntimeError):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 seismograms = sorted(
@@ -410,8 +403,6 @@ class AimbatTUI(App[None]):
                         cc,
                         key=str(seis.id),
                     )
-        except (NoResultFound, RuntimeError):
-            pass
         if table.row_count > 0:
             table.move_cursor(row=min(saved_row, table.row_count - 1))
 
@@ -419,7 +410,7 @@ class AimbatTUI(App[None]):
         table = self.query_one("#parameter-table", DataTable)
         saved_row = table.cursor_row
         table.clear()
-        try:
+        with suppress(NoResultFound, RuntimeError):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 p = event.parameters
@@ -434,8 +425,6 @@ class AimbatTUI(App[None]):
                     label = field_info.title or attr
                     desc = field_info.description or ""
                     table.add_row(label, display, desc, key=attr)
-        except (NoResultFound, RuntimeError):
-            pass
         if table.row_count > 0:
             table.move_cursor(row=min(saved_row, table.row_count - 1))
 
@@ -443,7 +432,7 @@ class AimbatTUI(App[None]):
         table = self.query_one("#station-table", DataTable)
         saved_row = table.cursor_row
         table.clear()
-        try:
+        with suppress(NoResultFound, RuntimeError):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 seen: set[uuid.UUID] = set()
@@ -468,8 +457,6 @@ class AimbatTUI(App[None]):
                             elev,
                             key=str(st.id),
                         )
-        except (NoResultFound, RuntimeError):
-            pass
         if table.row_count > 0:
             table.move_cursor(row=min(saved_row, table.row_count - 1))
 
@@ -477,7 +464,7 @@ class AimbatTUI(App[None]):
         table = self.query_one("#snapshot-table", DataTable)
         saved_row = table.cursor_row
         table.clear()
-        try:
+        with suppress(NoResultFound, RuntimeError):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 for snap in event.snapshots:
@@ -496,8 +483,6 @@ class AimbatTUI(App[None]):
                         flipped_count,
                         key=str(snap.id),
                     )
-        except (NoResultFound, RuntimeError):
-            pass
         if table.row_count > 0:
             table.move_cursor(row=min(saved_row, table.row_count - 1))
 
@@ -577,24 +562,12 @@ class AimbatTUI(App[None]):
         self.push_screen(ParameterInputModal(label, current_str, unit), on_input)
 
     def _apply_parameter(self, attr: str, value: object) -> None:
-        """Write a parameter to the DB and sync to the in-memory ICCS object."""
-        iccs = self._bound_iccs.iccs if self._bound_iccs is not None else None
-
-        # Validate with ICCS first — before touching the DB — so invalid values
-        # are rejected without being persisted.
-        if iccs is not None and hasattr(iccs, attr):
-            try:
-                setattr(iccs, attr, value)
-                iccs.clear_cache()
-            except ValueError as exc:
-                self.notify(str(exc), severity="error")
-                return
-
+        """Validate, write a parameter to the DB, and rebuild ICCS."""
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 if attr in {p.value for p in EventParameter}:
-                    set_event_parameter(session, event, EventParameter(attr), value)  # type: ignore[call-overload]
+                    set_event_parameter(session, event, EventParameter(attr), value, validate_iccs=True)  # type: ignore[call-overload]
                 else:
                     # mccc_damp / mccc_min_ccnorm — not in EventParameter enum
                     validated = AimbatEventParametersBase.model_validate(
@@ -608,20 +581,12 @@ class AimbatTUI(App[None]):
                 e["msg"].removeprefix("Value error, ") for e in exc.errors()
             )
             self.notify(msgs, severity="error")
-            self._create_iccs()  # revert ICCS to DB state
             return
         except Exception as exc:
             self.notify(str(exc), severity="error")
-            self._create_iccs()  # revert ICCS to DB state
             return
 
-        if self._bound_iccs is None:
-            # Parameter change may have fixed previously invalid ranges.
-            self._create_iccs()
-        else:
-            # Acknowledge our own write so staleness check doesn't recreate.
-            self._bound_iccs.created_at = Timestamp.now("UTC")
-
+        self._create_iccs()
         self._refresh_parameters()
         self._refresh_seismograms()
         self._refresh_event_bar()
@@ -752,12 +717,7 @@ class AimbatTUI(App[None]):
             try:
                 with Session(engine) as session:
                     rollback_to_snapshot_by_id(session, uuid.UUID(snap_id))
-                    if self._bound_iccs is not None:
-                        event = self._get_current_event(session)
-                        sync_iccs_parameters(session, event, self._bound_iccs.iccs)
-                        self._bound_iccs.created_at = Timestamp.now("UTC")
-                if self._bound_iccs is None:
-                    self._create_iccs()
+                self._create_iccs()
                 self.refresh_all()
                 self.notify("Rolled back to snapshot", timeout=3)
             except Exception as exc:
@@ -827,12 +787,8 @@ class AimbatTUI(App[None]):
         if self._current_event_id is not None:
             has_event = True
         else:
-            try:
-                with Session(engine) as session:
-                    get_default_event(session)
-                has_event = True
-            except (NoResultFound, RuntimeError):
-                has_event = False
+            with Session(engine) as session:
+                has_event = get_default_event(session) is not None
         if has_event:
             self.notify(
                 "ICCS not ready — check event parameters (Parameters tab)",

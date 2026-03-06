@@ -2,11 +2,9 @@
 
 from sqlmodel import Session, select
 from sqlalchemy.exc import NoResultFound
-from contextlib import suppress
 from uuid import UUID
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
-from aimbat._cli.common import HINTS
 
 __all__ = [
     "get_default_event",
@@ -16,33 +14,23 @@ __all__ = [
 ]
 
 
-def get_default_event(session: Session) -> AimbatEvent:
+def get_default_event(session: Session) -> AimbatEvent | None:
     """
-    Return the currently default event (i.e. the one being processed by default).
+    Return the currently default event, or None if no event is set as default.
 
     Args:
         session: SQL session.
 
     Returns:
-        Default Event
-
-    Raises
-        NoResultFound: When no event is set as default.
+        Default Event, or None.
     """
 
     logger.debug("Attempting to determine default event.")
 
     statement = select(AimbatEvent).where(AimbatEvent.is_default == 1)
+    default_event = session.exec(statement).one_or_none()
 
-    # NOTE: While there technically can be no default event in the database,
-    # we typically don't really want to go beyond this point when that is the
-    # case. Hence we call `one` rather than `one_or_none`.
-    try:
-        default_event = session.exec(statement).one()
-    except NoResultFound:
-        raise NoResultFound(f"No default event found. {HINTS.SET_DEFAULT_EVENT}")
-
-    logger.debug(f"Default event: {default_event.id}")
+    logger.debug(f"Default event: {default_event.id if default_event else None}")
 
     return default_event
 
@@ -57,16 +45,21 @@ def resolve_event(session: Session, event_id: UUID | None = None) -> AimbatEvent
 
     Returns:
         The specified event or the default event.
+
+    Raises:
+        ValueError: If an explicit event_id is given but not found.
+        NoResultFound: If no event_id is given and no default event is set.
     """
     if event_id:
         logger.debug(f"Resolving event by explicit ID: {event_id}")
         event = session.get(AimbatEvent, event_id)
         if event is None:
-            raise ValueError(
-                f"No AimbatEvent found with id: {event_id}. {HINTS.LIST_EVENTS}"
-            )
+            raise ValueError(f"No AimbatEvent found with id: {event_id}.")
         return event
-    return get_default_event(session)
+    event = get_default_event(session)
+    if event is None:
+        raise NoResultFound("No default event found.")
+    return event
 
 
 def set_default_event_by_id(session: Session, event_id: UUID) -> None:
@@ -83,9 +76,7 @@ def set_default_event_by_id(session: Session, event_id: UUID) -> None:
     logger.info(f"Setting default event to event with id={event_id}.")
 
     if event_id not in session.exec(select(AimbatEvent.id)).all():
-        raise ValueError(
-            f"No AimbatEvent found with id: {event_id}. {HINTS.LIST_EVENTS}"
-        )
+        raise ValueError(f"No AimbatEvent found with id: {event_id}.")
 
     aimbat_event = session.exec(
         select(AimbatEvent).where(AimbatEvent.id == event_id)
@@ -104,9 +95,9 @@ def set_default_event(session: Session, event: AimbatEvent) -> None:
 
     logger.info(f"Setting default {event=}")
 
-    with suppress(NoResultFound):
-        if event.id == get_default_event(session).id:
-            return
+    current = get_default_event(session)
+    if current is not None and event.id == current.id:
+        return
 
     event.is_default = True
     session.add(event)

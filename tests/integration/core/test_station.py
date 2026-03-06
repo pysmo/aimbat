@@ -42,6 +42,7 @@ def station(session: Session) -> AimbatStation:
         The first AimbatStation in the default event.
     """
     default_event = get_default_event(session)
+    assert default_event is not None
     return default_event.seismograms[0].station
 
 
@@ -96,6 +97,7 @@ class TestGetStationsInDefaultEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         stations = get_stations_in_event(session, default_event, as_json=False)
         assert len(stations) > 0, "Expected at least one station for the default event"
 
@@ -106,6 +108,7 @@ class TestGetStationsInDefaultEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         stations = get_stations_in_event(session, default_event, as_json=False)
         assert all(
             isinstance(s, AimbatStation) for s in stations
@@ -118,6 +121,7 @@ class TestGetStationsInDefaultEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         result = get_stations_in_event(session, default_event, as_json=True)
         assert isinstance(result, list), "Expected a list when as_json=True"
         assert all(
@@ -131,6 +135,7 @@ class TestGetStationsInDefaultEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         objects = get_stations_in_event(session, default_event, as_json=False)
         json_list = get_stations_in_event(session, default_event, as_json=True)
         assert len(objects) == len(
@@ -144,6 +149,7 @@ class TestGetStationsInDefaultEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         default_station_ids = {s.station_id for s in default_event.seismograms}
         stations = get_stations_in_event(session, default_event, as_json=False)
         returned_ids = {s.id for s in stations}
@@ -162,6 +168,7 @@ class TestGetStationsInEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         stations = get_stations_in_event(session, default_event)
         assert len(stations) > 0, "Expected at least one station for the given event"
 
@@ -172,6 +179,7 @@ class TestGetStationsInEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         stations = get_stations_in_event(session, default_event)
         assert all(
             isinstance(s, AimbatStation) for s in stations
@@ -184,6 +192,7 @@ class TestGetStationsInEvent:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         expected_ids = {s.station_id for s in default_event.seismograms}
         returned_ids = {s.id for s in get_stations_in_event(session, default_event)}
         assert (

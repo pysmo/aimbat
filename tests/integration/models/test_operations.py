@@ -215,6 +215,7 @@ class TestSnapshotRelationships:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert isinstance(
@@ -230,6 +231,7 @@ class TestSnapshotRelationships:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert len(snapshot.seismogram_parameters_snapshots) > 0
@@ -245,6 +247,7 @@ class TestSnapshotRelationships:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert isinstance(snapshot.event, AimbatEvent)
@@ -256,6 +259,7 @@ class TestSnapshotRelationships:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
@@ -270,6 +274,7 @@ class TestSnapshotRelationships:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
@@ -283,6 +288,7 @@ class TestSnapshotRelationships:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
@@ -302,6 +308,7 @@ class TestSnapshotRelationships:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         seismograms = default_event.seismograms
         assert len(seismograms) >= 2
 
@@ -504,6 +511,7 @@ class TestCascadeDeleteSeismogram:
             seismogram: An AimbatSeismogram to delete.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         parameters_id = seismogram.parameters.id
 
@@ -525,6 +533,7 @@ class TestCascadeDeleteSnapshot:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         ep_snapshot_id = snapshot.event_parameters_snapshot.id
@@ -541,6 +550,7 @@ class TestCascadeDeleteSnapshot:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         create_snapshot(session, default_event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         sp_snapshot_ids = [s.id for s in snapshot.seismogram_parameters_snapshots]
