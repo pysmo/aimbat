@@ -83,6 +83,7 @@ class TestDefaultEvent:
             session (Session): The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         event_ids = list(session.exec(select(AimbatEvent.id)).all())
 
         event_ids.remove(default_event.id)
@@ -93,8 +94,10 @@ class TestDefaultEvent:
 
         set_default_event_by_id(session, new_default_event_id)
 
+        switched_event = get_default_event(session)
+        assert switched_event is not None
         assert (
-            get_default_event(session).id == new_default_event_id
+            switched_event.id == new_default_event_id
         ), "expected the default event to switch to the new event by id"
 
     def test_switch_by_id_invalid(self, session: Session) -> None:
@@ -127,8 +130,7 @@ class TestDefaultEvent:
             is None
         ), "expected no default event in the database after deactivating"
 
-        with pytest.raises(NoResultFound):
-            get_default_event(session)
+        assert get_default_event(session) is None
 
 
 # ===================================================================
@@ -268,6 +270,7 @@ class TestGetEventParameter:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         value = get_event_parameter(session, default_event, EventParameter.WINDOW_PRE)
         assert isinstance(value, Timedelta)
 
@@ -278,6 +281,7 @@ class TestGetEventParameter:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         value = get_event_parameter(session, default_event, EventParameter.MIN_CCNORM)
         assert isinstance(value, float)
 
@@ -288,6 +292,7 @@ class TestGetEventParameter:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         value = get_event_parameter(session, default_event, EventParameter.COMPLETED)
         assert isinstance(value, bool)
 
@@ -302,6 +307,7 @@ class TestSetEventParameter:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         new_value = Timedelta(seconds=20)
         set_event_parameter(
             session, default_event, EventParameter.WINDOW_POST, new_value
@@ -318,6 +324,7 @@ class TestSetEventParameter:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         new_value = 0.75
         set_event_parameter(
             session, default_event, EventParameter.MIN_CCNORM, new_value
@@ -334,6 +341,7 @@ class TestSetEventParameter:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         set_event_parameter(session, default_event, EventParameter.COMPLETED, True)
         assert (
             get_event_parameter(session, default_event, EventParameter.COMPLETED)

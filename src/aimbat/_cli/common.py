@@ -127,27 +127,25 @@ class TableParameters:
     "Shorten UUIDs and format data."
 
 
-# ------------------------------------------------
-# Hints for error messages
-# ------------------------------------------------
-
-
-@dataclass(frozen=True)
-class CliHints:
-    """Hints for error messages."""
-
-    SET_DEFAULT_EVENT = (
-        "Hint: set a default event with `aimbat event default <EVENT_ID>`."
-    )
-    LIST_EVENTS = "Hint: view available events with `aimbat event list`."
-
-
-HINTS = CliHints()
-
-
 # -------------------------------------------------
 # Decorators
 # -------------------------------------------------
+
+
+def print_error_panel(e: Exception) -> None:
+    """Print an exception to the console in a red panel."""
+    from rich.console import Console
+    from rich.panel import Panel
+
+    console = Console(stderr=True)
+    panel = Panel(
+        f"{e}",
+        title="Error",
+        title_align="left",
+        border_style="red",
+        expand=True,
+    )
+    console.print(panel)
 
 
 def simple_exception[F: Callable[..., Any]](func: F) -> F:
@@ -158,8 +156,6 @@ def simple_exception[F: Callable[..., Any]](func: F) -> F:
     callable unchanged.
     """
     from functools import wraps
-    from rich.console import Console
-    from rich.panel import Panel
     import sys
 
     @wraps(func)
@@ -169,15 +165,7 @@ def simple_exception[F: Callable[..., Any]](func: F) -> F:
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            console = Console()
-            panel = Panel(
-                f"{e}",
-                title="Error",
-                title_align="left",
-                border_style="red",
-                expand=True,
-            )
-            console.print(panel)
+            print_error_panel(e)
             sys.exit(1)
 
     return wrapper  # type: ignore

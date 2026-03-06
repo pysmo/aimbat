@@ -411,5 +411,6 @@ class TestPlotAllSeismograms:
             session: The database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         fig, _ = plot_all_seismograms(session, event=default_event, return_fig=True)
         assert isinstance(fig, Figure)

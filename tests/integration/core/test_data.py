@@ -273,6 +273,7 @@ class TestGetDataSources:
             session (Session): Database session.
         """
         default_event = get_default_event(session)
+        assert default_event is not None
         data_sources = get_data_for_event(session, default_event)
         assert len(data_sources) != 0, "Expected data sources for the default event."
         assert all(

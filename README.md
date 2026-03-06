@@ -22,61 +22,76 @@
 </img></a></div>
 
 <p align="center">
-<em>Documentation:</em> <a href="https://aimbat.readthedocs.io" target="_blank">https://aimbat.readthedocs.io</a>
+<em>Documentation:</em> <a href="https://aimbat.pysmo.org" target="_blank">https://aimbat.pysmo.org</a>
 </p>
 <p align="center">
 <em>Source Code:</em> <a href="https://github.com/pysmo/aimbat" target="_blank">https://github.com/pysmo/aimbat</a>
 </p>
 
-
 ---
 
 AIMBAT (Automated and Interactive Measurement of Body wave Arrival Times) is an
-open-source software package for efficiently measuring teleseismic body wave arrival
-times for large seismic arrays [[1]](#1). It is based on a widely used method called
-MCCC (Multi-Channel Cross-Correlation) [[2]](#2). The package is automated in the sense
-of initially aligning seismograms for MCCC, which is achieved by an ICCS (Iterative Cross
-Correlation and Stack) algorithm. Meanwhile, a GUI (graphical user interface) is built to
-perform seismogram quality control interactively. Therefore, user processing time is
-reduced while valuable input from a user's expertise is retained. As a byproduct, SAC
-[[3]](#3) plotting and phase picking functionalities are replicated and enhanced.
+open-source tool for measuring teleseismic body wave arrival times. Seismograms
+are automatically aligned using the ICCS [Iterative Cross-Correlation and Stack][^1]
+algorithm; picks are then reviewed and refined interactively before a final
+MCCC (Multi-Channel Cross-Correlation) [^2] pass computes the definitive
+arrival times.
 
-Modules and scripts included in the AIMBAT package were developed using
-[Python](http://www.python.org/) and its open-source modules on the Mac OS X platform
-since 2009. The original MCCC [[2]](#2) code was transcribed into Python.
-The GUI of AIMBAT was inspired and initiated at the
-[2009 EarthScope USArray Data Processing and Analysis Short Course](https://www.iris.edu/hq/es_course/content/2009.html).
-AIMBAT runs on Mac OS X, Linux/Unix and Windows thanks to the platform-independent
-feature of Python.
+## Version 2
 
-For more information visit the
-[project website](http://www.earth.northwestern.edu/~xlou/aimbat.html) or the
-[pysmo repositories](https://github.com/pysmo).
+AIMBAT v2 is a complete rewrite. It shares the same goal as v1 but none of the
+code.
 
+- **Complete rewrite.** The algorithms are optimised and projects are stored in
+  a SQLite database (via [SQLModel](https://sqlmodel.tiangolo.com)), making them
+  persistent, portable, and inspectable.
+- **Focused scope.** Much of the underlying code has moved into the
+  [pysmo](https://github.com/pysmo/pysmo) library, leaving AIMBAT to focus on
+  the user-facing ICCS → quality-control → MCCC workflow rather than
+  reimplementing general seismogram utilities.
+- **Flexible data storage.** A single project can hold any number of seismic
+  events. Files from different events can live anywhere on disk — no need to
+  keep them in separate directories or follow a particular layout.
+- **Maintainable.** v2 is built on modern, typed Python with a comprehensive
+  test suite and strict dependency management, so it keeps working as the
+  ecosystem evolves.
+- **Multiple interfaces.** AIMBAT can be used via a CLI, an interactive shell,
+  a terminal UI, or directly as a Python library.
+
+## Quick Start
+
+```bash
+pip install aimbat
+
+# Create a project in the current directory
+aimbat project create
+
+# Import SAC files — events and stations are detected automatically
+aimbat data add *.sac
+
+# List events to find their IDs, then set one as the default
+aimbat event list
+aimbat event default <ID>
+
+# Open the terminal UI to run ICCS, review picks, and run MCCC
+aimbat tui
+
+# Or work interactively from the shell (tab-completion, command history)
+aimbat shell
+```
 
 ## Authors' Contacts
 
-* [Xiaoting Lou](http://geophysics.earth.northwestern.edu/people/xlou/aimbat.html) Email: xlou at u.northwestern.edu
+- Xiaoting Lou — xlou at u.northwestern.edu
+- Suzan van der Lee — suzan at northwestern.edu
+- Simon Lloyd — simon at pysmo.org
 
-* [Suzan van der Lee](http://geophysics.earth.northwestern.edu/seismology/suzan/) Email: suzan at northwestern.edu
+[^1]: Xiaoting Lou, Suzan van der Lee, and Simon Lloyd, “AIMBAT: A Python/Matplotlib
+  Tool for Measuring Teleseismic Arrival Times.” Seismological Research Letters,
+  vol. 84, no. 1, Jan. 2013, pp. 85–93, <https://doi.org/10.1785/0220120033>.
 
-* [Simon Lloyd](https://www.slloyd.net/) Email: simon at pysmo.org
-
-## References
-
-<a id="1">[1]</a>
-Xiaoting Lou, Suzan van der Lee, and Simon Lloyd (2013),
-AIMBAT: A Python/Matplotlib Tool for Measuring Teleseismic Arrival Times.
-*Seismol. Res. Lett.*, 84(1), 85-93, doi:10.1785/0220120033.
-
-<a id="2">[2]</a>
-VanDecar, J. C., and R. S. Crosson (1990),
-Determination of teleseismic relative phase arrival times using multi-channel
-cross-correlation and
-least squares.
-*Bulletin of the Seismological Society of America*, 80(1), 150–169.
-
-<a id="3">[3]</a>
-Goldstein, P., D. Dodge, M. Firpo, and L. Minner (2003),
-SAC2000: Signal processing and analysis tools for seismologists and engineers,
-*International Geophysics*, 81, 1613–1614.
+[^2]: VanDecar, J. C., and R. S. Crosson. “Determination of Teleseismic
+  Relative Phase Arrival Times Using Multi-Channel Cross-Correlation and
+  Least Squares.” Bulletin of the Seismological Society of America,
+  vol. 80, no. 1, Feb. 1990, pp. 150–69,
+  <https://doi.org/10.1785/BSSA0800010150>.

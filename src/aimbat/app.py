@@ -38,6 +38,7 @@ app.command("aimbat._cli.seismogram:app", name="seismogram")
 app.command("aimbat._cli.snapshot:app", name="snapshot")
 app.command("aimbat._cli.utils:app", name="utils")
 app.command("aimbat._tui.app:main", name="tui")
+app.command("aimbat._cli.shell:app", name="shell")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,6 @@ from pandas import Timedelta
 from collections.abc import Sequence
 from uuid import UUID
 from aimbat.logger import logger
-from aimbat._cli.common import HINTS
 from aimbat.models import (
     AimbatEvent,
     AimbatEventParameters,
@@ -51,9 +50,7 @@ def delete_event_by_id(session: Session, event_id: UUID) -> None:
 
     event = session.get(AimbatEvent, event_id)
     if event is None:
-        raise NoResultFound(
-            f"Unable to find event using id: {event_id}. {HINTS.LIST_EVENTS}"
-        )
+        raise NoResultFound(f"Unable to find event using id: {event_id}.")
     delete_event(session, event)
 
 
@@ -161,18 +158,30 @@ def set_event_parameter(
     event: AimbatEvent,
     name: EventParameterTimedelta,
     value: Timedelta,
+    *,
+    validate_iccs: bool = ...,
 ) -> None: ...
 
 
 @overload
 def set_event_parameter(
-    session: Session, event: AimbatEvent, name: EventParameterFloat, value: float
+    session: Session,
+    event: AimbatEvent,
+    name: EventParameterFloat,
+    value: float,
+    *,
+    validate_iccs: bool = ...,
 ) -> None: ...
 
 
 @overload
 def set_event_parameter(
-    session: Session, event: AimbatEvent, name: EventParameterBool, value: bool | str
+    session: Session,
+    event: AimbatEvent,
+    name: EventParameterBool,
+    value: bool | str,
+    *,
+    validate_iccs: bool = ...,
 ) -> None: ...
 
 
@@ -182,6 +191,8 @@ def set_event_parameter(
     event: AimbatEvent,
     name: EventParameter,
     value: Timedelta | bool | float | str,
+    *,
+    validate_iccs: bool = ...,
 ) -> None: ...
 
 
@@ -190,6 +201,8 @@ def set_event_parameter(
     event: AimbatEvent,
     name: EventParameter,
     value: Timedelta | bool | float | str,
+    *,
+    validate_iccs: bool = False,
 ) -> None:
     """Set event parameter value for the given event.
 
@@ -198,6 +211,8 @@ def set_event_parameter(
         event: AimbatEvent.
         name: Name of the parameter.
         value: Value to set.
+        validate_iccs: If True, attempt ICCS construction with the new value
+            before committing. Raises and leaves the database unchanged on failure.
     """
 
     logger.info(f"Setting {name=} to {value} for {event=}.")
@@ -205,7 +220,24 @@ def set_event_parameter(
     parameters = AimbatEventParametersBase.model_validate(
         event.parameters, update={name: value}
     )
-    setattr(event.parameters, name, getattr(parameters, name))
+    new_value = getattr(parameters, name)
+
+    if validate_iccs:
+        from aimbat.core._iccs import validate_iccs_construction
+
+        # Temporarily apply the new value in-memory with autoflush suppressed so
+        # the session never writes to the DB during the validation query.
+        old_value = getattr(event.parameters, name)
+        with session.no_autoflush:
+            setattr(event.parameters, name, new_value)
+            try:
+                validate_iccs_construction(event)
+            except Exception as exc:
+                setattr(event.parameters, name, old_value)
+                raise ValueError(f"ICCS rejected {name}={value}: {exc}") from exc
+            setattr(event.parameters, name, old_value)
+
+    setattr(event.parameters, name, new_value)
     session.add(event)
     session.commit()
 
