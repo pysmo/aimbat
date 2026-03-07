@@ -19,7 +19,6 @@ from aimbat.core import (
     add_data_to_project,
     create_project,
     create_snapshot,
-    set_default_event,
 )
 from aimbat.io import DataType
 from aimbat.models import AimbatEvent, AimbatStation
@@ -215,15 +214,11 @@ with Session(engine) as session:
                 station_id=db_station.id,
             )
 
-    # 6. Set the event with the most seismograms as the default
+    # 6. Snapshot the initial state before any processing
     events = session.exec(select(AimbatEvent)).all()
-    default = max(events, key=lambda e: len(e.seismograms))
-    set_default_event(session, default)
-
-    # 7. Snapshot the initial state before any processing
-    create_snapshot(session, default, comment="initial import")
+    for event in events:
+        create_snapshot(session, event, comment="initial import")
 
 print("Project ready.")
-print(f"  Events:        {len(events)}")
-print(f"  Stations:      {len(stations)}")
-print(f"  Default event: {default.id}  ({len(default.seismograms)} seismograms)")
+print(f"  Events:   {len(events)}")
+print(f"  Stations: {len(stations)}")

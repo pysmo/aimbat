@@ -4,7 +4,15 @@ Tests cover cascade deletes, the single-default-event constraint,
 type validation, and round-trip persistence of custom time types.
 """
 
+from collections.abc import Generator
+from datetime import timezone
+
 import pytest
+from pandas import Timedelta, Timestamp
+from pydantic import ValidationError
+from sqlmodel import Session, select
+
+from aimbat.io import DataType
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
@@ -17,12 +25,6 @@ from aimbat.models import (
     AimbatStation,
 )
 from aimbat.models._parameters import AimbatEventParametersBase
-from aimbat.io import DataType
-from datetime import timezone
-from pandas import Timedelta, Timestamp
-from pydantic import ValidationError
-from sqlmodel import Session, select
-from collections.abc import Generator
 
 
 # ---------------------------------------------------------------------------

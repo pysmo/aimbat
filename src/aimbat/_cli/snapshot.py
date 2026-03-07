@@ -6,17 +6,20 @@ Use `snapshot create` before making experimental changes, and `snapshot rollback
 to undo them if needed.
 """
 
+import uuid
+from typing import Annotated
+
+from cyclopts import App
+
+from aimbat.models import AimbatSnapshot
+
 from .common import (
+    ALL_EVENTS_PARAMETER,
     GlobalParameters,
     TableParameters,
-    simple_exception,
     id_parameter,
-    ALL_EVENTS_PARAMETER,
+    simple_exception,
 )
-from aimbat.models import AimbatSnapshot
-from typing import Annotated
-from cyclopts import App
-import uuid
 
 app = App(name="snapshot", help=__doc__, help_format="markdown")
 
@@ -36,9 +39,10 @@ def cli_snapshot_create(
     Args:
         comment: Optional description to help identify this snapshot later.
     """
-    from aimbat.db import engine
-    from aimbat.core import create_snapshot, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import create_snapshot, resolve_event
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -53,9 +57,10 @@ def cli_snapshot_rollback(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Rollback to snapshot."""
-    from aimbat.db import engine
-    from aimbat.core import rollback_to_snapshot_by_id
     from sqlmodel import Session
+
+    from aimbat.core import rollback_to_snapshot_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         rollback_to_snapshot_by_id(session, snapshot_id)
@@ -69,9 +74,10 @@ def cli_snapshop_delete(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Delete existing snapshot."""
-    from aimbat.db import engine
-    from aimbat.core import delete_snapshot_by_id
     from sqlmodel import Session
+
+    from aimbat.core import delete_snapshot_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         delete_snapshot_by_id(session, snapshot_id)
@@ -84,10 +90,11 @@ def cli_snapshot_dump(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump the contents of the AIMBAT snapshot table to json."""
-    from aimbat.db import engine
-    from aimbat.core import dump_snapshot_tables_to_json, resolve_event
-    from sqlmodel import Session
     from rich import print_json
+    from sqlmodel import Session
+
+    from aimbat.core import dump_snapshot_tables_to_json, resolve_event
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = (
@@ -110,13 +117,14 @@ def cli_snapshot_list(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the snapshots for an event."""
-    from aimbat.db import engine
-    from aimbat.core import resolve_event, dump_snapshot_tables_to_json
-    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
-    from aimbat.logger import logger
-    from aimbat.models import AimbatEvent
     from pandas import Timestamp
     from sqlmodel import Session
+
+    from aimbat.core import dump_snapshot_tables_to_json, resolve_event
+    from aimbat.db import engine
+    from aimbat.logger import logger
+    from aimbat.models import AimbatEvent
+    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
 
     short = table_parameters.short
 
@@ -201,9 +209,10 @@ def cli_snapshot_details(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the event parameters saved in a snapshot."""
-    from aimbat.db import engine
-    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
     from sqlmodel import Session
+
+    from aimbat.db import engine
+    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
 
     short = table_parameters.short
 

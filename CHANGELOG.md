@@ -87,6 +87,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Improve docstrings, io DI pattern, and data source terminology
 - **(core)** Re-arange core, move set_default_event and friends out of core.
 - Active event -> default event
+- Use default event concept only for cli commands
 
 ### 🚀 New Features
 

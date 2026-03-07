@@ -1,10 +1,12 @@
 """Unit tests for aimbat.io.json."""
 
 import json
-import pytest
 from pathlib import Path
+
+import pytest
 from pandas import Timestamp
 from pydantic import ValidationError
+
 from aimbat.io.json import create_event_from_json, create_station_from_json
 from aimbat.models import AimbatEvent, AimbatStation
 

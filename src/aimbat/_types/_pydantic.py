@@ -1,7 +1,8 @@
-from typing import Annotated, Callable, Any, cast, ClassVar
+from typing import Annotated, Any, Callable, ClassVar, cast
+
+from pandas import Timedelta, Timestamp
 from pydantic import AfterValidator, PlainSerializer
 from pydantic_core.core_schema import CoreSchema, no_info_plain_validator_function
-from pandas import Timestamp, Timedelta
 
 __all__ = [
     "PydanticTimestamp",

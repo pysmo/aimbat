@@ -1,17 +1,23 @@
 import uuid
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from pandas import Timestamp
-from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
-from typing import overload
 from collections.abc import Sequence
+from typing import Any, Literal, overload
+
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+from pandas import Timestamp
 from pydantic import TypeAdapter
-from typing import Any, Literal
 from pysmo import MiniSeismogram
-from pysmo.functions import detrend, normalize, clone_to_mini
-from pysmo.tools.plotutils import time_array
+from pysmo.functions import clone_to_mini, detrend, normalize
 from pysmo.tools.azdist import distance
+from pysmo.tools.plotutils import time_array
+from sqlalchemy.exc import NoResultFound
+from sqlmodel import Session, select
+
+from aimbat._types import (
+    SeismogramParameter,
+    SeismogramParameterBool,
+    SeismogramParameterTimestamp,
+)
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
@@ -19,11 +25,6 @@ from aimbat.models import (
     AimbatSeismogramParameters,
 )
 from aimbat.models._parameters import AimbatSeismogramParametersBase
-from aimbat._types import (
-    SeismogramParameter,
-    SeismogramParameterBool,
-    SeismogramParameterTimestamp,
-)
 
 __all__ = [
     "delete_seismogram_by_id",

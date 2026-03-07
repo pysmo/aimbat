@@ -1,13 +1,14 @@
 """Unit tests for aimbat._cli.common."""
 
 import pytest
+
+from aimbat import settings
 from aimbat._cli.common import (
     GlobalParameters,
     IccsPlotParameters,
     TableParameters,
     simple_exception,
 )
-from aimbat import settings
 
 
 class TestGlobalParameters:

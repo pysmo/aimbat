@@ -2,29 +2,31 @@
 
 import json
 import uuid
+
 import pytest
+from matplotlib.figure import Figure
+from pandas import Timestamp
+from sqlalchemy.exc import NoResultFound
+from sqlmodel import Session, select
+
+from aimbat._types import SeismogramParameter
 from aimbat.core import (
     delete_seismogram,
     delete_seismogram_by_id,
+    dump_seismogram_parameter_table_to_json,
+    dump_seismogram_table_to_json,
+    get_default_event,
     get_seismogram_parameter,
     get_seismogram_parameter_by_id,
-    set_seismogram_parameter,
-    set_seismogram_parameter_by_id,
+    get_selected_seismograms,
+    plot_all_seismograms,
     reset_seismogram_parameters,
     reset_seismogram_parameters_by_id,
-    get_selected_seismograms,
-    dump_seismogram_table_to_json,
-    dump_seismogram_parameter_table_to_json,
-    plot_all_seismograms,
-    get_default_event,
+    set_seismogram_parameter,
+    set_seismogram_parameter_by_id,
 )
-from aimbat.models._parameters import AimbatSeismogramParametersBase
-from aimbat._types import SeismogramParameter
 from aimbat.models import AimbatSeismogram
-from matplotlib.figure import Figure
-from pandas import Timestamp
-from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
+from aimbat.models._parameters import AimbatSeismogramParametersBase
 
 
 @pytest.fixture

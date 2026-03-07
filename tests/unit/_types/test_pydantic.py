@@ -1,14 +1,15 @@
 """Tests for aimbat._types._pydantic custom Pydantic types."""
 
 import pytest
+from pandas import Timedelta, Timestamp
 from pydantic import BaseModel, ValidationError
+
 from aimbat._types import (
-    PydanticTimestamp,
-    PydanticTimedelta,
     PydanticNegativeTimedelta,
     PydanticPositiveTimedelta,
+    PydanticTimedelta,
+    PydanticTimestamp,
 )
-from pandas import Timestamp, Timedelta
 
 
 class _TimestampModel(BaseModel):

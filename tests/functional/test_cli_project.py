@@ -5,9 +5,10 @@ operates on an actual database file rather than an in-memory database.
 """
 
 import subprocess
-import pytest
-from pathlib import Path
 from collections.abc import Callable, Sequence
+from pathlib import Path
+
+import pytest
 
 
 @pytest.mark.slow
@@ -42,9 +43,9 @@ class TestProjectLifecycleWithFile:
         aimbat_subprocess(["project", "create"])
         result = aimbat_subprocess(["project", "info"])
         assert result.returncode == 0, result.stderr
-        assert (
-            "Project Info" in result.stdout
-        ), "Output should contain the 'Project Info' panel title"
+        assert "Project Info" in result.stdout, (
+            "Output should contain the 'Project Info' panel title"
+        )
 
     def test_project_info_shows_file_path(
         self,
@@ -54,9 +55,9 @@ class TestProjectLifecycleWithFile:
         """Verifies that project info includes the database file path."""
         aimbat_subprocess(["project", "create"])
         result = aimbat_subprocess(["project", "info"])
-        assert (
-            db_path.name in result.stdout
-        ), "Output should contain the database filename"
+        assert db_path.name in result.stdout, (
+            "Output should contain the database filename"
+        )
 
     def test_delete_project(
         self,
@@ -67,6 +68,6 @@ class TestProjectLifecycleWithFile:
         aimbat_subprocess(["project", "create"])
         result = aimbat_subprocess(["project", "delete"])
         assert result.returncode == 0, result.stderr
-        assert (
-            not db_path.exists()
-        ), "Database file should be absent after project delete"
+        assert not db_path.exists(), (
+            "Database file should be absent after project delete"
+        )

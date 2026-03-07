@@ -49,7 +49,7 @@ test = [
     "ruff>=0.13.0",
 ]
 dev = [
-    "black>=26.1.0",
+    "ruff>=0.15.5",
     "textual-dev>=1.8.0",
 ]
 docs = [
@@ -92,8 +92,6 @@ markers = [
 ]
 mpl-generate-summary = "html"
 mpl-use-full-test-name = true
-# xvfb_width = 1920
-# xvfb_height = 1080
 
 [tool.mypy]
 mypy_path = "src"
@@ -121,17 +119,16 @@ exclude_also = [
     "pass",
     ]
 
-[tool.black]
-target-version = [
-    "py312",
-    "py313",
-    "py314",
-]
 
 [tool.ruff]
-line-length = 88
 extend-exclude = [
     "sample-data",
     "docs",
     "site",
 ]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]

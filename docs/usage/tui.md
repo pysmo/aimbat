@@ -27,17 +27,12 @@ aimbat tui
 
 ### Event bar
 
-The event bar shows the event currently selected for processing:
-
-| Marker | Meaning |
-|--------|---------|
-| `●` | This event is also the [default event](index.md#default-event) |
-| `▶` | This event is selected for TUI processing, but is not the default |
-
-The right side of the bar shows the ICCS status (`● ICCS ready` / `○ no ICCS`)
-and a `modified:` timestamp if the event parameters have been changed since the
-project was created. The timestamp updates automatically when changes arrive
-from an external source such as the CLI.
+The event bar shows the event currently selected for processing. The `▶`
+marker identifies the active event. The right side shows the ICCS status
+(`● ICCS ready` / `○ no ICCS`) and a `modified:` timestamp if the event
+parameters have been changed since the project was created. The timestamp
+updates automatically when changes arrive from an external source such as
+the CLI.
 
 ## Navigation
 
@@ -108,21 +103,19 @@ comment can be entered before saving.
 
 Opens the event switcher, which lists all events in the project. Each row shows:
 
-- **Marker**: `★` = default + currently selected, `●` = default only, `▶` = currently selected only
+- **Marker**: `▶` = currently selected
 - **✓**: event is marked as completed
 
 Available actions inside the switcher:
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Select this event for TUI processing (does not change the default) |
-| `d` | Select this event and set it as the [default event](index.md#default-event) |
+| `Enter` | Select this event for processing |
 | `c` | Toggle the completed flag |
 | `Backspace` | Delete the event and all its data |
 | `Escape` | Cancel |
 
-The selected event is used for all processing operations until changed. If no
-explicit selection has been made, the default event is used automatically.
+The selected event is used for all processing operations until changed.
 
 ### Interactive tools — `p`
 

@@ -1,5 +1,5 @@
-from typing import Literal
 from enum import StrEnum, auto
+from typing import Literal
 
 
 class EventParameter(StrEnum):

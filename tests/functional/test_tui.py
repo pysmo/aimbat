@@ -7,14 +7,17 @@ to the test fixture's database.
 """
 
 import asyncio
+from typing import cast
 
-import aimbat.db
-import aimbat._tui.app
 import pytest
 from sqlalchemy import Engine
+from sqlmodel import Session, select
 from textual.widgets import DataTable, Static, TabbedContent, TabPane
 
+import aimbat._tui.app
+import aimbat.db
 from aimbat._tui.app import AimbatTUI
+from aimbat.models import AimbatEvent
 
 _TUI_SIZE = (120, 40)
 
@@ -137,11 +140,17 @@ class TestTUIWithData:
     def test_seismogram_table_populated(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Seismogram table has rows once a default event is set."""
+        """Seismogram table has rows once an event is selected."""
         _patch_engine(monkeypatch, loaded_engine)
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                with Session(loaded_engine) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event.id
+                app.refresh_all()
                 await pilot.pause(delay=0.5)
                 table = pilot.app.query_one("#seismogram-table", DataTable)
                 assert table.row_count > 0
@@ -151,11 +160,17 @@ class TestTUIWithData:
     def test_station_table_populated(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Station table has rows once a default event is set."""
+        """Station table has rows once an event is selected."""
         _patch_engine(monkeypatch, loaded_engine)
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                with Session(loaded_engine) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event.id
+                app.refresh_all()
                 await pilot.pause(delay=0.5)
                 await pilot.press("L")  # switch to next tab
                 await pilot.press("L")
@@ -238,8 +253,8 @@ class TestTUITabNavigation:
                     await pilot.press("L")
                     await pilot.pause()
                     visited.append(tc.active)
-                assert (
-                    len(set(visited)) == 4
-                ), f"Expected 4 distinct tabs, got {visited}"
+                assert len(set(visited)) == 4, (
+                    f"Expected 4 distinct tabs, got {visited}"
+                )
 
         asyncio.run(_run())

@@ -1,15 +1,17 @@
 """Global configuration options for the AIMBAT application."""
 
-from aimbat._types import PydanticNegativeTimedelta, PydanticPositiveTimedelta
+from pathlib import Path
+from typing import Literal, Self
+
+from pandas import Timedelta
 from pydantic import Field, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
-from pandas import Timedelta
-from pathlib import Path
-from typing import Literal, Self
+
+from aimbat._types import PydanticNegativeTimedelta, PydanticPositiveTimedelta
 
 
 class Settings(BaseSettings):
@@ -136,6 +138,7 @@ def print_settings_table(pretty: bool) -> None:
         pretty: Print the table in a pretty format.
     """
     import json
+
     from aimbat.utils import TABLE_STYLING
     from aimbat.utils._json import json_to_table
 

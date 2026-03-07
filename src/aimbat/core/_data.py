@@ -1,30 +1,32 @@
 import os
 import uuid
-from sqlmodel import Session, select
-from pydantic import TypeAdapter
 from collections.abc import Sequence
-from rich.progress import track
+
+from pydantic import TypeAdapter
 from rich.console import Console
+from rich.progress import track
+from sqlmodel import Session, select
+
+from aimbat.io import (
+    DataType,
+    create_event,
+    create_seismogram,
+    create_station,
+    supports_event_creation,
+    supports_seismogram_creation,
+    supports_station_creation,
+)
 from aimbat.logger import logger
-from aimbat.io import DataType
+from aimbat.models._models import (
+    AimbatDataSource,
+    AimbatEvent,
+    AimbatSeismogram,
+    AimbatStation,
+    _AimbatDataSourceCreate,
+)
 from aimbat.utils import (
     TABLE_STYLING,
     json_to_table,
-)
-from aimbat.io import (
-    create_seismogram,
-    create_station,
-    create_event,
-    supports_station_creation,
-    supports_event_creation,
-    supports_seismogram_creation,
-)
-from aimbat.models._models import (
-    AimbatDataSource,
-    _AimbatDataSourceCreate,
-    AimbatStation,
-    AimbatEvent,
-    AimbatSeismogram,
 )
 
 __all__ = [

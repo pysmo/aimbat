@@ -5,8 +5,9 @@ monkeypatched to the test fixture's in-memory database.  The ``dump``
 sub-commands are used as the source of truth for verifying parameter changes.
 """
 
-import pytest
 from collections.abc import Callable
+
+import pytest
 from sqlalchemy import Engine
 
 # ===================================================================
@@ -67,9 +68,9 @@ class TestEventParameterGet:
         """
         cli("event parameter get window_pre")
         output = capsys.readouterr().out.strip()
-        assert output.endswith(
-            "s"
-        ), f"window_pre should be printed in seconds (got '{output}')"
+        assert output.endswith("s"), (
+            f"window_pre should be printed in seconds (got '{output}')"
+        )
 
     def test_get_bandpass_bool_parameter(
         self,
@@ -141,9 +142,9 @@ class TestEventParameterSetBool:
         cli("event parameter set completed false")
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert (
-            after["completed"] is False
-        ), "'completed' should be False after being set back"
+        assert after["completed"] is False, (
+            "'completed' should be False after being set back"
+        )
 
     def test_set_bandpass_apply(
         self,
@@ -166,9 +167,9 @@ class TestEventParameterSetBool:
 
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert (
-            after["bandpass_apply"] is not original
-        ), "'bandpass_apply' should have toggled after set"
+        assert after["bandpass_apply"] is not original, (
+            "'bandpass_apply' should have toggled after set"
+        )
 
 
 @pytest.mark.cli
@@ -191,9 +192,9 @@ class TestEventParameterSetFloat:
         cli("event parameter set min_ccnorm 0.42")
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["min_ccnorm"] == pytest.approx(
-            0.42
-        ), "'min_ccnorm' should be 0.42 after being set"
+        assert after["min_ccnorm"] == pytest.approx(0.42), (
+            "'min_ccnorm' should be 0.42 after being set"
+        )
 
     def test_set_bandpass_fmin(
         self,
@@ -211,9 +212,9 @@ class TestEventParameterSetFloat:
         cli("event parameter set bandpass_fmin 0.1")
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["bandpass_fmin"] == pytest.approx(
-            0.1
-        ), "'bandpass_fmin' should be 0.1 after being set"
+        assert after["bandpass_fmin"] == pytest.approx(0.1), (
+            "'bandpass_fmin' should be 0.1 after being set"
+        )
 
     def test_set_bandpass_fmax(
         self,
@@ -231,9 +232,9 @@ class TestEventParameterSetFloat:
         cli("event parameter set bandpass_fmax 2.0")
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["bandpass_fmax"] == pytest.approx(
-            2.0
-        ), "'bandpass_fmax' should be 2.0 after being set"
+        assert after["bandpass_fmax"] == pytest.approx(2.0), (
+            "'bandpass_fmax' should be 2.0 after being set"
+        )
 
 
 # ===================================================================
@@ -261,9 +262,9 @@ class TestEventParameterSetTimedelta:
         cli("event parameter set window_pre -20")
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["window_pre"] == pytest.approx(
-            -20.0
-        ), "'window_pre' should be -20.0 seconds after being set with a bare number"
+        assert after["window_pre"] == pytest.approx(-20.0), (
+            "'window_pre' should be -20.0 seconds after being set with a bare number"
+        )
 
     def test_set_window_post_as_bare_number(
         self,
@@ -281,9 +282,9 @@ class TestEventParameterSetTimedelta:
         cli("event parameter set window_post 30")
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["window_post"] == pytest.approx(
-            30.0
-        ), "'window_post' should be 30.0 seconds after being set with a bare number"
+        assert after["window_post"] == pytest.approx(30.0), (
+            "'window_post' should be 30.0 seconds after being set with a bare number"
+        )
 
     def test_set_window_pre_with_unit_string(
         self,
@@ -301,9 +302,9 @@ class TestEventParameterSetTimedelta:
         cli("event parameter set window_post 20s")
         after = cli_json("event parameter dump")
         assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["window_post"] == pytest.approx(
-            20.0
-        ), "'window_post' should be 20.0 seconds after being set with '20s'"
+        assert after["window_post"] == pytest.approx(20.0), (
+            "'window_post' should be 20.0 seconds after being set with '20s'"
+        )
 
 
 # ===================================================================
@@ -402,9 +403,9 @@ class TestEventParameterDump:
         all_data = cli_json("event parameter dump --all")
         assert isinstance(all_data, list), "All-events dump should be a list"
         default_entries = [e for e in all_data if e.get("completed") is True]
-        assert (
-            len(default_entries) == 1
-        ), "Exactly one event should have completed=True after setting it"
+        assert len(default_entries) == 1, (
+            "Exactly one event should have completed=True after setting it"
+        )
 
 
 # ===================================================================
@@ -430,9 +431,9 @@ class TestEventParameterList:
             capsys: The pytest capsys fixture.
         """
         cli("event parameter list")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from event parameter list"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from event parameter list"
+        )
 
     def test_list_short_produces_output(
         self,
@@ -448,9 +449,9 @@ class TestEventParameterList:
             capsys: The pytest capsys fixture.
         """
         cli("event parameter list --short")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from event parameter list --short"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from event parameter list --short"
+        )
 
     def test_list_all_events_produces_output(
         self,
@@ -466,9 +467,9 @@ class TestEventParameterList:
             capsys: The pytest capsys fixture.
         """
         cli("event parameter list --all")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from event parameter list --all"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from event parameter list --all"
+        )
 
 
 # ===================================================================
@@ -496,9 +497,9 @@ class TestSeismogramParameterGet:
             capsys: The pytest capsys fixture.
         """
         seis = cli_json("seismogram dump")
-        assert (
-            isinstance(seis, list) and len(seis) > 0
-        ), "Expected at least one seismogram in the dump"
+        assert isinstance(seis, list) and len(seis) > 0, (
+            "Expected at least one seismogram in the dump"
+        )
         target_id = seis[0]["id"]
 
         cli(f"seismogram parameter get {target_id} select")
@@ -524,9 +525,9 @@ class TestSeismogramParameterGet:
             capsys: The pytest capsys fixture.
         """
         seis = cli_json("seismogram dump")
-        assert (
-            isinstance(seis, list) and len(seis) > 0
-        ), "Expected at least one seismogram in the dump"
+        assert isinstance(seis, list) and len(seis) > 0, (
+            "Expected at least one seismogram in the dump"
+        )
         short_id = seis[0]["id"][:8]
 
         cli(f"seismogram parameter get {short_id} select")
@@ -602,9 +603,9 @@ class TestSeismogramParameterSet:
             cli_json: The in-process CLI JSON dump callable.
         """
         seis = cli_json("seismogram dump")
-        assert (
-            isinstance(seis, list) and len(seis) > 0
-        ), "Expected at least one seismogram in the dump"
+        assert isinstance(seis, list) and len(seis) > 0, (
+            "Expected at least one seismogram in the dump"
+        )
         target_id = seis[0]["id"]
 
         cli(f"seismogram parameter set {target_id} select false")
@@ -612,9 +613,9 @@ class TestSeismogramParameterSet:
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
         target_params = next(p for p in params if p["seismogram_id"] == target_id)
-        assert (
-            target_params["select"] is False
-        ), f"'select' should be False for seismogram {target_id} after being set"
+        assert target_params["select"] is False, (
+            f"'select' should be False for seismogram {target_id} after being set"
+        )
 
     def test_set_select_false_with_short_id(
         self,
@@ -638,9 +639,9 @@ class TestSeismogramParameterSet:
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
         target_params = next(p for p in params if p["seismogram_id"] == target_id)
-        assert (
-            target_params["select"] is False
-        ), f"'select' should be False for seismogram {target_id} after being set via short ID"
+        assert target_params["select"] is False, (
+            f"'select' should be False for seismogram {target_id} after being set via short ID"
+        )
 
     def test_set_flip_true_with_full_id(
         self,
@@ -663,9 +664,9 @@ class TestSeismogramParameterSet:
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
         target_params = next(p for p in params if p["seismogram_id"] == target_id)
-        assert (
-            target_params["flip"] is True
-        ), f"'flip' should be True for seismogram {target_id} after being set"
+        assert target_params["flip"] is True, (
+            f"'flip' should be True for seismogram {target_id} after being set"
+        )
 
     def test_set_flip_true_with_short_id(
         self,
@@ -689,9 +690,9 @@ class TestSeismogramParameterSet:
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
         target_params = next(p for p in params if p["seismogram_id"] == target_id)
-        assert (
-            target_params["flip"] is True
-        ), f"'flip' should be True for seismogram {target_id} after being set via short ID"
+        assert target_params["flip"] is True, (
+            f"'flip' should be True for seismogram {target_id} after being set via short ID"
+        )
 
     def test_set_does_not_affect_other_seismograms(
         self,
@@ -707,12 +708,12 @@ class TestSeismogramParameterSet:
             cli_json: The in-process CLI JSON dump callable.
         """
         params_before = cli_json("seismogram parameter dump")
-        assert isinstance(
-            params_before, list
-        ), "Seismogram parameter dump should be a list"
-        assert (
-            len(params_before) > 1
-        ), "Need at least two seismograms in the default event for this test"
+        assert isinstance(params_before, list), (
+            "Seismogram parameter dump should be a list"
+        )
+        assert len(params_before) > 1, (
+            "Need at least two seismograms in the default event for this test"
+        )
         target_id = params_before[0]["seismogram_id"]
         other_id = params_before[1]["seismogram_id"]
         other_select_before = params_before[1]["select"]
@@ -720,15 +721,15 @@ class TestSeismogramParameterSet:
         cli(f"seismogram parameter set {target_id} select false")
 
         params_after = cli_json("seismogram parameter dump")
-        assert isinstance(
-            params_after, list
-        ), "Seismogram parameter dump should be a list"
+        assert isinstance(params_after, list), (
+            "Seismogram parameter dump should be a list"
+        )
         other_select_after = next(
             p["select"] for p in params_after if p["seismogram_id"] == other_id
         )
-        assert (
-            other_select_after == other_select_before
-        ), "Changing one seismogram's 'select' should not affect another's"
+        assert other_select_after == other_select_before, (
+            "Changing one seismogram's 'select' should not affect another's"
+        )
 
 
 # ===================================================================
@@ -770,9 +771,9 @@ class TestSeismogramParameterDump:
         assert isinstance(data, list), "Seismogram parameter dump should be a list"
         for entry in data:
             for key in ("select", "flip", "t1", "seismogram_id"):
-                assert (
-                    key in entry
-                ), f"Expected key '{key}' in seismogram parameter dump entry"
+                assert key in entry, (
+                    f"Expected key '{key}' in seismogram parameter dump entry"
+                )
 
     def test_all_events_returns_more_entries(
         self,
@@ -787,15 +788,15 @@ class TestSeismogramParameterDump:
         """
         default_data = cli_json("seismogram parameter dump")
         all_data = cli_json("seismogram parameter dump --all")
-        assert isinstance(
-            default_data, list
-        ), "Active-event seismogram parameter dump should be a list"
-        assert isinstance(
-            all_data, list
-        ), "All-events seismogram parameter dump should be a list"
-        assert len(all_data) >= len(
-            default_data
-        ), "--all should return at least as many entries as the default-event dump"
+        assert isinstance(default_data, list), (
+            "Active-event seismogram parameter dump should be a list"
+        )
+        assert isinstance(all_data, list), (
+            "All-events seismogram parameter dump should be a list"
+        )
+        assert len(all_data) >= len(default_data), (
+            "--all should return at least as many entries as the default-event dump"
+        )
 
     def test_count_matches_seismogram_dump(
         self,
@@ -812,9 +813,9 @@ class TestSeismogramParameterDump:
         params = cli_json("seismogram parameter dump --all")
         assert isinstance(seis, list), "Seismogram dump should be a list"
         assert isinstance(params, list), "Parameter dump should be a list"
-        assert len(params) == len(
-            seis
-        ), "One parameter entry should exist per seismogram"
+        assert len(params) == len(seis), (
+            "One parameter entry should exist per seismogram"
+        )
 
 
 # ===================================================================
@@ -840,9 +841,9 @@ class TestSeismogramParameterList:
             capsys: The pytest capsys fixture.
         """
         cli("seismogram parameter list")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from seismogram parameter list"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from seismogram parameter list"
+        )
 
     def test_list_short_produces_output(
         self,
@@ -858,6 +859,6 @@ class TestSeismogramParameterList:
             capsys: The pytest capsys fixture.
         """
         cli("seismogram parameter list --short")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from seismogram parameter list --short"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from seismogram parameter list --short"
+        )

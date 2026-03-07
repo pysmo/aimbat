@@ -23,26 +23,16 @@ Complete walkthroughs for each of these options are presented in the following s
 
 ## Default event
 
-AIMBAT projects often contain many seismic events. To streamline work, you
-can designate a **default event** to serve as a persistent context.
+AIMBAT projects may contain multiple seismic events. To reduce repetition when
+using the [CLI](cli.md), you can designate a **default event**: commands
+automatically target it unless you explicitly pass an `--event` flag.
 
-The default event is a convenience fallback for the [CLI](cli.md). Commands
-automatically target this event unless you explicitly provide an ID. This
-reduces the need to repeatedly copy and paste IDs when focusing on one event.
+The default event is primarily a CLI convenience. The [Terminal UI](tui.md)
+and [Graphical UI](gui.md) maintain their own event selection independently.
+The [Shell](shell.md) also tracks its own event context, but will fall back to
+the default event at startup if one is set and no `--event` flag is provided.
 
-### Flexible Processing
-
-A default event is **not required** for processing tasks. AIMBAT allows
-flexibility across all interfaces:
-
-- **Interactive Tools**: The [Terminal UI](tui.md), [Graphical UI](gui.md),
-  and [Shell](shell.md) can navigate and process any event in the project,
-  regardless of the default setting.
-- **Command Line**: You can override the default for any command using the
-  global `--event` flag.
-
-Setting a default event is simply a way to reduce repetition. Change it at
-any time using:
+Set or change the default at any time using:
 
 ```bash
 aimbat event default <EVENT_ID>

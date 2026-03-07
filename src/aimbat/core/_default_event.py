@@ -1,8 +1,10 @@
 """Get and set the default event (i.e. the one being processed by default)."""
 
-from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
 from uuid import UUID
+
+from sqlalchemy.exc import NoResultFound
+from sqlmodel import Session, select
+
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
 
@@ -58,7 +60,7 @@ def resolve_event(session: Session, event_id: UUID | None = None) -> AimbatEvent
         return event
     event = get_default_event(session)
     if event is None:
-        raise NoResultFound("No default event found.")
+        raise NoResultFound("No event selected.")
     return event
 
 
@@ -96,8 +98,12 @@ def set_default_event(session: Session, event: AimbatEvent) -> None:
     logger.info(f"Setting default {event=}")
 
     current = get_default_event(session)
-    if current is not None and event.id == current.id:
-        return
+    if current is not None:
+        if event.id == current.id:
+            return
+        current.is_default = None
+        session.add(current)
+        session.flush()
 
     event.is_default = True
     session.add(event)

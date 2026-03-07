@@ -14,14 +14,25 @@ new connection to enforce referential integrity.
 """
 
 import sqlite3
-from aimbat import settings
-from sqlmodel import create_engine
+
 from sqlalchemy import event
 from sqlalchemy.pool import ConnectionPoolEntry
+from sqlmodel import create_engine
+
+from aimbat import settings
 
 __all__ = ["engine"]
 
-engine = create_engine(url=settings.db_url, echo=False)
+engine = create_engine(
+    url=settings.db_url,
+    echo=False,
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 30,
+    }
+    if "sqlite" in settings.db_url
+    else {},
+)
 """AIMBAT database engine."""
 
 
@@ -32,9 +43,10 @@ if engine.name == "sqlite":
     def set_sqlite_pragma(
         dbapi_connection: sqlite3.Connection, connection_record: ConnectionPoolEntry
     ) -> None:
-        """Enable foreign key support for each new SQLite connection."""
+        """Enable foreign key and WAL support for each new SQLite connection."""
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
         cursor.close()
 
     @event.listens_for(engine, "handle_error")

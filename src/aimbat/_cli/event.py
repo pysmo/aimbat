@@ -1,20 +1,23 @@
 """View and manage events in the AIMBAT project."""
 
+import uuid
+from typing import Annotated
+
+from cyclopts import App
+from pandas import Timedelta
+from sqlmodel import Session
+
+from aimbat._types import EventParameter
+from aimbat.models import AimbatEvent
+
 from .common import (
+    ALL_EVENTS_PARAMETER,
+    DebugTrait,
     GlobalParameters,
     TableParameters,
-    DebugTrait,
-    simple_exception,
     id_parameter,
-    ALL_EVENTS_PARAMETER,
+    simple_exception,
 )
-from aimbat.models import AimbatEvent
-from aimbat._types import EventParameter
-from typing import Annotated
-from pandas import Timedelta
-from cyclopts import App
-from sqlmodel import Session
-import uuid
 
 app = App(name="event", help=__doc__, help_format="markdown")
 parameter = App(
@@ -31,8 +34,8 @@ def cli_event_delete(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Delete existing event."""
-    from aimbat.db import engine
     from aimbat.core import delete_event_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         delete_event_by_id(session, event_id)
@@ -45,7 +48,11 @@ def cli_event_default(
     *,
     global_parameters: DebugTrait = DebugTrait(),
 ) -> None:
-    """Select the event to be default for processing."""
+    """Select default event for CLI commands.
+
+    Sets an event to be used by default when no explicit event ID is given.
+    Avoids having to specify an event ID for every command.
+    """
     from aimbat.core import set_default_event_by_id
     from aimbat.db import engine
 
@@ -66,9 +73,10 @@ def cli_event_parameter_get(
         name: Event parameter name.
     """
 
-    from aimbat.db import engine
-    from aimbat.core import get_event_parameter, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import get_event_parameter, resolve_event
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -94,9 +102,10 @@ def cli_event_parameter_set(
         value: Event parameter value. For timedelta parameters, bare numbers
             are interpreted as seconds.
     """
-    from aimbat.db import engine
-    from aimbat.core import set_event_parameter, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import resolve_event, set_event_parameter
+    from aimbat.db import engine
 
     _TIMEDELTA_PARAMS = (EventParameter.WINDOW_PRE, EventParameter.WINDOW_POST)
     parsed_value: Timedelta | str = value
@@ -118,10 +127,11 @@ def cli_event_parameter_dump(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump event parameter table to json."""
-    from aimbat.db import engine
-    from aimbat.core import dump_event_parameter_table_to_json, resolve_event
-    from sqlmodel import Session
     from rich import print_json
+    from sqlmodel import Session
+
+    from aimbat.core import dump_event_parameter_table_to_json, resolve_event
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = (
@@ -146,9 +156,10 @@ def cli_event_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from aimbat.db import engine
-    from aimbat.core import dump_event_table_to_json
     from rich import print_json
+
+    from aimbat.core import dump_event_table_to_json
+    from aimbat.db import engine
 
     with Session(engine) as session:
         print_json(dump_event_table_to_json(session))
@@ -166,11 +177,12 @@ def cli_event_list(
     The default event is highlighted. Use `event default` to change which event
     is processed by subsequent commands.
     """
-    from aimbat.db import engine
-    from aimbat.core import dump_event_table_to_json
-    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
-    from aimbat.logger import logger
     from pandas import Timestamp
+
+    from aimbat.core import dump_event_table_to_json
+    from aimbat.db import engine
+    from aimbat.logger import logger
+    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
 
     short = table_parameters.short
 
@@ -258,10 +270,10 @@ def cli_event_parameter_list(
     settings, minimum ccnorm) in a table.
     """
 
-    from aimbat.db import engine
     from aimbat.core import dump_event_parameter_table_to_json, resolve_event
-    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
+    from aimbat.db import engine
     from aimbat.logger import logger
+    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
 
     short = table_parameters.short
 

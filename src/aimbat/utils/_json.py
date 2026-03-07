@@ -1,7 +1,9 @@
 """JSON utilities for AIMBAT."""
 
 from typing import Any, Callable
+
 from rich.console import Console
+
 from ._style import make_table
 
 __all__ = ["json_to_table"]

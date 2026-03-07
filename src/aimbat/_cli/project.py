@@ -9,8 +9,9 @@ environment variable to the desired filename. Alternatively, `aimbat` can be
 executed with a database url directly.
 """
 
-from .common import GlobalParameters, simple_exception
 from cyclopts import App
+
+from .common import GlobalParameters, simple_exception
 
 app = App(name="project", help=__doc__, help_format="markdown")
 
@@ -25,8 +26,8 @@ def cli_project_create(
     Initialises a new project database (`aimbat.db` by default). Run this
     once before adding data with `aimbat data add`.
     """
-    from aimbat.db import engine
     from aimbat.core import create_project
+    from aimbat.db import engine
 
     create_project(engine)
 
@@ -37,8 +38,8 @@ def cli_project_delete(
     *, global_parameters: GlobalParameters = GlobalParameters()
 ) -> None:
     """Delete project (note: this does *not* delete seismogram files)."""
-    from aimbat.db import engine
     from aimbat.core import delete_project
+    from aimbat.db import engine
 
     delete_project(engine)
 
@@ -50,19 +51,20 @@ def cli_project_info(
 ) -> None:
     """Show information on an existing project."""
 
-    from aimbat.db import engine
-    from aimbat.core._project import _project_exists
-    from aimbat.core import resolve_event
-    from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
-    from aimbat.logger import logger
-    from sqlmodel import Session, select
     from rich.console import Console
-    from rich.table import Table
     from rich.panel import Panel
+    from rich.table import Table
     from sqlalchemy.exc import NoResultFound
+    from sqlmodel import Session, select
+
     import aimbat.core._event as event
     import aimbat.core._seismogram as seismogram
     import aimbat.core._station as station
+    from aimbat.core import resolve_event
+    from aimbat.core._project import _project_exists
+    from aimbat.db import engine
+    from aimbat.logger import logger
+    from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
 
     logger.info("Printing project info.")
 

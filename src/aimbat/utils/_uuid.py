@@ -1,9 +1,11 @@
 """UUID functions for AIMBAT."""
 
-from aimbat.models import AimbatTypes
-from sqlmodel import Session, select
-from sqlalchemy import cast, String, func
 from uuid import UUID
+
+from sqlalchemy import String, cast, func
+from sqlmodel import Session, select
+
+from aimbat.models import AimbatTypes
 
 __all__ = [
     "string_to_uuid",

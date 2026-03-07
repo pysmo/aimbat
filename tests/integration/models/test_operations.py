@@ -1,6 +1,8 @@
 """Integration tests for ORM relationships and cascade deletes in AIMBAT models."""
 
 import pytest
+from sqlmodel import Session, select
+
 from aimbat.core import get_default_event
 from aimbat.core._snapshot import create_snapshot
 from aimbat.models import (
@@ -14,7 +16,6 @@ from aimbat.models import (
     AimbatSnapshot,
     AimbatStation,
 )
-from sqlmodel import Session, select
 
 
 @pytest.fixture

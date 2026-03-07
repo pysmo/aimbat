@@ -5,8 +5,9 @@ monkeypatched to the test fixture's in-memory database.  The ``snapshot dump``
 JSON output is used as the ground truth for ID verification after mutations.
 """
 
-import pytest
 from collections.abc import Callable
+
+import pytest
 from sqlalchemy import Engine
 
 # ===================================================================
@@ -35,9 +36,9 @@ class TestSnapshotCreate:
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert len(data["snapshots"]) == 1, "Expected exactly one snapshot"
-        assert (
-            data["snapshots"][0]["comment"] is None
-        ), "Comment should be None when not provided"
+        assert data["snapshots"][0]["comment"] is None, (
+            "Comment should be None when not provided"
+        )
 
     def test_create_with_comment(
         self,
@@ -55,9 +56,9 @@ class TestSnapshotCreate:
         cli("snapshot create my-comment")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
-        assert (
-            data["snapshots"][0]["comment"] == "my-comment"
-        ), "Comment should match the value passed to create"
+        assert data["snapshots"][0]["comment"] == "my-comment", (
+            "Comment should match the value passed to create"
+        )
 
     def test_create_captures_event_parameters(
         self,
@@ -75,9 +76,9 @@ class TestSnapshotCreate:
         cli("snapshot create")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
-        assert (
-            len(data["event_parameters"]) == 1
-        ), "Expected one event parameter snapshot per snapshot"
+        assert len(data["event_parameters"]) == 1, (
+            "Expected one event parameter snapshot per snapshot"
+        )
 
     def test_create_captures_seismogram_parameters(
         self,
@@ -95,9 +96,9 @@ class TestSnapshotCreate:
         cli("snapshot create")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
-        assert (
-            len(data["seismogram_parameters"]) > 0
-        ), "Expected at least one seismogram parameter snapshot"
+        assert len(data["seismogram_parameters"]) > 0, (
+            "Expected at least one seismogram parameter snapshot"
+        )
 
     def test_create_multiple_snapshots(
         self,
@@ -117,9 +118,9 @@ class TestSnapshotCreate:
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert len(data["snapshots"]) == 2, "Expected two snapshots"
-        assert (
-            len(data["event_parameters"]) == 2
-        ), "Expected two event parameter snapshots"
+        assert len(data["event_parameters"]) == 2, (
+            "Expected two event parameter snapshots"
+        )
         comments = {s["comment"] for s in data["snapshots"]}
         assert comments == {
             "first",
@@ -163,9 +164,9 @@ class TestSnapshotDelete:
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
         remaining_ids = [s["id"] for s in data_after["snapshots"]]
-        assert (
-            snapshot_id not in remaining_ids
-        ), f"Snapshot {snapshot_id} should be absent after deletion"
+        assert snapshot_id not in remaining_ids, (
+            f"Snapshot {snapshot_id} should be absent after deletion"
+        )
 
     def test_delete_removes_event_parameter_snapshot(
         self,
@@ -191,9 +192,9 @@ class TestSnapshotDelete:
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
         remaining_event_param_ids = {ep["id"] for ep in data_after["event_parameters"]}
-        assert event_param_ids.isdisjoint(
-            remaining_event_param_ids
-        ), f"Event parameter snapshot IDs {event_param_ids} should all be absent after deletion"
+        assert event_param_ids.isdisjoint(remaining_event_param_ids), (
+            f"Event parameter snapshot IDs {event_param_ids} should all be absent after deletion"
+        )
 
     def test_delete_removes_seismogram_parameter_snapshots(
         self,
@@ -213,9 +214,9 @@ class TestSnapshotDelete:
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
         seis_param_ids = {sp["id"] for sp in data_before["seismogram_parameters"]}
-        assert (
-            len(seis_param_ids) > 0
-        ), "There should be seismogram parameter snapshots before deletion"
+        assert len(seis_param_ids) > 0, (
+            "There should be seismogram parameter snapshots before deletion"
+        )
 
         cli(f"snapshot delete {snapshot_id}")
 
@@ -224,9 +225,9 @@ class TestSnapshotDelete:
         remaining_seis_param_ids = {
             sp["id"] for sp in data_after["seismogram_parameters"]
         }
-        assert seis_param_ids.isdisjoint(
-            remaining_seis_param_ids
-        ), f"Seismogram parameter snapshot IDs {seis_param_ids} should all be absent after deletion"
+        assert seis_param_ids.isdisjoint(remaining_seis_param_ids), (
+            f"Seismogram parameter snapshot IDs {seis_param_ids} should all be absent after deletion"
+        )
 
     def test_delete_one_of_two_snapshots_leaves_other_intact(
         self,
@@ -257,12 +258,12 @@ class TestSnapshotDelete:
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
         remaining_ids = [s["id"] for s in data_after["snapshots"]]
-        assert (
-            first_id not in remaining_ids
-        ), f"Deleted snapshot {first_id} should be absent"
-        assert (
-            second_id in remaining_ids
-        ), f"Surviving snapshot {second_id} should still be present"
+        assert first_id not in remaining_ids, (
+            f"Deleted snapshot {first_id} should be absent"
+        )
+        assert second_id in remaining_ids, (
+            f"Surviving snapshot {second_id} should still be present"
+        )
 
     def test_delete_snapshot_with_short_id_removes_all_related(
         self,
@@ -294,15 +295,15 @@ class TestSnapshotDelete:
         remaining_seis_param_ids = {
             sp["id"] for sp in data_after["seismogram_parameters"]
         }
-        assert (
-            snapshot_id not in remaining_snapshot_ids
-        ), f"Snapshot {snapshot_id} should be absent after deletion via short ID"
-        assert event_param_ids.isdisjoint(
-            remaining_event_param_ids
-        ), f"Event parameter snapshot IDs {event_param_ids} should all be absent"
-        assert seis_param_ids.isdisjoint(
-            remaining_seis_param_ids
-        ), f"Seismogram parameter snapshot IDs {seis_param_ids} should all be absent"
+        assert snapshot_id not in remaining_snapshot_ids, (
+            f"Snapshot {snapshot_id} should be absent after deletion via short ID"
+        )
+        assert event_param_ids.isdisjoint(remaining_event_param_ids), (
+            f"Event parameter snapshot IDs {event_param_ids} should all be absent"
+        )
+        assert seis_param_ids.isdisjoint(remaining_seis_param_ids), (
+            f"Seismogram parameter snapshot IDs {seis_param_ids} should all be absent"
+        )
 
 
 # ===================================================================
@@ -333,9 +334,9 @@ class TestSnapshotRollback:
 
         cli("event parameter set completed true")
         cli("event parameter get completed")
-        assert (
-            "True" in capsys.readouterr().out
-        ), "Parameter should read True after being set"
+        assert "True" in capsys.readouterr().out, (
+            "Parameter should read True after being set"
+        )
 
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
@@ -344,9 +345,9 @@ class TestSnapshotRollback:
         cli(f"snapshot rollback {snapshot_id}")
 
         cli("event parameter get completed")
-        assert (
-            "False" in capsys.readouterr().out
-        ), "Parameter should be restored to False after rollback"
+        assert "False" in capsys.readouterr().out, (
+            "Parameter should be restored to False after rollback"
+        )
 
     def test_rollback_restores_event_parameter_with_short_id(
         self,
@@ -367,9 +368,9 @@ class TestSnapshotRollback:
 
         cli("event parameter set completed true")
         cli("event parameter get completed")
-        assert (
-            "True" in capsys.readouterr().out
-        ), "Parameter should read True after being set"
+        assert "True" in capsys.readouterr().out, (
+            "Parameter should read True after being set"
+        )
 
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
@@ -378,9 +379,9 @@ class TestSnapshotRollback:
         cli(f"snapshot rollback {short_id}")
 
         cli("event parameter get completed")
-        assert (
-            "False" in capsys.readouterr().out
-        ), "Parameter should be restored to False after rollback via short ID"
+        assert "False" in capsys.readouterr().out, (
+            "Parameter should be restored to False after rollback via short ID"
+        )
 
     def test_rollback_does_not_delete_snapshot(
         self,
@@ -405,9 +406,9 @@ class TestSnapshotRollback:
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
         remaining_ids = [s["id"] for s in data_after["snapshots"]]
-        assert (
-            snapshot_id in remaining_ids
-        ), "Snapshot should still exist after rollback"
+        assert snapshot_id in remaining_ids, (
+            "Snapshot should still exist after rollback"
+        )
 
 
 # ===================================================================
@@ -434,9 +435,9 @@ class TestSnapshotDump:
         assert isinstance(data, dict), "Dump should return a dict"
         assert data["snapshots"] == [], "Snapshots list should be empty"
         assert data["event_parameters"] == [], "Event parameters list should be empty"
-        assert (
-            data["seismogram_parameters"] == []
-        ), "Seismogram parameters list should be empty"
+        assert data["seismogram_parameters"] == [], (
+            "Seismogram parameters list should be empty"
+        )
 
     def test_dump_contains_expected_keys(
         self,
@@ -456,9 +457,9 @@ class TestSnapshotDump:
         assert isinstance(data, dict), "Dump should return a dict"
         assert "snapshots" in data, "Dump should contain 'snapshots' key"
         assert "event_parameters" in data, "Dump should contain 'event_parameters' key"
-        assert (
-            "seismogram_parameters" in data
-        ), "Dump should contain 'seismogram_parameters' key"
+        assert "seismogram_parameters" in data, (
+            "Dump should contain 'seismogram_parameters' key"
+        )
 
     def test_dump_all_events_includes_default(
         self,
@@ -478,9 +479,9 @@ class TestSnapshotDump:
         all_data = cli_json("snapshot dump --all")
         assert isinstance(default_data, dict), "Default dump should return a dict"
         assert isinstance(all_data, dict), "All-events dump should return a dict"
-        assert len(all_data["snapshots"]) >= len(
-            default_data["snapshots"]
-        ), "--all should return at least as many snapshots as the default-event dump"
+        assert len(all_data["snapshots"]) >= len(default_data["snapshots"]), (
+            "--all should return at least as many snapshots as the default-event dump"
+        )
 
     def test_dump_snapshot_ids_are_consistent(
         self,
@@ -500,13 +501,13 @@ class TestSnapshotDump:
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_ids = {s["id"] for s in data["snapshots"]}
         for ep in data["event_parameters"]:
-            assert (
-                ep["snapshot_id"] in snapshot_ids
-            ), f"Event parameter snapshot_id {ep['snapshot_id']} not in snapshots list"
+            assert ep["snapshot_id"] in snapshot_ids, (
+                f"Event parameter snapshot_id {ep['snapshot_id']} not in snapshots list"
+            )
         for sp in data["seismogram_parameters"]:
-            assert (
-                sp["snapshot_id"] in snapshot_ids
-            ), f"Seismogram parameter snapshot_id {sp['snapshot_id']} not in snapshots list"
+            assert sp["snapshot_id"] in snapshot_ids, (
+                f"Seismogram parameter snapshot_id {sp['snapshot_id']} not in snapshots list"
+            )
 
 
 # ===================================================================
@@ -550,9 +551,9 @@ class TestSnapshotList:
         """
         cli("snapshot create")
         cli("snapshot list --all")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from snapshot list --all"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from snapshot list --all"
+        )
 
     def test_list_short(
         self,
@@ -569,9 +570,9 @@ class TestSnapshotList:
         """
         cli("snapshot create")
         cli("snapshot list --short")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from snapshot list --short"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from snapshot list --short"
+        )
 
 
 # ===================================================================
@@ -627,9 +628,9 @@ class TestSnapshotDetails:
         short_id = data["snapshots"][0]["id"][:8]
 
         cli(f"snapshot details {short_id}")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from snapshot details with short ID"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from snapshot details with short ID"
+        )
 
     def test_details_short_flag(
         self,
@@ -652,6 +653,6 @@ class TestSnapshotDetails:
         snapshot_id = data["snapshots"][0]["id"]
 
         cli(f"snapshot details {snapshot_id} --short")
-        assert (
-            len(capsys.readouterr().out) > 0
-        ), "Expected output from snapshot details --short"
+        assert len(capsys.readouterr().out) > 0, (
+            "Expected output from snapshot details --short"
+        )

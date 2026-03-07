@@ -10,12 +10,13 @@ Most plot commands support `--context` / `--no-context` to toggle extra
 waveform context, and `--all` to include de-selected seismograms.
 """
 
+from cyclopts import App
+
 from .common import (
     GlobalParameters,
     IccsPlotParameters,
     simple_exception,
 )
-from cyclopts import App
 
 app = App(name="plot", help=__doc__, help_format="markdown")
 
@@ -27,9 +28,10 @@ def cli_seismogram_plot(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Plot raw seismograms for the default event sorted by epicentral distance."""
-    from aimbat.db import engine
-    from aimbat.core import plot_all_seismograms, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import plot_all_seismograms, resolve_event
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -44,9 +46,10 @@ def cli_iccs_plot_stack(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Plot the ICCS stack of an event."""
-    from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, plot_stack, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, plot_stack, resolve_event
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -62,13 +65,14 @@ def cli_iccs_plot_image(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Plot the ICCS seismograms of an event as an image."""
-    from aimbat.db import engine
+    from sqlmodel import Session
+
     from aimbat.core import (
         create_iccs_instance,
         plot_iccs_seismograms,
         resolve_event,
     )
-    from sqlmodel import Session
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)

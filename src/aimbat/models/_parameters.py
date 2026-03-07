@@ -1,15 +1,17 @@
 """Base classes defining AIMBAT processing parameters."""
 
-from sqlmodel import SQLModel, Field
-from pydantic import model_validator
 from typing import Self
+
+from pydantic import model_validator
+from sqlmodel import Field, SQLModel
+
 from aimbat import settings
 from aimbat._types import (
-    PydanticTimestamp,
     PydanticNegativeTimedelta,
     PydanticPositiveTimedelta,
-    SAPandasTimestamp,
+    PydanticTimestamp,
     SAPandasTimedelta,
+    SAPandasTimestamp,
 )
 
 __all__ = [

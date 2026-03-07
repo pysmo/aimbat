@@ -1,6 +1,6 @@
-.PHONY: help check-uv sync upgrade lint test-figs tests tests-full \
-	mypy docs live-docs build publish clean python \
-	format format-check changelog
+.PHONY: help check-uv \
+	build changelog clean docs format format-check lint live-docs mypy \
+	publish python sync test-figs tests tests-full upgrade
 
 ifeq ($(OS),Windows_NT)
   UV_VERSION := $(shell uv --version 2> NUL)
@@ -23,15 +23,43 @@ else
 	@echo "Found ${UV_VERSION}";
 endif
 
+build: clean check-uv sync ## Build distribution.
+	uv build
+
+changelog: check-uv sync ## Generate CHANGELOG.md
+	uv run git-cliff v1.0.7..HEAD --config cliff.toml --output CHANGELOG.md
+
+clean: ## Remove existing builds.
+	rm -rf build dist .egg aimbat.egg-info docs/build site
+
+docs: check-uv sync changelog ## Build html docs.
+	uv run python -m aimbat._config > docs/usage/defaults-table.md
+	uv run zensical build --clean
+
+format: check-uv ## Sort imports and format code.
+	uv run ruff check --fix .
+	uv run ruff format .
+
+format-check: check-uv ## See what 'make format' would change.
+	uv run ruff check  --diff .
+	uv run ruff format --diff .
+
+lint: check-uv ## Run all linting checks.
+	uv run ruff check  .
+	uv run ruff format --check .
+
+live-docs: check-uv sync ## Live build html docs. They are served on http://localhost:8000
+	uv run python -m aimbat._config > docs/usage/defaults-table.md
+	uv run zensical serve
+
+mypy: check-uv ## Run typing tests with pytest.
+	uv run pytest --mypy -m mypy src tests
+
+python: check-uv ## Start an interactive python shell in the project virtual environment.
+	uv run python
+
 sync: check-uv ## Install this project and its dependencies in a virtual environment.
 	uv sync --locked --all-extras
-
-upgrade: check-uv ## Upgrade dependencies to their latest versions.
-	uv sync --upgrade
-
-lint: check-uv ## Check formatting with black and lint code with ruff.
-	uv run black . --check --diff --color
-	uv run ruff check .
 
 test-figs: check-uv ## Generate baseline figures for testing (then manually move them to the test directories).
 	uv run py.test --mpl-generate-path=baseline
@@ -42,34 +70,5 @@ tests: check-uv mypy ## Run tests with pytest (excludes slow functional tests).
 tests-full: check-uv mypy ## Run all tests including slow functional tests.
 	uv run pytest --cov --cov-report=term-missing --cov-report=html --mpl
 
-mypy: check-uv ## Run typing tests with pytest.
-	uv run pytest --mypy -m mypy src tests
-
-docs: check-uv sync ## Build html docs.
-	uv run python -m aimbat._config > docs/usage/defaults-table.md
-	uv run zensical build --clean
-
-live-docs: check-uv sync ## Live build html docs. They are served on http://localhost:8000
-	uv run python -m aimbat._config > docs/usage/defaults-table.md
-	uv run zensical serve
-
-changelog: check-uv sync ## Generate CHANGELOG.md
-	uv run git-cliff v1.0.7..HEAD --config cliff.toml --output CHANGELOG.md
-	
-build: clean check-uv sync ## Build distribution.
-	uv build
-
-publish: check-uv build ## Publish package to PyPI (you will be asked for PyPI username and password).
-	uv publish
-
-clean: ## Remove existing builds.
-	rm -rf build dist .egg aimbat.egg-info docs/build site
-
-python: check-uv ## Start an interactive python shell in the project virtual environment.
-	uv run python
-
-format: check-uv ## Format python code with black.
-	uv run black .
-
-format-check: check-uv ## See what running 'make format' would change instead of actually running it.
-	uv run black . --diff --color
+upgrade: check-uv ## Upgrade dependencies to their latest versions.
+	uv sync --upgrade

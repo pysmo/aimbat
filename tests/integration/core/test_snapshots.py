@@ -2,20 +2,22 @@
 
 import json
 import uuid
+
 import pytest
 from pandas import Timedelta, Timestamp
+from sqlmodel import Session, select
+
+from aimbat.core import get_default_event
 from aimbat.core._snapshot import (
     create_snapshot,
     delete_snapshot,
     delete_snapshot_by_id,
+    dump_snapshot_tables_to_json,
     get_snapshots,
     rollback_to_snapshot,
     rollback_to_snapshot_by_id,
-    dump_snapshot_tables_to_json,
 )
-from aimbat.core import get_default_event
-from aimbat.models import AimbatSnapshot, AimbatSeismogram
-from sqlmodel import Session, select
+from aimbat.models import AimbatSeismogram, AimbatSnapshot
 
 
 @pytest.fixture

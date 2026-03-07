@@ -1,8 +1,9 @@
 """AIMBAT styling."""
 
 from dataclasses import dataclass
-from pandas import Timestamp, NaT
 from typing import Any
+
+from pandas import NaT, Timestamp
 from rich import box
 from rich.table import Table
 

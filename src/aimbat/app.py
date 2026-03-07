@@ -14,10 +14,11 @@ to identify the record unambiguously — from the shortest displayed prefix up t
 the full UUID. Dashes are optional.
 """
 
+import sys
 from importlib import metadata
+
 from cyclopts import App
 from rich.console import Console
-import sys
 
 try:
     __version__ = str(metadata.version("aimbat"))

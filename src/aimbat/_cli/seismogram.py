@@ -1,17 +1,20 @@
 """View and manage seismograms in the AIMBAT project."""
 
+import uuid
+from typing import Annotated
+
+from cyclopts import App
+
+from aimbat._types import SeismogramParameter
+from aimbat.models import AimbatSeismogram
+
 from .common import (
+    ALL_EVENTS_PARAMETER,
     GlobalParameters,
     TableParameters,
-    simple_exception,
     id_parameter,
-    ALL_EVENTS_PARAMETER,
+    simple_exception,
 )
-from aimbat.models import AimbatSeismogram
-from aimbat._types import SeismogramParameter
-from typing import Annotated
-from cyclopts import App
-import uuid
 
 app = App(name="seismogram", help=__doc__, help_format="markdown")
 parameter = App(
@@ -28,9 +31,10 @@ def cli_seismogram_delete(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Delete existing seismogram."""
-    from aimbat.db import engine
-    from aimbat.core import delete_seismogram_by_id
     from sqlmodel import Session
+
+    from aimbat.core import delete_seismogram_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         delete_seismogram_by_id(session, seismogram_id)
@@ -46,10 +50,11 @@ def cli_seismogram_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from aimbat.db import engine
-    from aimbat.core import dump_seismogram_table_to_json
-    from sqlmodel import Session
     from rich import print_json
+    from sqlmodel import Session
+
+    from aimbat.core import dump_seismogram_table_to_json
+    from aimbat.db import engine
 
     with Session(engine) as session:
         print_json(dump_seismogram_table_to_json(session))
@@ -68,9 +73,10 @@ def cli_seismogram_parameter_get(
     Args:
         name: Name of the seismogram parameter.
     """
-    from aimbat.db import engine
-    from aimbat.core import get_seismogram_parameter_by_id
     from sqlmodel import Session
+
+    from aimbat.core import get_seismogram_parameter_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         print(get_seismogram_parameter_by_id(session, seismogram_id, name))
@@ -91,9 +97,10 @@ def cli_seismogram_parameter_set(
         name: Name of the seismogram parameter.
         value: Value of the seismogram parameter.
     """
-    from aimbat.db import engine
-    from aimbat.core import set_seismogram_parameter_by_id
     from sqlmodel import Session
+
+    from aimbat.core import set_seismogram_parameter_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         set_seismogram_parameter_by_id(session, seismogram_id, name, value)
@@ -107,9 +114,10 @@ def cli_seismogram_parameter_reset(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Reset all processing parameters to their default values."""
-    from aimbat.db import engine
-    from aimbat.core import reset_seismogram_parameters_by_id
     from sqlmodel import Session
+
+    from aimbat.core import reset_seismogram_parameters_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         reset_seismogram_parameters_by_id(session, seismogram_id)
@@ -122,10 +130,11 @@ def cli_seismogram_parameter_dump(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Dump seismogram parameter table to json."""
-    from aimbat.db import engine
-    from aimbat.core import dump_seismogram_parameter_table_to_json, resolve_event
-    from sqlmodel import Session
     from rich import print_json
+    from sqlmodel import Session
+
+    from aimbat.core import dump_seismogram_parameter_table_to_json, resolve_event
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = (
@@ -152,11 +161,12 @@ def cli_seismogram_parameter_list(
     in a table. Use `seismogram parameter set` to modify individual values.
     """
 
-    from aimbat.db import engine
-    from aimbat.core import resolve_event, dump_seismogram_parameter_table_to_json
-    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
-    from aimbat.logger import logger
     from sqlmodel import Session
+
+    from aimbat.core import dump_seismogram_parameter_table_to_json, resolve_event
+    from aimbat.db import engine
+    from aimbat.logger import logger
+    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
 
     short = table_parameters.short
 
@@ -200,12 +210,13 @@ def cli_seismogram_list(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the seismograms in an event."""
-    from aimbat.db import engine
-    from aimbat.core import resolve_event
-    from aimbat.utils import uuid_shortener, make_table, TABLE_STYLING
-    from aimbat.logger import logger
     from rich.console import Console
     from sqlmodel import Session, select
+
+    from aimbat.core import resolve_event
+    from aimbat.db import engine
+    from aimbat.logger import logger
+    from aimbat.utils import TABLE_STYLING, make_table, uuid_shortener
 
     short = table_parameters.short
 

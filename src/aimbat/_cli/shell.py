@@ -9,12 +9,15 @@ Shell-only commands:
 """
 
 import uuid
+from typing import TYPE_CHECKING, Annotated
+
 from cyclopts import App, Parameter
-from typing import Annotated, TYPE_CHECKING
-from .common import simple_exception, _event_id_converter, print_error_panel
+
+from .common import _event_id_converter, print_error_panel, simple_exception
 
 if TYPE_CHECKING:
     from rich.console import Console
+
     from aimbat.core import BoundICCS
 
 app = App(name="shell", help=__doc__, help_format="markdown")
@@ -73,10 +76,11 @@ def _parse_event_id(value: str) -> uuid.UUID:
     try:
         return uuid.UUID(value)
     except ValueError:
-        from aimbat.db import engine
-        from aimbat.utils import string_to_uuid
-        from aimbat.models import AimbatEvent
         from sqlmodel import Session
+
+        from aimbat.db import engine
+        from aimbat.models import AimbatEvent
+        from aimbat.utils import string_to_uuid
 
         with Session(engine) as session:
             return string_to_uuid(session, value, AimbatEvent)
@@ -104,9 +108,10 @@ def _check_iccs(
     Returns:
         The current BoundICCS, or None if unavailable.
     """
-    from aimbat.db import engine
-    from aimbat.core import resolve_event, create_iccs_instance
     from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, resolve_event
+    from aimbat.db import engine
 
     try:
         with Session(engine) as session:
@@ -143,14 +148,16 @@ def cli_shell(
     ] = None,
 ) -> None:
     """Start an interactive AIMBAT shell."""
-    from aimbat.app import app as aimbat_app
+    import shlex
+    from pathlib import Path
+
+    from cyclopts import CycloptsError
     from prompt_toolkit import PromptSession
     from prompt_toolkit.completion import NestedCompleter
     from prompt_toolkit.history import FileHistory
-    from cyclopts import CycloptsError
     from rich.console import Console
-    from pathlib import Path
-    import shlex
+
+    from aimbat.app import app as aimbat_app
 
     console = Console()
 

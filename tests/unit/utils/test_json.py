@@ -2,8 +2,10 @@
 
 import io
 from typing import Any, Callable
+
 import pytest
 from rich.console import Console
+
 from aimbat.utils._json import json_to_table
 
 

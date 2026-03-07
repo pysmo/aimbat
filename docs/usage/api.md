@@ -57,7 +57,7 @@ create_project(engine)
 ```
 
 This is a one-time operation that creates the schema and the SQLite triggers
-that enforce the single-default-event constraint and track modification times.
+that enforce database constraints and track modification times.
 It raises `RuntimeError` if the schema already exists.
 
 ## Adding Data
@@ -136,7 +136,8 @@ with Session(engine) as session:
 
 The script below builds a complete project from scratch. It loads **3 events**,
 **10 stations**, and **20 seismograms** where the SAC files carry waveform data
-but no event or station headers — all metadata is provided via JSON.
+but no event or station headers — all metadata is provided via JSON — and takes
+an initial snapshot of each event before any processing.
 
 ```python
 --8<-- "docs/snippets/api_load_project.py"
