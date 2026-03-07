@@ -6,8 +6,10 @@ Use `aimbat event default` to switch the default event before picking.
 """
 
 from typing import Annotated
-from .common import GlobalParameters, IccsPlotParameters, simple_exception
+
 from cyclopts import App, Parameter
+
+from .common import GlobalParameters, IccsPlotParameters, simple_exception
 
 app = App(name="pick", help=__doc__, help_format="markdown")
 
@@ -29,9 +31,10 @@ def cli_update_phase_pick(
     Args:
         use_seismogram_image: Use the seismogram image to update pick.
     """
-    from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_pick, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, resolve_event, update_pick
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -63,9 +66,10 @@ def cli_pick_timewindow(
     Args:
         use_seismogram_image: Use the seismogram image to pick the time window.
     """
-    from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_timewindow, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, resolve_event, update_timewindow
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -94,9 +98,10 @@ def cli_pick_min_ccnorm(
     whose cross-correlation with the stack falls below this value will be
     automatically de-selected when running ICCS with `--autoselect`.
     """
-    from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, update_min_ccnorm, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, resolve_event, update_min_ccnorm
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)

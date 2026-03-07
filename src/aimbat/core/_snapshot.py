@@ -1,20 +1,22 @@
-import uuid
 import json
-from sqlmodel import Session, select
+import uuid
 from collections.abc import Sequence
-from typing import overload, Literal, Any
+from typing import Any, Literal, overload
+
 from pydantic import TypeAdapter
+from sqlmodel import Session, select
+
 from aimbat.logger import logger
 from aimbat.models import (
-    AimbatSnapshot,
     AimbatEvent,
     AimbatEventParametersSnapshot,
     AimbatSeismogramParametersSnapshot,
+    AimbatSnapshot,
     _AimbatSnapshotRead,
 )
 from aimbat.models._parameters import (
-    AimbatSeismogramParametersBase,
     AimbatEventParametersBase,
+    AimbatSeismogramParametersBase,
 )
 
 __all__ = [

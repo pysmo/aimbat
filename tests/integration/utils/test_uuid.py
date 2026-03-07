@@ -1,11 +1,13 @@
 """Integration tests for aimbat.utils._uuid."""
 
 import uuid
+
 import pandas as pd
 import pytest
+from sqlmodel import Session
+
 from aimbat.models import AimbatEvent
 from aimbat.utils._uuid import string_to_uuid, uuid_shortener
-from sqlmodel import Session
 
 
 def _make_event(uid: uuid.UUID, offset_seconds: int = 0) -> AimbatEvent:
@@ -202,6 +204,6 @@ class TestUuidShortener:
         event = patched_session.get(AimbatEvent, uid)
         assert event is not None, "expected event to exist in database"
         short = uuid_shortener(patched_session, event, min_length=4)
-        assert (
-            len(short.replace("-", "")) >= 4
-        ), "result should be at least 4 characters excluding dashes"
+        assert len(short.replace("-", "")) >= 4, (
+            "result should be at least 4 characters excluding dashes"
+        )

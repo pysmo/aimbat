@@ -31,11 +31,14 @@ Provides station and event creation from JSON files:
 """
 
 from __future__ import annotations
+
 import json
-from ._data import DataType
-from aimbat.logger import logger
 from os import PathLike
 from typing import TYPE_CHECKING
+
+from aimbat.logger import logger
+
+from ._data import DataType
 
 if TYPE_CHECKING:
     from aimbat.models import AimbatEvent, AimbatStation
@@ -85,7 +88,7 @@ def create_event_from_json(path: str | PathLike) -> AimbatEvent:
 
 
 # Register JSON capabilities with the io dispatch layer
-from ._base import register_station_creator, register_event_creator  # noqa: E402
+from ._base import register_event_creator, register_station_creator  # noqa: E402
 
 register_station_creator(DataType.JSON_STATION, create_station_from_json)
 register_event_creator(DataType.JSON_EVENT, create_event_from_json)

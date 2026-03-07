@@ -1,5 +1,13 @@
 """Unit tests for aimbat.io._sac."""
 
+from pathlib import Path
+
+import numpy as np
+import pytest
+from pandas import Timedelta, Timestamp
+from pydantic import ValidationError
+from pysmo.classes import SAC
+
 from aimbat.io.sac import (
     create_event_from_sacfile,
     create_seismogram_from_sacfile_and_pick_header,
@@ -8,12 +16,6 @@ from aimbat.io.sac import (
     write_seismogram_data_to_sacfile,
 )
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
-from pathlib import Path
-from pandas import Timedelta, Timestamp
-from pydantic import ValidationError
-from pysmo.classes import SAC
-import numpy as np
-import pytest
 
 # ===================================================================
 # read / write seismogram data

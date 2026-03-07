@@ -1,26 +1,29 @@
 """ORM classes representing AIMBAT data stored in the database."""
 
-import numpy as np
-import numpy.typing as npt
 import os
 import uuid
-from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
-from aimbat._types import (
-    PydanticTimestamp,
-    PydanticPositiveTimedelta,
-    SAPandasTimestamp,
-    SAPandasTimedelta,
-)
-from ._parameters import AimbatEventParametersBase, AimbatSeismogramParametersBase
+from collections.abc import Hashable
 from datetime import timezone
-from sqlmodel import Relationship, SQLModel, Field, col, select
-from sqlalchemy import func, Column, PickleType
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+import numpy.typing as npt
+from pandas import Timestamp
+from pydantic import computed_field
+from sqlalchemy import Column, PickleType, func
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import column_property
-from pydantic import computed_field
-from collections.abc import Hashable
-from typing import Any, TYPE_CHECKING
-from pandas import Timestamp
+from sqlmodel import Field, Relationship, SQLModel, col, select
+
+from aimbat._types import (
+    PydanticPositiveTimedelta,
+    PydanticTimestamp,
+    SAPandasTimedelta,
+    SAPandasTimestamp,
+)
+from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
+
+from ._parameters import AimbatEventParametersBase, AimbatSeismogramParametersBase
 
 __all__ = [
     "AimbatTypes",

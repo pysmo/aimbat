@@ -2,25 +2,27 @@
 
 import json
 import uuid
+
 import pytest
+from pandas import Timedelta
+from sqlalchemy.exc import NoResultFound
+from sqlmodel import Session, select
+
+from aimbat._types import EventParameter
 from aimbat.core import (
-    set_default_event,
-    set_default_event_by_id,
-    get_default_event,
     delete_event,
     delete_event_by_id,
-    get_completed_events,
-    get_events_using_station,
-    get_event_parameter,
-    set_event_parameter,
-    dump_event_table_to_json,
     dump_event_parameter_table_to_json,
+    dump_event_table_to_json,
+    get_completed_events,
+    get_default_event,
+    get_event_parameter,
+    get_events_using_station,
+    set_default_event,
+    set_default_event_by_id,
+    set_event_parameter,
 )
-from aimbat._types import EventParameter
 from aimbat.models import AimbatEvent, AimbatStation
-from pandas import Timedelta
-from sqlmodel import Session, select
-from sqlalchemy.exc import NoResultFound
 
 
 @pytest.fixture
@@ -69,9 +71,9 @@ class TestDefaultEvent:
 
         all_events.remove(default_event)
         new_default_event = all_events.pop()
-        assert (
-            new_default_event != default_event
-        ), "expected a different event to switch to"
+        assert new_default_event != default_event, (
+            "expected a different event to switch to"
+        )
 
         set_default_event(session, new_default_event)
         assert get_default_event(session) == new_default_event
@@ -88,17 +90,17 @@ class TestDefaultEvent:
 
         event_ids.remove(default_event.id)
         new_default_event_id = event_ids.pop()
-        assert (
-            new_default_event_id != default_event.id
-        ), "expected a different event id to switch to"
+        assert new_default_event_id != default_event.id, (
+            "expected a different event id to switch to"
+        )
 
         set_default_event_by_id(session, new_default_event_id)
 
         switched_event = get_default_event(session)
         assert switched_event is not None
-        assert (
-            switched_event.id == new_default_event_id
-        ), "expected the default event to switch to the new event by id"
+        assert switched_event.id == new_default_event_id, (
+            "expected the default event to switch to the new event by id"
+        )
 
     def test_switch_by_id_invalid(self, session: Session) -> None:
         """Verifies that switching the default event using an invalid event ID raises an error."""

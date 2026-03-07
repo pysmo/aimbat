@@ -3,12 +3,14 @@
 This is to verify that the project creation and deletion works as expected.
 """
 
-import pytest
+from collections.abc import Generator
 from pathlib import Path
+
+import pytest
+from sqlalchemy import Engine
+
 from aimbat.core import create_project, delete_project
 from aimbat.core._project import _project_exists
-from collections.abc import Generator
-from sqlalchemy import Engine
 
 
 class TestProjectLifecycle:
@@ -29,18 +31,18 @@ class TestProjectLifecycle:
             project_file (Path): The path to the expected project database file.
         """
         assert not db_path.exists(), "expected no project file at the start of the test"
-        assert (
-            _project_exists(engine) is False
-        ), "expected _project_exists() to return False at the start of the test"
+        assert _project_exists(engine) is False, (
+            "expected _project_exists() to return False at the start of the test"
+        )
 
         create_project(engine)
 
-        assert (
-            db_path.exists()
-        ), "expected project file to be created after calling create_project()"
-        assert (
-            _project_exists(engine) is True
-        ), "expected _project_exists() to return True after creating project"
+        assert db_path.exists(), (
+            "expected project file to be created after calling create_project()"
+        )
+        assert _project_exists(engine) is True, (
+            "expected _project_exists() to return True after creating project"
+        )
 
     def test_create_if_one_exists(self, engine: Engine) -> None:
         """Verifies that creating a project fails if one already exists.
@@ -48,13 +50,13 @@ class TestProjectLifecycle:
         Args:
             engine (Engine): The SQLAlchemy engine.
         """
-        assert not _project_exists(
-            engine
-        ), "expected no project at the start of the test"
+        assert not _project_exists(engine), (
+            "expected no project at the start of the test"
+        )
         create_project(engine)
-        assert _project_exists(
-            engine
-        ), "expected project to exist after calling create_project()"
+        assert _project_exists(engine), (
+            "expected project to exist after calling create_project()"
+        )
 
         with pytest.raises(RuntimeError):
             create_project(engine)
@@ -65,18 +67,18 @@ class TestProjectLifecycle:
         Args:
             engine (Engine): The SQLAlchemy engine.
         """
-        assert not _project_exists(
-            engine
-        ), "expected no project at the start of the test"
+        assert not _project_exists(engine), (
+            "expected no project at the start of the test"
+        )
         create_project(engine)
-        assert _project_exists(
-            engine
-        ), "expected project to exist after calling create_project()"
+        assert _project_exists(engine), (
+            "expected project to exist after calling create_project()"
+        )
 
         delete_project(engine)
-        assert not _project_exists(
-            engine
-        ), "expected no project after calling delete_project()"
+        assert not _project_exists(engine), (
+            "expected no project after calling delete_project()"
+        )
 
     def test_delete_project_when_there_is_none(self, engine: Engine) -> None:
         """Verifies that attempting to delete a non-existent project raises an error.
@@ -84,9 +86,9 @@ class TestProjectLifecycle:
         Args:
             engine (Engine): The SQLAlchemy engine.
         """
-        assert not _project_exists(
-            engine
-        ), "expected no project at the start of the test"
+        assert not _project_exists(engine), (
+            "expected no project at the start of the test"
+        )
         with pytest.raises(RuntimeError):
             delete_project(engine)
 

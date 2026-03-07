@@ -15,9 +15,10 @@ from .._utils import export_module_names
 
 _internal_names = set(dir())
 
-from ._data import *
+from . import json as json
+from . import sac as sac
 from ._base import *
-from . import sac as sac, json as json
+from ._data import *
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]
 

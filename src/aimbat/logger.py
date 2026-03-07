@@ -17,8 +17,9 @@ AIMBAT_LOGFILE=/path/to/custom.log
 ```
 """
 
-from aimbat import settings
 from loguru import logger
+
+from aimbat import settings
 
 
 def configure_logging() -> None:

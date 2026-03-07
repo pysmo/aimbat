@@ -23,8 +23,8 @@ from .._utils import export_module_names
 
 _internal_names = set(dir())
 
-from ._default_event import *
 from ._data import *
+from ._default_event import *
 from ._event import *
 from ._iccs import *
 from ._project import *

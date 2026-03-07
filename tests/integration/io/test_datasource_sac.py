@@ -10,8 +10,17 @@ these tests verify that the SAC → Aimbat* mapping is correct and that the data
 property correctly proxies through to the file on disk.
 """
 
-import pytest
+from collections.abc import Generator
+from datetime import timezone
+from pathlib import Path
+
 import numpy as np
+import pytest
+from pandas import Timestamp
+from pysmo.classes import SAC
+from sqlmodel import Session
+
+from aimbat.io import DataType
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
@@ -20,13 +29,6 @@ from aimbat.models import (
     AimbatSeismogramParameters,
     AimbatStation,
 )
-from aimbat.io import DataType
-from datetime import timezone
-from pathlib import Path
-from pandas import Timestamp
-from pysmo.classes import SAC
-from sqlmodel import Session
-from collections.abc import Generator
 
 
 @pytest.fixture

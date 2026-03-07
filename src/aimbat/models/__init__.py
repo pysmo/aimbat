@@ -29,8 +29,8 @@ from .._utils import export_module_names
 _internal_names = set(dir())
 
 from ._models import *
-from ._readers import *
 from ._parameters import *
+from ._readers import *
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]
 

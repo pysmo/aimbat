@@ -9,15 +9,19 @@ so importing it is sufficient to enable SAC support.
 """
 
 from __future__ import annotations
-from aimbat import settings
-from ._data import DataType
-from aimbat.logger import logger
-from pysmo.classes import SAC
-from os import PathLike
+
 from functools import partial
+from os import PathLike
+from typing import TYPE_CHECKING
+
 import numpy as np
 import numpy.typing as npt
-from typing import TYPE_CHECKING
+from pysmo.classes import SAC
+
+from aimbat import settings
+from aimbat.logger import logger
+
+from ._data import DataType
 
 if TYPE_CHECKING:
     from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation

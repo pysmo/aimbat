@@ -1,15 +1,15 @@
-from sqlmodel import Session
+from sqlmodel import Session, select
 from aimbat.db import engine
 from aimbat.core import (
     create_iccs_instance,
     create_snapshot,
-    get_default_event,
     run_iccs,
     run_mccc,
 )
+from aimbat.models import AimbatEvent
 
 with Session(engine) as session:
-    event = get_default_event(session)
+    event = session.exec(select(AimbatEvent)).first()
     assert event is not None
 
     bound = create_iccs_instance(session, event)

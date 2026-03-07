@@ -1,27 +1,29 @@
 """Module to manage and view events in AIMBAT."""
 
-from pydantic import TypeAdapter
-from sqlmodel import select, Session
-from sqlalchemy.exc import NoResultFound
-from typing import overload, Any, Literal
-from pandas import Timedelta
 from collections.abc import Sequence
+from typing import Any, Literal, overload
 from uuid import UUID
-from aimbat.logger import logger
-from aimbat.models import (
-    AimbatEvent,
-    AimbatEventParameters,
-    AimbatStation,
-    AimbatSeismogram,
-    _AimbatEventRead,
-)
-from aimbat.models._parameters import AimbatEventParametersBase
+
+from pandas import Timedelta
+from pydantic import TypeAdapter
+from sqlalchemy.exc import NoResultFound
+from sqlmodel import Session, select
+
 from aimbat._types import (
     EventParameter,
     EventParameterBool,
     EventParameterFloat,
     EventParameterTimedelta,
 )
+from aimbat.logger import logger
+from aimbat.models import (
+    AimbatEvent,
+    AimbatEventParameters,
+    AimbatSeismogram,
+    AimbatStation,
+    _AimbatEventRead,
+)
+from aimbat.models._parameters import AimbatEventParametersBase
 
 __all__ = [
     "delete_event_by_id",

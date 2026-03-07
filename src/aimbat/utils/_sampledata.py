@@ -1,12 +1,13 @@
-from aimbat import settings
-from aimbat.logger import logger
-from urllib.request import urlopen
-from io import BytesIO
-from zipfile import ZipFile
 import os
 import shutil
+from io import BytesIO
+from urllib.request import urlopen
+from zipfile import ZipFile
 
-__all_ = ["delete_sampledata", "download_sampledata"]
+from aimbat import settings
+from aimbat.logger import logger
+
+__all__ = ["delete_sampledata", "download_sampledata"]
 
 
 def delete_sampledata() -> None:

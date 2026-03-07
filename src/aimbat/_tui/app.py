@@ -7,13 +7,11 @@ from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 
+from pandas import Timedelta, Timestamp
 from pydantic import ValidationError
-
+from pysmo.tools.iccs import ICCS
 from rich.console import Console
 from rich.panel import Panel
-
-from pandas import Timedelta, Timestamp
-from pysmo.tools.iccs import ICCS
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session
 from textual import on, work
@@ -31,31 +29,7 @@ from textual.widgets import (
 )
 from textual_fspicker import FileOpen, Filters
 
-from aimbat._types import EventParameter, SeismogramParameter
-from aimbat.models._parameters import AimbatEventParametersBase
-from aimbat.core import (
-    BoundICCS,
-    add_data_to_project,
-    create_iccs_instance,
-    create_snapshot,
-    delete_seismogram_by_id,
-    reset_seismogram_parameters_by_id,
-    delete_snapshot_by_id,
-    delete_station_by_id,
-    get_default_event,
-    resolve_event,
-    rollback_to_snapshot_by_id,
-    run_iccs,
-    run_mccc,
-    set_event_parameter,
-    update_min_ccnorm,
-    update_pick,
-    update_timewindow,
-)
 from aimbat import settings
-from aimbat.db import engine
-from aimbat.io import DataType, DATATYPE_SUFFIXES
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 from aimbat._tui._widgets import VimDataTable
 from aimbat._tui.modals import (
     ActionMenuModal,
@@ -67,6 +41,28 @@ from aimbat._tui.modals import (
     SnapshotCommentModal,
     SnapshotDetailsModal,
 )
+from aimbat._types import EventParameter, SeismogramParameter
+from aimbat.core import (
+    BoundICCS,
+    add_data_to_project,
+    create_iccs_instance,
+    create_snapshot,
+    delete_seismogram_by_id,
+    delete_snapshot_by_id,
+    delete_station_by_id,
+    reset_seismogram_parameters_by_id,
+    rollback_to_snapshot_by_id,
+    run_iccs,
+    run_mccc,
+    set_event_parameter,
+    update_min_ccnorm,
+    update_pick,
+    update_timewindow,
+)
+from aimbat.db import engine
+from aimbat.io import DATATYPE_SUFFIXES, DataType
+from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
+from aimbat.models._parameters import AimbatEventParametersBase
 
 _DEFAULT_THEME = settings.tui_dark_theme
 _LIGHT_THEME = settings.tui_light_theme
@@ -172,14 +168,6 @@ class AimbatTUI(App[None]):
         self._setup_station_table()
         self._setup_snapshot_table()
 
-        # Prime _last_known_default_id so the first poll doesn't fire a
-        # spurious refresh_all().
-        with Session(engine) as session:
-            _default = get_default_event(session)
-            self._last_known_default_id: uuid.UUID | None = (
-                _default.id if _default is not None else None
-            )
-
         self.set_interval(5, self._check_iccs_staleness)
         self._create_iccs()
         self.refresh_all()
@@ -206,7 +194,7 @@ class AimbatTUI(App[None]):
     def _get_current_event(self, session: Session) -> AimbatEvent:
         """Return the event currently selected for processing in the TUI.
 
-        Falls back to the DB default event when no explicit selection has been made.
+        Raises ``NoResultFound`` when no event has been selected yet.
         Clears a stale ``_current_event_id`` if the referenced event no longer exists.
         """
         if self._current_event_id is not None:
@@ -214,7 +202,7 @@ class AimbatTUI(App[None]):
             if event is not None:
                 return event
             self._current_event_id = None
-        return resolve_event(session)
+        raise NoResultFound("No event selected")
 
     # ------------------------------------------------------------------
     # ICCS lifecycle
@@ -297,7 +285,7 @@ class AimbatTUI(App[None]):
         self._refresh_snapshots()
 
     def _check_iccs_staleness(self) -> None:
-        """Trigger ICCS recreation if the default event has been modified externally.
+        """Trigger ICCS recreation if the current event has been modified externally.
 
         When ICCS creation previously failed (e.g. due to an invalid parameter set via
         the CLI), retries whenever ``event.last_modified`` changes. On any detected
@@ -306,14 +294,7 @@ class AimbatTUI(App[None]):
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
-                _default = get_default_event(session)
-                default_id: uuid.UUID | None = (
-                    _default.id if _default is not None else None
-                )
                 changed = False
-                if default_id != self._last_known_default_id:
-                    self._last_known_default_id = default_id
-                    changed = True
                 if self._bound_iccs is not None:
                     if self._bound_iccs.is_stale(event):
                         self._iccs_last_modified_seen = event.last_modified
@@ -333,9 +314,6 @@ class AimbatTUI(App[None]):
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
-                _default = get_default_event(session)
-                default_id = _default.id if _default is not None else None
-                marker = "●" if event.id == default_id else "▶"
                 iccs_status = (
                     " ● ICCS ready" if self._bound_iccs is not None else " ○ no ICCS"
                 )
@@ -348,7 +326,7 @@ class AimbatTUI(App[None]):
                     else ""
                 )
                 bar.update(
-                    f"{marker} {time_str}  |  {lat}, {lon}{modified}"
+                    f"▶ {time_str}  |  {lat}, {lon}{modified}"
                     f"  [dim]{iccs_status}  e = switch event[/dim]"
                 )
         except NoResultFound:
@@ -567,7 +545,9 @@ class AimbatTUI(App[None]):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 if attr in {p.value for p in EventParameter}:
-                    set_event_parameter(session, event, EventParameter(attr), value, validate_iccs=True)  # type: ignore[call-overload]
+                    set_event_parameter(
+                        session, event, EventParameter(attr), value, validate_iccs=True
+                    )  # type: ignore[call-overload]
                 else:
                     # mccc_damp / mccc_min_ccnorm — not in EventParameter enum
                     validated = AimbatEventParametersBase.model_validate(
@@ -730,10 +710,9 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
 
     def action_switch_event(self) -> None:
-        def on_result(result: tuple[uuid.UUID, bool] | None) -> None:
+        def on_result(result: uuid.UUID | None) -> None:
             if result is not None:
-                event_id, _set_as_default = result
-                self._current_event_id = event_id
+                self._current_event_id = result
                 self._create_iccs()
             self.refresh_all()
 
@@ -781,15 +760,7 @@ class AimbatTUI(App[None]):
         """Return True if ICCS is ready; show a contextual warning and return False otherwise."""
         if self._bound_iccs is not None:
             return True
-        # If an event is explicitly selected or a default exists, ICCS simply
-        # isn't ready yet (bad parameters, still loading, etc.).  Otherwise
-        # there is no event at all.
         if self._current_event_id is not None:
-            has_event = True
-        else:
-            with Session(engine) as session:
-                has_event = get_default_event(session) is not None
-        if has_event:
             self.notify(
                 "ICCS not ready — check event parameters (Parameters tab)",
                 severity="warning",

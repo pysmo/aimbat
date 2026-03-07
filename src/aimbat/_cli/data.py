@@ -28,20 +28,23 @@ records are reused rather than duplicated.
 """
 
 import uuid
+from pathlib import Path
+from typing import Annotated
+
+from cyclopts import App, Parameter, validators
+from sqlmodel import Session, select
+
+from aimbat.io import DataType
+from aimbat.models import AimbatDataSource, AimbatEvent, AimbatStation
+
 from .common import (
+    ALL_EVENTS_PARAMETER,
     GlobalParameters,
     TableParameters,
     simple_exception,
-    ALL_EVENTS_PARAMETER,
-    use_station_parameter,
     use_event_parameter,
+    use_station_parameter,
 )
-from aimbat.models import AimbatEvent, AimbatStation, AimbatDataSource
-from aimbat.io import DataType
-from sqlmodel import Session, select
-from cyclopts import App, Parameter, validators
-from pathlib import Path
-from typing import Annotated
 
 app = App(name="data", help=__doc__, help_format="markdown")
 
@@ -89,8 +92,8 @@ def cli_data_add(
             database.
         show_progress_bar: Display a progress bar while ingesting sources.
     """
-    from aimbat.db import engine
     from aimbat.core import add_data_to_project
+    from aimbat.db import engine
 
     disable_progress_bar = not show_progress_bar
 
@@ -116,9 +119,10 @@ def cli_data_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from aimbat.db import engine
-    from aimbat.core import dump_data_table_to_json
     from rich import print_json
+
+    from aimbat.core import dump_data_table_to_json
+    from aimbat.db import engine
 
     with Session(engine) as session:
         print_json(dump_data_table_to_json(session))
@@ -133,11 +137,12 @@ def cli_data_list(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print a table of data sources registered in the AIMBAT project."""
-    from aimbat.db import engine
-    from aimbat.core import resolve_event, get_data_for_event
-    from aimbat.utils import uuid_shortener, make_table, TABLE_STYLING
-    from aimbat.logger import logger
     from rich.console import Console
+
+    from aimbat.core import get_data_for_event, resolve_event
+    from aimbat.db import engine
+    from aimbat.logger import logger
+    from aimbat.utils import TABLE_STYLING, make_table, uuid_shortener
 
     short = table_parameters.short
 

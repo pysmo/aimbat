@@ -5,9 +5,11 @@ commands update the pick stored in `t1`. If `t1` is `None`, `t0` is used as
 starting point instead, with the resulting pick stored in `t1`.
 """
 
-from .common import GlobalParameters, simple_exception
-from cyclopts import App, Parameter
 from typing import Annotated
+
+from cyclopts import App, Parameter
+
+from .common import GlobalParameters, simple_exception
 
 app = App(name="align", help=__doc__, help_format="markdown")
 
@@ -32,9 +34,10 @@ def cli_iccs_run(
         autoselect: Whether to automatically de-select seismograms whose
             cross-correlation with the stack falls below `min_ccnorm`.
     """
-    from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_iccs, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, resolve_event, run_iccs
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -58,9 +61,10 @@ def cli_mccc_run(
         all_seismograms: Include all seismograms in MCCC processing, not just
             the currently selected ones.
     """
-    from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_mccc, resolve_event
     from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, resolve_event, run_mccc
+    from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)

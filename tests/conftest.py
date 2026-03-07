@@ -1,23 +1,25 @@
-import aimbat.db
-import pytest
-import uuid
-import shutil
-import matplotlib.pyplot as plt
-import random
 import json
 import os
+import random
+import shutil
 import subprocess
-from aimbat.app import app
-from aimbat.io import DataType
-from aimbat.core import add_data_to_project, set_default_event, create_project
-from aimbat.models import AimbatEvent
-from aimbat.logger import configure_logging
-from dataclasses import dataclass, field
-from typing import Any, Literal
-from pathlib import Path
+import uuid
 from collections.abc import Callable, Generator, Sequence
-from sqlmodel import Session, select, create_engine
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal
+
+import matplotlib.pyplot as plt
+import pytest
 from sqlalchemy import Engine, event
+from sqlmodel import Session, create_engine, select
+
+import aimbat.db
+from aimbat.app import app
+from aimbat.core import add_data_to_project, create_project, set_default_event
+from aimbat.io import DataType
+from aimbat.logger import configure_logging
+from aimbat.models import AimbatEvent
 
 # ---------------------------------------------------------------------------
 # Constants

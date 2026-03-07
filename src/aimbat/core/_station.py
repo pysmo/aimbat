@@ -1,12 +1,14 @@
 import uuid
-from typing import overload, Literal, Any
-from sqlmodel import Session, select, col
+from collections.abc import Sequence
+from typing import Any, Literal, overload
+
+from pydantic import TypeAdapter
 from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
-from collections.abc import Sequence
-from pydantic import TypeAdapter
+from sqlmodel import Session, col, select
+
 from aimbat.logger import logger
-from aimbat.models import AimbatStation, AimbatSeismogram, AimbatEvent
+from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
 
 __all__ = [
     "delete_station_by_id",

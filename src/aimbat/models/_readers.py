@@ -1,6 +1,8 @@
 import uuid
+from typing import TYPE_CHECKING, Self
+
 from sqlmodel import SQLModel
-from typing import Self, TYPE_CHECKING
+
 from aimbat._types import PydanticTimestamp
 
 if TYPE_CHECKING:

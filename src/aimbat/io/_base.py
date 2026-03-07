@@ -11,12 +11,16 @@ automatically when imported.
 """
 
 from __future__ import annotations
-from ._data import DataType
-from aimbat.logger import logger
+
 from os import PathLike
 from typing import TYPE_CHECKING, Callable
+
 import numpy as np
 import numpy.typing as npt
+
+from aimbat.logger import logger
+
+from ._data import DataType
 
 if TYPE_CHECKING:
     from aimbat.models import (

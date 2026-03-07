@@ -2,27 +2,29 @@
 
 import json
 import uuid
-import pytest
+from collections.abc import Generator
 from pathlib import Path
+
+import pytest
 from pandas import Timestamp
-from sqlalchemy import Engine
-from sqlmodel import Session, select
 from pydantic import ValidationError
 from pysmo.classes import SAC
-from aimbat.io import DataType
+from sqlalchemy import Engine
+from sqlmodel import Session, select
+
 from aimbat.core import (
     add_data_to_project,
-    get_data_for_event,
     dump_data_table_to_json,
+    get_data_for_event,
     get_default_event,
 )
+from aimbat.io import DataType
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
     AimbatSeismogram,
     AimbatStation,
 )
-from collections.abc import Generator
 
 # ---------------------------------------------------------------------------
 # Module-level fixtures
@@ -169,9 +171,9 @@ class TestAddDataToProject:
             )
 
         datasource = session.exec(select(AimbatDataSource.sourcename)).all()
-        assert (
-            len(datasource) == 0
-        ), "Expected no data sources to be added when an error occurs."
+        assert len(datasource) == 0, (
+            "Expected no data sources to be added when an error occurs."
+        )
 
     def test_add_sac_file_with_missing_pick(
         self, sac_file_good: Path, session: Session
@@ -276,9 +278,9 @@ class TestGetDataSources:
         assert default_event is not None
         data_sources = get_data_for_event(session, default_event)
         assert len(data_sources) != 0, "Expected data sources for the default event."
-        assert all(
-            isinstance(ds, AimbatDataSource) for ds in data_sources
-        ), "expected all items to be AimbatDataSource instances"
+        assert all(isinstance(ds, AimbatDataSource) for ds in data_sources), (
+            "expected all items to be AimbatDataSource instances"
+        )
 
     def test_dump_data_table_to_json(self, session: Session) -> None:
         """Verifies that dump_data_table_to_json returns a JSON string with expected content.

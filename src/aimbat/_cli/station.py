@@ -1,16 +1,19 @@
 """View and manage stations."""
 
+import uuid
+from typing import Annotated
+
+from cyclopts import App
+
+from aimbat.models import AimbatStation
+
 from .common import (
+    ALL_EVENTS_PARAMETER,
     GlobalParameters,
     TableParameters,
-    simple_exception,
     id_parameter,
-    ALL_EVENTS_PARAMETER,
+    simple_exception,
 )
-from aimbat.models import AimbatStation
-from typing import Annotated
-from cyclopts import App
-import uuid
 
 app = App(name="station", help=__doc__, help_format="markdown")
 
@@ -23,9 +26,10 @@ def cli_station_delete(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Delete existing station."""
-    from aimbat.db import engine
-    from aimbat.core import delete_station_by_id
     from sqlmodel import Session
+
+    from aimbat.core import delete_station_by_id
+    from aimbat.db import engine
 
     with Session(engine) as session:
         delete_station_by_id(session, station_id)
@@ -42,10 +46,11 @@ def cli_station_dump(
     Output can be piped or redirected for use in external tools or scripts.
     """
 
-    from aimbat.db import engine
-    from aimbat.core import dump_station_table_to_json
-    from sqlmodel import Session
     from rich import print_json
+    from sqlmodel import Session
+
+    from aimbat.core import dump_station_table_to_json
+    from aimbat.db import engine
 
     with Session(engine) as session:
         print_json(dump_station_table_to_json(session))
@@ -60,15 +65,17 @@ def cli_station_list(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the stations used in an event."""
-    from aimbat.db import engine
-    from aimbat.core import (
-        resolve_event,
-        get_stations_in_event,
-    )
-    from aimbat.utils import uuid_shortener, json_to_table, TABLE_STYLING
-    from aimbat.logger import logger
     from typing import Any
+
     from sqlmodel import Session
+
+    from aimbat.core import (
+        get_stations_in_event,
+        resolve_event,
+    )
+    from aimbat.db import engine
+    from aimbat.logger import logger
+    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
 
     short = table_parameters.short
 

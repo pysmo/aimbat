@@ -1,10 +1,12 @@
 """Common parameters and functions for the AIMBAT CLI."""
 
-from aimbat import settings
-from dataclasses import dataclass
-from cyclopts import Parameter, Token
-from typing import Callable, Any, Annotated
 import uuid
+from dataclasses import dataclass
+from typing import Annotated, Any, Callable
+
+from cyclopts import Parameter, Token
+
+from aimbat import settings
 
 # -----------------------------------------------------------------------
 # Shared Parameter instances and factories
@@ -20,9 +22,10 @@ def _make_uuid_converter(model_class: type) -> Callable[..., uuid.UUID]:
         try:
             return uuid.UUID(value)
         except ValueError:
+            from sqlmodel import Session
+
             from aimbat.db import engine
             from aimbat.utils import string_to_uuid
-            from sqlmodel import Session
 
             with Session(engine) as session:
                 return string_to_uuid(session, value, model_class)
@@ -155,8 +158,8 @@ def simple_exception[F: Callable[..., Any]](func: F) -> F:
     traceback, and then exits. In debugging mode this decorator returns the
     callable unchanged.
     """
-    from functools import wraps
     import sys
+    from functools import wraps
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:

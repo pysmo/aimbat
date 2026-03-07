@@ -2,6 +2,7 @@
 
 import json
 import uuid
+
 import pytest
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
@@ -11,9 +12,9 @@ from aimbat.core._station import (
     delete_station,
     delete_station_by_id,
     dump_station_table_to_json,
+    dump_station_table_with_counts,
     get_stations_in_event,
     get_stations_with_event_and_seismogram_count,
-    dump_station_table_with_counts,
 )
 from aimbat.models import AimbatStation
 
@@ -58,9 +59,9 @@ class TestDeleteStation:
         """
         station_id = station.id
         delete_station(session, station)
-        assert (
-            session.get(AimbatStation, station_id) is None
-        ), "Station should be absent after deletion"
+        assert session.get(AimbatStation, station_id) is None, (
+            "Station should be absent after deletion"
+        )
 
     def test_delete_station_by_id(
         self, session: Session, station: AimbatStation
@@ -73,9 +74,9 @@ class TestDeleteStation:
         """
         station_id = station.id
         delete_station_by_id(session, station_id)
-        assert (
-            session.get(AimbatStation, station_id) is None
-        ), "Station should be absent after deletion by ID"
+        assert session.get(AimbatStation, station_id) is None, (
+            "Station should be absent after deletion by ID"
+        )
 
     def test_delete_station_by_id_not_found(self, session: Session) -> None:
         """Verifies that deleting a non-existent station ID raises NoResultFound.
@@ -110,9 +111,9 @@ class TestGetStationsInDefaultEvent:
         default_event = get_default_event(session)
         assert default_event is not None
         stations = get_stations_in_event(session, default_event, as_json=False)
-        assert all(
-            isinstance(s, AimbatStation) for s in stations
-        ), "All returned items should be AimbatStation instances"
+        assert all(isinstance(s, AimbatStation) for s in stations), (
+            "All returned items should be AimbatStation instances"
+        )
 
     def test_as_json_returns_list_of_dicts(self, session: Session) -> None:
         """Verifies that as_json=True returns a list of dicts.
@@ -124,9 +125,9 @@ class TestGetStationsInDefaultEvent:
         assert default_event is not None
         result = get_stations_in_event(session, default_event, as_json=True)
         assert isinstance(result, list), "Expected a list when as_json=True"
-        assert all(
-            isinstance(item, dict) for item in result
-        ), "Each element should be a dict when as_json=True"
+        assert all(isinstance(item, dict) for item in result), (
+            "Each element should be a dict when as_json=True"
+        )
 
     def test_as_json_count_matches_objects(self, session: Session) -> None:
         """Verifies that as_json=True and as_json=False return the same number of stations.
@@ -138,9 +139,9 @@ class TestGetStationsInDefaultEvent:
         assert default_event is not None
         objects = get_stations_in_event(session, default_event, as_json=False)
         json_list = get_stations_in_event(session, default_event, as_json=True)
-        assert len(objects) == len(
-            json_list
-        ), "Object and JSON representations should have the same length"
+        assert len(objects) == len(json_list), (
+            "Object and JSON representations should have the same length"
+        )
 
     def test_stations_belong_to_default_event(self, session: Session) -> None:
         """Verifies that the returned stations are associated with the default event.
@@ -153,9 +154,9 @@ class TestGetStationsInDefaultEvent:
         default_station_ids = {s.station_id for s in default_event.seismograms}
         stations = get_stations_in_event(session, default_event, as_json=False)
         returned_ids = {s.id for s in stations}
-        assert (
-            returned_ids == default_station_ids
-        ), "Returned station IDs should match those linked to the default event"
+        assert returned_ids == default_station_ids, (
+            "Returned station IDs should match those linked to the default event"
+        )
 
 
 class TestGetStationsInEvent:
@@ -181,9 +182,9 @@ class TestGetStationsInEvent:
         default_event = get_default_event(session)
         assert default_event is not None
         stations = get_stations_in_event(session, default_event)
-        assert all(
-            isinstance(s, AimbatStation) for s in stations
-        ), "All returned items should be AimbatStation instances"
+        assert all(isinstance(s, AimbatStation) for s in stations), (
+            "All returned items should be AimbatStation instances"
+        )
 
     def test_station_ids_match_event_seismograms(self, session: Session) -> None:
         """Verifies that station IDs match those linked to the event's seismograms.
@@ -195,9 +196,9 @@ class TestGetStationsInEvent:
         assert default_event is not None
         expected_ids = {s.station_id for s in default_event.seismograms}
         returned_ids = {s.id for s in get_stations_in_event(session, default_event)}
-        assert (
-            returned_ids == expected_ids
-        ), "Station IDs should match those linked to the event's seismograms"
+        assert returned_ids == expected_ids, (
+            "Station IDs should match those linked to the event's seismograms"
+        )
 
 
 class TestGetStationsWithEventSeismogramCount:
@@ -211,9 +212,9 @@ class TestGetStationsWithEventSeismogramCount:
         """
         all_stations = session.exec(select(AimbatStation)).all()
         results = get_stations_with_event_and_seismogram_count(session)
-        assert len(results) == len(
-            all_stations
-        ), "Expected one row per station in the database"
+        assert len(results) == len(all_stations), (
+            "Expected one row per station in the database"
+        )
 
     def test_returns_tuples_with_counts(self, session: Session) -> None:
         """Verifies that each result is a tuple of (AimbatStation, int, int).
@@ -224,15 +225,15 @@ class TestGetStationsWithEventSeismogramCount:
         results = get_stations_with_event_and_seismogram_count(session)
         for row in results:
             station, seismogram_count, event_count = row
-            assert isinstance(
-                station, AimbatStation
-            ), "First element should be an AimbatStation"
-            assert isinstance(
-                seismogram_count, int
-            ), "Second element should be an int (seismogram count)"
-            assert isinstance(
-                event_count, int
-            ), "Third element should be an int (event count)"
+            assert isinstance(station, AimbatStation), (
+                "First element should be an AimbatStation"
+            )
+            assert isinstance(seismogram_count, int), (
+                "Second element should be an int (seismogram count)"
+            )
+            assert isinstance(event_count, int), (
+                "Third element should be an int (event count)"
+            )
 
     def test_counts_are_non_negative(self, session: Session) -> None:
         """Verifies that all seismogram and event counts are non-negative.
@@ -266,9 +267,9 @@ class TestGetStationsWithEventSeismogramCount:
         """
         objects = get_stations_with_event_and_seismogram_count(session)
         json_list = dump_station_table_with_counts(session)
-        assert len(objects) == len(
-            json_list
-        ), "Object and JSON representations should have the same number of rows"
+        assert len(objects) == len(json_list), (
+            "Object and JSON representations should have the same number of rows"
+        )
 
 
 class TestDumpStationTableToJson:
@@ -293,9 +294,9 @@ class TestDumpStationTableToJson:
         """
         all_stations = session.exec(select(AimbatStation)).all()
         result = json.loads(dump_station_table_to_json(session))
-        assert len(result) == len(
-            all_stations
-        ), "JSON entry count should match station count in the database"
+        assert len(result) == len(all_stations), (
+            "JSON entry count should match station count in the database"
+        )
 
     def test_entries_contain_id_field(self, session: Session) -> None:
         """Verifies that each entry in the JSON has an 'id' field.

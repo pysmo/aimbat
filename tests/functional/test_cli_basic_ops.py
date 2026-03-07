@@ -4,9 +4,10 @@ All commands are invoked in-process via ``app()`` with ``aimbat.db.engine``
 monkeypatched to the test fixture's in-memory database.
 """
 
-import pytest
-from pathlib import Path
 from collections.abc import Callable, Sequence
+from pathlib import Path
+
+import pytest
 from sqlalchemy import Engine
 
 # ===================================================================
@@ -47,12 +48,12 @@ class TestProjectLifecycle:
         """
         cli("project info")
         output = capsys.readouterr().out
-        assert (
-            "Project Info" in output
-        ), "Output should contain the 'Project Info' panel title"
-        assert (
-            "in-memory database" in output
-        ), "Output should indicate this is an in-memory database"
+        assert "Project Info" in output, (
+            "Output should contain the 'Project Info' panel title"
+        )
+        assert "in-memory database" in output, (
+            "Output should indicate this is an in-memory database"
+        )
 
     def test_delete_project_succeeds_for_in_memory(
         self,

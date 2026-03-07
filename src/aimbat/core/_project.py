@@ -1,6 +1,8 @@
+from pathlib import Path
+
 from sqlalchemy import Engine
 from sqlmodel import SQLModel, text
-from pathlib import Path
+
 from aimbat.logger import logger
 
 __all__ = ["create_project", "delete_project"]
@@ -57,7 +59,8 @@ def create_project(engine: Engine) -> None:
     if engine.name == "sqlite":
         with engine.begin() as connection:
             # Trigger 1: Handle updates to existing rows
-            connection.execute(text("""
+            connection.execute(
+                text("""
                 CREATE TRIGGER IF NOT EXISTS single_default_event_update
                 BEFORE UPDATE ON aimbatevent
                 FOR EACH ROW WHEN NEW.is_default = TRUE
@@ -65,10 +68,12 @@ def create_project(engine: Engine) -> None:
                     UPDATE aimbatevent SET is_default = NULL 
                     WHERE is_default = TRUE AND id != NEW.id;
                 END;
-            """))
+            """)
+            )
 
             # Trigger 2: Handle brand new default events being inserted
-            connection.execute(text("""
+            connection.execute(
+                text("""
                 CREATE TRIGGER IF NOT EXISTS single_default_event_insert
                 BEFORE INSERT ON aimbatevent
                 FOR EACH ROW WHEN NEW.is_default = TRUE
@@ -76,20 +81,24 @@ def create_project(engine: Engine) -> None:
                     UPDATE aimbatevent SET is_default = NULL
                     WHERE is_default = TRUE;
                 END;
-            """))
+            """)
+            )
 
             # Trigger 3: Track last modification time when event parameters change
-            connection.execute(text("""
+            connection.execute(
+                text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_params_update
                 AFTER UPDATE ON aimbateventparameters
                 BEGIN
                     UPDATE aimbatevent SET last_modified = datetime('now')
                     WHERE id = NEW.event_id;
                 END;
-            """))
+            """)
+            )
 
             # Trigger 4: Track last modification time when seismogram parameters change
-            connection.execute(text("""
+            connection.execute(
+                text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_seis_params_update
                 AFTER UPDATE ON aimbatseismogramparameters
                 BEGIN
@@ -100,7 +109,8 @@ def create_project(engine: Engine) -> None:
                         WHERE id = NEW.seismogram_id
                     );
                 END;
-            """))
+            """)
+            )
 
 
 def delete_project(engine: Engine) -> None:

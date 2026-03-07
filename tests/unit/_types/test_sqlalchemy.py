@@ -1,9 +1,11 @@
-import pytest
-import pandas as pd
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
+
+import pandas as pd
+import pytest
 from sqlalchemy.engine import Dialect
-from aimbat._types import SAPandasTimestamp, SAPandasTimedelta
+
+from aimbat._types import SAPandasTimedelta, SAPandasTimestamp
 
 
 @pytest.fixture

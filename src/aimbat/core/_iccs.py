@@ -4,19 +4,30 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from pandas import Timestamp
-from sqlmodel import Session
 from pysmo.tools.iccs import (
     ICCS,
     MiniICCSSeismogram,
+)
+from pysmo.tools.iccs import (
     plot_seismograms as _plot_seismograms,
+)
+from pysmo.tools.iccs import (
     plot_stack as _plot_stack,
+)
+from pysmo.tools.iccs import (
     update_min_ccnorm as _update_min_ccnorm,
+)
+from pysmo.tools.iccs import (
     update_pick as _update_pick,
+)
+from pysmo.tools.iccs import (
     update_timewindow as _update_timewindow,
 )
+from sqlmodel import Session
+
 from aimbat import settings
 from aimbat.logger import logger
-from aimbat.models import AimbatSeismogram, AimbatEvent
+from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 from aimbat.models._parameters import (
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
@@ -29,6 +40,7 @@ _RETURN_FIG_WARNING = (
 
 __all__ = [
     "BoundICCS",
+    "build_iccs_from_snapshot",
     "create_iccs_instance",
     "clear_iccs_cache",
     "validate_iccs_construction",
@@ -146,6 +158,74 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     )
     _iccs_cache[event.id] = bound
     return bound
+
+
+def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
+    """Build a read-only BoundICCS from a snapshot's parameters and live waveform data.
+
+    Uses the snapshot's event and seismogram parameters (window, t1, flip, select,
+    bandpass, etc.) but reads waveform data from the live datasources. No DB writes
+    occur at any point.
+
+    Args:
+        session: Database session.
+        snapshot_id: ID of the AimbatSnapshot to load.
+
+    Returns:
+        BoundICCS instance built from the snapshot parameters.
+
+    Raises:
+        ValueError: If no snapshot with the given ID is found.
+    """
+    snapshot = session.get(AimbatSnapshot, snapshot_id)
+    if snapshot is None:
+        raise ValueError(f"Snapshot {snapshot_id} not found.")
+
+    ep = snapshot.event_parameters_snapshot
+    snap_params = AimbatEventParametersBase.model_validate(ep)
+
+    # Build a map from seismogram_parameters_id → snapshot parameters
+    snap_seis_map = {
+        sp.seismogram_parameters_id: sp
+        for sp in snapshot.seismogram_parameters_snapshots
+    }
+
+    seismograms = []
+    for seis in snapshot.event.seismograms:
+        snap_sp = snap_seis_map.get(seis.parameters.id)
+        if snap_sp is None:
+            # Seismogram was added after the snapshot — use live parameters
+            seis_params = AimbatSeismogramParametersBase.model_validate(seis.parameters)
+        else:
+            seis_params = AimbatSeismogramParametersBase.model_validate(snap_sp)
+        seismograms.append(
+            MiniICCSSeismogram(
+                begin_time=seis.begin_time,
+                delta=seis.delta,
+                data=seis.data,
+                t0=seis.t0,
+                t1=seis_params.t1,
+                flip=seis_params.flip,
+                select=seis_params.select,
+                extra={"id": seis.id},
+            )
+        )
+
+    iccs = ICCS(
+        seismograms=seismograms,
+        window_pre=snap_params.window_pre,
+        window_post=snap_params.window_post,
+        bandpass_apply=snap_params.bandpass_apply,
+        bandpass_fmin=snap_params.bandpass_fmin,
+        bandpass_fmax=snap_params.bandpass_fmax,
+        min_ccnorm=snap_params.min_ccnorm,
+        context_width=settings.context_width,
+    )
+    return BoundICCS(
+        iccs=iccs,
+        event_id=snapshot.event_id,
+        created_at=Timestamp.now("UTC"),
+    )
 
 
 def validate_iccs_construction(event: AimbatEvent) -> None:

@@ -1,9 +1,10 @@
 """Add a random delay to a random choice of seismograms to create random events."""
 
-from pysmo.classes import SAC
 from pathlib import Path
 from random import choices, randint
+
 from pandas import Timedelta
+from pysmo.classes import SAC
 
 
 def mk_data(orgfile: Path, newfile: Path, td: Timedelta) -> None:

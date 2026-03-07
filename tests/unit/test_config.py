@@ -3,14 +3,16 @@
 import io
 from pathlib import Path
 from typing import Any
+
 import pytest
 from rich.console import Console
+
 from aimbat._config import (
     Settings,
-    settings,
-    print_settings_table,
     cli_settings_list,
     generate_settings_table_markdown,
+    print_settings_table,
+    settings,
 )
 
 

@@ -14,8 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input, Label, Static
 
 from aimbat._tui._widgets import VimDataTable
-
-from aimbat.core import delete_event_by_id, get_default_event, set_default_event_by_id
+from aimbat.core import delete_event_by_id
 from aimbat.db import engine
 from aimbat.models import AimbatEvent
 
@@ -33,7 +32,7 @@ class _Hint(StrEnum):
     SAVE_CANCEL = (
         "[@click='screen.save']⏎ save[/]   [@click='screen.cancel']⎋ cancel[/]"
     )
-    NAVIGATE_EVENT_SWITCHER = "↑↓ navigate   [@click='screen.select']⏎ select[/]   [@click='screen.set_default']d default[/]   [@click='screen.toggle_completed']c complete[/]   [@click='screen.delete_event']⌫ delete[/]   [@click='screen.cancel']⎋ cancel[/]"
+    NAVIGATE_EVENT_SWITCHER = "↑↓ navigate   [@click='screen.select']⏎ select[/]   [@click='screen.toggle_completed']c complete[/]   [@click='screen.delete_event']⌫ delete[/]   [@click='screen.cancel']⎋ cancel[/]"
     NAVIGATE_SELECT_CANCEL = "↑↓ navigate   [@click='screen.select']⏎ select[/]   [@click='screen.cancel']⎋ cancel[/]"
     NAVIGATE_RUN_CANCEL = "↑↓ navigate   [@click='screen.select']⏎ run[/]   [@click='screen.cancel']⎋ cancel[/]"
     CONFIRM_CANCEL = "[@click='screen.confirm'][bold]y[/bold] / ⏎ confirm[/]   [@click='screen.cancel'][bold]n[/bold] / ⎋ cancel[/]"
@@ -57,17 +56,12 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class EventSwitcherModal(ModalScreen[tuple[uuid.UUID, bool] | None]):
-    """Modal screen for selecting a seismic event to process.
-
-    Enter selects the event for TUI processing without changing the DB default.
-    Press ``d`` to also promote it to the DB default event.
-    """
+class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
+    """Modal screen for selecting a seismic event to process."""
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=False),
         Binding("c", "toggle_completed", "Complete", show=True),
-        Binding("d", "set_default", "Set Default", show=True),
         Binding("backspace", "delete_event", "Delete", show=True),
     ]
 
@@ -77,7 +71,7 @@ class EventSwitcherModal(ModalScreen[tuple[uuid.UUID, bool] | None]):
         self._selected_event_id: str | None = None
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action in {"delete_event", "toggle_completed", "set_default"}:
+        if action in {"delete_event", "toggle_completed"}:
             return True if self._selected_event_id else False
         return True
 
@@ -107,22 +101,9 @@ class EventSwitcherModal(ModalScreen[tuple[uuid.UUID, bool] | None]):
         try:
             with Session(engine) as session:
                 events = session.exec(select(AimbatEvent)).all()
-                _default = get_default_event(session)
-                default_id: uuid.UUID | None = (
-                    _default.id if _default is not None else None
-                )
 
                 for event in events:
-                    is_default = event.id == default_id
-                    is_current = event.id == self._current_event_id
-                    if is_default and is_current:
-                        marker = "★"
-                    elif is_default:
-                        marker = "●"
-                    elif is_current:
-                        marker = "▶"
-                    else:
-                        marker = " "
+                    marker = "▶" if event.id == self._current_event_id else " "
                     done_marker = "✓" if event.parameters.completed else " "
                     short_id = str(event.id)[:8]
                     time_str = str(event.time)[:19] if event.time else "—"
@@ -167,20 +148,7 @@ class EventSwitcherModal(ModalScreen[tuple[uuid.UUID, bool] | None]):
         row_key = event.row_key.value
         if not row_key:
             return
-        self.dismiss((uuid.UUID(row_key), False))
-
-    def action_set_default(self) -> None:
-        event_id = self._selected_event_id
-        if not event_id:
-            return
-        try:
-            event_uuid = uuid.UUID(event_id)
-            with Session(engine) as session:
-                set_default_event_by_id(session, event_uuid)
-                session.commit()
-            self.dismiss((event_uuid, True))
-        except Exception as exc:
-            self.notify(str(exc), severity="error")
+        self.dismiss(uuid.UUID(row_key))
 
     def action_toggle_completed(self) -> None:
         event_id = self._selected_event_id
