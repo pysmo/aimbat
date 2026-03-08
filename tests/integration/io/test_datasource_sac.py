@@ -17,8 +17,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 from pandas import Timestamp
-from pysmo.classes import SAC
 from sqlmodel import Session
+
+from pysmo.classes import SAC
 
 from aimbat.io import DataType
 from aimbat.models import (

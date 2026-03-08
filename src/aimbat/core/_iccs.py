@@ -4,26 +4,12 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from pandas import Timestamp
+from sqlmodel import Session
+
 from pysmo.tools.iccs import (
     ICCS,
     MiniICCSSeismogram,
 )
-from pysmo.tools.iccs import (
-    plot_seismograms as _plot_seismograms,
-)
-from pysmo.tools.iccs import (
-    plot_stack as _plot_stack,
-)
-from pysmo.tools.iccs import (
-    update_min_ccnorm as _update_min_ccnorm,
-)
-from pysmo.tools.iccs import (
-    update_pick as _update_pick,
-)
-from pysmo.tools.iccs import (
-    update_timewindow as _update_timewindow,
-)
-from sqlmodel import Session
 
 from aimbat import settings
 from aimbat.logger import logger
@@ -31,11 +17,6 @@ from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 from aimbat.models._parameters import (
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
-)
-
-_RETURN_FIG_WARNING = (
-    "Returning figure and axes objects instead of showing the plot. "
-    "This is intended for testing purposes; in normal usage, return_fig should be False."
 )
 
 __all__ = [
@@ -47,11 +28,7 @@ __all__ = [
     "sync_iccs_parameters",
     "run_iccs",
     "run_mccc",
-    "plot_stack",
-    "plot_iccs_seismograms",
-    "update_pick",
-    "update_timewindow",
-    "update_min_ccnorm",
+    "_write_back_seismograms",
 ]
 
 
@@ -164,8 +141,9 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     """Build a read-only BoundICCS from a snapshot's parameters and live waveform data.
 
     Uses the snapshot's event and seismogram parameters (window, t1, flip, select,
-    bandpass, etc.) but reads waveform data from the live datasources. No DB writes
-    occur at any point.
+    bandpass, etc.) but reads waveform data from the live datasources. Seismograms
+    added after the snapshot was taken are not included in the snapshot — their live
+    parameters are used instead. No DB writes occur at any point.
 
     Args:
         session: Database session.
@@ -292,13 +270,14 @@ def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> No
 
 
 def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> None:
-    """Run ICCS algorithm.
+    """Run the Iterative Cross-Correlation and Stack (ICCS) algorithm.
 
     Args:
         session: Database session.
         iccs: ICCS instance.
-        autoflip: Whether to automatically flip seismograms.
-        autoselect: Whether to automatically select seismograms.
+        autoflip: If True, automatically flip seismograms to maximise cross-correlation.
+        autoselect: If True, automatically deselect seismograms whose cross-correlation
+            falls below the threshold.
     """
 
     logger.info(f"Running ICCS with {autoflip=}, {autoselect=}.")
@@ -311,13 +290,13 @@ def run_iccs(session: Session, iccs: ICCS, autoflip: bool, autoselect: bool) -> 
 def run_mccc(
     session: Session, event: AimbatEvent, iccs: ICCS, all_seismograms: bool
 ) -> None:
-    """Run MCCC algorithm.
+    """Run the Multi-Channel Cross-Correlation (MCCC) algorithm.
 
     Args:
         session: Database session.
         event: AimbatEvent.
         iccs: ICCS instance.
-        all_seismograms: Whether to include all seismograms in the MCCC processing, or just the selected ones.
+        all_seismograms: If True, include deselected seismograms in the alignment.
     """
 
     logger.info(f"Running MCCC for event {event.id} with {all_seismograms=}.")
@@ -328,150 +307,3 @@ def run_mccc(
         damping=event.parameters.mccc_damp,
     )
     _write_back_seismograms(session, iccs)
-
-
-def plot_stack(iccs: ICCS, context: bool, all: bool, return_fig: bool) -> tuple | None:
-    """Plot the ICCS stack.
-
-    Args:
-        iccs: ICCS instance.
-        context: Whether to use seismograms with extra context.
-        all: Whether to plot all seismograms.
-        return_fig: If True, return the figure and axes objects instead of showing the plot.
-
-    Returns:
-        A tuple of (Figure, Axes) if return_fig is True, otherwise None.
-    """
-
-    logger.info("Plotting ICCS stack for default event.")
-    return _plot_stack(iccs, context, all, return_fig=return_fig)  # type: ignore[call-overload]
-
-
-def plot_iccs_seismograms(
-    iccs: ICCS, context: bool, all: bool, return_fig: bool
-) -> tuple | None:
-    """Plot the ICCS seismograms as an image.
-
-    Args:
-        iccs: ICCS instance.
-        context: Whether to use seismograms with extra context.
-        all: Whether to plot all seismograms.
-        return_fig: If True, return the figure and axes objects instead of showing the plot.
-
-    Returns:
-        A tuple of (Figure, Axes) if return_fig is True, otherwise None.
-    """
-
-    logger.info("Plotting ICCS seismograms for default event.")
-
-    return _plot_seismograms(iccs, context, all, return_fig=return_fig)  # type: ignore[call-overload]
-
-
-def update_pick(
-    session: Session,
-    iccs: ICCS,
-    context: bool,
-    all: bool,
-    use_seismogram_image: bool,
-    return_fig: bool,
-) -> tuple | None:
-    """Update the pick for the default event.
-
-    Args:
-        iccs: ICCS instance.
-        context: Whether to use seismograms with extra context.
-        all: Whether to plot all seismograms.
-        use_seismogram_image: Whether to use the seismogram image to update pick.
-        return_fig: If True, return the figure and axes objects instead of showing the plot.
-
-    Returns:
-        A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
-    """
-
-    logger.info("Updating pick for default event.")
-
-    result = _update_pick(  # type: ignore[call-overload]
-        iccs, context, all, use_seismogram_image, return_fig=return_fig
-    )
-
-    if not return_fig:
-        _write_back_seismograms(session, iccs)
-        return None
-
-    logger.warning(_RETURN_FIG_WARNING)
-    return result
-
-
-def update_timewindow(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all: bool,
-    use_seismogram_image: bool,
-    return_fig: bool,
-) -> tuple | None:
-    """Update the time window for the given event.
-
-    Args:
-        session: Database session.
-        event: AimbatEvent.
-        iccs: ICCS instance.
-        context: Whether to use seismograms with extra context.
-        all: Whether to plot all seismograms.
-        use_seismogram_image: Whether to use the seismogram image to update pick.
-        return_fig: If True, return the figure and axes objects instead of showing the plot.
-
-    Returns:
-        A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
-    """
-
-    logger.info(f"Updating time window for event {event.id}.")
-
-    result = _update_timewindow(  # type: ignore[call-overload]
-        iccs, context, all, use_seismogram_image, return_fig=return_fig
-    )
-
-    if not return_fig:
-        event.parameters.window_pre = iccs.window_pre
-        event.parameters.window_post = iccs.window_post
-        session.commit()
-        return None
-
-    logger.warning(_RETURN_FIG_WARNING)
-    return result
-
-
-def update_min_ccnorm(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all: bool,
-    return_fig: bool,
-) -> tuple | None:
-    """Update the minimum cross correlation coefficient for the given event.
-
-    Args:
-        session: Database session.
-        event: AimbatEvent.
-        iccs: ICCS instance.
-        context: Whether to use seismograms with extra context.
-        all: Whether to plot all seismograms.
-        return_fig: If True, return the figure and axes objects instead of showing the plot.
-
-    Returns:
-        A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
-    """
-
-    logger.info(f"Updating minimum cross correlation coefficient for event {event.id}.")
-
-    result = _update_min_ccnorm(iccs, context, all, return_fig=return_fig)  # type: ignore[call-overload]
-
-    if not return_fig:
-        event.parameters.min_ccnorm = float(iccs.min_ccnorm)
-        session.commit()
-        return None
-
-    logger.warning(_RETURN_FIG_WARNING)
-    return result

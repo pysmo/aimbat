@@ -12,7 +12,7 @@ from aimbat.models import AimbatEvent
 
 from .common import (
     ALL_EVENTS_PARAMETER,
-    DebugTrait,
+    DebugParameter,
     GlobalParameters,
     TableParameters,
     id_parameter,
@@ -31,7 +31,7 @@ app.command(parameter)
 def cli_event_delete(
     event_id: Annotated[uuid.UUID, id_parameter(AimbatEvent)],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Delete existing event."""
     from aimbat.core import delete_event_by_id
@@ -46,7 +46,7 @@ def cli_event_delete(
 def cli_event_default(
     new_default_event_id: Annotated[uuid.UUID, id_parameter(AimbatEvent)],
     *,
-    global_parameters: DebugTrait = DebugTrait(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Select default event for CLI commands.
 
@@ -123,6 +123,7 @@ def cli_event_parameter_set(
 @parameter.command(name="dump")
 @simple_exception
 def cli_event_parameter_dump(
+    *,
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
@@ -148,10 +149,7 @@ def cli_event_parameter_dump(
 
 @app.command(name="dump")
 @simple_exception
-def cli_event_dump(
-    *,
-    global_parameters: GlobalParameters = GlobalParameters(),
-) -> None:
+def cli_event_dump(*, _: DebugParameter = DebugParameter()) -> None:
     """Dump the contents of the AIMBAT event table to JSON.
 
     Output can be piped or redirected for use in external tools or scripts.
@@ -260,6 +258,7 @@ def cli_event_list(
 @parameter.command(name="list")
 @simple_exception
 def cli_event_parameter_list(
+    *,
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
     table_parameters: TableParameters = TableParameters(),

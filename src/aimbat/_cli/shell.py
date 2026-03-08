@@ -60,11 +60,46 @@ def _extract_event_flag(tokens: list[str]) -> str | None:
     return None
 
 
+# Commands where --event must NOT be auto-injected even if the flag exists.
+# These use --event for a purpose other than selecting the processing event.
+_EVENT_INJECTION_EXCLUDED: frozenset[tuple[str, ...]] = frozenset(
+    {
+        ("data", "add"),
+    }
+)
+
+
 def _inject_event(tokens: list[str], event_id: uuid.UUID) -> list[str]:
     """Append --event <id> to tokens unless an event flag is already present."""
     if _extract_event_flag(tokens) is None:
         return tokens + ["--event", str(event_id)]
     return tokens
+
+
+def _command_accepts_event_flag(
+    tokens: list[str], completion_dict: dict[str, dict | None]
+) -> bool:
+    """Return True if the resolved command declares --event or --event-id."""
+    node: dict | None = completion_dict
+    for tok in tokens:
+        if tok.startswith("-"):
+            break
+        if isinstance(node, dict) and tok in node:
+            node = node[tok]
+        else:
+            break
+    return isinstance(node, dict) and bool({"--event", "--event-id"} & node.keys())
+
+
+def _should_inject_event(
+    tokens: list[str], completion_dict: dict[str, dict | None]
+) -> bool:
+    """Return True if the shell should auto-inject --event into this command."""
+    non_flag = tuple(tok for tok in tokens if not tok.startswith("-"))
+    for excluded in _EVENT_INJECTION_EXCLUDED:
+        if non_flag[: len(excluded)] == excluded:
+            return False
+    return _command_accepts_event_flag(tokens, completion_dict)
 
 
 def _parse_event_id(value: str) -> uuid.UUID:
@@ -244,8 +279,9 @@ def cli_shell(
                     print_error_panel(exc)
             continue
 
-        # Inject the shell event context into commands that don't override it.
-        if shell_event_id is not None:
+        # Inject the shell event context only for commands that accept it and
+        # where automatic injection is appropriate.
+        if shell_event_id is not None and _should_inject_event(tokens, completion_dict):
             tokens = _inject_event(tokens, shell_event_id)
 
         try:

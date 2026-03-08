@@ -17,6 +17,7 @@ dependencies = [
     { name = "cyclopts" },
     { name = "loguru" },
     { name = "matplotlib" },
+    { name = "mplcursors" },
     { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "prompt-toolkit" },
@@ -54,6 +55,7 @@ requires-dist = [
     { name = "cyclopts", specifier = ">=3.24.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "matplotlib", specifier = ">=3.10.6" },
+    { name = "mplcursors", specifier = ">=0.7" },
     { name = "pandas", specifier = ">=3.0.1" },
     { name = "pandas-stubs", specifier = ">=3.0.0.260204" },
     { name = "prompt-toolkit", specifier = ">=3.0.52" },
@@ -441,7 +443,7 @@ wheels = [
 
 [[package]]
 name = "cyclopts"
-version = "4.7.0"
+version = "4.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -449,9 +451,9 @@ dependencies = [
     { name = "rich" },
     { name = "rich-rst" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b3/a7/61825c9c46dd9d3d2a231c9792753fc3fe2822a90734a619b1a23ed0f05f/cyclopts-4.7.0.tar.gz", hash = "sha256:1d0fd440b8d21a55d14f830033eb1ac156933424df3e90afeea34cfb3ed73822", size = 163447, upload-time = "2026-03-05T02:57:49.501Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/7a/3c3623755561c7f283dd769470e99ae36c46810bf3b3f264d69006f6c97a/cyclopts-4.8.0.tar.gz", hash = "sha256:92cc292d18d8be372e58d8bce1aa966d30f819a5fb3fee02bd2ad4a6bb403f29", size = 164066, upload-time = "2026-03-07T19:39:18.122Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5b/08/a631a99df0e9f49c73ec682a9d1e05e5887cf79f04076792aacb4caac6b2/cyclopts-4.7.0-py3-none-any.whl", hash = "sha256:c659d930797a8470f2914a8f8f8be263b339cb6ffb6593b4a59fa9d84b8e0e38", size = 201270, upload-time = "2026-03-05T02:57:50.988Z" },
+    { url = "https://files.pythonhosted.org/packages/87/01/6ec7210775ea5e4989a10d89eda6c5ea7ff06caa614231ad533d74fecac8/cyclopts-4.8.0-py3-none-any.whl", hash = "sha256:ef353da05fec36587d4ebce7a6e4b27515d775d184a23bab4b01426f93ddc8d4", size = 201948, upload-time = "2026-03-07T19:39:19.307Z" },
 ]
 
 [[package]]
@@ -1202,6 +1204,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mplcursors"
+version = "0.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/4b/777032b40e5e41cd0c8dc1b4a9d4d760aacbb6f0aaec0bb8b5889bc88945/mplcursors-0.7.tar.gz", hash = "sha256:a4dda539931ff961498f98bd35386bf345954c6235849eb8981728d479b099a9", size = 88940, upload-time = "2025-09-02T09:14:59.385Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/19/e6/35e28d41f24c8ad071385709a7cbb983344387a92900e7b8a9b70b5e5599/mplcursors-0.7-py3-none-any.whl", hash = "sha256:140102df515e275f4df6c80c6dde4d22188c5fc30f38133444fa799a4716bd3f", size = 20556, upload-time = "2025-09-02T09:14:57.772Z" },
+]
+
+[[package]]
 name = "msgpack"
 version = "1.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1931,8 +1945,8 @@ wheels = [
 
 [[package]]
 name = "pysmo"
-version = "1.0.0.dev31+gaa71a1da1"
-source = { git = "https://github.com/pysmo/pysmo?rev=master#aa71a1da1e068d62a23292520755e432c0872c85" }
+version = "1.0.0.dev35+g0a59a0912"
+source = { git = "https://github.com/pysmo/pysmo?rev=master#0a59a09121ac931af6685990996fe0d593703a65" }
 dependencies = [
     { name = "annotated-types" },
     { name = "attrs" },

@@ -2,14 +2,8 @@ import uuid
 from collections.abc import Sequence
 from typing import Any, Literal, overload
 
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 from pandas import Timestamp
 from pydantic import TypeAdapter
-from pysmo import MiniSeismogram
-from pysmo.functions import clone_to_mini, detrend, normalize
-from pysmo.tools.azdist import distance
-from pysmo.tools.plotutils import time_array
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
@@ -38,7 +32,6 @@ __all__ = [
     "get_selected_seismograms",
     "dump_seismogram_table_to_json",
     "dump_seismogram_parameter_table_to_json",
-    "plot_all_seismograms",
 ]
 
 
@@ -368,70 +361,3 @@ def dump_seismogram_parameter_table_to_json(
     if as_string:
         return adapter.dump_json(parameters).decode("utf-8")
     return adapter.dump_python(parameters, mode="json")
-
-
-@overload
-def plot_all_seismograms(
-    session: Session, event: AimbatEvent, return_fig: Literal[True]
-) -> tuple[plt.Figure, plt.Axes]: ...
-
-
-@overload
-def plot_all_seismograms(
-    session: Session, event: AimbatEvent, return_fig: Literal[False]
-) -> None: ...
-
-
-def plot_all_seismograms(
-    session: Session, event: AimbatEvent, return_fig: bool
-) -> tuple[plt.Figure, plt.Axes] | None:
-    """Plot all seismograms for a particular event ordered by great circle distance.
-
-    Args:
-        session: Database session.
-        event: AimbatEvent.
-        return_fig: Whether to return the figure and axes objects instead of showing the plot.
-
-    Returns:
-        figure and axes objects if return_fig is True, otherwise None.
-    """
-
-    if len(seismograms := event.seismograms) == 0:
-        raise RuntimeError(f"No seismograms found in event {event.id}.")
-
-    distance_dict = {
-        seismogram.id: distance(seismogram.station, seismogram.event) / 1000
-        for seismogram in seismograms
-    }
-    distance_min = min(distance_dict.values())
-    distance_max = max(distance_dict.values())
-    scaling_factor = (distance_max - distance_min) / len(seismograms) * 5
-
-    title = seismograms[0].event.time.strftime("Event %Y-%m-%d %H:%M:%S")
-    xlabel = "Time of day"
-    ylabel = "Epicentral distance [km]"
-
-    fig, ax = plt.subplots()
-
-    for seismogram in seismograms:
-        clone = clone_to_mini(MiniSeismogram, seismogram)
-        detrend(clone)
-        normalize(clone)
-        plot_data = clone.data * scaling_factor + distance_dict[seismogram.id]
-        times = time_array(clone)
-        ax.plot(
-            times,
-            plot_data,
-            scalex=True,
-            scaley=True,
-        )
-    plt.xlabel(xlabel=xlabel)
-    plt.ylabel(ylabel=ylabel)
-    plt.gcf().autofmt_xdate()
-    fmt = mdates.DateFormatter("%H:%M:%S")
-    plt.gca().xaxis.set_major_formatter(fmt)
-    plt.title(title)
-    if return_fig:
-        return fig, ax
-    plt.show()
-    return None

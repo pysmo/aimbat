@@ -29,6 +29,7 @@ dependencies = [
     "textual>=8.0.0",
     "textual-fspicker>=1.0.0",
     "prompt-toolkit>=3.0.52",
+    "mplcursors>=0.7",
 ]
 
 [project.urls]
@@ -130,5 +131,20 @@ extend-exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+
+# Customizing the actual order of the blocks
+section-order = [
+  "future",
+  "standard-library",
+  "third-party",
+  "pysmo-group",
+  "first-party",
+  "local-folder"
+]
+
+[tool.ruff.lint.isort.sections]
+"pysmo-group" = ["pysmo"]
 
 [tool.ruff.lint.per-file-ignores]

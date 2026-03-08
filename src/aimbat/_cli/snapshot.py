@@ -9,13 +9,15 @@ to undo them if needed.
 import uuid
 from typing import Annotated
 
-from cyclopts import App
+from cyclopts import App, Parameter
 
 from aimbat.models import AimbatSnapshot
 
 from .common import (
     ALL_EVENTS_PARAMETER,
+    DebugParameter,
     GlobalParameters,
+    IccsPlotParameters,
     TableParameters,
     id_parameter,
     simple_exception,
@@ -54,7 +56,7 @@ def cli_snapshot_create(
 def cli_snapshot_rollback(
     snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Rollback to snapshot."""
     from sqlmodel import Session
@@ -68,10 +70,10 @@ def cli_snapshot_rollback(
 
 @app.command(name="delete")
 @simple_exception
-def cli_snapshop_delete(
+def cli_snapshot_delete(
     snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Delete existing snapshot."""
     from sqlmodel import Session
@@ -86,6 +88,7 @@ def cli_snapshop_delete(
 @app.command(name="dump")
 @simple_exception
 def cli_snapshot_dump(
+    *,
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
@@ -112,6 +115,7 @@ def cli_snapshot_dump(
 @app.command(name="list")
 @simple_exception
 def cli_snapshot_list(
+    *,
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
     table_parameters: TableParameters = TableParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
@@ -201,12 +205,47 @@ def cli_snapshot_list(
         )
 
 
+@app.command(name="preview")
+@simple_exception
+def cli_snapshot_preview(
+    snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
+    *,
+    iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
+    as_matrix: Annotated[bool, Parameter(name="matrix")] = False,
+    _: DebugParameter = DebugParameter(),
+) -> None:
+    """Preview the ICCS stack/matrix of a snapshot."""
+    from sqlmodel import Session
+
+    from aimbat.core import build_iccs_from_snapshot
+    from aimbat.db import engine
+    from aimbat.plot import plot_matrix_image, plot_stack
+
+    with Session(engine) as session:
+        iccs = build_iccs_from_snapshot(session, snapshot_id).iccs
+        if as_matrix:
+            plot_matrix_image(
+                iccs,
+                iccs_plot_parameters.context,
+                all_seismograms=iccs_plot_parameters.all_seismograms,
+                return_fig=False,
+            )
+        else:
+            plot_stack(
+                iccs,
+                iccs_plot_parameters.context,
+                all_seismograms=iccs_plot_parameters.all_seismograms,
+                return_fig=False,
+            )
+
+
 @app.command(name="details")
 @simple_exception
 def cli_snapshot_details(
     snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
+    *,
     table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Print information on the event parameters saved in a snapshot."""
     from sqlmodel import Session

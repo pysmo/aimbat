@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
+
 from pysmo.classes import SAC
 
 from aimbat import settings

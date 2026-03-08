@@ -19,14 +19,14 @@ from aimbat.core import (
     get_seismogram_parameter,
     get_seismogram_parameter_by_id,
     get_selected_seismograms,
-    plot_all_seismograms,
     reset_seismogram_parameters,
     reset_seismogram_parameters_by_id,
     set_seismogram_parameter,
     set_seismogram_parameter_by_id,
 )
-from aimbat.models import AimbatSeismogram
+from aimbat.models import AimbatSeismogram, AimbatStation
 from aimbat.models._parameters import AimbatSeismogramParametersBase
+from aimbat.plot import plot_seismograms
 
 
 @pytest.fixture
@@ -53,6 +53,19 @@ def seismogram(session: Session) -> AimbatSeismogram:
         An AimbatSeismogram from the default event.
     """
     return session.exec(select(AimbatSeismogram)).first()  # type: ignore[return-value]
+
+
+@pytest.fixture
+def station(session: Session) -> AimbatStation:
+    """Provides the first station in the database.
+
+    Args:
+        session: The database session.
+
+    Returns:
+        An AimbatStation instance.
+    """
+    return session.exec(select(AimbatStation)).first()  # type: ignore[return-value]
 
 
 class TestDeleteSeismogram:
@@ -403,16 +416,28 @@ class TestDumpSeismogramParameterTableToJson:
         assert len(all_events) >= len(default_only)
 
 
-class TestPlotAllSeismograms:
+class TestPlotSeismograms:
     """Tests for plotting seismograms."""
 
-    def test_returns_figure(self, session: Session) -> None:
-        """Verifies that plot_all_seismograms returns a matplotlib Figure.
+    def test_plot_event_returns_figure(self, session: Session) -> None:
+        """Verifies that plot_seismograms for an event returns a matplotlib Figure.
 
         Args:
             session: The database session.
         """
         default_event = get_default_event(session)
         assert default_event is not None
-        fig, _ = plot_all_seismograms(session, event=default_event, return_fig=True)
+        fig, _ = plot_seismograms(session, plot_for=default_event, return_fig=True)
+        assert isinstance(fig, Figure)
+
+    def test_plot_station_returns_figure(
+        self, session: Session, station: AimbatStation
+    ) -> None:
+        """Verifies that plot_seismograms for a station returns a matplotlib Figure.
+
+        Args:
+            session: The database session.
+            station: An AimbatStation instance.
+        """
+        fig, _ = plot_seismograms(session, plot_for=station, return_fig=True)
         assert isinstance(fig, Figure)

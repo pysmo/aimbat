@@ -19,22 +19,22 @@ app = App(name="pick", help=__doc__, help_format="markdown")
 def cli_update_phase_pick(
     *,
     iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
+    use_matrix_image: Annotated[bool, Parameter(name="img")] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Interactively pick a new phase arrival time (t1) for the default event.
+    """Interactively pick a new phase arrival time (t1) for an event.
 
-    Opens an interactive plot; click on the waveform to place the new pick,
-    then close the window to save. The pick is stored as `t1` for each
-    selected seismogram.
+    Opens an interactive plot; click to place the new pick, then close the window
+    to save. The pick is stored as `t1` for each seismogram in the ICCS instance.
 
     Args:
-        use_seismogram_image: Use the seismogram image to update pick.
+        use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
     """
     from sqlmodel import Session
 
-    from aimbat.core import create_iccs_instance, resolve_event, update_pick
+    from aimbat.core import create_iccs_instance, resolve_event
     from aimbat.db import engine
+    from aimbat.plot import update_pick
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -43,8 +43,8 @@ def cli_update_phase_pick(
             session,
             iccs,
             iccs_parameters.context,
-            iccs_parameters.all,
-            use_seismogram_image,
+            all_seismograms=iccs_parameters.all_seismograms,
+            use_matrix_image=use_matrix_image,
             return_fig=False,
         )
 
@@ -54,22 +54,23 @@ def cli_update_phase_pick(
 def cli_pick_timewindow(
     *,
     iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_seismogram_image: Annotated[bool, Parameter(name="img")] = False,
+    use_matrix_image: Annotated[bool, Parameter(name="img")] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Interactively pick a new cross-correlation time window for an event.
 
     Opens an interactive plot; click to set the left and right window boundaries,
-    then close the window to save. The window controls which portion of the
+    then close the window to save. The window controls which portion of each
     seismogram is used during ICCS alignment.
 
     Args:
-        use_seismogram_image: Use the seismogram image to pick the time window.
+        use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
     """
     from sqlmodel import Session
 
-    from aimbat.core import create_iccs_instance, resolve_event, update_timewindow
+    from aimbat.core import create_iccs_instance, resolve_event
     from aimbat.db import engine
+    from aimbat.plot import update_timewindow
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -79,8 +80,8 @@ def cli_pick_timewindow(
             event,
             iccs,
             iccs_parameters.context,
-            iccs_parameters.all,
-            use_seismogram_image,
+            all_seismograms=iccs_parameters.all_seismograms,
+            use_matrix_image=use_matrix_image,
             return_fig=False,
         )
 
@@ -100,8 +101,9 @@ def cli_pick_min_ccnorm(
     """
     from sqlmodel import Session
 
-    from aimbat.core import create_iccs_instance, resolve_event, update_min_ccnorm
+    from aimbat.core import create_iccs_instance, resolve_event
     from aimbat.db import engine
+    from aimbat.plot import update_min_ccnorm
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
@@ -111,7 +113,7 @@ def cli_pick_min_ccnorm(
             event,
             iccs,
             iccs_parameters.context,
-            iccs_parameters.all,
+            all_seismograms=iccs_parameters.all_seismograms,
             return_fig=False,
         )
 

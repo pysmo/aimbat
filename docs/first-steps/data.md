@@ -67,13 +67,17 @@ Parameters are organised in three tiers:
 
 ## Snapshots
 
-Event and seismogram parameters can be snapshot at any point during processing.
-Snapshots are independent copies of the parameter state — rolling back to one
-restores parameters exactly without affecting other snapshots.
+Event and seismogram parameters can be captured in a snapshot at any point
+during processing. Snapshots are independent copies of the parameter state — rolling
+back to one restores parameters exactly without affecting other snapshots.
+Taking a snapshot immediately after importing data is recommended, as it
+provides a baseline to restore the original parameter state.
 
-!!! tip
-    Create a snapshot immediately after importing data, before any processing
-    has been done.
+!!! warning "Adding data after a snapshot"
+    Snapshots only capture the state of items that exist at the time they are
+    taken. Items added afterwards are not included. When previewing a rollback,
+    AIMBAT shows what the full dataset would look like after the rollback —
+    items not in the snapshot appear with their current live state.
 
 ## UUIDs
 

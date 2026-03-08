@@ -39,20 +39,20 @@ class TestIccsPlotParameters:
         params = IccsPlotParameters()
         assert params.context is True
 
-    def test_default_all_is_false(self) -> None:
-        """Verifies that all defaults to False."""
+    def test_default_all_seismograms_is_false(self) -> None:
+        """Verifies that all_seismograms defaults to False."""
         params = IccsPlotParameters()
-        assert params.all is False
+        assert params.all_seismograms is False
 
     def test_context_can_be_set_false(self) -> None:
         """Verifies that context can be set to False."""
         params = IccsPlotParameters(context=False)
         assert params.context is False
 
-    def test_all_can_be_set_true(self) -> None:
-        """Verifies that all can be set to True."""
-        params = IccsPlotParameters(all=True)
-        assert params.all is True
+    def test_all_seismograms_can_be_set_true(self) -> None:
+        """Verifies that all_seismograms can be set to True."""
+        params = IccsPlotParameters(all_seismograms=True)
+        assert params.all_seismograms is True
 
 
 class TestTableParameters:

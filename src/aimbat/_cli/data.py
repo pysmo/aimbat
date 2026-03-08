@@ -35,10 +35,11 @@ from cyclopts import App, Parameter, validators
 from sqlmodel import Session, select
 
 from aimbat.io import DataType
-from aimbat.models import AimbatDataSource, AimbatEvent, AimbatStation
+from aimbat.models import AimbatDataSource
 
 from .common import (
     ALL_EVENTS_PARAMETER,
+    DebugParameter,
     GlobalParameters,
     TableParameters,
     simple_exception,
@@ -62,13 +63,11 @@ def cli_data_add(
     ],
     *,
     data_type: Annotated[DataType, Parameter(name="type")] = DataType.SAC,
-    station_id: Annotated[
-        uuid.UUID | None, use_station_parameter(AimbatStation)
-    ] = None,
-    event_id: Annotated[uuid.UUID | None, use_event_parameter(AimbatEvent)] = None,
+    station_id: Annotated[uuid.UUID | None, use_station_parameter()] = None,
+    event_id: Annotated[uuid.UUID | None, use_event_parameter()] = None,
     dry_run: Annotated[bool, Parameter(name="dry-run")] = False,
     show_progress_bar: Annotated[bool, Parameter(name="progress")] = True,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    global_parameters: DebugParameter = DebugParameter(),
 ) -> None:
     """Add or update data sources in the AIMBAT project.
 
@@ -113,7 +112,7 @@ def cli_data_add(
 @simple_exception
 def cli_data_dump(
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Dump the contents of the AIMBAT data source table to JSON.
 

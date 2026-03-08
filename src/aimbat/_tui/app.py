@@ -9,7 +9,6 @@ from pathlib import Path
 
 from pandas import Timedelta, Timestamp
 from pydantic import ValidationError
-from pysmo.tools.iccs import ICCS
 from rich.console import Console
 from rich.panel import Panel
 from sqlalchemy.exc import NoResultFound
@@ -28,6 +27,8 @@ from textual.widgets import (
     Tabs,
 )
 from textual_fspicker import FileOpen, Filters
+
+from pysmo.tools.iccs import ICCS
 
 from aimbat import settings
 from aimbat._tui._widgets import VimDataTable
@@ -55,14 +56,16 @@ from aimbat.core import (
     run_iccs,
     run_mccc,
     set_event_parameter,
-    update_min_ccnorm,
-    update_pick,
-    update_timewindow,
 )
 from aimbat.db import engine
 from aimbat.io import DATATYPE_SUFFIXES, DataType
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.plot import (
+    update_min_ccnorm,
+    update_pick,
+    update_timewindow,
+)
 
 _DEFAULT_THEME = settings.tui_dark_theme
 _LIGHT_THEME = settings.tui_light_theme
@@ -92,21 +95,55 @@ type _ToolFn = Callable[[Session, AimbatEvent, ICCS, bool, bool], None]
 
 
 def _tool_phase(
-    session: Session, event: AimbatEvent, iccs: ICCS, context: bool, all_seis: bool
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all_seismograms: bool,
 ) -> None:
-    update_pick(session, iccs, context, all_seis, False, return_fig=False)
+    update_pick(
+        session,
+        iccs,
+        context,
+        all_seismograms=all_seismograms,
+        use_matrix_image=False,
+        return_fig=False,
+    )
 
 
 def _tool_window(
-    session: Session, event: AimbatEvent, iccs: ICCS, context: bool, all_seis: bool
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all_seismograms: bool,
 ) -> None:
-    update_timewindow(session, event, iccs, context, all_seis, False, return_fig=False)
+    update_timewindow(
+        session,
+        event,
+        iccs,
+        context,
+        all_seismograms=all_seismograms,
+        use_matrix_image=False,
+        return_fig=False,
+    )
 
 
 def _tool_ccnorm(
-    session: Session, event: AimbatEvent, iccs: ICCS, context: bool, all_seis: bool
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all_seismograms: bool,
 ) -> None:
-    update_min_ccnorm(session, event, iccs, context, all_seis, return_fig=False)
+    update_min_ccnorm(
+        session,
+        event,
+        iccs,
+        context,
+        all_seismograms=all_seismograms,
+        return_fig=False,
+    )
 
 
 _TOOL_REGISTRY: dict[str, tuple[str, _ToolFn]] = {

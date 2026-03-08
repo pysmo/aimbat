@@ -6,9 +6,14 @@ JSON output is used as the ground truth for ID verification after mutations.
 """
 
 from collections.abc import Callable
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import Engine
+from sqlmodel import Session, select
+
+from aimbat import settings
+from aimbat.models import AimbatSeismogram
 
 # ===================================================================
 # Snapshot creation
@@ -305,6 +310,30 @@ class TestSnapshotDelete:
             f"Seismogram parameter snapshot IDs {seis_param_ids} should all be absent"
         )
 
+    def test_delete_non_existent_id_fails(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Verifies that deleting a non-existent snapshot ID fails gracefully.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            capsys: The pytest capsys fixture.
+            monkeypatch: The pytest monkeypatch fixture.
+        """
+        # Set log level to INFO so simple_exception catches and exits
+        monkeypatch.setattr(settings, "log_level", "INFO")
+        with pytest.raises(SystemExit) as exc_info:
+            cli("snapshot delete 00000000-0000-0000-0000-000000000000")
+        assert exc_info.value.code == 1
+        output = capsys.readouterr().err
+        assert "Error" in output, "Expected error panel in stderr"
+        assert "not found" in output, "Error message should mention it was not found"
+
 
 # ===================================================================
 # Snapshot rollback
@@ -347,6 +376,45 @@ class TestSnapshotRollback:
         cli("event parameter get completed")
         assert "False" in capsys.readouterr().out, (
             "Parameter should be restored to False after rollback"
+        )
+
+    def test_rollback_restores_seismogram_parameter(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verifies that rollback restores a previously changed seismogram parameter.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            capsys: The pytest capsys fixture.
+        """
+        # Get a seismogram ID
+        with Session(loaded_engine) as session:
+            seis = session.exec(select(AimbatSeismogram)).first()
+            assert seis is not None
+            seis_id = seis.id
+
+        cli("snapshot create before-seis-change")
+
+        # Flip the seismogram
+        cli(f"seismogram parameter set {seis_id} flip true")
+        cli(f"seismogram parameter get {seis_id} flip")
+        assert "True" in capsys.readouterr().out, "Seismogram should be flipped"
+
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict), "Dump should return a dict"
+        snapshot_id = data["snapshots"][0]["id"]
+
+        cli(f"snapshot rollback {snapshot_id}")
+
+        cli(f"seismogram parameter get {seis_id} flip")
+        assert "False" in capsys.readouterr().out, (
+            "Seismogram flip should be restored to False after rollback"
         )
 
     def test_rollback_restores_event_parameter_with_short_id(
@@ -532,9 +600,11 @@ class TestSnapshotList:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create")
+        cli("snapshot create test-comment")
         cli("snapshot list")
-        assert len(capsys.readouterr().out) > 0, "Expected output from snapshot list"
+        output = capsys.readouterr().out
+        assert "AIMBAT snapshots for event" in output
+        assert "test-comment" in output
 
     def test_list_all_events(
         self,
@@ -549,11 +619,11 @@ class TestSnapshotList:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create")
+        cli("snapshot create test-comment-all")
         cli("snapshot list --all")
-        assert len(capsys.readouterr().out) > 0, (
-            "Expected output from snapshot list --all"
-        )
+        output = capsys.readouterr().out
+        assert "AIMBAT snapshots for all events" in output
+        assert "test-comment-all" in output
 
     def test_list_short(
         self,
@@ -570,9 +640,8 @@ class TestSnapshotList:
         """
         cli("snapshot create")
         cli("snapshot list --short")
-        assert len(capsys.readouterr().out) > 0, (
-            "Expected output from snapshot list --short"
-        )
+        output = capsys.readouterr().out
+        assert "ID (shortened)" in output
 
 
 # ===================================================================
@@ -605,7 +674,9 @@ class TestSnapshotDetails:
         snapshot_id = data["snapshots"][0]["id"]
 
         cli(f"snapshot details {snapshot_id}")
-        assert len(capsys.readouterr().out) > 0, "Expected output from snapshot details"
+        output = capsys.readouterr().out
+        assert "Saved event parameters" in output
+        assert "window_pre" in output
 
     def test_details_produces_output_with_short_id(
         self,
@@ -628,9 +699,8 @@ class TestSnapshotDetails:
         short_id = data["snapshots"][0]["id"][:8]
 
         cli(f"snapshot details {short_id}")
-        assert len(capsys.readouterr().out) > 0, (
-            "Expected output from snapshot details with short ID"
-        )
+        output = capsys.readouterr().out
+        assert "Saved event parameters" in output
 
     def test_details_short_flag(
         self,
@@ -653,6 +723,62 @@ class TestSnapshotDetails:
         snapshot_id = data["snapshots"][0]["id"]
 
         cli(f"snapshot details {snapshot_id} --short")
-        assert len(capsys.readouterr().out) > 0, (
-            "Expected output from snapshot details --short"
-        )
+        assert "Saved event parameters" in capsys.readouterr().out
+
+
+# ===================================================================
+# Snapshot preview
+# ===================================================================
+
+
+@pytest.mark.cli
+class TestSnapshotPreview:
+    """Tests for the ``snapshot preview`` CLI command."""
+
+    @patch("aimbat.plot.plot_stack")
+    def test_preview_stack_is_called(
+        self,
+        mock_plot: MagicMock,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """Verifies that plot_stack is called when previewing without --matrix.
+
+        Args:
+            mock_plot: The mocked plot_stack function.
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+        """
+        cli("snapshot create")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict), "Dump should return a dict"
+        snapshot_id = data["snapshots"][0]["id"]
+
+        cli(f"snapshot preview {snapshot_id}")
+        mock_plot.assert_called_once()
+
+    @patch("aimbat.plot.plot_matrix_image")
+    def test_preview_matrix_is_called(
+        self,
+        mock_plot: MagicMock,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """Verifies that plot_matrix_image is called when previewing with --matrix.
+
+        Args:
+            mock_plot: The mocked plot_matrix_image function.
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+        """
+        cli("snapshot create")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict), "Dump should return a dict"
+        snapshot_id = data["snapshots"][0]["id"]
+
+        cli(f"snapshot preview {snapshot_id} --matrix")
+        mock_plot.assert_called_once()
