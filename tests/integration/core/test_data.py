@@ -8,9 +8,10 @@ from pathlib import Path
 import pytest
 from pandas import Timestamp
 from pydantic import ValidationError
-from pysmo.classes import SAC
 from sqlalchemy import Engine
 from sqlmodel import Session, select
+
+from pysmo.classes import SAC
 
 from aimbat.core import (
     add_data_to_project,

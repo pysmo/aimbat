@@ -9,6 +9,7 @@ from aimbat.models import AimbatStation
 
 from .common import (
     ALL_EVENTS_PARAMETER,
+    DebugParameter,
     GlobalParameters,
     TableParameters,
     id_parameter,
@@ -23,7 +24,7 @@ app = App(name="station", help=__doc__, help_format="markdown")
 def cli_station_delete(
     station_id: Annotated[uuid.UUID, id_parameter(AimbatStation)],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Delete existing station."""
     from sqlmodel import Session
@@ -35,12 +36,30 @@ def cli_station_delete(
         delete_station_by_id(session, station_id)
 
 
+@app.command(name="plotseis")
+@simple_exception
+def cli_station_seismograms_plot(
+    station_id: Annotated[uuid.UUID, id_parameter(AimbatStation)],
+    *,
+    _: DebugParameter = DebugParameter(),
+) -> None:
+    """Plot input seismograms for events recorded at this station."""
+    from sqlmodel import Session
+
+    from aimbat.db import engine
+    from aimbat.models import AimbatStation
+    from aimbat.plot import plot_seismograms
+
+    with Session(engine) as session:
+        station = session.get(AimbatStation, station_id)
+        if station is None:
+            raise ValueError(f"Station with ID {station_id} not found.")
+        plot_seismograms(session, station, return_fig=False)
+
+
 @app.command(name="dump")
 @simple_exception
-def cli_station_dump(
-    *,
-    global_parameters: GlobalParameters = GlobalParameters(),
-) -> None:
+def cli_station_dump(*, _: DebugParameter = DebugParameter()) -> None:
     """Dump the contents of the AIMBAT station table to JSON.
 
     Output can be piped or redirected for use in external tools or scripts.

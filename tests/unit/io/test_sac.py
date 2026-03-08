@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from pandas import Timedelta, Timestamp
 from pydantic import ValidationError
+
 from pysmo.classes import SAC
 
 from aimbat.io.sac import (

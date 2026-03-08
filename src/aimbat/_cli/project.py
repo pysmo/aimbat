@@ -11,16 +11,14 @@ executed with a database url directly.
 
 from cyclopts import App
 
-from .common import GlobalParameters, simple_exception
+from .common import DebugParameter, GlobalParameters, simple_exception
 
 app = App(name="project", help=__doc__, help_format="markdown")
 
 
 @app.command(name="create")
 @simple_exception
-def cli_project_create(
-    *, global_parameters: GlobalParameters = GlobalParameters()
-) -> None:
+def cli_project_create(*, _: DebugParameter = DebugParameter()) -> None:
     """Create a new AIMBAT project in the current directory.
 
     Initialises a new project database (`aimbat.db` by default). Run this
@@ -34,9 +32,7 @@ def cli_project_create(
 
 @app.command(name="delete")
 @simple_exception
-def cli_project_delete(
-    *, global_parameters: GlobalParameters = GlobalParameters()
-) -> None:
+def cli_project_delete(*, _: DebugParameter = DebugParameter()) -> None:
     """Delete project (note: this does *not* delete seismogram files)."""
     from aimbat.core import delete_project
     from aimbat.db import engine

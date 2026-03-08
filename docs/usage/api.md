@@ -5,6 +5,23 @@ scripts, you can use the AIMBAT Python API. This is the most powerful way to
 interact with your projects. View the full [API reference](../api/aimbat.md)
 here.
 
+!!! note "Writing seismogram data"
+    [`AimbatSeismogram.data`][aimbat.models.AimbatSeismogram.data] is backed by
+    an IO cache. Assigning a new array replaces the cached value and, for data
+    types that support it, writes through to the source file on disk. In-place
+    mutation of the returned array does not persist — each access returns the
+    cached value, so changes to the array itself are silently discarded:
+
+    ```python
+    seis.data = my_modified_array  # replaces cache (and writes to disk if supported)
+    arr = seis.data
+    arr[0] = 42                    # raises ValueError — the cached array is read-only
+    ```
+
+    AIMBAT does not write seismogram data in normal usage. All processing results
+    are stored as parameters in the database; source files are treated as
+    read-only.
+
 ## Core Concepts
 
 The API is built on three main components:

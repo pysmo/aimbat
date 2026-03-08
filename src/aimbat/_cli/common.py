@@ -49,23 +49,37 @@ def id_parameter(model_class: type) -> Parameter:
     )
 
 
-def use_station_parameter(model_class: type) -> Parameter:
+def _station_id_converter(hint: type, tokens: tuple[Token, ...]) -> uuid.UUID:
+    """Converter for --use-station with late-bound model import."""
+    from aimbat.models import AimbatStation
+
+    return _make_uuid_converter(AimbatStation)(hint, tokens)
+
+
+def _use_event_id_converter(hint: type, tokens: tuple[Token, ...]) -> uuid.UUID:
+    """Converter for --use-event with late-bound model import."""
+    from aimbat.models import AimbatEvent
+
+    return _make_uuid_converter(AimbatEvent)(hint, tokens)
+
+
+def use_station_parameter() -> Parameter:
     """Create a Parameter for --use-station with automatic UUID prefix resolution."""
     return Parameter(
         name="use-station",
         help="UUID (or unique prefix) of an existing station to link to instead of"
         " extracting one from each data source.",
-        converter=_make_uuid_converter(model_class),
+        converter=_station_id_converter,
     )
 
 
-def use_event_parameter(model_class: type) -> Parameter:
+def use_event_parameter() -> Parameter:
     """Create a Parameter for --use-event with automatic UUID prefix resolution."""
     return Parameter(
         name="use-event",
         help="UUID (or unique prefix) of an existing event to link to instead of"
         " extracting one from each data source.",
-        converter=_make_uuid_converter(model_class),
+        converter=_use_event_id_converter,
     )
 
 
@@ -110,6 +124,11 @@ class EventContextTrait:
 
 
 @dataclass
+class DebugParameter(DebugTrait):
+    pass
+
+
+@dataclass
 class GlobalParameters(DebugTrait, EventContextTrait):
     pass
 
@@ -119,7 +138,7 @@ class GlobalParameters(DebugTrait, EventContextTrait):
 class IccsPlotParameters:
     context: bool = True
     "Plot seismograms with extra context instead of the short tapered ones used for cross-correlation."
-    all: bool = False
+    all_seismograms: Annotated[bool, Parameter(name="all")] = False
     "Include all seismograms in the plot, even if not used in stack."
 
 

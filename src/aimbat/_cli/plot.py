@@ -2,83 +2,93 @@
 
 Available plots:
 
-- **data**: raw seismograms sorted by epicentral distance
-- **stack**: the ICCS cross-correlation stack for the default event
-- **image**: seismograms displayed as a 2-D image (wiggle plot)
+- **data**: raw seismograms sorted by epicentral distance.
+- **stack**: the ICCS cross-correlation stack for an event.
+- **matrix**: seismograms displayed as a matrix image.
 
 Most plot commands support `--context` / `--no-context` to toggle extra
-waveform context, and `--all` to include de-selected seismograms.
+waveform context, and `--all` to include deselected seismograms.
 """
 
 from cyclopts import App
 
-from .common import (
-    GlobalParameters,
-    IccsPlotParameters,
-    simple_exception,
-)
+from .common import GlobalParameters, IccsPlotParameters, simple_exception
 
 app = App(name="plot", help=__doc__, help_format="markdown")
 
 
-@app.command(name="data")
+@app.command(name="seismograms")
 @simple_exception
 def cli_seismogram_plot(
     *,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Plot raw seismograms for the default event sorted by epicentral distance."""
+    """Plot input seismograms in an event sorted by epicentral distance."""
     from sqlmodel import Session
 
-    from aimbat.core import plot_all_seismograms, resolve_event
+    from aimbat.core import resolve_event
     from aimbat.db import engine
+    from aimbat.plot import plot_seismograms
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
-        plot_all_seismograms(session, event, return_fig=False)
+        plot_seismograms(session, event, return_fig=False)
 
 
 @app.command(name="stack")
 @simple_exception
-def cli_iccs_plot_stack(
+def cli_plot_stack(
     *,
-    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
+    iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Plot the ICCS stack of an event."""
     from sqlmodel import Session
 
-    from aimbat.core import create_iccs_instance, plot_stack, resolve_event
+    from aimbat.core import create_iccs_instance, resolve_event
     from aimbat.db import engine
+    from aimbat.plot import plot_stack
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
         iccs = create_iccs_instance(session, event).iccs
-        plot_stack(iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False)
+        plot_stack(
+            iccs,
+            iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
+            return_fig=False,
+        )
 
 
-@app.command(name="image")
+@app.command(name="matrix")
 @simple_exception
-def cli_iccs_plot_image(
+def cli_plot_matrix_image(
     *,
-    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
+    iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Plot the ICCS seismograms of an event as an image."""
+    """Plot the ICCS seismograms of an event as a matrix image.
+
+    The matrix is assembled from individual waveforms, with each row
+    representing a different seismogram.
+    """
     from sqlmodel import Session
 
     from aimbat.core import (
         create_iccs_instance,
-        plot_iccs_seismograms,
         resolve_event,
     )
     from aimbat.db import engine
+    from aimbat.plot import plot_matrix_image
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
         iccs = create_iccs_instance(session, event).iccs
-        plot_iccs_seismograms(
-            iccs, iccs_parameters.context, iccs_parameters.all, return_fig=False
+        plot_matrix_image(
+            iccs,
+            iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
+            return_fig=False,
         )
 
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from random import choices, randint
 
 from pandas import Timedelta
+
 from pysmo.classes import SAC
 
 

@@ -10,6 +10,7 @@ from aimbat.models import AimbatSeismogram
 
 from .common import (
     ALL_EVENTS_PARAMETER,
+    DebugParameter,
     GlobalParameters,
     TableParameters,
     id_parameter,
@@ -28,7 +29,7 @@ app.command(parameter)
 def cli_seismogram_delete(
     seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Delete existing seismogram."""
     from sqlmodel import Session
@@ -44,7 +45,7 @@ def cli_seismogram_delete(
 @simple_exception
 def cli_seismogram_dump(
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Dump the contents of the AIMBAT seismogram table to JSON.
 
@@ -66,7 +67,7 @@ def cli_seismogram_parameter_get(
     seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
     name: SeismogramParameter,
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Get the value of a processing parameter.
 
@@ -89,7 +90,7 @@ def cli_seismogram_parameter_set(
     name: SeismogramParameter,
     value: str,
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Set value of a processing parameter.
 
@@ -111,7 +112,7 @@ def cli_seismogram_parameter_set(
 def cli_seismogram_parameter_reset(
     seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Reset all processing parameters to their default values."""
     from sqlmodel import Session
@@ -126,6 +127,7 @@ def cli_seismogram_parameter_reset(
 @parameter.command(name="dump")
 @simple_exception
 def cli_seismogram_parameter_dump(
+    *,
     all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
@@ -152,6 +154,7 @@ def cli_seismogram_parameter_dump(
 @parameter.command(name="list")
 @simple_exception
 def cli_seismogram_parameter_list(
+    *,
     global_parameters: GlobalParameters = GlobalParameters(),
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
