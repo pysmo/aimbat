@@ -54,10 +54,10 @@ class TestTUIEmptyDatabase:
 
         asyncio.run(_run())
 
-    def test_four_tabs_present(
+    def test_three_tabs_present(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The four expected tab panes are mounted."""
+        """The three expected tab panes are mounted."""
         _patch_engine(monkeypatch, patched_engine)
 
         async def _run() -> None:
@@ -65,26 +65,25 @@ class TestTUIEmptyDatabase:
                 await pilot.pause()
                 tab_ids = {pane.id for pane in pilot.app.query(TabPane)}
                 for expected in (
+                    "tab-project",
                     "tab-seismograms",
-                    "tab-parameters",
-                    "tab-stations",
                     "tab-snapshots",
                 ):
                     assert expected in tab_ids
 
         asyncio.run(_run())
 
-    def test_event_bar_shows_no_event_message(
+    def test_event_bar_shows_no_data_message(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Event bar indicates that no event is selected when the DB is empty."""
+        """Event bar indicates that no data exists when the DB has no events."""
         _patch_engine(monkeypatch, patched_engine)
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
                 await pilot.pause()
                 bar = pilot.app.query_one("#event-bar", Static)
-                assert "No event" in str(bar.render())
+                assert "No data" in str(bar.render())
 
         asyncio.run(_run())
 
@@ -153,29 +152,6 @@ class TestTUIWithData:
                 app.refresh_all()
                 await pilot.pause(delay=0.5)
                 table = pilot.app.query_one("#seismogram-table", DataTable)
-                assert table.row_count > 0
-
-        asyncio.run(_run())
-
-    def test_station_table_populated(
-        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Station table has rows once an event is selected."""
-        _patch_engine(monkeypatch, loaded_engine)
-
-        async def _run() -> None:
-            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
-                with Session(loaded_engine) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
-                app = cast(AimbatTUI, pilot.app)
-                app._current_event_id = event.id
-                app.refresh_all()
-                await pilot.pause(delay=0.5)
-                await pilot.press("L")  # switch to next tab
-                await pilot.press("L")
-                await pilot.pause()
-                table = pilot.app.query_one("#station-table", DataTable)
                 assert table.row_count > 0
 
         asyncio.run(_run())
@@ -249,12 +225,12 @@ class TestTUITabNavigation:
                 await pilot.pause()
                 tc = pilot.app.query_one(TabbedContent)
                 visited: list[str] = [tc.active]
-                for _ in range(3):
+                for _ in range(2):
                     await pilot.press("L")
                     await pilot.pause()
                     visited.append(tc.active)
-                assert len(set(visited)) == 4, (
-                    f"Expected 4 distinct tabs, got {visited}"
+                assert len(set(visited)) == 3, (
+                    f"Expected 3 distinct tabs, got {visited}"
                 )
 
         asyncio.run(_run())

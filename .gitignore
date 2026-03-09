@@ -39,3 +39,5 @@ GEMINI.md
 CLAUDE.md
 .claude/settings.local.json
 scratch/
+aimbat.db-shm
+aimbat.db-wal

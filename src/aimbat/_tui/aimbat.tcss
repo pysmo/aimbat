@@ -29,6 +29,31 @@ TabbedContent {
     padding-top: 1;
 }
 
+/* ---- Project tab ---- */
+
+
+.project-divider {
+    margin: 0;
+    height: 1;
+}
+
+.project-table-title {
+    height: 1;
+    padding: 0 2;
+    color: $secondary;
+    text-style: bold;
+}
+
+#project-event-table,
+#project-station-table {
+    height: 1fr;
+}
+
+/* ---- No-project modal ---- */
+NoProjectModal {
+    align: center middle;
+}
+
 /* ---- Confirm modal ---- */
 ConfirmModal {
     align: center middle;
@@ -63,6 +88,36 @@ EventSwitcherModal {
 #switcher-dialog .modal-title {
     color: $secondary;
     text-style: bold;
+}
+
+/* ---- Snapshot action menu modal ---- */
+SnapshotActionMenuModal {
+    align: center middle;
+}
+
+#snapshot-action-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 58;
+    height: auto;
+    padding: 1 2;
+}
+
+#snapshot-action-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#snapshot-action-table {
+    background: $background;
+    border: none;
+}
+
+#snapshot-action-options {
+    color: $foreground;
+    content-align: center middle;
+    padding-top: 1;
+    height: 2;
 }
 
 /* ---- Interactive Tools modal ---- */
@@ -170,6 +225,29 @@ SnapshotDetailsModal {
 }
 
 #snapshot-details-table {
+    background: $background;
+    border: none;
+}
+
+/* ---- Parameters modal ---- */
+ParametersModal {
+    align: center middle;
+}
+
+#param-table-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 90;
+    height: auto;
+    padding: 1 2;
+}
+
+#param-table-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#param-modal-table {
     background: $background;
     border: none;
 }
