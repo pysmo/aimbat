@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from enum import StrEnum
 
+from pandas import Timedelta
+from pydantic import ValidationError
 from sqlmodel import Session, select
 from textual import on
 from textual.app import ComposeResult
@@ -14,9 +16,11 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input, Label, Static
 
 from aimbat._tui._widgets import VimDataTable
-from aimbat.core import delete_event_by_id
+from aimbat._types import EventParameter
+from aimbat.core import delete_event_by_id, set_event_parameter
 from aimbat.db import engine
 from aimbat.models import AimbatEvent
+from aimbat.models._parameters import AimbatEventParametersBase
 
 
 class _CSS(StrEnum):
@@ -37,6 +41,7 @@ class _Hint(StrEnum):
     NAVIGATE_RUN_CANCEL = "↑↓ navigate   [@click='screen.select']⏎ run[/]   [@click='screen.cancel']⎋ cancel[/]"
     CONFIRM_CANCEL = "[@click='screen.confirm'][bold]y[/bold] / ⏎ confirm[/]   [@click='screen.cancel'][bold]n[/bold] / ⎋ cancel[/]"
     CLOSE = "[@click='screen.cancel']⎋ close[/]"
+    NAVIGATE_EDIT_CLOSE = "↑↓ navigate   [@click='screen.select']⏎ edit[/]   [@click='screen.cancel']⎋ close[/]"
 
 
 __all__ = [
@@ -45,7 +50,10 @@ __all__ = [
     "ConfirmModal",
     "EventSwitcherModal",
     "InteractiveToolsModal",
+    "NoProjectModal",
     "ParameterInputModal",
+    "ParametersModal",
+    "SnapshotActionMenuModal",
     "SnapshotCommentModal",
     "SnapshotDetailsModal",
 ]
@@ -85,8 +93,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_columns(
-            "",
-            "",
+            " ",
             "ID",
             "Time (UTC)",
             "Lat °",
@@ -94,6 +101,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
             "Depth km",
             "Seismograms",
             "Stations",
+            "Completed",
         )
         self._populate(table)
 
@@ -116,7 +124,6 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
                     )
                     table.add_row(
                         marker,
-                        done_marker,
                         short_id,
                         time_str,
                         lat,
@@ -124,6 +131,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
                         depth,
                         str(event.seismogram_count),
                         str(event.station_count),
+                        done_marker,
                         key=str(event.id),
                     )
         except RuntimeError as exc:
@@ -236,6 +244,43 @@ class ParameterInputModal(ModalScreen[str | None]):
 
 
 # ---------------------------------------------------------------------------
+# No-project modal
+# ---------------------------------------------------------------------------
+
+
+class NoProjectModal(ModalScreen[bool]):
+    """Shown on startup when no project exists.
+
+    Dismisses True if the user chose to create a project, False to quit.
+    """
+
+    BINDINGS = [
+        Binding("c", "create", show=False),
+        Binding("enter", "create", show=False),
+        Binding("q", "quit_app", show=False),
+        Binding("escape", "quit_app", show=False),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Container(id="confirm-dialog"):
+            yield Label(
+                "No project found in the current directory.", classes=_CSS.TITLE
+            )
+            yield Label(
+                "[@click='screen.create'][bold]c[/bold] / ⏎ create project[/]"
+                "   "
+                "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]",
+                classes=_CSS.HINT,
+            )
+
+    def action_create(self) -> None:
+        self.dismiss(True)
+
+    def action_quit_app(self) -> None:
+        self.dismiss(False)
+
+
+# ---------------------------------------------------------------------------
 # Confirm modal
 # ---------------------------------------------------------------------------
 
@@ -310,6 +355,140 @@ class SnapshotCommentModal(ModalScreen[str | None]):
 
 
 # ---------------------------------------------------------------------------
+# Parameters modal
+# ---------------------------------------------------------------------------
+
+
+class ParametersModal(ModalScreen[bool]):
+    """View and edit all event processing parameters inline.
+
+    Dismisses with True if any parameter was changed, False otherwise.
+    """
+
+    BINDINGS = [Binding("escape", "cancel", show=False)]
+
+    def __init__(self, event_id: uuid.UUID) -> None:
+        super().__init__()
+        self._event_id = event_id
+        self._changed = False
+
+    def compose(self) -> ComposeResult:
+        with Container(id="param-table-dialog"):
+            yield Label("Parameters", classes=_CSS.TITLE)
+            yield VimDataTable(id="param-modal-table", show_header=True)
+            yield Label(_Hint.NAVIGATE_EDIT_CLOSE, classes=_CSS.HINT)
+
+    def on_mount(self) -> None:
+        table = self.query_one(DataTable)
+        table.cursor_type = "row"
+        table.add_columns("Parameter", "Value", "Description")
+        self._populate()
+        table.focus()
+
+    def _populate(self) -> None:
+        table = self.query_one("#param-modal-table", DataTable)
+        saved_row = table.cursor_row
+        table.clear()
+        with Session(engine) as session:
+            event = session.get(AimbatEvent, self._event_id)
+            if event is None:
+                return
+            fields = list(AimbatEventParametersBase.model_fields.items())
+            p = event.parameters
+            for attr, field_info in fields:
+                value = getattr(p, attr)
+                if isinstance(value, bool):
+                    display = "✓" if value else "✗"
+                elif isinstance(value, Timedelta):
+                    display = f"{value.total_seconds():.2f}"
+                else:
+                    display = f"{value}"
+                label = field_info.title or attr
+                desc = field_info.description or ""
+                table.add_row(label, display, desc, key=attr)
+            table.styles.height = len(fields) + 2
+        if table.row_count > 0:
+            table.move_cursor(row=min(saved_row, table.row_count - 1))
+
+    @on(DataTable.RowSelected)
+    def row_selected(self, event: DataTable.RowSelected) -> None:
+        attr = event.row_key.value
+        if not attr:
+            return
+        self._edit_parameter(attr)
+
+    def _edit_parameter(self, attr: str) -> None:
+        with Session(engine) as session:
+            ev = session.get(AimbatEvent, self._event_id)
+            if ev is None:
+                return
+            current = getattr(ev.parameters, attr)
+
+        if isinstance(current, bool):
+            self._apply_parameter(attr, not current)
+            return
+
+        if isinstance(current, Timedelta):
+            current_str = f"{current.total_seconds():.2f}"
+            unit = "s"
+        else:
+            current_str = f"{current}"
+            unit = ""
+
+        def on_input(raw: str | None) -> None:
+            if raw is None:
+                return
+            try:
+                if isinstance(current, Timedelta):
+                    new_val: object = Timedelta(seconds=float(raw))
+                else:
+                    new_val = float(raw)
+                self._apply_parameter(attr, new_val)
+            except ValueError as exc:
+                self.notify(str(exc), severity="error")
+
+        label = AimbatEventParametersBase.model_fields[attr].title or attr
+        self.app.push_screen(ParameterInputModal(label, current_str, unit), on_input)
+
+    def _apply_parameter(self, attr: str, value: object) -> None:
+        try:
+            with Session(engine) as session:
+                event = session.get(AimbatEvent, self._event_id)
+                if event is None:
+                    return
+                if attr in {p.value for p in EventParameter}:
+                    set_event_parameter(
+                        session, event, EventParameter(attr), value, validate_iccs=True
+                    )  # type: ignore[call-overload]
+                else:
+                    # mccc_damp / mccc_min_ccnorm — not in EventParameter enum
+                    validated = AimbatEventParametersBase.model_validate(
+                        event.parameters, update={attr: value}
+                    )
+                    setattr(event.parameters, attr, getattr(validated, attr))
+                    session.add(event)
+                    session.commit()
+        except ValidationError as exc:
+            msgs = "; ".join(
+                e["msg"].removeprefix("Value error, ") for e in exc.errors()
+            )
+            self.notify(msgs, severity="error")
+            return
+        except Exception as exc:
+            self.notify(str(exc), severity="error")
+            return
+        self._changed = True
+        self.notify(f"{attr} updated", timeout=2)
+        self._populate()
+
+    def action_select(self) -> None:
+        self.query_one(DataTable).action_select_cursor()
+
+    def action_cancel(self) -> None:
+        self.dismiss(self._changed)
+
+
+# ---------------------------------------------------------------------------
 # Row-action context menu modal
 # ---------------------------------------------------------------------------
 
@@ -359,6 +538,97 @@ class ActionMenuModal(ModalScreen[str | None]):
 
 
 # ---------------------------------------------------------------------------
+# Snapshot action menu modal
+# ---------------------------------------------------------------------------
+
+_SNAPSHOT_ACTIONS: list[tuple[str, str]] = [
+    ("show_details", "Show details"),
+    ("preview_stack", "Preview stack"),
+    ("preview_image", "Preview matrix image"),
+    ("rollback", "Rollback to this snapshot"),
+    ("delete", "Delete snapshot"),
+]
+
+_PREVIEW_ACTIONS: frozenset[str] = frozenset({"preview_stack", "preview_image"})
+
+
+class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
+    """Action menu for a snapshot row.
+
+    Shows context/all-seismograms toggles dynamically when a preview action
+    is highlighted.  Dismisses with (action, context, all_seismograms) or None.
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", show=False),
+        Binding("c", "toggle_context", show=False),
+        Binding("a", "toggle_all", show=False),
+    ]
+
+    def __init__(self, title: str) -> None:
+        super().__init__()
+        self._title = title
+        self._use_context = True
+        self._all_seis = False
+        self._highlighted: str = ""
+
+    def compose(self) -> ComposeResult:
+        with Container(id="snapshot-action-dialog"):
+            yield Label(self._title, classes=_CSS.TITLE)
+            yield VimDataTable(id="snapshot-action-table", show_header=False)
+            yield Static(id="snapshot-action-options")
+            yield Label(_Hint.NAVIGATE_SELECT_CANCEL, classes=_CSS.HINT)
+
+    def on_mount(self) -> None:
+        table = self.query_one(DataTable)
+        table.cursor_type = "row"
+        table.add_column("action")
+        for key, label in _SNAPSHOT_ACTIONS:
+            table.add_row(label, key=key)
+        table.styles.height = len(_SNAPSHOT_ACTIONS)
+        table.focus()
+
+    def _update_options(self) -> None:
+        opts = self.query_one("#snapshot-action-options", Static)
+        if self._highlighted in _PREVIEW_ACTIONS:
+            ctx = "✓" if self._use_context else "✗"
+            al = "✓" if self._all_seis else "✗"
+            opts.update(
+                f"  [@click='screen.toggle_context'][dim]c[/dim] context: {ctx}[/]"
+                f"   [@click='screen.toggle_all'][dim]a[/dim] all seismograms: {al}[/]"
+            )
+        else:
+            opts.update("")
+
+    @on(DataTable.RowHighlighted, "#snapshot-action-table")
+    def row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        self._highlighted = event.row_key.value or ""
+        self._update_options()
+
+    @on(DataTable.RowSelected, "#snapshot-action-table")
+    def row_selected(self, event: DataTable.RowSelected) -> None:
+        key = event.row_key.value
+        if key:
+            self.dismiss((key, self._use_context, self._all_seis))
+
+    def action_toggle_context(self) -> None:
+        if self._highlighted in _PREVIEW_ACTIONS:
+            self._use_context = not self._use_context
+            self._update_options()
+
+    def action_toggle_all(self) -> None:
+        if self._highlighted in _PREVIEW_ACTIONS:
+            self._all_seis = not self._all_seis
+            self._update_options()
+
+    def action_select(self) -> None:
+        self.query_one(DataTable).action_select_cursor()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ---------------------------------------------------------------------------
 # Interactive Tools modal
 # ---------------------------------------------------------------------------
 
@@ -367,6 +637,8 @@ _TOOLS: list[tuple[str, str]] = [
     ("phase", "Phase arrival (t1)"),
     ("window", "Time window"),
     ("ccnorm", "Min CC norm"),
+    ("stack", "Stack plot"),
+    ("image", "Matrix image"),
 ]
 
 
@@ -390,7 +662,7 @@ class InteractiveToolsModal(ModalScreen[tuple[str, bool, bool] | None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="tools-dialog"):
-            yield Label("Interactive Tools", classes=_CSS.TITLE)
+            yield Label("Tools", classes=_CSS.TITLE)
             yield VimDataTable(id="tools-table", show_header=False)
             yield Static(id="tools-options")
             yield Label(
@@ -411,8 +683,8 @@ class InteractiveToolsModal(ModalScreen[tuple[str, bool, bool] | None]):
         ctx = "✓" if self._use_context else "✗"
         al = "✓" if self._all_seis else "✗"
         self.query_one("#tools-options", Static).update(
-            f"  [@click='screen.toggle_context'][dim]c[/dim] Context: {ctx}[/]"
-            f"   [@click='screen.toggle_all'][dim]a[/dim] All seismograms: {al}[/]"
+            f"  [@click='screen.toggle_context'][dim]c[/dim] context: {ctx}[/]"
+            f"   [@click='screen.toggle_all'][dim]a[/dim] all seismograms: {al}[/]"
         )
 
     @on(DataTable.RowSelected, "#tools-table")

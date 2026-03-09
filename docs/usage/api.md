@@ -1,9 +1,9 @@
 # Python API
 
-If none of the above interfaces suit your needs, or you want to write custom
-scripts, you can use the AIMBAT Python API. This is the most powerful way to
-interact with your projects. View the full [API reference](../api/aimbat.md)
-here.
+The CLI, shell, TUI, and GUI all use the same underlying Python library. You
+can use it directly for custom scripts, automation, or workflows that go beyond
+what the other interfaces expose. See the full [API reference](../api/aimbat.md)
+for a complete listing.
 
 !!! note "Writing seismogram data"
     [`AimbatSeismogram.data`][aimbat.models.AimbatSeismogram.data] is backed by

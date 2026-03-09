@@ -88,6 +88,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core)** Re-arange core, move set_default_event and friends out of core.
 - Active event -> default event
 - Use default event concept only for cli commands
+- Update plot seismograms.
 
 ### 🚀 New Features
 

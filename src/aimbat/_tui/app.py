@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
-from contextlib import suppress
+from collections.abc import Callable, Generator
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from pandas import Timedelta, Timestamp
-from pydantic import ValidationError
 from rich.console import Console
 from rich.panel import Panel
 from sqlalchemy.exc import NoResultFound
-from sqlmodel import Session
+from sqlmodel import Session, select
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -21,6 +20,7 @@ from textual.widgets import (
     DataTable,
     Footer,
     Header,
+    Rule,
     Static,
     TabbedContent,
     TabPane,
@@ -38,30 +38,41 @@ from aimbat._tui.modals import (
     ConfirmModal,
     EventSwitcherModal,
     InteractiveToolsModal,
-    ParameterInputModal,
+    NoProjectModal,
+    ParametersModal,
+    SnapshotActionMenuModal,
     SnapshotCommentModal,
     SnapshotDetailsModal,
 )
-from aimbat._types import EventParameter, SeismogramParameter
+from aimbat._types import SeismogramParameter
 from aimbat.core import (
     BoundICCS,
     add_data_to_project,
+    build_iccs_from_snapshot,
     create_iccs_instance,
+    create_project,
     create_snapshot,
+    delete_event_by_id,
     delete_seismogram_by_id,
     delete_snapshot_by_id,
     delete_station_by_id,
+    get_stations_with_event_and_seismogram_count,
     reset_seismogram_parameters_by_id,
     rollback_to_snapshot_by_id,
     run_iccs,
     run_mccc,
-    set_event_parameter,
 )
+from aimbat.core._project import _project_exists
 from aimbat.db import engine
 from aimbat.io import DATATYPE_SUFFIXES, DataType
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
-from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot, AimbatStation
+from aimbat.models._parameters import (
+    AimbatEventParametersBase,
+)  # used in _show_snapshot_details
 from aimbat.plot import (
+    plot_matrix_image,
+    plot_seismograms,
+    plot_stack,
     update_min_ccnorm,
     update_pick,
     update_timewindow,
@@ -73,17 +84,21 @@ _LIGHT_THEME = settings.tui_light_theme
 
 # Extend this dict to add new per-row actions to any tab.
 _TAB_ROW_ACTIONS: dict[str, list[tuple[str, str]]] = {
+    "project-events": [
+        ("select", "Select event"),
+        ("toggle_completed", "Toggle completed"),
+        ("view_seismograms", "View seismograms"),
+        ("delete", "Delete event"),
+    ],
+    "project-stations": [
+        ("view_seismograms", "View seismograms"),
+        ("delete", "Delete station"),
+    ],
     "tab-seismograms": [
         ("toggle_select", "Toggle select"),
         ("toggle_flip", "Toggle flip"),
         ("reset", "Reset parameters"),
         ("delete", "Delete seismogram"),
-    ],
-    "tab-stations": [("delete", "Delete station and all seismograms (all events)")],
-    "tab-snapshots": [
-        ("show_details", "Show details"),
-        ("rollback", "Rollback to this snapshot"),
-        ("delete", "Delete snapshot"),
     ],
 }
 
@@ -146,10 +161,32 @@ def _tool_ccnorm(
     )
 
 
+def _tool_stack(
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all_seismograms: bool,
+) -> None:
+    plot_stack(iccs, context, all_seismograms, return_fig=False)
+
+
+def _tool_image(
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all_seismograms: bool,
+) -> None:
+    plot_matrix_image(iccs, context, all_seismograms, return_fig=False)
+
+
 _TOOL_REGISTRY: dict[str, tuple[str, _ToolFn]] = {
     "phase": ("Phase arrival (t1)", _tool_phase),
     "window": ("Time window", _tool_window),
     "ccnorm": ("Min CC norm", _tool_ccnorm),
+    "stack": ("Stack plot", _tool_stack),
+    "image": ("Matrix image", _tool_image),
 }
 
 
@@ -167,11 +204,12 @@ class AimbatTUI(App[None]):
     BINDINGS = [
         Binding("e", "switch_event", "Events", show=True),
         Binding("d", "add_data", "Add Data", show=True),
-        Binding("p", "open_interactive_tools", "Interactive Tools", show=True),
+        Binding("p", "open_parameters", "Parameters", show=True),
+        Binding("t", "open_interactive_tools", "Tools", show=True),
         Binding("a", "open_align", "Align", show=True),
         Binding("n", "new_snapshot", "New Snapshot", show=True),
         Binding("r", "refresh", "Refresh", show=True),
-        Binding("t", "toggle_theme", "Theme", show=True),
+        Binding("c", "toggle_theme", "Theme", show=True),
         Binding("H", "vim_left", "Vim left", show=False),
         Binding("L", "vim_right", "Vim right", show=False),
         Binding("q", "quit", "Quit", show=True),
@@ -180,13 +218,15 @@ class AimbatTUI(App[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Static(id="event-bar")
-        with TabbedContent(initial="tab-seismograms"):
+        with TabbedContent(initial="tab-project"):
+            with TabPane("Project", id="tab-project"):
+                yield Static("Events", classes="project-table-title")
+                yield VimDataTable(id="project-event-table")
+                yield Rule(classes="project-divider")
+                yield Static("Stations", classes="project-table-title")
+                yield VimDataTable(id="project-station-table")
             with TabPane("Seismograms", id="tab-seismograms"):
                 yield VimDataTable(id="seismogram-table")
-            with TabPane("Parameters", id="tab-parameters"):
-                yield VimDataTable(id="parameter-table")
-            with TabPane("Stations", id="tab-stations"):
-                yield VimDataTable(id="station-table")
             with TabPane("Snapshots", id="tab-snapshots"):
                 yield VimDataTable(id="snapshot-table")
         yield Footer()
@@ -200,14 +240,25 @@ class AimbatTUI(App[None]):
 
         self.theme = _DEFAULT_THEME
 
+        self._setup_project_tables()
         self._setup_seismogram_table()
-        self._setup_parameter_table()
-        self._setup_station_table()
         self._setup_snapshot_table()
 
         self.set_interval(5, self._check_iccs_staleness)
-        self._create_iccs()
-        self.refresh_all()
+
+        if not _project_exists(engine):
+            self.push_screen(NoProjectModal(), self._on_no_project_modal)
+        else:
+            self._create_iccs()
+            self.refresh_all()
+
+    def _on_no_project_modal(self, create: bool | None) -> None:
+        if create:
+            create_project(engine)
+            self._create_iccs()
+            self.refresh_all()
+        else:
+            self.exit()
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
@@ -219,9 +270,13 @@ class AimbatTUI(App[None]):
                     event.pane.query_one(DataTable).focus()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        tab = getattr(self, "_active_tab", "")
-        if action == "new_snapshot":
-            return True if tab == "tab-snapshots" else False
+        if action in {
+            "open_parameters",
+            "open_interactive_tools",
+            "open_align",
+            "new_snapshot",
+        }:
+            return self._current_event_id is not None
         return True
 
     # ------------------------------------------------------------------
@@ -240,6 +295,44 @@ class AimbatTUI(App[None]):
                 return event
             self._current_event_id = None
         raise NoResultFound("No event selected")
+
+    # ------------------------------------------------------------------
+    # Suspend helper
+    # ------------------------------------------------------------------
+
+    @contextmanager
+    def _suspend(self, label: str | None = None) -> Generator[None, None, None]:
+        """Suspend Textual and handle errors gracefully.
+
+        If ``label`` is given, a panel is shown with a "close matplotlib to
+        return" hint.  Any exception raised inside the block is shown in the
+        terminal while still suspended, then re-raised after Textual has fully
+        resumed so callers can still react to it.
+        """
+        console = Console()
+        caught: BaseException | None = None
+        with self.suspend():
+            console.clear()
+            if label is not None:
+                console.print(
+                    Panel(
+                        f"[bold]{label}[/bold]\n\n"
+                        "Close the matplotlib window to return to AIMBAT.",
+                        title="Interactive Tool Running",
+                        border_style="bright_blue",
+                        padding=(1, 4),
+                    )
+                )
+            try:
+                yield
+            except Exception as exc:
+                caught = exc
+                console.print(f"\n[bold red]Error:[/bold red] {exc}")
+                console.input("\n[dim]Press Enter to return to AIMBAT...[/dim]")
+            finally:
+                console.clear()
+        if caught is not None:
+            raise caught
 
     # ------------------------------------------------------------------
     # ICCS lifecycle
@@ -286,23 +379,39 @@ class AimbatTUI(App[None]):
     # Table setup
     # ------------------------------------------------------------------
 
+    def _setup_project_tables(self) -> None:
+        et = self.query_one("#project-event-table", DataTable)
+        et.cursor_type = "row"
+        et.add_columns(
+            " ",
+            "ID",
+            "Time (UTC)",
+            "Lat °",
+            "Lon °",
+            "Depth km",
+            "Stations",
+            "Seismograms",
+            "Completed",
+        )
+        st = self.query_one("#project-station-table", DataTable)
+        st.cursor_type = "row"
+        st.add_columns(
+            "ID",
+            "Network",
+            "Name",
+            "Location",
+            "Channel",
+            "Lat °",
+            "Lon °",
+            "Elev m",
+            "Seismograms",
+        )
+
     def _setup_seismogram_table(self) -> None:
         t = self.query_one("#seismogram-table", DataTable)
         t.cursor_type = "row"
         t.add_columns(
             "ID", "Network", "Station", "Channel", "Select", "Flip", "Δt (s)", "CC"
-        )
-
-    def _setup_parameter_table(self) -> None:
-        t = self.query_one("#parameter-table", DataTable)
-        t.cursor_type = "row"
-        t.add_columns("Parameter", "Value", "Description")
-
-    def _setup_station_table(self) -> None:
-        t = self.query_one("#station-table", DataTable)
-        t.cursor_type = "row"
-        t.add_columns(
-            "ID", "Network", "Name", "Location", "Channel", "Lat °", "Lon °", "Elev m"
         )
 
     def _setup_snapshot_table(self) -> None:
@@ -315,11 +424,79 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
 
     def refresh_all(self) -> None:
+        self.refresh_bindings()
         self._refresh_event_bar()
+        self._refresh_project()
         self._refresh_seismograms()
-        self._refresh_parameters()
-        self._refresh_stations()
         self._refresh_snapshots()
+
+    def _refresh_project(self) -> None:
+        et = self.query_one("#project-event-table", DataTable)
+        st = self.query_one("#project-station-table", DataTable)
+        et_saved, st_saved = et.cursor_row, st.cursor_row
+        et.clear()
+        st.clear()
+        with suppress(Exception):
+            with Session(engine) as session:
+                events = session.exec(select(AimbatEvent)).all()
+                stations = get_stations_with_event_and_seismogram_count(session)
+                for event in events:
+                    marker = "▶" if event.id == self._current_event_id else " "
+                    short_id = str(event.id)[:8]
+                    time_str = str(event.time)[:19] if event.time else "—"
+                    lat = f"{event.latitude:.3f}" if event.latitude is not None else "—"
+                    lon = (
+                        f"{event.longitude:.3f}" if event.longitude is not None else "—"
+                    )
+                    depth = (
+                        f"{event.depth / 1000:.1f}" if event.depth is not None else "—"
+                    )
+                    done = "✓" if event.parameters.completed else " "
+                    et.add_row(
+                        marker,
+                        short_id,
+                        time_str,
+                        lat,
+                        lon,
+                        depth,
+                        str(event.station_count),
+                        str(event.seismogram_count),
+                        done,
+                        key=str(event.id),
+                    )
+                for station, seis_count, _event_count in stations:
+                    short_id = str(station.id)[:8]
+                    lat = (
+                        f"{station.latitude:.3f}"
+                        if station.latitude is not None
+                        else "—"
+                    )
+                    lon = (
+                        f"{station.longitude:.3f}"
+                        if station.longitude is not None
+                        else "—"
+                    )
+                    elev = (
+                        f"{station.elevation:.0f}"
+                        if station.elevation is not None
+                        else "—"
+                    )
+                    st.add_row(
+                        short_id,
+                        station.network,
+                        station.name,
+                        station.location or "—",
+                        station.channel,
+                        lat,
+                        lon,
+                        elev,
+                        str(seis_count),
+                        key=str(station.id),
+                    )
+        if et.row_count > 0:
+            et.move_cursor(row=min(et_saved, et.row_count - 1))
+        if st.row_count > 0:
+            st.move_cursor(row=min(st_saved, st.row_count - 1))
 
     def _check_iccs_staleness(self) -> None:
         """Trigger ICCS recreation if the current event has been modified externally.
@@ -367,7 +544,12 @@ class AimbatTUI(App[None]):
                     f"  [dim]{iccs_status}  e = switch event[/dim]"
                 )
         except NoResultFound:
-            bar.update("[red]No event selected — press e to select one[/red]")
+            with Session(engine) as session:
+                has_events = session.exec(select(AimbatEvent)).first() is not None
+            if has_events:
+                bar.update("[red]No event selected — press e to select one[/red]")
+            else:
+                bar.update("[red]No data in project — press d to add data[/red]")
         except RuntimeError as exc:
             bar.update(f"[red]{exc}[/red]")
 
@@ -421,60 +603,6 @@ class AimbatTUI(App[None]):
         if table.row_count > 0:
             table.move_cursor(row=min(saved_row, table.row_count - 1))
 
-    def _refresh_parameters(self) -> None:
-        table = self.query_one("#parameter-table", DataTable)
-        saved_row = table.cursor_row
-        table.clear()
-        with suppress(NoResultFound, RuntimeError):
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                p = event.parameters
-                for attr, field_info in AimbatEventParametersBase.model_fields.items():
-                    value = getattr(p, attr)
-                    if isinstance(value, bool):
-                        display = "✓" if value else "✗"
-                    elif isinstance(value, Timedelta):
-                        display = f"{value.total_seconds():.2f}"
-                    else:
-                        display = f"{value}"
-                    label = field_info.title or attr
-                    desc = field_info.description or ""
-                    table.add_row(label, display, desc, key=attr)
-        if table.row_count > 0:
-            table.move_cursor(row=min(saved_row, table.row_count - 1))
-
-    def _refresh_stations(self) -> None:
-        table = self.query_one("#station-table", DataTable)
-        saved_row = table.cursor_row
-        table.clear()
-        with suppress(NoResultFound, RuntimeError):
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                seen: set[uuid.UUID] = set()
-                for seis in event.seismograms:
-                    st = seis.station
-                    if st and st.id not in seen:
-                        seen.add(st.id)
-                        short_id = str(st.id)[:8]
-                        lat = f"{st.latitude:.3f}" if st.latitude is not None else "—"
-                        lon = f"{st.longitude:.3f}" if st.longitude is not None else "—"
-                        elev = (
-                            f"{st.elevation:.0f}" if st.elevation is not None else "—"
-                        )
-                        table.add_row(
-                            short_id,
-                            st.network,
-                            st.name,
-                            st.location or "—",
-                            st.channel,
-                            lat,
-                            lon,
-                            elev,
-                            key=str(st.id),
-                        )
-        if table.row_count > 0:
-            table.move_cursor(row=min(saved_row, table.row_count - 1))
-
     def _refresh_snapshots(self) -> None:
         table = self.query_one("#snapshot-table", DataTable)
         saved_row = table.cursor_row
@@ -502,8 +630,26 @@ class AimbatTUI(App[None]):
             table.move_cursor(row=min(saved_row, table.row_count - 1))
 
     # ------------------------------------------------------------------
-    # Parameter editing
+    # Row event handlers
     # ------------------------------------------------------------------
+
+    @on(DataTable.RowSelected, "#project-event-table")
+    def project_event_row_selected(self, event: DataTable.RowSelected) -> None:
+        if event.row_key.value:
+            self._open_row_action_menu(
+                "project-events",
+                event.row_key.value,
+                f"Event  {event.row_key.value[:8]}",
+            )
+
+    @on(DataTable.RowSelected, "#project-station-table")
+    def project_station_row_selected(self, event: DataTable.RowSelected) -> None:
+        if event.row_key.value:
+            self._open_row_action_menu(
+                "project-stations",
+                event.row_key.value,
+                f"Station  {event.row_key.value[:8]}",
+            )
 
     @on(DataTable.RowSelected, "#seismogram-table")
     def seismogram_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -514,100 +660,24 @@ class AimbatTUI(App[None]):
                 f"Seismogram  {event.row_key.value[:8]}",
             )
 
-    @on(DataTable.RowSelected, "#station-table")
-    def station_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.row_key.value:
-            self._open_row_action_menu(
-                "tab-stations",
-                event.row_key.value,
-                f"Station  {event.row_key.value[:8]}",
-            )
-
     @on(DataTable.RowSelected, "#snapshot-table")
     def snapshot_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.row_key.value:
-            self._open_row_action_menu(
-                "tab-snapshots",
-                event.row_key.value,
-                f"Snapshot  {event.row_key.value[:8]}",
-            )
-
-    @on(DataTable.RowSelected, "#parameter-table")
-    def parameter_row_selected(self, event: DataTable.RowSelected) -> None:
-        attr = event.row_key.value
-        if not attr:
-            return
-        self._edit_parameter(attr)
-
-    def _edit_parameter(self, attr: str) -> None:
-        """Toggle a bool parameter, or open input modal for others."""
-        try:
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                current = getattr(event.parameters, attr)
-        except (NoResultFound, RuntimeError) as exc:
-            self.notify(str(exc), severity="error")
+        snap_id = event.row_key.value
+        if not snap_id:
             return
 
-        if isinstance(current, bool):
-            self._apply_parameter(attr, not current)
-            return
-
-        # Numeric / timedelta — open input modal
-        if isinstance(current, Timedelta):
-            current_str = f"{current.total_seconds():.2f}"
-            unit = "s"
-        else:
-            current_str = f"{current}"
-            unit = ""
-
-        def on_input(raw: str | None) -> None:
-            if raw is None:
+        def on_action(result: tuple[str, bool, bool] | None) -> None:
+            if result is None:
                 return
-            try:
-                if isinstance(current, Timedelta):
-                    new_val: object = Timedelta(seconds=float(raw))
-                else:
-                    new_val = float(raw)
-                self._apply_parameter(attr, new_val)
-            except ValueError as exc:
-                self.notify(str(exc), severity="error")
+            action, context, all_seis = result
+            if action == "preview_stack":
+                self._preview_snapshot_plot(snap_id, "stack", context, all_seis)
+            elif action == "preview_image":
+                self._preview_snapshot_plot(snap_id, "image", context, all_seis)
+            else:
+                self._handle_row_action("tab-snapshots", snap_id, action)
 
-        label = AimbatEventParametersBase.model_fields[attr].title or attr
-        self.push_screen(ParameterInputModal(label, current_str, unit), on_input)
-
-    def _apply_parameter(self, attr: str, value: object) -> None:
-        """Validate, write a parameter to the DB, and rebuild ICCS."""
-        try:
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                if attr in {p.value for p in EventParameter}:
-                    set_event_parameter(
-                        session, event, EventParameter(attr), value, validate_iccs=True
-                    )  # type: ignore[call-overload]
-                else:
-                    # mccc_damp / mccc_min_ccnorm — not in EventParameter enum
-                    validated = AimbatEventParametersBase.model_validate(
-                        event.parameters, update={attr: value}
-                    )
-                    setattr(event.parameters, attr, getattr(validated, attr))
-                    session.add(event)
-                    session.commit()
-        except ValidationError as exc:
-            msgs = "; ".join(
-                e["msg"].removeprefix("Value error, ") for e in exc.errors()
-            )
-            self.notify(msgs, severity="error")
-            return
-        except Exception as exc:
-            self.notify(str(exc), severity="error")
-            return
-
-        self._create_iccs()
-        self._refresh_parameters()
-        self._refresh_seismograms()
-        self._refresh_event_bar()
-        self.notify(f"{attr} updated", timeout=2)
+        self.push_screen(SnapshotActionMenuModal(f"Snapshot  {snap_id[:8]}"), on_action)
 
     # ------------------------------------------------------------------
     # Row-action menu helpers
@@ -626,6 +696,12 @@ class AimbatTUI(App[None]):
     def _handle_row_action(self, tab: str, item_id: str, action: str | None) -> None:
         if action == "delete":
             self._confirm_delete(tab, item_id)
+        elif action == "select":
+            self._select_event(item_id)
+        elif action == "toggle_completed":
+            self._toggle_event_completed(item_id)
+        elif action == "view_seismograms":
+            self._view_seismograms(tab, item_id)
         elif action == "rollback":
             self._confirm_rollback(item_id)
         elif action == "show_details":
@@ -636,6 +712,44 @@ class AimbatTUI(App[None]):
             self._toggle_seismogram_bool(item_id, SeismogramParameter.FLIP)
         elif action == "reset":
             self._reset_seismogram_parameters(item_id)
+
+    def _select_event(self, item_id: str) -> None:
+        self._current_event_id = uuid.UUID(item_id)
+        self._create_iccs()
+        self.refresh_all()
+        self.notify("Event selected", timeout=2)
+
+    def _toggle_event_completed(self, item_id: str) -> None:
+        try:
+            with Session(engine) as session:
+                event = session.get(AimbatEvent, uuid.UUID(item_id))
+                if event is None:
+                    return
+                event.parameters.completed = not event.parameters.completed
+                session.add(event)
+                session.commit()
+            self._refresh_project()
+            self.notify("Completed flag toggled", timeout=2)
+        except Exception as exc:
+            self.notify(str(exc), severity="error")
+
+    def _view_seismograms(self, tab: str, item_id: str) -> None:
+        item_uuid = uuid.UUID(item_id)
+        try:
+            with self._suspend("View seismograms"):
+                with Session(engine) as session:
+                    if tab == "project-events":
+                        event = session.get(AimbatEvent, item_uuid)
+                        if event is None:
+                            return
+                        plot_seismograms(session, event, return_fig=False)
+                    else:
+                        station = session.get(AimbatStation, item_uuid)
+                        if station is None:
+                            return
+                        plot_seismograms(session, station, return_fig=False)
+        except Exception as exc:
+            self.notify(str(exc), severity="error")
 
     def _toggle_seismogram_bool(self, item_id: str, param: SeismogramParameter) -> None:
         try:
@@ -671,8 +785,9 @@ class AimbatTUI(App[None]):
 
     def _confirm_delete(self, tab: str, item_id: str) -> None:
         messages = {
+            "project-events": "Delete this event and all its data?",
+            "project-stations": "Delete this station and all its seismograms?",
             "tab-seismograms": "Delete this seismogram?",
-            "tab-stations": "Delete this station and all its seismograms across all events?",
             "tab-snapshots": "Delete this snapshot?",
         }
         msg = messages.get(tab)
@@ -683,18 +798,26 @@ class AimbatTUI(App[None]):
             if not confirmed:
                 return
             try:
-                if tab == "tab-seismograms":
+                if tab == "project-events":
                     with Session(engine) as session:
-                        delete_seismogram_by_id(session, uuid.UUID(item_id))
-                    self._create_iccs()
+                        delete_event_by_id(session, uuid.UUID(item_id))
+                    if self._current_event_id == uuid.UUID(item_id):
+                        self._current_event_id = None
+                        self._bound_iccs = None
                     self.refresh_all()
-                    self.notify("Seismogram deleted", timeout=2)
-                elif tab == "tab-stations":
+                    self.notify("Event deleted", timeout=2)
+                elif tab == "project-stations":
                     with Session(engine) as session:
                         delete_station_by_id(session, uuid.UUID(item_id))
                     self._create_iccs()
                     self.refresh_all()
                     self.notify("Station deleted", timeout=2)
+                elif tab == "tab-seismograms":
+                    with Session(engine) as session:
+                        delete_seismogram_by_id(session, uuid.UUID(item_id))
+                    self._create_iccs()
+                    self.refresh_all()
+                    self.notify("Seismogram deleted", timeout=2)
                 elif tab == "tab-snapshots":
                     with Session(engine) as session:
                         delete_snapshot_by_id(session, uuid.UUID(item_id))
@@ -727,6 +850,20 @@ class AimbatTUI(App[None]):
         except Exception as exc:
             self.notify(str(exc), severity="error")
 
+    def _preview_snapshot_plot(
+        self, snap_id: str, plot_type: str, context: bool, all_seis: bool
+    ) -> None:
+        try:
+            with self._suspend("Previewing snapshot"):
+                with Session(engine) as session:
+                    bound = build_iccs_from_snapshot(session, uuid.UUID(snap_id))
+                if plot_type == "stack":
+                    plot_stack(bound.iccs, context, all_seis, return_fig=False)
+                else:
+                    plot_matrix_image(bound.iccs, context, all_seis, return_fig=False)
+        except Exception as exc:
+            self.notify(str(exc), severity="error")
+
     def _confirm_rollback(self, snap_id: str) -> None:
         def on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
@@ -745,6 +882,22 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+
+    def action_open_parameters(self) -> None:
+        try:
+            with Session(engine) as session:
+                event = self._get_current_event(session)
+                event_id = event.id
+        except NoResultFound:
+            self.notify("No event selected — press e to select one", severity="warning")
+            return
+
+        def on_close(changed: bool | None) -> None:
+            if changed:
+                self._create_iccs()
+                self.refresh_all()
+
+        self.push_screen(ParametersModal(event_id), on_close)
 
     def action_switch_event(self) -> None:
         def on_result(result: uuid.UUID | None) -> None:
@@ -830,27 +983,14 @@ class AimbatTUI(App[None]):
         iccs = self._bound_iccs.iccs
 
         try:
-            with self.suspend():
-                console = Console()
-                console.clear()
-                console.print(
-                    Panel(
-                        f"[bold]{label}[/bold]\n\n"
-                        "Close the matplotlib window to return to AIMBAT.",
-                        title="Interactive Tool Running",
-                        border_style="bright_blue",
-                        padding=(1, 4),
-                    )
-                )
+            with self._suspend(label):
                 with Session(engine) as session:
                     event = self._get_current_event(session)
                     fn(session, event, iccs, context, all_seis)
-                console.clear()
         except Exception as exc:
             self.notify(str(exc), severity="error")
             return
         self._bound_iccs.created_at = Timestamp.now("UTC")
-        self._refresh_parameters()
         self._refresh_seismograms()
         self._refresh_event_bar()
         self.notify("Done", timeout=2)
