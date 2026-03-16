@@ -16,11 +16,11 @@ data type supports it.
 
 **Typical workflow:**
 
-```
+```bash
 aimbat project create
 aimbat data add *.sac
-aimbat event list          # find the event ID
-aimbat event default <ID>
+aimbat event list          # list events created from SAC headers
+aimbat event default <ID>  # optionally set default event for future commands
 ```
 
 Re-adding a data source that is already in the project is safe — existing
@@ -32,15 +32,14 @@ from pathlib import Path
 from typing import Annotated
 
 from cyclopts import App, Parameter, validators
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from aimbat.io import DataType
-from aimbat.models import AimbatDataSource
 
 from .common import (
-    ALL_EVENTS_PARAMETER,
     DebugParameter,
     GlobalParameters,
+    JsonDumpParameters,
     TableParameters,
     simple_exception,
     use_event_parameter,
@@ -57,16 +56,35 @@ def cli_data_add(
         list[Path],
         Parameter(
             name="sources",
+            help="One or more data source file paths to add.",
             consume_multiple=True,
             validator=validators.Path(exists=True),
         ),
     ],
     *,
-    data_type: Annotated[DataType, Parameter(name="type")] = DataType.SAC,
+    data_type: Annotated[
+        DataType,
+        Parameter(
+            name="type",
+            help="Format of the data sources. Determines which metadata"
+            " (station, event, seismogram) can be extracted automatically.",
+        ),
+    ] = DataType.SAC,
     station_id: Annotated[uuid.UUID | None, use_station_parameter()] = None,
     event_id: Annotated[uuid.UUID | None, use_event_parameter()] = None,
-    dry_run: Annotated[bool, Parameter(name="dry-run")] = False,
-    show_progress_bar: Annotated[bool, Parameter(name="progress")] = True,
+    dry_run: Annotated[
+        bool,
+        Parameter(
+            name="dry-run",
+            help="Preview which records would be added without modifying the database.",
+        ),
+    ] = False,
+    show_progress_bar: Annotated[
+        bool,
+        Parameter(
+            name="progress", help="Display a progress bar while ingesting sources."
+        ),
+    ] = True,
     global_parameters: DebugParameter = DebugParameter(),
 ) -> None:
     """Add or update data sources in the AIMBAT project.
@@ -82,14 +100,6 @@ def cli_data_add(
 
     Use `--dry-run` to preview what would be added without touching the
     database.
-
-    Args:
-        data_sources: One or more data source paths to add.
-        data_type: Format of the data sources. Determines which metadata
-            (station, event, seismogram) can be extracted automatically.
-        dry_run: Preview which records would be added without modifying the
-            database.
-        show_progress_bar: Display a progress bar while ingesting sources.
     """
     from aimbat.core import add_data_to_project
     from aimbat.db import engine
@@ -112,89 +122,66 @@ def cli_data_add(
 @simple_exception
 def cli_data_dump(
     *,
-    _: DebugParameter = DebugParameter(),
+    dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
-    """Dump the contents of the AIMBAT data source table to JSON.
+    """Dump AIMBAT datasources table as a JSON string.
 
     Output can be piped or redirected for use in external tools or scripts.
     """
     from rich import print_json
 
-    from aimbat.core import dump_data_table_to_json
+    from aimbat.core import dump_data_table
     from aimbat.db import engine
 
     with Session(engine) as session:
-        print_json(dump_data_table_to_json(session))
+        print_json(data=dump_data_table(session, by_alias=dump_parameters.by_alias))
 
 
 @app.command(name="list")
 @simple_exception
 def cli_data_list(
     *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
     table_parameters: TableParameters = TableParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print a table of data sources registered in the AIMBAT project."""
-    from rich.console import Console
-
-    from aimbat.core import get_data_for_event, resolve_event
+    from aimbat.core import dump_data_table, resolve_event
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.utils import TABLE_STYLING, make_table, uuid_shortener
+    from aimbat.models import AimbatDataSource, AimbatSeismogram
+    from aimbat.utils import json_to_table, uuid_shortener
 
     short = table_parameters.short
 
     with Session(engine) as session:
-        logger.info("Printing data sources table.")
+        logger.debug("Printing data sources table.")
 
-        if all_events:
-            aimbat_data_sources = session.exec(select(AimbatDataSource)).all()
+        if global_parameters.all_events:
+            data = dump_data_table(session, by_title=True)
             title = "Data sources for all events"
         else:
             event = resolve_event(session, global_parameters.event_id)
-            aimbat_data_sources = get_data_for_event(session, event)
-            time = event.time.strftime("%Y-%m-%d %H:%M:%S") if short else event.time
-            id = uuid_shortener(session, event) if short else event.id
-            title = f"Data sources for event {time} (ID={id})"
+            data = dump_data_table(session, event.id, by_title=True)
+            _time = event.time.strftime("%Y-%m-%d %H:%M:%S") if short else event.time
+            _id = uuid_shortener(session, event) if short else event.id
+            title = f"Data sources for event {_time} (ID={_id})"
 
-        logger.debug(f"Found {len(aimbat_data_sources)} data sources in total.")
+        formatters = {
+            "ID": lambda x: (
+                uuid_shortener(session, AimbatDataSource, str_uuid=x) if short else x
+            ),
+            "Seismogram ID": lambda x: (
+                uuid_shortener(session, AimbatSeismogram, str_uuid=x) if short else x
+            ),
+        }
+        column_order = ["ID"]
 
-        rows = [
-            [
-                uuid_shortener(session, a) if short else str(a.id),
-                str(a.datatype),
-                str(a.sourcename),
-                (
-                    uuid_shortener(session, a.seismogram)
-                    if short
-                    else str(a.seismogram.id)
-                ),
-            ]
-            for a in aimbat_data_sources
-        ]
-
-        table = make_table(title=title)
-
-        table.add_column(
-            "ID (shortened)" if short else "ID",
-            justify="center",
-            style=TABLE_STYLING.id,
-            no_wrap=True,
+        json_to_table(
+            data,
+            title=title,
+            formatters=formatters,
+            column_order=column_order,
         )
-        table.add_column("Datatype", justify="center", style=TABLE_STYLING.mine)
-        table.add_column(
-            "Source", justify="left", style=TABLE_STYLING.mine, no_wrap=True
-        )
-        table.add_column(
-            "Seismogram ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
-        )
-
-        for row in rows:
-            table.add_row(*row)
-
-        console = Console()
-        console.print(table)
 
 
 if __name__ == "__main__":

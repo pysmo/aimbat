@@ -262,7 +262,7 @@ def loaded_engine(patched_engine: Engine, multi_event_data: Sequence[Path]) -> E
         add_data_to_project(session, datasources, DataType.SAC)
         events = session.exec(select(AimbatEvent)).all()
         lengths = [len(e.seismograms) for e in events]
-        set_default_event(session, events[lengths.index(max(lengths))])
+        set_default_event(session, events[lengths.index(max(lengths))].id)
     return patched_engine
 
 

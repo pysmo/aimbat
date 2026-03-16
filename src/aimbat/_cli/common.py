@@ -40,27 +40,40 @@ def _event_id_converter(hint: type, tokens: tuple[Token, ...]) -> uuid.UUID:
     return _make_uuid_converter(AimbatEvent)(hint, tokens)
 
 
-def id_parameter(model_class: type) -> Parameter:
+def id_parameter(model_class: type, help: str = "") -> Parameter:
     """Create a Parameter for a record ID with automatic UUID prefix resolution."""
     return Parameter(
-        name="id",
-        help="Full UUID or any unique prefix as shown in the table.",
+        name="ID",
+        help=help or "Full UUID or any unique prefix as shown in the table.",
         converter=_make_uuid_converter(model_class),
     )
 
 
 def _station_id_converter(hint: type, tokens: tuple[Token, ...]) -> uuid.UUID:
-    """Converter for --use-station with late-bound model import."""
     from aimbat.models import AimbatStation
 
     return _make_uuid_converter(AimbatStation)(hint, tokens)
 
 
-def _use_event_id_converter(hint: type, tokens: tuple[Token, ...]) -> uuid.UUID:
-    """Converter for --use-event with late-bound model import."""
-    from aimbat.models import AimbatEvent
+def event_parameter(help: str = "") -> Parameter:
+    """Create a Parameter for --event with automatic UUID prefix resolution."""
+    return Parameter(
+        name=["event", "event-id"],
+        help=help or "Process a specific event instead of default one (if set). ",
+        converter=_event_id_converter,
+    )
 
-    return _make_uuid_converter(AimbatEvent)(hint, tokens)
+
+def seismogram_parameter(help: str = "") -> Parameter:
+    """Create a Parameter for --seismogram with automatic UUID prefix resolution."""
+    from aimbat.models import AimbatSeismogram
+
+    return Parameter(
+        name=["seismogram", "seismogram-id"],
+        help=help
+        or "ID of seismogram to process. Full UUID or any unique prefix as shown in the table.",
+        converter=_make_uuid_converter(AimbatSeismogram),
+    )
 
 
 def use_station_parameter() -> Parameter:
@@ -79,7 +92,7 @@ def use_event_parameter() -> Parameter:
         name="use-event",
         help="UUID (or unique prefix) of an existing event to link to instead of"
         " extracting one from each data source.",
-        converter=_use_event_id_converter,
+        converter=_event_id_converter,
     )
 
 
@@ -94,9 +107,8 @@ ALL_EVENTS_PARAMETER = Parameter(
 # -----------------------------------------------------------------------
 
 
-@Parameter(name="*")
 @dataclass
-class DebugTrait:
+class _DebugTrait:
     debug: bool = False
     """Enable verbose logging for troubleshooting."""
 
@@ -109,14 +121,24 @@ class DebugTrait:
             configure_logging()
 
 
-@Parameter(name="*")
 @dataclass
-class EventContextTrait:
+class _AllEventsTrait:
+    all_events: Annotated[
+        bool,
+        Parameter(
+            name="all",
+            help="Include records from all events. Overrides any event selection parameters.",
+        ),
+    ] = False
+
+
+@dataclass
+class _EventContextTrait:
     event_id: Annotated[
         uuid.UUID | None,
         Parameter(
             name=["event", "event-id"],
-            help="Process a specific event instead of the default one. "
+            help="Process a specific event instead of default one (if set). "
             "Full UUID or any unique prefix as shown in the table.",
             converter=_event_id_converter,
         ),
@@ -124,12 +146,33 @@ class EventContextTrait:
 
 
 @dataclass
-class DebugParameter(DebugTrait):
+class _ByAliasTrait:
+    by_alias: Annotated[
+        bool,
+        Parameter(
+            name="alias",
+            help="Dump records using their alias instead of attribute names.",
+        ),
+    ] = False
+
+
+@Parameter(name="*")
+@dataclass
+class DebugParameter(_DebugTrait):
     pass
 
 
+@Parameter(name="*")
 @dataclass
-class GlobalParameters(DebugTrait, EventContextTrait):
+class JsonDumpParameters(_ByAliasTrait, _DebugTrait):
+    pass
+
+
+@Parameter(name="*")
+@dataclass
+class GlobalParameters(_DebugTrait, _AllEventsTrait, _EventContextTrait):
+    """Parameters for commands that operate on individual or all events, with optional debug mode."""
+
     pass
 
 

@@ -332,7 +332,9 @@ class TestSnapshotDelete:
         assert exc_info.value.code == 1
         output = capsys.readouterr().err
         assert "Error" in output, "Expected error panel in stderr"
-        assert "not found" in output, "Error message should mention it was not found"
+        assert "Unable to find" in output, (
+            "Error message should mention it was not found"
+        )
 
 
 # ===================================================================
@@ -535,7 +537,7 @@ class TestSnapshotDump:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that ``--all`` includes at least the default event's snapshots.
+        """Verifies that dump returns snapshots for all events by default.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -543,12 +545,10 @@ class TestSnapshotDump:
             cli_json: The in-process CLI JSON dump callable.
         """
         cli("snapshot create")
-        default_data = cli_json("snapshot dump")
-        all_data = cli_json("snapshot dump --all")
-        assert isinstance(default_data, dict), "Default dump should return a dict"
-        assert isinstance(all_data, dict), "All-events dump should return a dict"
-        assert len(all_data["snapshots"]) >= len(default_data["snapshots"]), (
-            "--all should return at least as many snapshots as the default-event dump"
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict), "Dump should return a dict"
+        assert len(data["snapshots"]) >= 1, (
+            "Dump should return at least one snapshot for the default event"
         )
 
     def test_dump_snapshot_ids_are_consistent(
@@ -612,7 +612,7 @@ class TestSnapshotList:
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Verifies that ``--all`` produces output for all events.
+        """Verifies that `--all` produces output for all events.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -631,7 +631,7 @@ class TestSnapshotList:
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Verifies that ``--short`` produces output.
+        """Verifies that `--short` produces output.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -641,7 +641,7 @@ class TestSnapshotList:
         cli("snapshot create")
         cli("snapshot list --short")
         output = capsys.readouterr().out
-        assert "ID (shortened)" in output
+        assert "ID" in output
 
 
 # ===================================================================

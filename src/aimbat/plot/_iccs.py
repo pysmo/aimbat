@@ -14,7 +14,7 @@ from pysmo.tools.iccs import (
     plot_stack as _plot_stack,
 )
 from pysmo.tools.iccs import (
-    update_min_ccnorm as _update_min_ccnorm,
+    update_min_cc as _update_min_cc,
 )
 from pysmo.tools.iccs import (
     update_pick as _update_pick,
@@ -23,6 +23,8 @@ from pysmo.tools.iccs import (
     update_timewindow as _update_timewindow,
 )
 
+from aimbat._types import EventParameter
+from aimbat.core._event import set_event_parameter
 from aimbat.core._iccs import _write_back_seismograms
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
@@ -41,7 +43,7 @@ __all__ = [
     "plot_matrix_image",
     "update_pick",
     "update_timewindow",
-    "update_min_ccnorm",
+    "update_min_cc",
 ]
 
 
@@ -154,16 +156,23 @@ def update_timewindow(
     )
 
     if not return_fig:
-        event.parameters.window_pre = iccs.window_pre
-        event.parameters.window_post = iccs.window_post
-        session.commit()
+        logger.debug(
+            f"Saving new time window for event {event.id}: "
+            f"pre={iccs.window_pre}, post={iccs.window_post}"
+        )
+        set_event_parameter(
+            session, event.id, EventParameter.WINDOW_PRE, iccs.window_pre
+        )
+        set_event_parameter(
+            session, event.id, EventParameter.WINDOW_POST, iccs.window_post
+        )
         return None
 
     logger.warning(_RETURN_FIG_WARNING)
     return result
 
 
-def update_min_ccnorm(
+def update_min_cc(
     session: Session,
     event: AimbatEvent,
     iccs: ICCS,
@@ -187,11 +196,15 @@ def update_min_ccnorm(
 
     logger.info(f"Updating minimum cross-correlation threshold for event {event.id}.")
 
-    result = _update_min_ccnorm(iccs, context, all_seismograms, return_fig=return_fig)  # type: ignore[call-overload]
+    result = _update_min_cc(iccs, context, all_seismograms, return_fig=return_fig)  # type: ignore[call-overload]
 
     if not return_fig:
-        event.parameters.min_ccnorm = float(iccs.min_ccnorm)
-        session.commit()
+        logger.debug(
+            f"Saving new minimum cross-correlation threshold for event {event.id}: {iccs.min_cc}"
+        )
+        set_event_parameter(
+            session, event.id, EventParameter.MIN_CC, float(iccs.min_cc)
+        )
         return None
 
     logger.warning(_RETURN_FIG_WARNING)

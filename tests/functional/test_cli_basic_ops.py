@@ -134,6 +134,71 @@ class TestDataManagement:
         events = cli_json("event dump")
         assert len(events) == 0
 
+    def test_add_data_with_use_flags(
+        self,
+        patched_engine: Engine,
+        sac_file_good: Path,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """Verifies adding data using existing station and event IDs."""
+        # 1. Add a station and event first
+        cli(f"data add {sac_file_good.as_posix()} --no-progress")
+        station = cli_json("station dump")[0]
+        event = cli_json("event dump")[0]
+        station_id = station["id"]
+        event_id = event["id"]
+
+        # 2. Add another file (or same file) using these IDs
+        # We'll use a different file if available, or just re-add to test the flags
+        cli(
+            f"data add {sac_file_good.as_posix()} --no-progress "
+            f"--use-station {station_id} --use-event {event_id}"
+        )
+
+        # 3. Verify it still works (idempotent in this case, but flags were exercised)
+        data = cli_json("data dump")
+        assert len(data) == 1
+        assert data[0]["seismogram_id"] is not None
+
+    def test_add_json_data(
+        self,
+        patched_engine: Engine,
+        tmp_path: Path,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """Verifies adding station and event data from JSON files via CLI."""
+        # 1. Create a JSON station file
+        station_json = tmp_path / "station.json"
+        station_json.write_text(
+            '{"name": "STAT", "network": "NW", "location": "00", "channel": "BHZ", '
+            '"latitude": 10.0, "longitude": 20.0, "elevation": 100.0}'
+        )
+
+        # 2. Add via CLI
+        cli(f"data add {station_json.as_posix()} --type json_station --no-progress")
+
+        # 3. Verify station was added
+        stations = cli_json("station dump")
+        assert len(stations) == 1
+        assert stations[0]["name"] == "STAT"
+
+        # 4. Create a JSON event file
+        event_json = tmp_path / "event.json"
+        event_json.write_text(
+            '{"time": "2020-01-01T00:00:00Z", "latitude": 30.0, '
+            '"longitude": 40.0, "depth": 50.0}'
+        )
+
+        # 5. Add via CLI
+        cli(f"data add {event_json.as_posix()} --type json_event --no-progress")
+
+        # 6. Verify event was added
+        events = cli_json("event dump")
+        assert len(events) == 1
+        assert events[0]["latitude"] == 30.0
+
 
 # ===================================================================
 # Event operations

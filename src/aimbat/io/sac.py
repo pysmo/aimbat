@@ -10,7 +10,6 @@ so importing it is sufficient to enable SAC support.
 
 from __future__ import annotations
 
-from functools import partial
 from os import PathLike
 from typing import TYPE_CHECKING
 
@@ -22,6 +21,13 @@ from pysmo.classes import SAC
 from aimbat import settings
 from aimbat.logger import logger
 
+from ._base import (
+    event_creator,
+    seismogram_creator,
+    seismogram_data_reader,
+    seismogram_data_writer,
+    station_creator,
+)
 from ._data import DataType
 
 if TYPE_CHECKING:
@@ -32,10 +38,12 @@ __all__ = [
     "write_seismogram_data_to_sacfile",
     "create_station_from_sacfile",
     "create_event_from_sacfile",
+    "create_seismogram_from_sacfile",
     "create_seismogram_from_sacfile_and_pick_header",
 ]
 
 
+@seismogram_data_reader(DataType.SAC)
 def read_seismogram_data_from_sacfile(
     sacfile: str | PathLike,
 ) -> npt.NDArray[np.float64]:
@@ -53,6 +61,7 @@ def read_seismogram_data_from_sacfile(
     return SAC.from_file(sacfile).seismogram.data
 
 
+@seismogram_data_writer(DataType.SAC)
 def write_seismogram_data_to_sacfile(
     sacfile: str | PathLike, data: npt.NDArray[np.float64]
 ) -> None:
@@ -70,6 +79,7 @@ def write_seismogram_data_to_sacfile(
     sac.write(sacfile)
 
 
+@station_creator(DataType.SAC)
 def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
     """Create an AimbatStation instance from a SAC file.
 
@@ -89,6 +99,7 @@ def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
     return aimbat_station
 
 
+@event_creator(DataType.SAC)
 def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
     """Create an `AimbatEvent` instance from a SAC file.
 
@@ -133,22 +144,16 @@ def create_seismogram_from_sacfile_and_pick_header(
     return aimbat_seismogram
 
 
-create_seismogram_from_sacfile = partial(
-    create_seismogram_from_sacfile_and_pick_header,
-    sac_pick_header=settings.sac_pick_header,
-)
+@seismogram_creator(DataType.SAC)
+def create_seismogram_from_sacfile(sacfile: str | PathLike) -> AimbatSeismogram:
+    """Create an AimbatSeismogram instance from a SAC file using the configured pick header.
 
-# Register SAC capabilities with the io dispatch layer
-from ._base import (  # noqa: E402
-    register_event_creator,
-    register_seismogram_creator,
-    register_seismogram_data_reader,
-    register_seismogram_data_writer,
-    register_station_creator,
-)
+    Args:
+        sacfile: Name of the SAC file.
 
-register_station_creator(DataType.SAC, create_station_from_sacfile)
-register_event_creator(DataType.SAC, create_event_from_sacfile)
-register_seismogram_creator(DataType.SAC, create_seismogram_from_sacfile)
-register_seismogram_data_reader(DataType.SAC, read_seismogram_data_from_sacfile)
-register_seismogram_data_writer(DataType.SAC, write_seismogram_data_to_sacfile)
+    Returns:
+        A new `AimbatSeismogram` instance.
+    """
+    return create_seismogram_from_sacfile_and_pick_header(
+        sacfile, settings.sac_pick_header
+    )

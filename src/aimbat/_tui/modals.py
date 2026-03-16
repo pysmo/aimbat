@@ -17,7 +17,7 @@ from textual.widgets import DataTable, Input, Label, Static
 
 from aimbat._tui._widgets import VimDataTable
 from aimbat._types import EventParameter
-from aimbat.core import delete_event_by_id, set_event_parameter
+from aimbat.core import delete_event, set_event_parameter
 from aimbat.db import engine
 from aimbat.models import AimbatEvent
 from aimbat.models._parameters import AimbatEventParametersBase
@@ -53,6 +53,7 @@ __all__ = [
     "NoProjectModal",
     "ParameterInputModal",
     "ParametersModal",
+    "QualityModal",
     "SnapshotActionMenuModal",
     "SnapshotCommentModal",
     "SnapshotDetailsModal",
@@ -184,7 +185,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
                 return
             try:
                 with Session(engine) as session:
-                    delete_event_by_id(session, uuid.UUID(event_id))
+                    delete_event(session, uuid.UUID(event_id))
                 self._selected_event_id = None
                 self._refresh_table()
                 self.notify("Event deleted", timeout=2)
@@ -456,18 +457,13 @@ class ParametersModal(ModalScreen[bool]):
                 event = session.get(AimbatEvent, self._event_id)
                 if event is None:
                     return
-                if attr in {p.value for p in EventParameter}:
-                    set_event_parameter(
-                        session, event, EventParameter(attr), value, validate_iccs=True
-                    )  # type: ignore[call-overload]
-                else:
-                    # mccc_damp / mccc_min_ccnorm — not in EventParameter enum
-                    validated = AimbatEventParametersBase.model_validate(
-                        event.parameters, update={attr: value}
-                    )
-                    setattr(event.parameters, attr, getattr(validated, attr))
-                    session.add(event)
-                    session.commit()
+                set_event_parameter(
+                    session,
+                    event.id,
+                    EventParameter(attr),
+                    value,
+                    validate_iccs=True,
+                )  # type: ignore[call-overload]
         except ValidationError as exc:
             msgs = "; ".join(
                 e["msg"].removeprefix("Value error, ") for e in exc.errors()
@@ -543,6 +539,7 @@ class ActionMenuModal(ModalScreen[str | None]):
 
 _SNAPSHOT_ACTIONS: list[tuple[str, str]] = [
     ("show_details", "Show details"),
+    ("show_quality", "Show quality"),
     ("preview_stack", "Preview stack"),
     ("preview_image", "Preview matrix image"),
     ("rollback", "Rollback to this snapshot"),
@@ -636,7 +633,7 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
 _TOOLS: list[tuple[str, str]] = [
     ("phase", "Phase arrival (t1)"),
     ("window", "Time window"),
-    ("ccnorm", "Min CC norm"),
+    ("cc", "Min CC"),
     ("stack", "Stack plot"),
     ("image", "Matrix image"),
 ]
@@ -808,6 +805,54 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
 
 
 # ---------------------------------------------------------------------------
+# Quality modal
+# ---------------------------------------------------------------------------
+
+
+class QualityModal(ModalScreen[None]):
+    """Read-only quality metrics view with one headerless table per group.
+
+    Each element of `groups` is a `(title, rows)` pair where `rows` is
+    a list of pre-formatted `(label, value)` strings. An empty title
+    suppresses the section heading.
+    """
+
+    BINDINGS = [Binding("escape", "cancel", show=False)]
+
+    def __init__(
+        self,
+        title: str,
+        groups: list[tuple[str, list[tuple[str, str]]]],
+    ) -> None:
+        super().__init__()
+        self._title = title
+        self._groups = groups
+
+    def compose(self) -> ComposeResult:
+        with Container(id="quality-dialog"):
+            yield Label(self._title, classes=_CSS.TITLE)
+            for i, (group_title, _) in enumerate(self._groups):
+                if group_title:
+                    yield Label(
+                        f"[bold]{group_title}[/bold]", classes="quality-section"
+                    )
+                yield VimDataTable(id=f"quality-table-{i}", show_header=False)
+            yield Label(_Hint.CLOSE, classes=_CSS.HINT)
+
+    def on_mount(self) -> None:
+        for i, (_, rows) in enumerate(self._groups):
+            table = self.query_one(f"#quality-table-{i}", DataTable)
+            table.cursor_type = "none"
+            table.add_columns("label", "value")
+            for row in rows:
+                table.add_row(*row)
+            table.styles.height = len(rows) + 1
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ---------------------------------------------------------------------------
 # Snapshot details modal
 # ---------------------------------------------------------------------------
 
@@ -832,12 +877,11 @@ class SnapshotDetailsModal(ModalScreen[None]):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
-        table.cursor_type = "row"
+        table.cursor_type = "none"
         table.add_columns("Parameter", "Value")
         for row in self._rows:
             table.add_row(*row)
         table.styles.height = len(self._rows) + 2
-        table.focus()
 
     def action_cancel(self) -> None:
         self.dismiss(None)

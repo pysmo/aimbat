@@ -62,18 +62,18 @@ class Settings(BaseSettings):
         default=0.1, ge=0, description="Damping factor for MCCC algorithm."
     )
 
-    mccc_min_ccnorm: float = Field(
+    mccc_min_cc: float = Field(
         default=0.5,
         ge=0,
         le=1,
         description="Minimum correlation coefficient required to include a pair in the MCCC inversion.",
     )
 
-    min_ccnorm: float = Field(
+    min_cc: float = Field(
         default=0.5,
         ge=0,
         le=1,
-        description="Initial minimum cross correlation coefficient.",
+        description="Initial minimum cross correlation coefficient threshold for ICCS selection.",
     )
 
     min_id_length: int = Field(
@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     sampledata_src: str = Field(
         default="https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip",
         description="URL where sample data is downloaded from.",
+    )
+
+    ramp_width: float = Field(
+        default=0.1,
+        description="Width of taper ramp up and down as a fraction of the window length.",
     )
 
     window_post: PydanticPositiveTimedelta = Field(
@@ -139,8 +144,7 @@ def print_settings_table(pretty: bool) -> None:
     """
     import json
 
-    from aimbat.utils import TABLE_STYLING
-    from aimbat.utils._json import json_to_table
+    from aimbat.utils import TABLE_STYLING, json_to_table
 
     env_prefix = Settings.model_config.get("env_prefix")
     values: dict[str, str] = json.loads(settings.model_dump_json())
@@ -162,29 +166,17 @@ def print_settings_table(pretty: bool) -> None:
         description = field_info.description if field_info else ""
         description_with_env_var = (f"{description} " if description else "") + env_var
         rows.append(
-            {"name": k, "value": str(v), "description": description_with_env_var}
+            {"Name": k, "Value": str(v), "Description": description_with_env_var}
         )
 
     json_to_table(
         rows,
         title="AIMBAT settings",
+        common_column_kwargs={"justify": "left"},
         column_kwargs={
-            "name": {
-                "header": "Name",
-                "justify": "left",
-                "style": TABLE_STYLING.id,
-                "no_wrap": True,
-            },
-            "value": {
-                "header": "Value",
-                "justify": "center",
-                "style": TABLE_STYLING.mine,
-            },
-            "description": {
-                "header": "Description",
-                "justify": "left",
-                "style": TABLE_STYLING.linked,
-            },
+            "Name": {"no_wrap": True, "style": TABLE_STYLING.ID},
+            "Value": {"no_wrap": True, "style": TABLE_STYLING.mine},
+            "Description": {"style": TABLE_STYLING.linked},
         },
     )
 

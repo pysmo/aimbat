@@ -2,20 +2,20 @@
 
 import json
 import uuid
-from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 from pandas import Timestamp
 from pydantic import ValidationError
 from sqlalchemy import Engine
+from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from pysmo.classes import SAC
 
 from aimbat.core import (
     add_data_to_project,
-    dump_data_table_to_json,
+    dump_data_table,
     get_data_for_event,
     get_default_event,
 )
@@ -86,111 +86,106 @@ def event_json(tmp_path: Path) -> Path:
 
 
 class TestAddDataToProject:
-    @pytest.fixture
-    def session(self, patched_session: Session) -> Generator[Session, None, None]:
-        """Provides a database session for tests.
-
-        Args:
-            patched_session (Session): A patched SQLAlchemy session fixture.
-        """
-        yield patched_session
-
-    def test_add_single_sac_file(self, sac_file_good: Path, session: Session) -> None:
+    def test_add_single_sac_file(
+        self, sac_file_good: Path, patched_session: Session
+    ) -> None:
         """Verifies adding a single valid SAC file to the project.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
-            session (Session): Database session.
+            patched_session (Session): Database session.
         """
-        datasource = session.exec(select(AimbatDataSource.sourcename)).all()
+        datasource = patched_session.exec(select(AimbatDataSource.sourcename)).all()
         assert len(datasource) == 0, "Expected no data sources before adding files."
 
         # do this 2 times to verify we can only add the same file once and that nothing changes on the second attempt
         for _ in range(2):
             add_data_to_project(
-                session,
+                patched_session,
                 [sac_file_good],
                 data_type=DataType.SAC,
             )
-            seismogram_filename = session.exec(
+            seismogram_filename = patched_session.exec(
                 select(AimbatDataSource.sourcename)
             ).one()
             assert seismogram_filename == str(sac_file_good)
 
     def test_add_multiple_sac_files(
-        self, multi_event_data: list[Path], session: Session
+        self, multi_event_data: list[Path], patched_session: Session
     ) -> None:
         """Verifies adding multiple SAC files to the project at once.
 
         Args:
             multi_event_data (list[Path]): List of paths to SAC files.
-            session (Session): Database session.
+            patched_session (Session): Database session.
         """
-        datasource = session.exec(select(AimbatDataSource.sourcename)).all()
+        datasource = patched_session.exec(select(AimbatDataSource.sourcename)).all()
         assert len(datasource) == 0, "Expected no data sources before adding files."
 
         add_data_to_project(
-            session,
+            patched_session,
             multi_event_data,
             data_type=DataType.SAC,
         )
 
-        seismogram_filenames = session.exec(select(AimbatDataSource.sourcename)).all()
+        seismogram_filenames = patched_session.exec(
+            select(AimbatDataSource.sourcename)
+        ).all()
         assert sorted(seismogram_filenames) == sorted(
             [str(path) for path in multi_event_data]
         ), "Expected all files from multi_event to be added as data sources."
 
-    def test_add_nonexistent_file(self, session: Session) -> None:
+    def test_add_nonexistent_file(self, patched_session: Session) -> None:
         """Verifies that adding a non-existent file raises FileNotFoundError.
 
         Args:
-            session (Session): Database session.
+            patched_session (Session): Database session.
         """
         non_existent_file = Path("this_file_does_not_exist.sac")
         with pytest.raises(FileNotFoundError):
             add_data_to_project(
-                session,
+                patched_session,
                 [non_existent_file],
                 data_type=DataType.SAC,
             )
 
     def test_add_mixed_valid_and_invalid_files(
-        self, sac_file_good: Path, session: Session
+        self, sac_file_good: Path, patched_session: Session
     ) -> None:
         """Verifies that adding a mix of valid and invalid files raises an error and adds nothing.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
-            session (Session): Database session.
+            patched_session (Session): Database session.
         """
         non_existent_file = Path("this_file_does_not_exist.sac")
         with pytest.raises(FileNotFoundError):
             add_data_to_project(
-                session,
+                patched_session,
                 [sac_file_good, non_existent_file],
                 data_type=DataType.SAC,
             )
 
-        datasource = session.exec(select(AimbatDataSource.sourcename)).all()
+        datasource = patched_session.exec(select(AimbatDataSource.sourcename)).all()
         assert len(datasource) == 0, (
             "Expected no data sources to be added when an error occurs."
         )
 
     def test_add_sac_file_with_missing_pick(
-        self, sac_file_good: Path, session: Session
+        self, sac_file_good: Path, patched_session: Session
     ) -> None:
         """Verifies that adding a SAC file missing required pick information raises ValidationError.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
-            session (Session): Database session.
+            patched_session (Session): Database session.
         """
         sac = SAC.from_file(sac_file_good)
         sac.timestamps.t0 = None
         sac.write(sac_file_good)
         with pytest.raises(ValidationError):
             add_data_to_project(
-                session,
+                patched_session,
                 [sac_file_good],
                 data_type=DataType.SAC,
             )
@@ -198,24 +193,24 @@ class TestAddDataToProject:
     def test_dry_run_all_new(
         self,
         multi_event_data: list[Path],
-        session: Session,
+        patched_session: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
         """Verifies dry run behaviour when all data is new.
 
         Args:
             multi_event_data (list[Path]): List of paths to SAC files.
-            session (Session): Database session.
+            patched_session (Session): Database session.
             capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
         """
         add_data_to_project(
-            session,
+            patched_session,
             multi_event_data,
             data_type=DataType.SAC,
             dry_run=True,
         )
 
-        datasource = session.exec(select(AimbatDataSource.sourcename)).all()
+        datasource = patched_session.exec(select(AimbatDataSource.sourcename)).all()
         assert len(datasource) == 0, "Expected no data sources after dry run."
 
         captured = capsys.readouterr()
@@ -227,25 +222,25 @@ class TestAddDataToProject:
     def test_dry_run_all_skipped(
         self,
         multi_event_data: list[Path],
-        session: Session,
+        patched_session: Session,
         capsys: pytest.CaptureFixture,
     ) -> None:
         """Verifies dry run behaviour when all data already exists (should be skipped).
 
         Args:
             multi_event_data (list[Path]): List of paths to SAC files.
-            session (Session): Database session.
+            patched_session (Session): Database session.
             capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
         """
         add_data_to_project(
-            session,
+            patched_session,
             multi_event_data,
             data_type=DataType.SAC,
         )
         capsys.readouterr()
 
         add_data_to_project(
-            session,
+            patched_session,
             multi_event_data,
             data_type=DataType.SAC,
             dry_run=True,
@@ -260,40 +255,28 @@ class TestAddDataToProject:
 
 
 class TestGetDataSources:
-    @pytest.fixture
-    def session(self, loaded_session: Session) -> Generator[Session, None, None]:
-        """Provides a database session with pre-loaded data sources for tests.
-
-        Args:
-            loaded_session (Session): A SQLAlchemy session fixture with pre-loaded data sources.
-        """
-        yield loaded_session
-
-    def test_get_data_sources_for_default_event(self, session: Session) -> None:
+    def test_get_data_sources_for_default_event(self, loaded_session: Session) -> None:
         """Verifies that get_data_sources returns the expected data sources.
 
         Args:
-            session (Session): Database session.
+            loaded_session (Session): Database session.
         """
-        default_event = get_default_event(session)
+        default_event = get_default_event(loaded_session)
         assert default_event is not None
-        data_sources = get_data_for_event(session, default_event)
+        data_sources = get_data_for_event(loaded_session, default_event.id)
         assert len(data_sources) != 0, "Expected data sources for the default event."
         assert all(isinstance(ds, AimbatDataSource) for ds in data_sources), (
             "expected all items to be AimbatDataSource instances"
         )
 
-    def test_dump_data_table_to_json(self, session: Session) -> None:
-        """Verifies that dump_data_table_to_json returns a JSON string with expected content.
+    def test_dump_data_table_to_json(self, loaded_session: Session) -> None:
+        """Verifies that dump_data_table_to_json returns expected content.
 
         Args:
-            session (Session): Database session.
+            loaded_session (Session): Database session.
         """
-        json_str = dump_data_table_to_json(session)
-        json_data = json.loads(json_str)
-        assert isinstance(json_data, list), "Expected JSON data to be a list."
-
-        expected_ids = map(str, session.exec(select(AimbatDataSource.id)).all())
+        json_data = dump_data_table(loaded_session)
+        expected_ids = map(str, loaded_session.exec(select(AimbatDataSource.id)).all())
         returned_ids = [item["id"] for item in json_data]
         assert set(expected_ids) == set(returned_ids), "Expected IDs to match."
 
@@ -448,7 +431,7 @@ class TestUuidValidation:
             sac_file_good: Path to a valid SAC file.
         """
         with Session(engine) as session:
-            with pytest.raises(ValueError, match="No station found"):
+            with pytest.raises(NoResultFound, match="No station found"):
                 add_data_to_project(
                     session,
                     [sac_file_good],
@@ -466,7 +449,7 @@ class TestUuidValidation:
             sac_file_good: Path to a valid SAC file.
         """
         with Session(engine) as session:
-            with pytest.raises(ValueError, match="No event found"):
+            with pytest.raises(NoResultFound, match="No event found"):
                 add_data_to_project(
                     session,
                     [sac_file_good],
@@ -484,7 +467,7 @@ class TestUuidValidation:
             sac_file_good: Path to a valid SAC file.
         """
         with Session(engine) as session:
-            with pytest.raises(ValueError):
+            with pytest.raises(NoResultFound):
                 add_data_to_project(
                     session,
                     [sac_file_good],

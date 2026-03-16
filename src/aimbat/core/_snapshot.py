@@ -1,39 +1,105 @@
+import hashlib
 import json
-import uuid
 from collections.abc import Sequence
-from typing import Any, Literal, overload
+from typing import Any
+from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter
+from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
     AimbatEventParametersSnapshot,
+    AimbatEventQuality,
+    AimbatEventQualitySnapshot,
     AimbatSeismogramParametersSnapshot,
+    AimbatSeismogramQuality,
+    AimbatSeismogramQualitySnapshot,
     AimbatSnapshot,
-    _AimbatSnapshotRead,
+    AimbatSnapshotRead,
 )
 from aimbat.models._parameters import (
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
 )
+from aimbat.models._quality import (
+    AimbatEventQualityBase,
+    AimbatSeismogramQualityBase,
+)
+from aimbat.utils import get_title_map
 
 __all__ = [
+    "compute_parameters_hash",
     "create_snapshot",
-    "rollback_to_snapshot_by_id",
     "rollback_to_snapshot",
-    "delete_snapshot_by_id",
+    "sync_from_matching_hash",
     "delete_snapshot",
     "get_snapshots",
-    "dump_snapshot_tables_to_json",
+    "dump_snapshot_tables",
 ]
 
 
+def compute_parameters_hash(event: AimbatEvent) -> str:
+    """Compute a deterministic SHA-256 hash of the event's current parameters.
+
+    Hashes the event ID, all event-level parameters, and per-seismogram
+    parameters. Seismograms are sorted by ID so the result is independent of
+    load order. Including the event ID means hashes are inherently
+    event-scoped and will never collide across events.
+
+    Excluded fields:
+
+    - `completed` (event): does not affect seismogram processing.
+    - `select` (seismogram): determines which seismograms are passed to MCCC
+      but does not affect the computation for any individual seismogram.
+      Membership of the actual MCCC run is captured by the seismogram quality
+      records in the snapshot, so changing selection state should not
+      invalidate a prior MCCC result.
+
+    Args:
+        event: AimbatEvent whose current parameters should be hashed.
+
+    Returns:
+        Hex-encoded SHA-256 digest.
+    """
+    logger.debug(f"Computing parameters hash for event {event.id}.")
+
+    # exclude completed field since it does not affect the seismograms directly.
+    event_data = AimbatEventParametersBase.model_validate(event.parameters).model_dump(
+        mode="json", exclude={"completed"}
+    )
+    event_data["event_id"] = str(event.id)
+    seis_data = sorted(
+        [
+            {
+                "seismogram_id": str(seis.id),
+                **AimbatSeismogramParametersBase.model_validate(
+                    seis.parameters
+                ).model_dump(mode="json", exclude={"select"}),
+            }
+            for seis in event.seismograms
+        ],
+        key=lambda x: x["seismogram_id"],
+    )
+    payload = json.dumps(
+        {"event": event_data, "seismograms": seis_data}, sort_keys=True
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def create_snapshot(
-    session: Session, event: AimbatEvent, comment: str | None = None
+    session: Session,
+    event: AimbatEvent,
+    comment: str | None = None,
 ) -> None:
-    """Create a snapshot of the AIMBAT processing parameters.
+    """Create a snapshot of the AIMBAT processing parameters and quality metrics.
+
+    Parameter snapshots are always created. Quality snapshots are created
+    whenever the corresponding live quality record has at least one non-None
+    field. Seismogram quality is omitted when all quality fields are `None`
+    (e.g. before any ICCS or MCCC run).
 
     Args:
         session: Database session.
@@ -46,7 +112,7 @@ def create_snapshot(
     event_parameters_snapshot = AimbatEventParametersSnapshot.model_validate(
         event.parameters,
         update={
-            "id": uuid.uuid4(),  # we don't want to carry over the id from the input event parameters
+            "id": uuid4(),  # we don't want to carry over the id from the input event parameters
             "parameters_id": event.parameters.id,
         },
     )
@@ -59,7 +125,7 @@ def create_snapshot(
         seismogram_parameter_snapshot = AimbatSeismogramParametersSnapshot.model_validate(
             aimbat_seismogram.parameters,
             update={
-                "id": uuid.uuid4(),  # we don't want to carry over the id from the input seismogram parameters
+                "id": uuid4(),  # we don't want to carry over the id from the input seismogram parameters
                 "seismogram_parameters_id": aimbat_seismogram.parameters.id,
             },
         )
@@ -68,44 +134,66 @@ def create_snapshot(
         )
         seismogram_parameter_snapshots.append(seismogram_parameter_snapshot)
 
+    # Capture quality metrics from the live quality tables.
+    event_quality_snap: AimbatEventQualitySnapshot | None = None
+    seis_quality_snaps: list[AimbatSeismogramQualitySnapshot] = []
+
+    if event.quality is not None and event.quality.mccc_rmse is not None:
+        logger.debug("Capturing event quality snapshot from live quality table.")
+        event_quality_snap = AimbatEventQualitySnapshot.model_validate(
+            event.quality,
+            update={
+                "id": uuid4(),
+                "event_quality_id": event.quality.id,
+            },
+        )
+
+    for aimbat_seismogram in event.seismograms:
+        sq = aimbat_seismogram.quality
+        if sq is None:
+            continue
+        if any(
+            v is not None
+            for v in [sq.iccs_cc, sq.mccc_cc_mean, sq.mccc_cc_std, sq.mccc_error]
+        ):
+            logger.debug(
+                f"Adding seismogram quality snapshot for seismogram {aimbat_seismogram.id}."
+            )
+            seis_quality_snaps.append(
+                AimbatSeismogramQualitySnapshot.model_validate(
+                    sq,
+                    update={
+                        "id": uuid4(),
+                        "seismogram_quality_id": sq.id,
+                    },
+                )
+            )
+
     aimbat_snapshot = AimbatSnapshot(
         event=event,
         event_parameters_snapshot=event_parameters_snapshot,
         seismogram_parameters_snapshots=seismogram_parameter_snapshots,
+        event_quality_snapshot=event_quality_snap,
+        seismogram_quality_snapshots=seis_quality_snaps,
         comment=comment,
+        parameters_hash=compute_parameters_hash(event),
     )
     session.add(aimbat_snapshot)
     session.commit()
 
 
-def rollback_to_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
+def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
     """Rollback to an AIMBAT parameters snapshot.
 
     Args:
-        session: Database session.
         snapshot_id: Snapshot id.
     """
 
-    logger.info(f"Deleting snapshot with id={snapshot_id}.")
+    logger.info(f"Rolling back to snapshot with id={snapshot_id}.")
 
     snapshot = session.get(AimbatSnapshot, snapshot_id)
-
     if snapshot is None:
-        raise ValueError(
-            f"Unable to delete snapshot: snapshot with id={snapshot_id} not found."
-        )
-
-    rollback_to_snapshot(session, snapshot)
-
-
-def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
-    """Rollback to an AIMBAT parameters snapshot.
-
-    Args:
-        snapshot: Snapshot.
-    """
-
-    logger.info(f"Rolling back to snapshot with id={snapshot.id}.")
+        raise ValueError(f"No AimbatSnapshot found with {snapshot_id=}")
 
     # create object with just the parameters
     rollback_event_parameters = AimbatEventParametersBase.model_validate(
@@ -139,132 +227,231 @@ def rollback_to_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
         session.add(current_seismogram_parameters)
 
     session.commit()
+    sync_from_matching_hash(session, snapshot_id=snapshot_id)
 
 
-def delete_snapshot_by_id(session: Session, snapshot_id: uuid.UUID) -> None:
-    """Delete an AIMBAT parameter snapshot.
+def sync_from_matching_hash(
+    session: Session,
+    parameters_hash: str | None = None,
+    snapshot_id: UUID | None = None,
+) -> bool:
+    """Sync live quality metrics from a snapshot whose parameter hash matches the given hash.
+
+    Searches all snapshots for candidates whose `parameters_hash` matches and
+    that have MCCC quality data. When multiple candidates exist, `snapshot_id`
+    is used as a tie-breaker (preferred if it is among them); otherwise the
+    most recent candidate is used.
 
     Args:
         session: Database session.
+        parameters_hash: Hash to match against snapshot hashes. If None and
+            `snapshot_id` is provided, the hash is derived from that snapshot.
+        snapshot_id: Optional tie-breaker when multiple candidates share the
+            same hash.
+
+    Returns:
+        True if quality metrics were synced, False if no suitable candidate
+        was found.
+
+    Raises:
+        ValueError: If both are provided but the hashes differ.
+    """
+    if parameters_hash is None:
+        if snapshot_id is None:
+            return False
+        snapshot = session.get(AimbatSnapshot, snapshot_id)
+        if snapshot is None:
+            raise ValueError(f"No AimbatSnapshot found with {snapshot_id=}")
+        parameters_hash = snapshot.parameters_hash
+        if parameters_hash is None:
+            return False
+    elif snapshot_id is not None:
+        snapshot = session.get(AimbatSnapshot, snapshot_id)
+        if snapshot is not None and snapshot.parameters_hash != parameters_hash:
+            raise ValueError(
+                f"Provided parameters_hash does not match hash on snapshot {snapshot_id}."
+            )
+
+    logger.debug(f"Looking for quality metrics to sync for hash {parameters_hash}.")
+
+    candidates = [
+        s
+        for s in get_snapshots(session)
+        if s.parameters_hash == parameters_hash
+        and s.event_quality_snapshot is not None
+        and s.event_quality_snapshot.mccc_rmse is not None
+    ]
+    if not candidates:
+        logger.debug("No snapshot with matching hash and MCCC quality data found.")
+        return False
+
+    preferred = next((c for c in candidates if c.id == snapshot_id), None)
+    snapshot = (
+        preferred if preferred is not None else max(candidates, key=lambda s: s.time)
+    )
+
+    logger.info(f"Syncing quality metrics from snapshot {snapshot.id}.")
+
+    event_quality_snap = snapshot.event_quality_snapshot
+    assert event_quality_snap is not None
+    live_event_quality = session.get(
+        AimbatEventQuality, event_quality_snap.event_quality_id
+    )
+    if live_event_quality is None:
+        logger.warning(
+            f"Live event quality record {event_quality_snap.event_quality_id} not found; skipping event quality sync."
+        )
+    else:
+        for k in AimbatEventQualityBase.model_fields:
+            v = getattr(event_quality_snap, k)
+            logger.debug(f"Setting event quality {k} to {v!r} from snapshot.")
+            setattr(live_event_quality, k, v)
+        session.add(live_event_quality)
+
+    for seis_quality_snap in snapshot.seismogram_quality_snapshots:
+        live_seis_quality = session.get(
+            AimbatSeismogramQuality, seis_quality_snap.seismogram_quality_id
+        )
+        if live_seis_quality is None:
+            logger.warning(
+                f"Live seismogram quality record {seis_quality_snap.seismogram_quality_id} not found; skipping."
+            )
+            continue
+        for k in AimbatSeismogramQualityBase.model_fields:
+            v = getattr(seis_quality_snap, k)
+            logger.debug(f"Setting seismogram quality {k} to {v!r} from snapshot.")
+            setattr(live_seis_quality, k, v)
+        session.add(live_seis_quality)
+
+    session.commit()
+    return True
+
+
+def delete_snapshot(session: Session, snapshot_id: UUID) -> None:
+    """Delete an AIMBAT parameter snapshot.
+
+    Args:
         snapshot_id: Snapshot id.
     """
-
-    logger.debug(f"Searching for snapshot with id {snapshot_id}.")
+    logger.info(f"Deleting snapshot {snapshot_id}.")
 
     snapshot = session.get(AimbatSnapshot, snapshot_id)
-
     if snapshot is None:
-        raise ValueError(
-            f"Unable to delete snapshot: snapshot with id={snapshot_id} not found."
-        )
-
-    delete_snapshot(session, snapshot)
-
-
-def delete_snapshot(session: Session, snapshot: AimbatSnapshot) -> None:
-    """Delete an AIMBAT parameter snapshot.
-
-    Args:
-        session: Database session.
-        snapshot: Snapshot.
-    """
-
-    logger.info(f"Deleting snapshot {snapshot.id}.")
+        raise NoResultFound(f"Unable to find snapshot with {snapshot_id=}")
 
     session.delete(snapshot)
     session.commit()
 
 
 def get_snapshots(
-    session: Session, event: AimbatEvent | None = None, all_events: bool = False
+    session: Session, event_id: UUID | None = None
 ) -> Sequence[AimbatSnapshot]:
-    """Get the snapshots for an event.
+    """Get the snapshots, optional filtered by event ID.
 
     Args:
         session: Database session.
-        event: Event to return snapshots for.
-        all_events: Get the snapshots for all events.
+        event_id: Event ID to filter snapshots by (if none is provided, snapshots for all events are returned).
 
     Returns: Snapshots.
     """
+    logger.debug("Getting AIMBAT snapshots.")
 
-    logger.info("Getting AIMBAT snapshots.")
-
-    if all_events:
+    if event_id is None:
         statement = select(AimbatSnapshot)
     else:
-        if event is None:
-            raise ValueError("An event must be provided when all_events is False.")
-        statement = select(AimbatSnapshot).where(AimbatSnapshot.event_id == event.id)
+        statement = select(AimbatSnapshot).where(AimbatSnapshot.event_id == event_id)
 
     logger.debug(f"Executing statement to get snapshots: {statement}")
     return session.exec(statement).all()
 
 
-@overload
-def dump_snapshot_tables_to_json(
+def dump_snapshot_tables(
     session: Session,
-    all_events: bool,
-    as_string: Literal[True],
-    event: AimbatEvent | None = None,
-) -> str: ...
-
-
-@overload
-def dump_snapshot_tables_to_json(
-    session: Session,
-    all_events: bool,
-    as_string: Literal[False],
-    event: AimbatEvent | None = None,
-) -> dict[str, list[dict[str, Any]]]: ...
-
-
-def dump_snapshot_tables_to_json(
-    session: Session,
-    all_events: bool,
-    as_string: bool,
-    event: AimbatEvent | None = None,
-) -> str | dict[str, list[dict[str, Any]]]:
+    from_read_model: bool = False,
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+    event_id: UUID | None = None,
+) -> dict[str, list[dict[str, Any]]]:
     """Dump snapshot data as a dict of lists of dicts.
 
     Returns a structure with three keys:
 
-    - ``snapshots``: flat list of snapshot metadata.
-    - ``event_parameters``: flat list of event parameter snapshots.
-    - ``seismogram_parameters``: flat list of seismogram parameter snapshots.
+    - `snapshots`: flat list of snapshot metadata.
+    - `event_parameters`: flat list of event parameter snapshots.
+    - `seismogram_parameters`: flat list of seismogram parameter snapshots.
 
-    Each entry includes a ``snapshot_id`` for cross-referencing.
+    Each entry includes a `snapshot_id` for cross-referencing.
 
     Args:
         session: Database session.
-        all_events: Include snapshots for all events.
-        as_string: Return a JSON string when True, otherwise a dict.
-        event: Event to dump snapshots for (only used when all_events is False).
+        from_read_model: Whether to dump from the read model (True) or the ORM model.
+            Only affects the `snapshots` table.
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_title: Whether to use titles for the field names in the output (only
+            applicable when from_read_model is True). Mutually exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+        event_id: Event ID to filter seismograms by (if none is provided,
+            seismograms for all events are dumped).
     """
-    logger.info(f"Dumping AimbatSnapshot tables to json with {all_events=}.")
+    logger.debug("Dumping AimbatSnapshot tables to json.")
 
-    snapshots = get_snapshots(session, event=event, all_events=all_events)
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
-    snapshot_adapter: TypeAdapter[Sequence[_AimbatSnapshotRead]] = TypeAdapter(
-        Sequence[_AimbatSnapshotRead]
-    )
+    if not from_read_model and by_title:
+        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    snapshots = get_snapshots(session, event_id)
+
     event_params_adapter: TypeAdapter[Sequence[AimbatEventParametersSnapshot]] = (
         TypeAdapter(Sequence[AimbatEventParametersSnapshot])
     )
+    event_snaps = [s.event_parameters_snapshot for s in snapshots]
+    event_dicts = event_params_adapter.dump_python(
+        event_snaps, mode="json", by_alias=by_alias
+    )
+
     seis_params_adapter: TypeAdapter[Sequence[AimbatSeismogramParametersSnapshot]] = (
         TypeAdapter(Sequence[AimbatSeismogramParametersSnapshot])
     )
+    seis_snaps = [sp for s in snapshots for sp in s.seismogram_parameters_snapshots]
+    seis_dicts = seis_params_adapter.dump_python(
+        seis_snaps, mode="json", by_alias=by_alias
+    )
 
-    snapshot_reads = [_AimbatSnapshotRead.from_snapshot(s) for s in snapshots]
-    event_params = [s.event_parameters_snapshot for s in snapshots]
-    seis_params = [sp for s in snapshots for sp in s.seismogram_parameters_snapshots]
+    if from_read_model:
+        snapshot_read_adapter: TypeAdapter[Sequence[AimbatSnapshotRead]] = TypeAdapter(
+            Sequence[AimbatSnapshotRead]
+        )
+        snapshots_read = [
+            AimbatSnapshotRead.from_snapshot(s, session=session) for s in snapshots
+        ]
+        snapshot_dicts = snapshot_read_adapter.dump_python(
+            snapshots_read, mode="json", by_alias=by_alias, exclude=exclude
+        )
+
+        if by_title:
+            title_map = get_title_map(AimbatSnapshotRead)
+            snapshot_dicts = [
+                {title_map.get(k, k): v for k, v in row.items()}
+                for row in snapshot_dicts
+            ]
+    else:
+        snapshot_adapter: TypeAdapter[Sequence[AimbatSnapshot]] = TypeAdapter(
+            Sequence[AimbatSnapshot]
+        )
+        snapshot_dicts = snapshot_adapter.dump_python(
+            snapshots, mode="json", by_alias=by_alias, exclude=exclude
+        )
 
     data: dict[str, list[dict[str, Any]]] = {
-        "snapshots": snapshot_adapter.dump_python(snapshot_reads, mode="json"),
-        "event_parameters": event_params_adapter.dump_python(event_params, mode="json"),
-        "seismogram_parameters": seis_params_adapter.dump_python(
-            seis_params, mode="json"
-        ),
+        "snapshots": snapshot_dicts,
+        "event_parameters": event_dicts,
+        "seismogram_parameters": seis_dicts,
     }
 
-    return json.dumps(data) if as_string else data
+    return data

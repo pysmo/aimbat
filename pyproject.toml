@@ -3,33 +3,33 @@ name = "aimbat"
 dynamic = ["version"]
 description = "AIMBAT: Automated and Interactive Measurement of Body-wave Arrival Times."
 authors = [
-    { name = "Xiaoting Lou", email = "xlou@u.northwestern.edu" },
-    { name = "Simon M. Lloyd", email = "simon@slloyd.net" },
+  { name = "Xiaoting Lou", email = "xlou@u.northwestern.edu" },
+  { name = "Simon M. Lloyd", email = "simon@slloyd.net" },
 ]
 requires-python = ">=3.12,<3.15"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 classifiers = [
-    "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering",
-    "Operating System :: OS Independent",
-    "Development Status :: 5 - Production/Stable",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Operating System :: OS Independent",
+  "Development Status :: 5 - Production/Stable",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
 ]
 dependencies = [
-    "pysmo",
-    "loguru>=0.7.3",
-    "sqlmodel>=0.0.24",
-    "rich>=13.9.4",
-    "matplotlib>=3.10.6",
-    "cyclopts>=3.24.0",
-    "pydantic-settings>=2.10.1",
-    "pandas>=3.0.1",
-    "pandas-stubs>=3.0.0.260204",
-    "textual>=8.0.0",
-    "textual-fspicker>=1.0.0",
-    "prompt-toolkit>=3.0.52",
-    "mplcursors>=0.7",
+  "pysmo",
+  "loguru>=0.7.3",
+  "sqlmodel>=0.0.24",
+  "rich>=13.9.4",
+  "matplotlib>=3.10.6",
+  "cyclopts>=3.24.0",
+  "pydantic-settings>=2.10.1",
+  "pandas>=3.0.1",
+  "pandas-stubs>=3.0.0.260204",
+  "textual>=8.0.0",
+  "textual-fspicker>=1.0.0",
+  "prompt-toolkit>=3.0.52",
+  "mplcursors>=0.7",
 ]
 
 [project.urls]
@@ -41,31 +41,28 @@ aimbat-tui = "aimbat._tui.app:main"
 
 [dependency-groups]
 test = [
-    "pytest>=8.4.2",
-    "pytest-cov>=7.0.0",
-    "pytest-dependency>=0.6.0",
-    "pytest-mpl>=0.17.0",
-    "pytest-mypy>=1.0.1",
-    "pytest-sugar>=1.1.1",
-    "ruff>=0.13.0",
+  "pytest>=8.4.2",
+  "pytest-cov>=7.0.0",
+  "pytest-dependency>=0.6.0",
+  "pytest-mpl>=0.17.0",
+  "pytest-mypy>=1.0.1",
+  "pytest-sugar>=1.1.1",
+  "ruff>=0.13.0",
 ]
 dev = [
     "ruff>=0.15.5",
     "textual-dev>=1.8.0",
+    "vulture>=2.15",
 ]
 docs = [
-    "git-cliff>=2.12.0",
-    "griffe-fieldz>=0.5.0",
-    "mkdocstrings-python>=2.0.2",
-    "zensical>=0.0.23",
+  "git-cliff>=2.12.0",
+  "griffe-fieldz>=0.5.0",
+  "mkdocstrings-python>=2.0.2",
+  "zensical>=0.0.23",
 ]
 
 [tool.uv]
-default-groups = [
-    "test",
-    "dev",
-    "docs",
-]
+default-groups = ["test", "dev", "docs"]
 
 [tool.uv.sources]
 pysmo = { git = "https://github.com/pysmo/pysmo", rev = "master" }
@@ -81,15 +78,12 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-testpaths = [
-  "tests",
-  "src",
-]
+testpaths = ["tests", "src"]
 markers = [
-    "slow: mark slow tests that may take a long time to run",
-    "cli: mark as command-line interface tests",
-    "gui: mark tests that require a GUI environment",
-    "mpl: mark tests that generate matplotlib figures",
+  "slow: mark slow tests that may take a long time to run",
+  "cli: mark as command-line interface tests",
+  "gui: mark tests that require a GUI environment",
+  "mpl: mark tests that generate matplotlib figures",
 ]
 mpl-generate-summary = "html"
 mpl-use-full-test-name = true
@@ -105,28 +99,24 @@ warn_redundant_casts = true
 source = ["src"]
 [tool.coverage.report]
 exclude_also = [
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-    "plt.show()",
-    "plt.savefig(.*)",
-    "pass",
-    ]
+  "def __repr__",
+  "if self.debug:",
+  "if settings.DEBUG",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if 0:",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+  "class .*\\bProtocol\\):",
+  "@(abc\\.)?abstractmethod",
+  "plt.show()",
+  "plt.savefig(.*)",
+  "pass",
+]
 
 
 [tool.ruff]
-extend-exclude = [
-    "sample-data",
-    "docs",
-    "site",
-]
+extend-exclude = ["sample-data", "docs", "site"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
@@ -141,7 +131,7 @@ section-order = [
   "third-party",
   "pysmo-group",
   "first-party",
-  "local-folder"
+  "local-folder",
 ]
 
 [tool.ruff.lint.isort.sections]

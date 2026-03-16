@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
+import pandas as pd
 from pandas import Timedelta, Timestamp
 from sqlalchemy.engine import Dialect
 from sqlalchemy.types import BigInteger, DateTime, TypeDecorator
@@ -21,7 +22,7 @@ class SAPandasTimestamp(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value: Any, dialect: Dialect) -> datetime | None:
-        if value is None:
+        if pd.isnull(value):
             return None
 
         ts = value if isinstance(value, Timestamp) else Timestamp(value)
@@ -56,7 +57,7 @@ class SAPandasTimedelta(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value: Any, dialect: Dialect) -> int | None:
-        if value is None:
+        if pd.isnull(value):
             return None
 
         td = value if isinstance(value, Timedelta) else Timedelta(value)

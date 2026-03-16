@@ -9,9 +9,10 @@ Dependencies are managed with **uv**. All commands assume the virtualenv is acti
 make sync                          # uv sync --locked --all-extras
 
 # Format and lint
-make format                        # black .
-make lint                          # black --check + ruff check .
+make format                        # ruff check --fix + ruff format
+make lint                          # ruff check + ruff format --check
 uv run ruff check --fix .          # auto-fix ruff issues
+uv run ruff format .               # format code (replaces black)
 
 # Type checking
 make mypy                          # uv run pytest --mypy -m mypy src tests
@@ -27,7 +28,11 @@ uv run pytest tests/unit/test_foo.py::test_specific_function
 make test-figs
 ```
 
-Configuration: `pyproject.toml` (pytest, mypy, black, ruff, coverage). Tests run against Python 3.12–3.14 in CI via tox.
+Configuration: `pyproject.toml` (pytest, mypy, ruff, coverage). Tests run against Python 3.12–3.14 in CI via tox.
+
+## Design goals
+
+AIMBAT is not just a tool for producing delay times for tomographic inversions. The quality metrics it accumulates during alignment — ICCS cross-correlation coefficients, MCCC timing errors, CC means and standard deviations, and global RMSE — are scientifically interesting in their own right. Analysis of these metrics after alignment is a primary use case and should be treated as a first-class output, not an afterthought. The Python API is the primary interface for this kind of post-processing analysis; the CLI and TUI are workflow tools for interactive alignment, not the end of the pipeline.
 
 ## Architecture
 
@@ -40,17 +45,19 @@ src/aimbat/
 ├── app.py           # Cyclopts CLI root — registers all subcommands
 ├── _cli/             # CLI command definitions (thin layer, delegates to core/)
 ├── core/            # Business logic: ICCS/MCCC algorithms, event/seismogram ops
-│   ├── _active_event.py  # Manages the single active event constraint
 │   ├── _data.py          # SAC ingestion entry point
-│   ├── _iccs.py          # ICCS alignment (wraps pysmo.tools.iccs)
-│   └── _snapshot.py      # Parameter state capture for rollback/comparison
+│   ├── _iccs.py          # ICCS/MCCC alignment (wraps pysmo.tools.iccs)
+│   ├── _snapshot.py      # Parameter and quality state capture for rollback/comparison
+│   └── _views.py         # Quality retrieval and aggregated display data
 ├── models/          # SQLModel ORM definitions (Events, Seismograms, Stations, etc.)
+│   ├── _models.py        # All table models
+│   ├── _parameters.py    # AimbatEventParametersBase, AimbatSeismogramParametersBase
+│   └── _quality.py       # AimbatEventQualityBase, AimbatSeismogramQualityBase
+├── _tui/            # Textual TUI application
 ├── _types/          # Custom Pydantic types (PydanticTimestamp, enums for parameters)
 ├── io/              # File I/O — _base.py defines abstract base; sac.py implements SAC via pysmo
 ├── utils/           # Shared helpers (JSON→table, UUID truncation, styling, sample data)
 ├── _config.py       # Global Settings (pydantic-settings, env prefix AIMBAT_)
-├── _lib/            # Internal mixins (EventParametersValidatorMixin)
-├── _utils.py        # Top-level utility helpers
 ├── db.py            # SQLite engine singleton (foreign keys enforced via PRAGMA)
 └── logger.py        # Loguru-based logging
 ```
@@ -59,17 +66,54 @@ src/aimbat/
 
 1. SAC files are ingested via `aimbat data add` → `core/_data.py` → `io/` → stored in SQLite
 2. One event is set "active" at a time; all processing commands operate on the active event
-3. ICCS (Iterative Cross-Correlation and Stack) aligns seismograms: `core/_iccs.py` wraps `pysmo.tools.iccs`
-4. MCCC (Multi-Channel Cross-Correlation) refines arrival time picks: wraps `pysmo.tools.signal.mccc`
-5. Snapshots (`core/_snapshot.py`) capture parameter state for rollback/comparison
+3. ICCS (Iterative Cross-Correlation and Stack) aligns seismograms: `core/_iccs.py` wraps `pysmo.tools.iccs`; ICCS CC values are written to `AimbatSeismogramQuality` after each build
+4. MCCC (Multi-Channel Cross-Correlation) refines arrival time picks; results are written to `AimbatEventQuality` and `AimbatSeismogramQuality`
+5. Snapshots (`core/_snapshot.py`) capture a point-in-time copy of parameters **and** quality metrics
 
 ### Key Models
 
-- **AimbatEvent** — seismic event with `active` flag (only one active at a time, enforced by DB trigger)
-- **AimbatSeismogram** — links to AimbatEvent + AimbatStation; stores `t0` (initial pick) and processing parameters
-- **AimbatEventParameters** — per-event processing settings (window, bandpass, min_ccnorm)
-- **AimbatSeismogramParameters** — per-seismogram flags (`select`, `flip`, `t1` pick)
-- **SAPandasTimestamp / SAPandasTimedelta** in `models/_sqlalchemy.py` — custom SQLAlchemy type decorators storing pandas timestamps as UTC datetimes and timedeltas as nanosecond integers
+Parameters and quality follow the same three-layer pattern:
+
+| Layer | Parameters | Quality |
+|-------|-----------|---------|
+| Base (fields only) | `AimbatEventParametersBase` / `AimbatSeismogramParametersBase` | `AimbatEventQualityBase` / `AimbatSeismogramQualityBase` |
+| Live table (one row per event/seismogram) | `AimbatEventParameters` / `AimbatSeismogramParameters` | `AimbatEventQuality` / `AimbatSeismogramQuality` |
+| Snapshot table (point-in-time copy) | `AimbatEventParametersSnapshot` / `AimbatSeismogramParametersSnapshot` | `AimbatEventQualitySnapshot` / `AimbatSeismogramQualitySnapshot` |
+
+- **AimbatEvent** — seismic event with `is_default` flag (only one default at a time, enforced by DB trigger)
+- **AimbatSeismogram** — links to AimbatEvent + AimbatStation; stores `t0` (initial pick); delegates `data` to the datasource
+- **AimbatSeismogramQuality** — live quality: `iccs_cc` (written on every ICCS build), `mccc_error`, `mccc_cc_mean`, `mccc_cc_std` (written after MCCC runs, cleared when parameters change)
+- **AimbatEventQuality** — live quality: `mccc_rmse` (written after MCCC runs)
+- **AimbatSnapshot** — point-in-time container; holds parameter snapshots for all seismograms and, when available, quality snapshots
+- **SAPandasTimestamp / SAPandasTimedelta** in `_types/_sqlalchemy.py` — custom SQLAlchemy type decorators storing pandas timestamps as UTC datetimes and timedeltas as nanosecond integers
+
+### Quality lifecycle
+
+- `AimbatSeismogramQuality.iccs_cc` is set whenever `create_iccs_instance` builds a fresh `BoundICCS`
+- MCCC fields are set by `run_mccc` via `_write_mccc_quality`; cleared by `clear_mccc_quality` when parameters change (detected via `compute_parameters_hash`)
+- `create_snapshot` reads the live quality tables; only seismograms with at least one non-None quality field get a quality snapshot record
+- View functions (`get_quality_seismogram`, `get_quality_event`) read from the **most recent snapshot that has an event-level quality record** (i.e. the most recent snapshot taken after an MCCC run)
+- Live quality fields are **automatically nulled by SQLite triggers** (triggers 5–7c in `core/_project.py`) when data-affecting parameters change — no application-layer code is needed for this
+- MCCC inclusion is inferred from **live stats**, not `select`: a seismogram is considered to have been in the last MCCC run if and only if its `mccc_cc_mean IS NOT NULL`. This matters because MCCC can be run with `--all`, in which case deselected seismograms are also included.
+
+#### Trigger nulling rules (triggers 5–7c)
+
+| Trigger | Fires when | `iccs_cc` nulled | MCCC fields nulled | `mccc_rmse` nulled |
+|---------|-----------|-----------------|-------------------|-------------------|
+| 5 | `window_pre/post`, `ramp_width`, or `bandpass_*` changes on event | All seismograms | All seismograms | Yes |
+| 6 | `mccc_damp` or `mccc_min_cc` changes on event | — | All seismograms | Yes |
+| 7a | `flip` on a **selected** seismogram | All seismograms | All, if live MCCC stats | If live MCCC stats |
+| 7a | `flip` on a **deselected** seismogram | That seismogram only | All, if live MCCC stats | If live MCCC stats |
+| 7b | `t1` on a **selected** seismogram | All seismograms | All, if live MCCC stats | If live MCCC stats |
+| 7b | `t1` on a **deselected** seismogram | That seismogram only | All, if live MCCC stats | If live MCCC stats |
+| 7c | `select` changes (either direction) | All seismograms | All, if live MCCC stats | If live MCCC stats |
+
+> **TODO**: Triggers 5–7c are SQLite-specific. If a second database backend is added, they will need porting:
+> - Replace `IS NOT` with `IS DISTINCT FROM` (standard SQL, NULL-safe)
+> - Replace `CREATE TRIGGER IF NOT EXISTS` with `CREATE OR REPLACE TRIGGER` (PostgreSQL syntax)
+> - Replace SQLite date functions (`datetime('now')`, `strftime(...)`) with the target dialect's equivalents
+
+> **TODO**: ICCS validation for `t1` (e.g., ensuring the pick is within seismogram bounds) is not currently performed when it is set directly via `set_seismogram_parameter`. This should be refactored to use a model-level validator and `ValidationContext`, similar to the implementation for event parameters.
 
 ### Configuration
 
@@ -85,6 +129,7 @@ Settings live in `_config.py` as a `pydantic-settings` class. All settings can b
 - Test assets (SAC files) live in `tests/assets/`; use `tmp_path_factory` copies to avoid mutating them
 - Mirror `src/aimbat/` directory structure under `tests/` (e.g. `tests/unit/core/`, `tests/unit/models/`)
 - Matplotlib comparison tests use `--mpl` flag; baseline images live in `baseline/`
+- To simulate an MCCC run in tests, write directly to `AimbatEventQuality` / `AimbatSeismogramQuality`, call `session.refresh(event)`, then `create_snapshot` — do not mock `BoundICCS`
 
 ### CLI Pattern
 
@@ -94,7 +139,7 @@ Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it wi
 
 - Use `PydanticTimestamp` / `PydanticTimedelta` (from `aimbat._types`) for pandas-compatible time fields in models
 - Use `PydanticNegativeTimedelta` / `PydanticPositiveTimedelta` for constrained sign validation
-- Use `SAPandasTimestamp` / `SAPandasTimedelta` (from `aimbat.models._sqlalchemy`) as the `sa_type` in SQLModel fields
+- Use `SAPandasTimestamp` / `SAPandasTimedelta` as the `sa_type` in SQLModel fields
 
 ## Code Style and Standards
 
@@ -109,21 +154,17 @@ Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it wi
 
 - Follow [PEP 8](https://peps.python.org/pep-0008/) style guide for all Python code
 - Use 4 spaces for indentation (no tabs)
-- Maximum line length: 88 characters (Black default)
+- Maximum line length: 88 characters
 - Use blank lines to separate functions and classes
 - Imports should be grouped: standard library, third-party, local
 
 ### Code Formatting
 
-- All code must pass **Black** formatting
+- All code must pass **Ruff** formatting and linting
   - Target Python versions: 3.12, 3.13, 3.14
   - Line length: 88 characters
-  - Run `black .` before committing
-
-- All code must pass **Ruff** linting
-  - Configuration in `pyproject.toml`
-  - Run `ruff check .` before committing
-  - Fix issues with `ruff check --fix .`
+  - Run `ruff format .` before committing (replaces black)
+  - Run `ruff check --fix .` to auto-fix linting issues
 
 ### Language
 
@@ -192,7 +233,7 @@ Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it wi
 ### Commit Messages
 
 - Use clear, descriptive commit messages
-- Follow conventional commits format when appropriate
+- Follow conventional commits format
 - Use British English spelling
 
 ## Review Priorities
@@ -227,9 +268,8 @@ Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it wi
 
 ## Before Committing
 
-1. Run `black .` to format code
+1. Run `ruff format .` to format code
 2. Run `ruff check --fix .` to check and fix linting issues
-3. Run tests with `pytest`
-4. Verify type hints with `mypy`
-5. Check British English spelling
-6. Ensure docstrings follow Google style
+3. Run tests with `make tests` (includes mypy + pytest)
+4. Check British English spelling
+5. Ensure docstrings follow Google style

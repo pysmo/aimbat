@@ -9,62 +9,55 @@ from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
-from aimbat._types import (
-    EventParameter,
-    EventParameterBool,
-    EventParameterFloat,
-    EventParameterTimedelta,
-)
+from aimbat._types import EventParameter
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
     AimbatEventParameters,
+    AimbatEventRead,
     AimbatSeismogram,
     AimbatStation,
-    _AimbatEventRead,
 )
 from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.utils import get_title_map
 
 __all__ = [
-    "delete_event_by_id",
     "delete_event",
     "get_completed_events",
     "get_events_using_station",
-    "get_event_parameter",
     "set_event_parameter",
-    "dump_event_table_to_json",
-    "dump_event_parameter_table_to_json",
+    "dump_event_table",
+    "dump_event_parameter_table",
+]
+
+type EventParameterBool = Literal[
+    EventParameter.COMPLETED, EventParameter.BANDPASS_APPLY
+]
+type EventParameterFloat = Literal[
+    EventParameter.MIN_CC,
+    EventParameter.BANDPASS_FMIN,
+    EventParameter.BANDPASS_FMAX,
+    EventParameter.RAMP_WIDTH,
+]
+type EventParameterTimedelta = Literal[
+    EventParameter.WINDOW_PRE, EventParameter.WINDOW_POST
 ]
 
 
-def delete_event_by_id(session: Session, event_id: UUID) -> None:
-    """Delete an AimbatEvent from the database by ID.
+def delete_event(session: Session, event_id: UUID) -> None:
+    """Delete an AimbatEvent from the database.
 
     Args:
         session: Database session.
         event_id: Event ID.
 
-    Raises:
-        NoResultFound: If no AimbatEvent is found with the given ID.
     """
 
-    logger.debug(f"Getting event with id={event_id}.")
+    logger.info(f"Deleting event {event_id}.")
 
     event = session.get(AimbatEvent, event_id)
     if event is None:
         raise NoResultFound(f"Unable to find event using id: {event_id}.")
-    delete_event(session, event)
-
-
-def delete_event(session: Session, event: AimbatEvent) -> None:
-    """Delete an AimbatEvent from the database.
-
-    Args:
-        session: Database session.
-        event: Event to delete.
-    """
-
-    logger.info(f"Deleting event {event.id}.")
 
     session.delete(event)
     session.commit()
@@ -77,6 +70,8 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
         session: SQL session.
     """
 
+    logger.debug("Getting completed events from project.")
+
     statement = (
         select(AimbatEvent)
         .join(AimbatEventParameters)
@@ -87,24 +82,24 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
 
 
 def get_events_using_station(
-    session: Session, station: AimbatStation
+    session: Session, station_id: UUID
 ) -> Sequence[AimbatEvent]:
     """Get all events that use a particular station.
 
     Args:
         session: Database session.
-        station: Station to return events for.
+        station_id: UUID of the station to return events for.
 
     Returns: Events that use the station.
     """
 
-    logger.info(f"Getting events for station: {station.id}.")
+    logger.debug(f"Getting events for station: {station_id}.")
 
     statement = (
         select(AimbatEvent)
         .join(AimbatSeismogram)
         .join(AimbatStation)
-        .where(AimbatStation.id == station.id)
+        .where(AimbatStation.id == station_id)
     )
 
     events = session.exec(statement).all()
@@ -115,49 +110,9 @@ def get_events_using_station(
 
 
 @overload
-def get_event_parameter(
-    session: Session, event: AimbatEvent, name: EventParameterTimedelta
-) -> Timedelta: ...
-
-
-@overload
-def get_event_parameter(
-    session: Session, event: AimbatEvent, name: EventParameterBool
-) -> bool: ...
-
-
-@overload
-def get_event_parameter(
-    session: Session, event: AimbatEvent, name: EventParameterFloat
-) -> float: ...
-
-
-@overload
-def get_event_parameter(
-    session: Session, event: AimbatEvent, name: EventParameter
-) -> Timedelta | bool | float: ...
-
-
-def get_event_parameter(
-    session: Session, event: AimbatEvent, name: EventParameter
-) -> Timedelta | bool | float:
-    """Get event parameter value for the given event.
-
-    Args:
-        session: Database session.
-        event: AimbatEvent.
-        name: Name of the parameter.
-    """
-
-    logger.info(f"Getting {name=} value for {event=}.")
-
-    return getattr(event.parameters, name)
-
-
-@overload
 def set_event_parameter(
     session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     name: EventParameterTimedelta,
     value: Timedelta,
     *,
@@ -168,7 +123,7 @@ def set_event_parameter(
 @overload
 def set_event_parameter(
     session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     name: EventParameterFloat,
     value: float,
     *,
@@ -179,7 +134,7 @@ def set_event_parameter(
 @overload
 def set_event_parameter(
     session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     name: EventParameterBool,
     value: bool | str,
     *,
@@ -190,7 +145,7 @@ def set_event_parameter(
 @overload
 def set_event_parameter(
     session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     name: EventParameter,
     value: Timedelta | bool | float | str,
     *,
@@ -200,7 +155,7 @@ def set_event_parameter(
 
 def set_event_parameter(
     session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     name: EventParameter,
     value: Timedelta | bool | float | str,
     *,
@@ -210,125 +165,158 @@ def set_event_parameter(
 
     Args:
         session: Database session.
-        event: AimbatEvent.
+        event_id: UUID of the event to set the parameter value for.
         name: Name of the parameter.
         value: Value to set.
         validate_iccs: If True, attempt ICCS construction with the new value
             before committing. Raises and leaves the database unchanged on failure.
     """
+    from ._iccs import clear_mccc_quality
+    from ._snapshot import compute_parameters_hash, sync_from_matching_hash
 
-    logger.info(f"Setting {name=} to {value} for {event=}.")
+    logger.debug(f"Setting {name=} to {value} for event {event_id=}.")
 
+    event = session.get(AimbatEvent, event_id)
+    if event is None:
+        raise NoResultFound(f"No AimbatEvent found with id: {event_id}.")
+
+    # Perform Pydantic validation (including optional ICCS validation)
     parameters = AimbatEventParametersBase.model_validate(
-        event.parameters, update={name: value}
+        event.parameters,
+        update={name: value},
+        context={"validate_iccs": validate_iccs, "event": event},
     )
-    new_value = getattr(parameters, name)
 
-    if validate_iccs:
-        from aimbat.core._iccs import validate_iccs_construction
-
-        # Temporarily apply the new value in-memory with autoflush suppressed so
-        # the session never writes to the DB during the validation query.
-        old_value = getattr(event.parameters, name)
-        with session.no_autoflush:
-            setattr(event.parameters, name, new_value)
-            try:
-                validate_iccs_construction(event)
-            except Exception as exc:
-                setattr(event.parameters, name, old_value)
-                raise ValueError(f"ICCS rejected {name}={value}: {exc}") from exc
-            setattr(event.parameters, name, old_value)
-
-    setattr(event.parameters, name, new_value)
+    setattr(event.parameters, name, getattr(parameters, name))
     session.add(event)
-    session.commit()
+    parameters_hash = compute_parameters_hash(event)
+    if not sync_from_matching_hash(session, parameters_hash):
+        clear_mccc_quality(session, event)
 
 
 @overload
-def dump_event_table_to_json(
-    session: Session, as_string: Literal[True] = ...
+def dump_event_table(
+    session: Session,
+    from_read_model: Literal[False] = ...,
+    by_alias: bool = ...,
+    by_title: bool = ...,
+    exclude: set[str] | None = ...,
 ) -> str: ...
 
 
 @overload
-def dump_event_table_to_json(
-    session: Session, as_string: Literal[False]
+def dump_event_table(
+    session: Session,
+    from_read_model: Literal[True],
+    by_alias: bool = ...,
+    by_title: bool = ...,
+    exclude: set[str] | None = ...,
 ) -> list[dict[str, Any]]: ...
 
 
-def dump_event_table_to_json(
-    session: Session, as_string: bool = True
-) -> str | list[dict[str, Any]]:
-    """Dump the table data to json."""
+def dump_event_table(
+    session: Session,
+    from_read_model: bool = False,
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+) -> list[dict[str, Any]] | str:
+    """Dump the table data to json serialisable list of dicts.
 
-    logger.info("Dumping AIMBAT event table to json.")
+    Args:
+        session: Database session.
+        from_read_model: Whether to dump from the read model (True) or the ORM model.
+        by_alias: Whether to use serialization aliases for the field names.
+        by_title: Whether to use the field title metadata for the field names in the
+            output (only applicable when from_read_model is True). Mutually
+            exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+
+    Raises:
+        ValueError: If both `by_alias` and `by_title` are True.
+        ValueError: If `by_title` is True but `from_read_model` is False.
+    """
+    logger.debug("Dumping AIMBAT event table to json.")
+
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
+
+    if not from_read_model and by_title:
+        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
     events = session.exec(select(AimbatEvent)).all()
-    event_reads = [_AimbatEventRead.from_event(e) for e in events]
-    adapter: TypeAdapter[Sequence[_AimbatEventRead]] = TypeAdapter(
-        Sequence[_AimbatEventRead]
-    )
-    if as_string:
-        return adapter.dump_json(event_reads).decode("utf-8")
-    return adapter.dump_python(event_reads, mode="json")
+
+    if from_read_model:
+        event_reads = [AimbatEventRead.from_event(e, session=session) for e in events]
+        adapter_reads: TypeAdapter[Sequence[AimbatEventRead]] = TypeAdapter(
+            Sequence[AimbatEventRead]
+        )
+        data = adapter_reads.dump_python(
+            event_reads, exclude=exclude, by_alias=by_alias, mode="json"
+        )
+
+        if by_title:
+            title_map = get_title_map(AimbatEventRead)
+            return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+        return data
+
+    adapter: TypeAdapter[Sequence[AimbatEvent]] = TypeAdapter(Sequence[AimbatEvent])
+    return adapter.dump_json(events, exclude=exclude, by_alias=by_alias).decode()
 
 
-@overload
-def dump_event_parameter_table_to_json(
+def dump_event_parameter_table(
     session: Session,
-    all_events: bool,
-    as_string: Literal[True],
-    event: AimbatEvent | None = None,
-) -> str: ...
-
-
-@overload
-def dump_event_parameter_table_to_json(
-    session: Session,
-    all_events: Literal[False],
-    as_string: Literal[False],
-    event: AimbatEvent | None = None,
-) -> dict[str, Any]: ...
-
-
-@overload
-def dump_event_parameter_table_to_json(
-    session: Session,
-    all_events: Literal[True],
-    as_string: Literal[False],
-    event: AimbatEvent | None = None,
-) -> list[dict[str, Any]]: ...
-
-
-def dump_event_parameter_table_to_json(
-    session: Session,
-    all_events: bool,
-    as_string: bool,
-    event: AimbatEvent | None = None,
-) -> str | dict[str, Any] | list[dict[str, Any]]:
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+    event_id: UUID | None = None,
+) -> list[dict[str, Any]]:
     """Dump the event parameter table data to json.
 
     Args:
         session: Database session.
-        all_events: Include event parameter table data for all events.
-        as_string: Whether to return the result as a string.
-        event: Event to dump parameter data for (only used when all_events is False).
+        by_alias: Whether to use serialization aliases for the field names.
+        by_title: Whether to use the field title metadata for the field names.
+            Mutually exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+        event_id: Event ID to filter parameters by (if none is provided,
+            parameters for all events are dumped).
+
+    Raises:
+        ValueError: If both `by_alias` and `by_title` are True.
     """
 
-    logger.info("Dumping AIMBAT event parameter table to json.")
+    logger.debug("Dumping AIMBAT event parameter table to json.")
 
-    if all_events:
-        adapter: TypeAdapter[Sequence[AimbatEventParameters]] = TypeAdapter(
-            Sequence[AimbatEventParameters]
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    adapter: TypeAdapter[Sequence[AimbatEventParameters]] = TypeAdapter(
+        Sequence[AimbatEventParameters]
+    )
+
+    if event_id is not None:
+        statement = select(AimbatEventParameters).where(
+            AimbatEventParameters.event_id == event_id
         )
-        parameters = session.exec(select(AimbatEventParameters)).all()
-        if as_string:
-            return adapter.dump_json(parameters).decode("utf-8")
-        else:
-            return adapter.dump_python(parameters, mode="json")
+    else:
+        statement = select(AimbatEventParameters)
 
-    if event is None:
-        raise ValueError("An event must be provided when all_events is False.")
+    parameters = session.exec(statement).all()
 
-    if as_string:
-        return event.parameters.model_dump_json()
-    return event.parameters.model_dump(mode="json")
+    data = adapter.dump_python(
+        parameters, mode="json", exclude=exclude, by_alias=by_alias
+    )
+
+    if by_title:
+        title_map = get_title_map(AimbatEventParameters)
+        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+    return data

@@ -11,6 +11,7 @@ from .common import (
     ALL_EVENTS_PARAMETER,
     DebugParameter,
     GlobalParameters,
+    JsonDumpParameters,
     TableParameters,
     id_parameter,
     simple_exception,
@@ -29,11 +30,11 @@ def cli_station_delete(
     """Delete existing station."""
     from sqlmodel import Session
 
-    from aimbat.core import delete_station_by_id
+    from aimbat.core import delete_station
     from aimbat.db import engine
 
     with Session(engine) as session:
-        delete_station_by_id(session, station_id)
+        delete_station(session, station_id)
 
 
 @app.command(name="plotseis")
@@ -59,7 +60,9 @@ def cli_station_seismograms_plot(
 
 @app.command(name="dump")
 @simple_exception
-def cli_station_dump(*, _: DebugParameter = DebugParameter()) -> None:
+def cli_station_dump(
+    *, dump_parameters: JsonDumpParameters = JsonDumpParameters()
+) -> None:
     """Dump the contents of the AIMBAT station table to JSON.
 
     Output can be piped or redirected for use in external tools or scripts.
@@ -68,11 +71,11 @@ def cli_station_dump(*, _: DebugParameter = DebugParameter()) -> None:
     from rich import print_json
     from sqlmodel import Session
 
-    from aimbat.core import dump_station_table_to_json
+    from aimbat.core import dump_station_table
     from aimbat.db import engine
 
     with Session(engine) as session:
-        print_json(dump_station_table_to_json(session))
+        print_json(data=dump_station_table(session, by_alias=dump_parameters.by_alias))
 
 
 @app.command(name="list")
@@ -84,125 +87,41 @@ def cli_station_list(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the stations used in an event."""
-    from typing import Any
-
     from sqlmodel import Session
 
-    from aimbat.core import (
-        get_stations_in_event,
-        resolve_event,
-    )
+    from aimbat.core import dump_station_table, resolve_event
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
+    from aimbat.utils import json_to_table, uuid_shortener
 
-    short = table_parameters.short
+    if short := table_parameters.short:
+        exclude = {"id"}
+    else:
+        exclude = {"short_id"}
 
     with Session(engine) as session:
-        logger.info("Printing station table.")
-
-        title = "AIMBAT stations for all events"
-
         if all_events:
             logger.debug("Selecting all AIMBAT stations.")
-            from aimbat.core import dump_station_table_with_counts
-
-            data = dump_station_table_with_counts(session)
+            data = dump_station_table(
+                session, from_read_model=True, by_title=True, exclude=exclude
+            )
+            title = "AIMBAT stations for all events"
         else:
             logger.debug("Selecting AIMBAT stations used by event.")
             event = resolve_event(session, global_parameters.event_id)
-            data = get_stations_in_event(session, event, as_json=True)
-
+            data = dump_station_table(
+                session,
+                event_id=event.id,
+                from_read_model=True,
+                by_title=True,
+                exclude={"seismogram_count", "event_count"} | exclude,
+            )
             if short:
                 title = f"AIMBAT stations for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
             else:
                 title = f"AIMBAT stations for event {event.time} (ID={event.id})"
 
-        column_order = [
-            "id",
-            "name",
-            "network",
-            "channel",
-            "location",
-            "latitude",
-            "longitude",
-            "elevation",
-        ]
-        if all_events:
-            column_order.extend(["seismogram_count", "event_count"])
-
-        column_kwargs: dict[str, dict[str, Any]] = {
-            "id": {
-                "header": "ID (shortened)" if short else "ID",
-                "style": TABLE_STYLING.id,
-                "justify": "center",
-                "no_wrap": True,
-            },
-            "name": {
-                "header": "Name",
-                "style": TABLE_STYLING.mine,
-                "justify": "center",
-                "no_wrap": True,
-            },
-            "network": {
-                "header": "Network",
-                "style": TABLE_STYLING.mine,
-                "justify": "center",
-                "no_wrap": True,
-            },
-            "channel": {
-                "header": "Channel",
-                "style": TABLE_STYLING.mine,
-                "justify": "center",
-            },
-            "location": {
-                "header": "Location",
-                "style": TABLE_STYLING.mine,
-                "justify": "center",
-            },
-            "latitude": {
-                "header": "Latitude",
-                "style": TABLE_STYLING.mine,
-                "justify": "center",
-            },
-            "longitude": {
-                "header": "Longitude",
-                "style": TABLE_STYLING.mine,
-                "justify": "center",
-            },
-            "elevation": {
-                "header": "Elevation",
-                "style": TABLE_STYLING.mine,
-                "justify": "center",
-            },
-            "seismogram_count": {
-                "header": "# Seismograms",
-                "style": TABLE_STYLING.linked,
-                "justify": "center",
-            },
-            "event_count": {
-                "header": "# Events",
-                "style": TABLE_STYLING.linked,
-                "justify": "center",
-            },
-        }
-
-        formatters = {
-            "id": lambda x: (
-                uuid_shortener(session, AimbatStation, str_uuid=x) if short else str(x)
-            ),
-            "latitude": lambda x: f"{x:.3f}" if short else str(x),
-            "longitude": lambda x: f"{x:.3f}" if short else str(x),
-            "elevation": lambda x: f"{x:.0f}" if short else str(x),
-        }
-
-        json_to_table(
-            data,
-            title=title,
-            column_order=column_order,
-            column_kwargs=column_kwargs,
-            formatters=formatters,
-        )
+        json_to_table(data, title=title, short=short)
 
 
 if __name__ == "__main__":

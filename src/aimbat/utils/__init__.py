@@ -14,9 +14,10 @@ from .._utils import export_module_names
 
 _internal_names = set(dir())
 
-from ._json import *
+from ._maths import *
+from ._pydantic import *
 from ._sampledata import *
-from ._style import *
+from ._table import *
 from ._uuid import *
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]

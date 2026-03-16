@@ -48,6 +48,12 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
             if isinstance(value, cls.target_type):
                 return value
             try:
+                # Interpret bare numeric strings as seconds for Timedelta
+                if cls.target_type is Timedelta and isinstance(value, str):
+                    try:
+                        return cast(T, Timedelta(seconds=float(value)))
+                    except ValueError:
+                        pass
                 result = cls.target_type(value)
                 return cast(T, result)
             except Exception as e:

@@ -15,6 +15,7 @@ nav = [
     { "Installation" = "first-steps/installation.md" },
     { "Data & Conventions" = "first-steps/data.md" },
     { "Workflow & Strategy" = "first-steps/workflow.md" },
+    { "Getting Help" = "help.md" },
   ] },
   { "Usage" = [
     { "Using AIMBAT" = "usage/index.md" },
@@ -27,6 +28,7 @@ nav = [
     { "Aligning with ICCS" = "usage/alignment.md" },
     { "Snapshots" = "usage/snapshots.md" },
     { "Finalising with MCCC" = "usage/mccc.md" },
+    { "Quality Assessment" = "usage/quality.md" },
     { "Python API" = "usage/api.md" },
   ] },
   { "API reference" = [
@@ -44,8 +46,11 @@ nav = [
     "api/aimbat/_types.md",
     # "api/aimbat/ui.md",
   ] },
-  { "Getting Help" = "help.md" },
-  { "Contributors" = "contributors.md" },
+  { "Development" = [
+    { "Database Models" = "development/database-models.md" },
+    { "Quality Invalidation" = "development/quality-invalidation.md" },
+    { "Contributors" = "contributors.md" },
+  ] },
   { "Changelog" = "changelog.md" },
 ]
 

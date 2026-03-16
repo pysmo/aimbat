@@ -13,7 +13,12 @@ from typing import TYPE_CHECKING, Annotated
 
 from cyclopts import App, Parameter
 
-from .common import _event_id_converter, print_error_panel, simple_exception
+from .common import (
+    DebugParameter,
+    _event_id_converter,
+    print_error_panel,
+    simple_exception,
+)
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -181,6 +186,7 @@ def cli_shell(
             converter=_event_id_converter,
         ),
     ] = None,
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Start an interactive AIMBAT shell."""
     import shlex
