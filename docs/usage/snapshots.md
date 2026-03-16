@@ -2,13 +2,17 @@
 
 ## What a snapshot captures
 
-A snapshot saves the current processing parameters for an event at a point in
-time. Specifically, it stores:
+A snapshot saves the current processing parameters and quality metrics for an
+event at a point in time. Specifically, it stores:
 
 - All event-level parameters: the time window, bandpass filter settings, and
-  minimum CC norm threshold
+  Min CC (`min_cc`, exposed in the CLI via `pick cc`)
 - Per-seismogram parameters for every seismogram in the event: the current `t1`
   pick, `select` flag, and `flip` flag
+- Quality metrics, if available at snapshot time:
+  - ICCS CC per seismogram (always present once the event has been opened)
+  - MCCC metrics per seismogram and the global RMSE (present only if MCCC has
+      been run)
 
 The seismogram waveform data itself is not copied — snapshots are lightweight.
 They capture where you are in the parameter space, not the data.
@@ -22,7 +26,7 @@ nothing lost by not saving the derived arrays.
 If seismograms are added to the project after a snapshot was taken, they have
 no entry in that snapshot. When previewing or rolling back, those seismograms
 are included using their current live parameters — the snapshot's event-level
-parameters (window, filter, min CC norm) still apply to them.
+parameters (window, filter, Min CC) still apply to them.
 
 Snapshots are per-event. Each event maintains its own list.
 
@@ -145,10 +149,15 @@ This overwrites the current event and seismogram parameters for this event.
 
     Select a snapshot and click **Rollback to this**.
 
-After rolling back, the event's parameters are exactly as they were when
-the snapshot was taken. Any ICCS runs or parameter changes made after that
-snapshot are undone. The snapshot itself is not deleted — you can roll
-back to it again.
+After rolling back, the event's parameters are exactly as they were when the
+snapshot was taken. Any ICCS runs or parameter changes made after that snapshot
+are undone. The snapshot itself is not deleted — you can roll back to it again.
+
+If the snapshot contains MCCC quality data, the live quality metrics are
+restored from the best matching snapshot: the one whose parameter hash matches
+the restored state and that has the most recent MCCC data. In practice this is
+the snapshot you rolled back to, but if that snapshot predates any MCCC run,
+the most recent snapshot with the same parameters and MCCC data is used instead.
 
 ---
 

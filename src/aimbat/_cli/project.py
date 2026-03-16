@@ -95,10 +95,12 @@ def cli_project_info(
         try:
             target_event = resolve_event(session, global_parameters.event_id)
             target_event_id = target_event.id
-            active_stations = len(station.get_stations_in_event(session, target_event))
+            active_stations = len(
+                station.get_stations_in_event(session, target_event.id)
+            )
             seismograms_in_event = len(target_event.seismograms)
             selected_seismograms_in_event = len(
-                seismogram.get_selected_seismograms(session, event=target_event)
+                seismogram.get_selected_seismograms(session, event_id=target_event_id)
             )
         except (NoResultFound, ValueError, RuntimeError):
             target_event_id = None

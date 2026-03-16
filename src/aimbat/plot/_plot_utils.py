@@ -9,6 +9,7 @@ from pysmo.functions import clone_to_mini, detrend, normalize, resample
 from pysmo.tools.azdist import distance
 from pysmo.tools.signal import bandpass
 
+from aimbat.logger import logger
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
 
 __all__ = ["clean_timedelta", "event_seismograms", "station_seismograms"]
@@ -25,11 +26,13 @@ def clean_timedelta(x: float, _: int | None) -> str:
 
 
 def _prepare_seismogram_for_plotting(seismogram: AimbatSeismogram) -> MiniSeismogram:
+    logger.debug(f"Preparing seismogram {seismogram.id} for plotting.")
     preped_seis = clone_to_mini(MiniSeismogram, seismogram)
     detrend(preped_seis)
     if seismogram.event.parameters.bandpass_apply is True:
         fmin = seismogram.event.parameters.bandpass_fmin
         fmax = seismogram.event.parameters.bandpass_fmax
+        logger.debug(f"Applying bandpass filter: {fmin}-{fmax} Hz.")
         bandpass(preped_seis, fmin, fmax)
     resample(preped_seis, _RESAMPLE_DELTA)
     normalize(preped_seis)

@@ -86,16 +86,16 @@ def cli_pick_timewindow(
         )
 
 
-@app.command(name="ccnorm")
+@app.command(name="cc")
 @simple_exception
-def cli_pick_min_ccnorm(
+def cli_pick_min_cc(
     *,
     iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Interactively pick a new minimum cross-correlation norm for auto-selection.
+    """Interactively pick a new minimum cross-correlation for auto-selection.
 
-    Opens an interactive plot; click to set the ccnorm threshold. Seismograms
+    Opens an interactive plot; click to set the cc threshold. Seismograms
     whose cross-correlation with the stack falls below this value will be
     automatically de-selected when running ICCS with `--autoselect`.
     """
@@ -103,12 +103,12 @@ def cli_pick_min_ccnorm(
 
     from aimbat.core import create_iccs_instance, resolve_event
     from aimbat.db import engine
-    from aimbat.plot import update_min_ccnorm
+    from aimbat.plot import update_min_cc
 
     with Session(engine) as session:
         event = resolve_event(session, global_parameters.event_id)
         iccs = create_iccs_instance(session, event).iccs
-        update_min_ccnorm(
+        update_min_cc(
             session,
             event,
             iccs,

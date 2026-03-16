@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING
 
 from aimbat.logger import logger
 
+from ._base import event_creator, station_creator
 from ._data import DataType
 
 if TYPE_CHECKING:
@@ -49,6 +50,7 @@ __all__ = [
 ]
 
 
+@station_creator(DataType.JSON_STATION)
 def create_station_from_json(path: str | PathLike) -> AimbatStation:
     """Create an `AimbatStation` from a JSON file.
 
@@ -67,6 +69,7 @@ def create_station_from_json(path: str | PathLike) -> AimbatStation:
     return AimbatStation.model_validate(data)
 
 
+@event_creator(DataType.JSON_EVENT)
 def create_event_from_json(path: str | PathLike) -> AimbatEvent:
     """Create an `AimbatEvent` from a JSON file.
 
@@ -85,10 +88,3 @@ def create_event_from_json(path: str | PathLike) -> AimbatEvent:
     event = AimbatEvent.model_validate(data)
     event.parameters = AimbatEventParameters()
     return event
-
-
-# Register JSON capabilities with the io dispatch layer
-from ._base import register_event_creator, register_station_creator  # noqa: E402
-
-register_station_creator(DataType.JSON_STATION, create_station_from_json)
-register_event_creator(DataType.JSON_EVENT, create_event_from_json)

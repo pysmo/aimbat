@@ -10,6 +10,7 @@ from sqlmodel import Session
 
 from pysmo.tools.plotutils import time_array
 
+from aimbat.logger import logger
 from aimbat.models import AimbatEvent, AimbatStation
 
 from ._plot_utils import clean_timedelta, event_seismograms, station_seismograms
@@ -30,6 +31,8 @@ def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
 
     if len(seismograms := event_seismograms(event)) == 0:
         raise RuntimeError(f"No seismograms found in event {event.id}.")
+
+    logger.debug(f"Found {len(seismograms)} seismograms for event {event.id}.")
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -64,6 +67,8 @@ def _(station: AimbatStation, session: Session) -> tuple[plt.Figure, plt.Axes]:
     """Plot all seismograms for a particular station ordered by event time."""
     if len(seismograms := station_seismograms(station)) == 0:
         raise RuntimeError(f"No seismograms found for station {station.id}.")
+
+    logger.debug(f"Found {len(seismograms)} seismograms for station {station.id}.")
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -120,6 +125,8 @@ def plot_seismograms(
     Note:
         The seismograms use the filter settings specified in the event parameters.
     """
+    logger.info(f"Plotting seismograms for {type(plot_for).__name__}: {plot_for.id}.")
+
     fig, ax = _plot_seis(plot_for, session)
 
     if return_fig:

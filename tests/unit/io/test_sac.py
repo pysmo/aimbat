@@ -173,7 +173,7 @@ class TestCreateEvent:
         assert event.depth == sac.event.depth
 
     def test_has_parameters(self, sac_file_good: Path) -> None:
-        """Verifies that the created event has initialized parameters.
+        """Verifies that the created event has initialised parameters.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
@@ -237,7 +237,7 @@ class TestCreateSeismogram:
         assert seis_t1.t0 == sac.timestamps.t1
 
     def test_has_parameters(self, sac_file_good: Path) -> None:
-        """Verifies that the created seismogram has initialized parameters.
+        """Verifies that the created seismogram has initialised parameters.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.

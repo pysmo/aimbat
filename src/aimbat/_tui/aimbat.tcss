@@ -45,7 +45,9 @@ TabbedContent {
 }
 
 #project-event-table,
-#project-station-table {
+#project-station-table,
+#seismogram-table,
+#snapshot-table {
     height: 1fr;
 }
 
@@ -225,6 +227,34 @@ SnapshotDetailsModal {
 }
 
 #snapshot-details-table {
+    background: $background;
+    border: none;
+}
+
+QualityModal {
+    align: center middle;
+}
+
+#quality-dialog {
+    background: $background;
+    border: solid $primary;
+    width: 70;
+    height: auto;
+    max-height: 80vh;
+    padding: 1 2;
+}
+
+#quality-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#quality-dialog .quality-section {
+    color: $secondary;
+    margin-top: 1;
+}
+
+#quality-dialog DataTable {
     background: $background;
     border: none;
 }

@@ -34,12 +34,17 @@ __all__ = [
     "create_event",
     "create_seismogram",
     "create_station",
+    "event_creator",
     "read_seismogram_data",
     "register_event_creator",
     "register_seismogram_creator",
     "register_seismogram_data_reader",
     "register_seismogram_data_writer",
     "register_station_creator",
+    "seismogram_creator",
+    "seismogram_data_reader",
+    "seismogram_data_writer",
+    "station_creator",
     "supports_event_creation",
     "supports_seismogram_creation",
     "supports_seismogram_data_reading",
@@ -73,6 +78,7 @@ def register_station_creator(
         fn: Callable that accepts a datasource path or name and returns an
             `AimbatStation` instance.
     """
+    logger.debug(f"Registering station creator for {datatype}.")
     _station_creators[datatype] = fn
 
 
@@ -87,6 +93,7 @@ def register_event_creator(
         fn: Callable that accepts a datasource path or name and returns an
             `AimbatEvent` instance.
     """
+    logger.debug(f"Registering event creator for {datatype}.")
     _event_creators[datatype] = fn
 
 
@@ -101,6 +108,7 @@ def register_seismogram_creator(
         fn: Callable that accepts a datasource path or name and returns an
             `AimbatSeismogram` instance.
     """
+    logger.debug(f"Registering seismogram creator for {datatype}.")
     _seismogram_creators[datatype] = fn
 
 
@@ -115,6 +123,7 @@ def register_seismogram_data_reader(
         fn: Callable that accepts a datasource path or name and returns the
             waveform data as a NumPy array.
     """
+    logger.debug(f"Registering seismogram data reader for {datatype}.")
     _seismogram_data_readers[datatype] = fn
 
 
@@ -129,7 +138,134 @@ def register_seismogram_data_writer(
         fn: Callable that accepts a datasource path or name and a NumPy array,
             and writes the data to the source.
     """
+    logger.debug(f"Registering seismogram data writer for {datatype}.")
     _seismogram_data_writers[datatype] = fn
+
+
+def station_creator(
+    datatype: DataType,
+) -> Callable[
+    [Callable[[str | PathLike], AimbatStation]],
+    Callable[[str | PathLike], AimbatStation],
+]:
+    """Decorator that registers a function as a station creator for `datatype`.
+
+    Example:
+        ```python
+        @station_creator(DataType.SAC)
+        def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
+            ...
+        ```
+    """
+
+    def decorator(
+        fn: Callable[[str | PathLike], AimbatStation],
+    ) -> Callable[[str | PathLike], AimbatStation]:
+        register_station_creator(datatype, fn)
+        return fn
+
+    return decorator
+
+
+def event_creator(
+    datatype: DataType,
+) -> Callable[
+    [Callable[[str | PathLike], AimbatEvent]], Callable[[str | PathLike], AimbatEvent]
+]:
+    """Decorator that registers a function as an event creator for `datatype`.
+
+    Example:
+        ```python
+        @event_creator(DataType.SAC)
+        def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
+            ...
+        ```
+    """
+
+    def decorator(
+        fn: Callable[[str | PathLike], AimbatEvent],
+    ) -> Callable[[str | PathLike], AimbatEvent]:
+        register_event_creator(datatype, fn)
+        return fn
+
+    return decorator
+
+
+def seismogram_creator(
+    datatype: DataType,
+) -> Callable[
+    [Callable[[str | PathLike], AimbatSeismogram]],
+    Callable[[str | PathLike], AimbatSeismogram],
+]:
+    """Decorator that registers a function as a seismogram creator for `datatype`.
+
+    Example:
+        ```python
+        @seismogram_creator(DataType.SAC)
+        def create_seismogram_from_sacfile(sacfile: str | PathLike) -> AimbatSeismogram:
+            ...
+        ```
+    """
+
+    def decorator(
+        fn: Callable[[str | PathLike], AimbatSeismogram],
+    ) -> Callable[[str | PathLike], AimbatSeismogram]:
+        register_seismogram_creator(datatype, fn)
+        return fn
+
+    return decorator
+
+
+def seismogram_data_reader(
+    datatype: DataType,
+) -> Callable[
+    [Callable[[str | PathLike], npt.NDArray[np.float64]]],
+    Callable[[str | PathLike], npt.NDArray[np.float64]],
+]:
+    """Decorator that registers a function as a seismogram data reader for `datatype`.
+
+    Example:
+        ```python
+        @seismogram_data_reader(DataType.SAC)
+        def read_seismogram_data_from_sacfile(sacfile: str | PathLike) -> npt.NDArray[np.float64]:
+            ...
+        ```
+    """
+
+    def decorator(
+        fn: Callable[[str | PathLike], npt.NDArray[np.float64]],
+    ) -> Callable[[str | PathLike], npt.NDArray[np.float64]]:
+        register_seismogram_data_reader(datatype, fn)
+        return fn
+
+    return decorator
+
+
+def seismogram_data_writer(
+    datatype: DataType,
+) -> Callable[
+    [Callable[[str | PathLike, npt.NDArray[np.float64]], None]],
+    Callable[[str | PathLike, npt.NDArray[np.float64]], None],
+]:
+    """Decorator that registers a function as a seismogram data writer for `datatype`.
+
+    Example:
+        ```python
+        @seismogram_data_writer(DataType.SAC)
+        def write_seismogram_data_to_sacfile(
+            sacfile: str | PathLike, data: npt.NDArray[np.float64]
+        ) -> None:
+            ...
+        ```
+    """
+
+    def decorator(
+        fn: Callable[[str | PathLike, npt.NDArray[np.float64]], None],
+    ) -> Callable[[str | PathLike, npt.NDArray[np.float64]], None]:
+        register_seismogram_data_writer(datatype, fn)
+        return fn
+
+    return decorator
 
 
 def supports_station_creation(datatype: DataType) -> bool:
@@ -250,6 +386,8 @@ def read_seismogram_data(
         arr = reader(datasource)
         arr.flags.writeable = False
         _cache[key] = arr
+    else:
+        logger.debug(f"Retrieved seismogram data from cache for {datasource}.")
     return _cache[key]
 
 

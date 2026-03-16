@@ -1,10 +1,12 @@
 import os
-import uuid
 from collections.abc import Sequence
+from typing import Any
+from uuid import UUID
 
 from pydantic import TypeAdapter
 from rich.console import Console
 from rich.progress import track
+from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from aimbat.io import (
@@ -24,20 +26,17 @@ from aimbat.models._models import (
     AimbatStation,
     _AimbatDataSourceCreate,
 )
-from aimbat.utils import (
-    TABLE_STYLING,
-    json_to_table,
-)
+from aimbat.utils import get_title_map, json_to_table
 
 __all__ = [
     "add_data_to_project",
     "get_data_for_event",
-    "dump_data_table_to_json",
+    "dump_data_table",
 ]
 
 
 def _create_station(
-    session: Session, datasource: str | os.PathLike, datatype: DataType
+    session: Session, datasource: os.PathLike | str, datatype: DataType
 ) -> AimbatStation:
     """Create a new AimbatStation if it doesn't exist yet, or use existing one."""
 
@@ -66,7 +65,7 @@ def _create_station(
 
 
 def _create_event(
-    session: Session, datasource: str | os.PathLike, datatype: DataType
+    session: Session, datasource: os.PathLike | str, datatype: DataType
 ) -> AimbatEvent:
     """Create a new AimbatEvent if it doesn't exist yet, or use existing one."""
 
@@ -87,7 +86,7 @@ def _create_event(
 
 
 def _create_seismogram(
-    session: Session, datasource: str | os.PathLike, datatype: DataType
+    session: Session, datasource: os.PathLike | str, datatype: DataType
 ) -> AimbatSeismogram:
     """Create a new AimbatSeismogram if it doesn't exist yet, or use existing one."""
 
@@ -113,10 +112,10 @@ def _create_seismogram(
 
 def _process_datasource(
     session: Session,
-    datasource: str | os.PathLike,
+    datasource: os.PathLike | str,
     datatype: DataType,
-    station_id: uuid.UUID | None,
-    event_id: uuid.UUID | None,
+    station_id: UUID | None,
+    event_id: UUID | None,
 ) -> AimbatDataSource | None:
     """Process a single data source, creating whichever entities the data type supports.
 
@@ -165,6 +164,11 @@ def _process_datasource(
     aimbat_seismogram.station = aimbat_station
     aimbat_seismogram.event = aimbat_event
 
+    logger.debug(
+        f"Linking seismogram from {datasource} to "
+        f"Station={aimbat_station.name} and EventTime={aimbat_event.time}."
+    )
+
     statement = select(AimbatDataSource).where(
         AimbatDataSource.sourcename == str(datasource)
     )
@@ -191,7 +195,6 @@ def _print_dry_run_results(
     existing_seismogram_ids: set,
 ) -> None:
     """Print a summary table showing which entities were added vs skipped."""
-    bool_fmt = TABLE_STYLING.bool_formatter
     json_to_table(
         [
             {
@@ -203,11 +206,6 @@ def _print_dry_run_results(
             for ds in added_datasources
         ],
         title="Dry Run: Data to be added",
-        formatters={
-            "Station": bool_fmt,
-            "Event": bool_fmt,
-            "Seismogram": bool_fmt,
-        },
     )
     new_stations = sum(
         ds.seismogram.station_id not in existing_station_ids for ds in added_datasources
@@ -231,10 +229,10 @@ def _print_dry_run_results(
 
 def add_data_to_project(
     session: Session,
-    data_sources: Sequence[str | os.PathLike],
+    data_sources: Sequence[os.PathLike | str],
     data_type: DataType,
-    station_id: uuid.UUID | None = None,
-    event_id: uuid.UUID | None = None,
+    station_id: UUID | None = None,
+    event_id: UUID | None = None,
     dry_run: bool = False,
     disable_progress_bar: bool = True,
 ) -> None:
@@ -266,9 +264,9 @@ def add_data_to_project(
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
 
     if station_id is not None and session.get(AimbatStation, station_id) is None:
-        raise ValueError(f"No station found with ID {station_id}.")
+        raise NoResultFound(f"No station found with ID {station_id}.")
     if event_id is not None and session.get(AimbatEvent, event_id) is None:
-        raise ValueError(f"No event found with ID {event_id}.")
+        raise NoResultFound(f"No event found with ID {event_id}.")
 
     # Snapshot existing IDs before entering the savepoint so we can identify
     # what would be new vs reused when running a dry run.
@@ -313,36 +311,70 @@ def add_data_to_project(
         raise
 
 
-def get_data_for_event(
-    session: Session, event: AimbatEvent
-) -> Sequence[AimbatDataSource]:
+def get_data_for_event(session: Session, event_id: UUID) -> Sequence[AimbatDataSource]:
     """Returns the data sources belonging to the given event.
 
     Args:
         session: Database session.
-        event: AimbatEvent.
+        event_id: UUID of the AimbatEvent.
 
     Returns:
         Sequence of AimbatDataSource objects belonging to the event.
     """
 
-    logger.info(f"Getting data sources for event {event.id}.")
+    logger.debug(f"Getting data sources for event {event_id}.")
 
     statement = (
         select(AimbatDataSource)
         .join(AimbatSeismogram)
-        .where(AimbatSeismogram.event_id == event.id)
+        .where(AimbatSeismogram.event_id == event_id)
     )
     return session.exec(statement).all()
 
 
-def dump_data_table_to_json(session: Session) -> str:
-    """Dump the table data to json."""
+def dump_data_table(
+    session: Session,
+    event_id: UUID | None = None,
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Return AIMBAT datasources table as a JSON-serialisable list of dicts.
 
-    logger.info("Dumping AIMBAT datasources table to json.")
+    Args:
+        session: Database session.
+        event_id: UUID of the event to filter data sources by. If None, all data sources are returned.
+        by_alias: Whether to use field aliases.
+        by_title: Whether to use field titles (from the Pydantic model) for the
+            field names in the output. Mutually exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+
+    Returns:
+        Aimbat datasources table as a list of dicts.
+    """
+    logger.debug("Dumping AIMBAT datasources table to json.")
+
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
 
     adapter: TypeAdapter[Sequence[AimbatDataSource]] = TypeAdapter(
         Sequence[AimbatDataSource]
     )
-    aimbat_datasource = session.exec(select(AimbatDataSource)).all()
-    return adapter.dump_json(aimbat_datasource).decode("utf-8")
+
+    if event_id is not None:
+        data_source = get_data_for_event(session, event_id)
+    else:
+        data_source = session.exec(select(AimbatDataSource)).all()
+
+    data = adapter.dump_python(
+        data_source, exclude=exclude, by_alias=by_alias, mode="json"
+    )
+
+    if by_title:
+        title_map = get_title_map(AimbatDataSource)
+        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+    return data

@@ -37,5 +37,8 @@ def download_sampledata(force: bool = False) -> None:
             )
 
     with urlopen(settings.sampledata_src) as zipresp:
+        logger.debug(f"Extracting sample data to {settings.sampledata_dir}.")
         with ZipFile(BytesIO(zipresp.read())) as zfile:
             zfile.extractall(settings.sampledata_dir)
+
+    logger.info("Sample data downloaded and extracted successfully.")

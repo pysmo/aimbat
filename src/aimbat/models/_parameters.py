@@ -2,7 +2,7 @@
 
 from typing import Self
 
-from pydantic import model_validator
+from pydantic import ValidationInfo, model_validator
 from sqlmodel import Field, SQLModel
 
 from aimbat import settings
@@ -34,12 +34,10 @@ class AimbatEventParametersBase(SQLModel):
         description="Mark an event as completed.",
     )
 
-    min_ccnorm: float = Field(
-        ge=0.0,
-        le=1.0,
-        default_factory=lambda: settings.min_ccnorm,
-        title="Min CC norm",
-        description="Minimum cross-correlation used when automatically de-selecting seismograms.",
+    ramp_width: float = Field(
+        default_factory=lambda: settings.ramp_width,
+        title="Ramp width",
+        description="Width of taper ramp up and down as a fraction of the window length.",
     )
 
     window_pre: PydanticNegativeTimedelta = Field(
@@ -76,6 +74,14 @@ class AimbatEventParametersBase(SQLModel):
         description="Maximum frequency for bandpass filter in Hz (ignored if `bandpass_apply` is False).",
     )
 
+    min_cc: float = Field(
+        ge=0.0,
+        le=1.0,
+        default_factory=lambda: settings.min_cc,
+        title="Min CC",
+        description="Minimum cross-correlation used when automatically de-selecting seismograms.",
+    )
+
     mccc_damp: float = Field(
         default_factory=lambda: settings.mccc_damp,
         ge=0,
@@ -83,11 +89,11 @@ class AimbatEventParametersBase(SQLModel):
         description="Damping factor for MCCC algorithm.",
     )
 
-    mccc_min_ccnorm: float = Field(
-        default_factory=lambda: settings.mccc_min_ccnorm,
+    mccc_min_cc: float = Field(
+        default_factory=lambda: settings.mccc_min_cc,
         ge=0,
         le=1,
-        title="MCCC min CC norm",
+        title="MCCC min CC",
         description="Minimum correlation coefficient required to include a pair in the MCCC inversion.",
     )
 
@@ -98,23 +104,45 @@ class AimbatEventParametersBase(SQLModel):
             raise ValueError("bandpass_fmax must be > bandpass_fmin")
         return self
 
+    @model_validator(mode="after")
+    def validate_iccs_context(self, info: ValidationInfo) -> Self:
+        """Attempt ICCS construction with these parameters if requested.
+
+        Requires `validate_iccs=True` and an `event` instance in the validation
+        context.
+        """
+        context = info.context or {}
+        if context.get("validate_iccs"):
+            event = context.get("event")
+            if event:
+                from aimbat.core._iccs import validate_iccs_construction
+
+                try:
+                    validate_iccs_construction(event, parameters=self)
+                except Exception as exc:
+                    raise ValueError(f"ICCS validation failed: {exc}") from exc
+        return self
+
 
 class AimbatSeismogramParametersBase(SQLModel):
     """Base class defining seismogram-level processing parameters for AIMBAT."""
 
     flip: bool = Field(
         default=False,
+        title="Flip",
         description="Whether or not the seismogram should be flipped.",
     )
 
     select: bool = Field(
         default=True,
+        title="Select",
         description="Whether or not this seismogram should be used for processing.",
     )
 
     t1: PydanticTimestamp | None = Field(
         default=None,
         sa_type=SAPandasTimestamp,
+        title="T1",
         description=(
             "Working pick. This pick serves as working as well as output pick."
             " It is changed by: 1. Picking the phase arrival in the stack,"

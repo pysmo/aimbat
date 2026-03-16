@@ -6,14 +6,14 @@ from typing import Annotated
 from cyclopts import App
 
 from aimbat._types import SeismogramParameter
-from aimbat.models import AimbatSeismogram
 
 from .common import (
     ALL_EVENTS_PARAMETER,
     DebugParameter,
     GlobalParameters,
+    JsonDumpParameters,
     TableParameters,
-    id_parameter,
+    seismogram_parameter,
     simple_exception,
 )
 
@@ -27,25 +27,25 @@ app.command(parameter)
 @app.command(name="delete")
 @simple_exception
 def cli_seismogram_delete(
-    seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
+    seismogram_id: Annotated[uuid.UUID, seismogram_parameter()],
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Delete existing seismogram."""
     from sqlmodel import Session
 
-    from aimbat.core import delete_seismogram_by_id
+    from aimbat.core import delete_seismogram
     from aimbat.db import engine
 
     with Session(engine) as session:
-        delete_seismogram_by_id(session, seismogram_id)
+        delete_seismogram(session, seismogram_id)
 
 
 @app.command(name="dump")
 @simple_exception
 def cli_seismogram_dump(
     *,
-    _: DebugParameter = DebugParameter(),
+    dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
     """Dump the contents of the AIMBAT seismogram table to JSON.
 
@@ -54,17 +54,75 @@ def cli_seismogram_dump(
     from rich import print_json
     from sqlmodel import Session
 
-    from aimbat.core import dump_seismogram_table_to_json
+    from aimbat.core import dump_seismogram_table
     from aimbat.db import engine
 
     with Session(engine) as session:
-        print_json(dump_seismogram_table_to_json(session))
+        print_json(
+            data=dump_seismogram_table(session, by_alias=dump_parameters.by_alias)
+        )
+
+
+@app.command(name="list")
+@simple_exception
+def cli_seismogram_list(
+    *,
+    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
+    table_parameters: TableParameters = TableParameters(),
+    global_parameters: GlobalParameters = GlobalParameters(),
+) -> None:
+    """Print information on the seismograms in an event."""
+    from sqlmodel import Session
+
+    from aimbat.core import dump_seismogram_table, resolve_event
+    from aimbat.db import engine
+    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
+
+    if short := table_parameters.short:
+        exclude = {"id", "event_id"}
+    else:
+        exclude = {"short_id", "short_event_id"}
+
+    with Session(engine) as session:
+        if all_events is True:
+            title = "AIMBAT seismograms for all events"
+            data = dump_seismogram_table(
+                session, from_read_model=True, by_title=True, exclude=exclude
+            )
+        else:
+            event = resolve_event(session, global_parameters.event_id)
+            if short:
+                title = f"AIMBAT seismograms for event {event.time.strftime('%Y-%m-%d %H:%M:%S')}"
+                title += f" (ID={uuid_shortener(session, event)})"
+                exclude.add("short_event_id")
+            else:
+                title = f"AIMBAT seismograms for event {event.time} (ID={event.id})"
+                exclude.add("event_id")
+            data = dump_seismogram_table(
+                session,
+                from_read_model=True,
+                by_title=True,
+                event_id=event.id,
+                exclude=exclude,
+            )
+
+        json_to_table(
+            data,
+            title=title,
+            formatters={
+                "Flip": TABLE_STYLING.flip_formatter,
+            },
+        )
+
+
+if __name__ == "__main__":
+    app()
 
 
 @parameter.command(name="get")
 @simple_exception
 def cli_seismogram_parameter_get(
-    seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
+    seismogram_id: Annotated[uuid.UUID, seismogram_parameter()],
     name: SeismogramParameter,
     *,
     _: DebugParameter = DebugParameter(),
@@ -74,19 +132,24 @@ def cli_seismogram_parameter_get(
     Args:
         name: Name of the seismogram parameter.
     """
+    from sqlalchemy.exc import NoResultFound
     from sqlmodel import Session
 
-    from aimbat.core import get_seismogram_parameter_by_id
     from aimbat.db import engine
+    from aimbat.models import AimbatSeismogram
 
     with Session(engine) as session:
-        print(get_seismogram_parameter_by_id(session, seismogram_id, name))
+        seismogram = session.get(AimbatSeismogram, seismogram_id)
+        if seismogram is None:
+            raise NoResultFound(f"Unable to find seismogram with id: {seismogram_id}.")
+        value = seismogram.parameters.model_dump(mode="json").get(name)
+        print(value)
 
 
 @parameter.command(name="set")
 @simple_exception
 def cli_seismogram_parameter_set(
-    seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
+    seismogram_id: Annotated[uuid.UUID, seismogram_parameter()],
     name: SeismogramParameter,
     value: str,
     *,
@@ -100,53 +163,47 @@ def cli_seismogram_parameter_set(
     """
     from sqlmodel import Session
 
-    from aimbat.core import set_seismogram_parameter_by_id
+    from aimbat.core import set_seismogram_parameter
     from aimbat.db import engine
 
     with Session(engine) as session:
-        set_seismogram_parameter_by_id(session, seismogram_id, name, value)
+        set_seismogram_parameter(session, seismogram_id, name, value)
 
 
 @parameter.command(name="reset")
 @simple_exception
 def cli_seismogram_parameter_reset(
-    seismogram_id: Annotated[uuid.UUID, id_parameter(AimbatSeismogram)],
+    seismogram_id: Annotated[uuid.UUID, seismogram_parameter()],
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Reset all processing parameters to their default values."""
     from sqlmodel import Session
 
-    from aimbat.core import reset_seismogram_parameters_by_id
+    from aimbat.core import reset_seismogram_parameters
     from aimbat.db import engine
 
     with Session(engine) as session:
-        reset_seismogram_parameters_by_id(session, seismogram_id)
+        reset_seismogram_parameters(session, seismogram_id)
 
 
 @parameter.command(name="dump")
 @simple_exception
 def cli_seismogram_parameter_dump(
     *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
     """Dump seismogram parameter table to json."""
     from rich import print_json
     from sqlmodel import Session
 
-    from aimbat.core import dump_seismogram_parameter_table_to_json, resolve_event
+    from aimbat.core import dump_seismogram_parameter_table
     from aimbat.db import engine
 
     with Session(engine) as session:
-        event = (
-            resolve_event(session, global_parameters.event_id)
-            if not all_events
-            else None
-        )
         print_json(
-            dump_seismogram_parameter_table_to_json(
-                session, all_events, as_string=True, event=event
+            data=dump_seismogram_parameter_table(
+                session, by_alias=dump_parameters.by_alias
             )
         )
 
@@ -166,137 +223,40 @@ def cli_seismogram_parameter_list(
 
     from sqlmodel import Session
 
-    from aimbat.core import dump_seismogram_parameter_table_to_json, resolve_event
+    from aimbat.core import dump_seismogram_parameter_table, resolve_event
     from aimbat.db import engine
-    from aimbat.logger import logger
+    from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
     from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
 
     short = table_parameters.short
 
     with Session(engine) as session:
-        logger.info("Printing AIMBAT seismogram parameters table.")
+        if global_parameters.all_events:
+            event = None
+            title = "Seismogram parameters for all events"
+        else:
+            event = resolve_event(session, global_parameters.event_id)
+            title = f"Seismogram parameters for event: {uuid_shortener(session, event) if short else str(event.id)}"
 
-        event = resolve_event(session, global_parameters.event_id)
-        title = f"Seismogram parameters for event: {uuid_shortener(session, event) if short else str(event.id)}"
+        data = dump_seismogram_parameter_table(
+            session, event_id=event.id if event else None, by_title=True
+        )
 
         json_to_table(
-            data=dump_seismogram_parameter_table_to_json(
-                session, all_events=False, as_string=False, event=event
-            ),
+            data=data,
             title=title,
-            skip_keys=["id"],
-            column_order=["seismogram_id", "select"],
-            common_column_kwargs={"highlight": True},
+            column_order=["ID", "Seismogram ID", "Select"],
             formatters={
-                "seismogram_id": lambda x: (
+                "ID": lambda x: (
+                    uuid_shortener(session, AimbatSeismogramParameters, str_uuid=x)
+                    if short
+                    else x
+                ),
+                "Seismogram ID": lambda x: (
                     uuid_shortener(session, AimbatSeismogram, str_uuid=x)
                     if short
                     else x
                 ),
-            },
-            column_kwargs={
-                "seismogram_id": {
-                    "header": "Seismogram ID (shortened)" if short else "Seismogram ID",
-                    "justify": "center",
-                    "style": TABLE_STYLING.mine,
-                },
+                "Flip": TABLE_STYLING.flip_formatter,
             },
         )
-
-
-@app.command(name="list")
-@simple_exception
-def cli_seismogram_list(
-    *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
-) -> None:
-    """Print information on the seismograms in an event."""
-    from rich.console import Console
-    from sqlmodel import Session, select
-
-    from aimbat.core import resolve_event
-    from aimbat.db import engine
-    from aimbat.logger import logger
-    from aimbat.utils import TABLE_STYLING, make_table, uuid_shortener
-
-    short = table_parameters.short
-
-    with Session(engine) as session:
-        logger.info("Printing AIMBAT seismogram table.")
-
-        title = "AIMBAT seismograms for all events"
-
-        if all_events:
-            logger.debug("Selecting seismograms for all events.")
-            seismograms = session.exec(select(AimbatSeismogram)).all()
-        else:
-            logger.debug("Selecting seismograms for event.")
-            event = resolve_event(session, global_parameters.event_id)
-            seismograms = event.seismograms
-            if short:
-                title = f"AIMBAT seismograms for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
-            else:
-                title = f"AIMBAT seismograms for event {event.time} (ID={event.id})"
-
-        logger.debug(f"Found {len(seismograms)} seismograms for the table.")
-
-        table = make_table(title=title)
-        table.add_column(
-            "ID (shortened)" if short else "ID",
-            justify="center",
-            style=TABLE_STYLING.id,
-            no_wrap=True,
-        )
-        table.add_column(
-            "Selected", justify="center", style=TABLE_STYLING.mine, no_wrap=True
-        )
-        table.add_column(
-            "NPTS", justify="center", style=TABLE_STYLING.mine, no_wrap=True
-        )
-        table.add_column(
-            "Delta", justify="center", style=TABLE_STYLING.mine, no_wrap=True
-        )
-        table.add_column(
-            "Data ID", justify="center", style=TABLE_STYLING.linked, no_wrap=True
-        )
-        table.add_column("Station ID", justify="center", style=TABLE_STYLING.linked)
-        table.add_column("Station Name", justify="center", style=TABLE_STYLING.linked)
-        if all_events:
-            table.add_column("Event ID", justify="center", style=TABLE_STYLING.linked)
-
-        for seismogram in seismograms:
-            logger.debug(f"Adding seismogram with ID {seismogram.id} to the table.")
-            row = [
-                (uuid_shortener(session, seismogram) if short else str(seismogram.id)),
-                TABLE_STYLING.bool_formatter(seismogram.parameters.select),
-                str(len(seismogram.data)),
-                str(seismogram.delta.total_seconds()),
-                (
-                    uuid_shortener(session, seismogram.datasource)
-                    if short
-                    else str(seismogram.datasource.id)
-                ),
-                (
-                    uuid_shortener(session, seismogram.station)
-                    if short
-                    else str(seismogram.station.id)
-                ),
-                f"{seismogram.station.name} - {seismogram.station.network}",
-            ]
-
-            if all_events:
-                row.append(
-                    uuid_shortener(session, seismogram.event)
-                    if short
-                    else str(seismogram.event.id)
-                )
-            table.add_row(*row)
-
-        console = Console()
-        console.print(table)
-
-
-if __name__ == "__main__":
-    app()

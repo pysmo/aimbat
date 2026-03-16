@@ -26,8 +26,8 @@ def _capture_pretty(monkeypatch: pytest.MonkeyPatch) -> str:
         str: The captured output string.
     """
     buffer = io.StringIO()
-    console = Console(file=buffer, highlight=False, no_color=True, width=200)
-    monkeypatch.setattr("aimbat.utils._json.Console", lambda: console)
+    console = Console(file=buffer, highlight=False, no_color=True, width=500)
+    monkeypatch.setattr("aimbat.utils._table.Console", lambda: console)
     print_settings_table(pretty=True)
     return buffer.getvalue()
 
@@ -74,10 +74,10 @@ class TestSettings:
         s = Settings()
         assert isinstance(s.bandpass_apply, bool)
 
-    def test_min_ccnorm_bounds(self) -> None:
-        """Verifies that min_ccnorm is within [0, 1]."""
+    def test_min_cc_bounds(self) -> None:
+        """Verifies that min_cc is within [0, 1]."""
         s = Settings()
-        assert 0 <= float(s.min_ccnorm) <= 1
+        assert 0 <= float(s.min_cc) <= 1
 
     def test_window_pre_is_negative(self) -> None:
         """Verifies that window_pre is a negative duration."""

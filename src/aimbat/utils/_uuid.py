@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import String, cast, func
 from sqlmodel import Session, select
 
+from aimbat.logger import logger
 from aimbat.models import AimbatTypes
 
 __all__ = [
@@ -40,7 +41,9 @@ def string_to_uuid(
     )
     uuid_set = set(session.exec(statement).all())
     if len(uuid_set) == 1:
-        return uuid_set.pop()
+        resolved = uuid_set.pop()
+        logger.debug(f"Resolved {id} to UUID: {resolved}")
+        return resolved
     if len(uuid_set) == 0:
         raise ValueError(
             custom_error or f"Unable to find {aimbat_class.__name__} using id: {id}."
@@ -98,6 +101,7 @@ def uuid_shortener[T: AimbatTypes](
 
         matches = [u for u in relevant_pool if u.startswith(candidate)]
         if len(matches) == 1:
+            logger.debug(f"Shortened {target_full} to: {candidate}")
             return candidate
         current_length += 1
 

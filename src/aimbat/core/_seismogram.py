@@ -1,95 +1,128 @@
-import uuid
 from collections.abc import Sequence
 from typing import Any, Literal, overload
+from uuid import UUID
 
 from pandas import Timestamp
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
-from aimbat._types import (
-    SeismogramParameter,
-    SeismogramParameterBool,
-    SeismogramParameterTimestamp,
-)
+from aimbat._types import SeismogramParameter
 from aimbat.logger import logger
 from aimbat.models import (
-    AimbatEvent,
     AimbatSeismogram,
     AimbatSeismogramParameters,
+    AimbatSeismogramParametersBase,
+    AimbatSeismogramRead,
 )
-from aimbat.models._parameters import AimbatSeismogramParametersBase
+from aimbat.utils import get_title_map
 
 __all__ = [
-    "delete_seismogram_by_id",
     "delete_seismogram",
-    "get_seismogram_parameter_by_id",
-    "get_seismogram_parameter",
-    "set_seismogram_parameter_by_id",
     "set_seismogram_parameter",
-    "reset_seismogram_parameters_by_id",
     "reset_seismogram_parameters",
     "get_selected_seismograms",
-    "dump_seismogram_table_to_json",
-    "dump_seismogram_parameter_table_to_json",
+    "dump_seismogram_table",
+    "dump_seismogram_parameter_table",
 ]
 
+type SeismogramParameterBool = Literal[
+    SeismogramParameter.SELECT, SeismogramParameter.FLIP
+]
+type SeismogramParameterTimestamp = Literal[SeismogramParameter.T1]
 
-def delete_seismogram_by_id(session: Session, seismogram_id: uuid.UUID) -> None:
-    """Delete an AimbatSeismogram from the database by ID.
+
+def delete_seismogram(session: Session, seismogram_id: UUID) -> None:
+    """Delete an AimbatSeismogram from the database.
 
     Args:
         session: Database session.
         seismogram_id: Seismogram ID.
 
-    Raises:
-        NoResultFound: If no AimbatSeismogram is found with the given ID.
     """
 
-    logger.debug(f"Getting seismogram with id={seismogram_id}.")
+    logger.info(f"Deleting seismogram {seismogram_id}.")
 
     seismogram = session.get(AimbatSeismogram, seismogram_id)
     if seismogram is None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
-    delete_seismogram(session, seismogram)
-
-
-def delete_seismogram(session: Session, seismogram: AimbatSeismogram) -> None:
-    """Delete an AimbatSeismogram from the database.
-
-    Args:
-        session: Database session.
-        seismogram: Seismogram to delete.
-    """
-
-    logger.info(f"Deleting seismogram {seismogram.id}.")
 
     session.delete(seismogram)
     session.commit()
 
 
-def reset_seismogram_parameters_by_id(
-    session: Session, seismogram_id: uuid.UUID
-) -> None:
-    """Reset an AimbatSeismogram's parameters to their default values by ID.
+def dump_seismogram_table(
+    session: Session,
+    from_read_model: bool = False,
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+    event_id: UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Dump the AimbatSeismogram table to json serialisable list of dicts.
 
     Args:
         session: Database session.
-        seismogram_id: Seismogram ID.
+        from_read_model: Whether to dump from the read model (True) or the ORM model.
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_title: Whether to use titles for the field names in the output (only
+            applicable when from_read_model is True). Mutually exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+        event_id: Event ID to filter seismograms by (if none is provided,
+            seismograms for all events are dumped).
 
     Raises:
-        NoResultFound: If no AimbatSeismogram is found with the given ID.
+        ValueError: If both `by_alias` and `by_title` are True.
+        ValueError: If `by_title` is True but `from_read_model` is False.
     """
+    logger.debug("Dumping AIMBAT seismogram table to json.")
 
-    logger.debug(f"Getting seismogram with id={seismogram_id}.")
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
-    seismogram = session.get(AimbatSeismogram, seismogram_id)
-    if seismogram is None:
-        raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
-    reset_seismogram_parameters(session, seismogram)
+    if not from_read_model and by_title:
+        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    if event_id is not None:
+        statement = select(AimbatSeismogram).where(
+            AimbatSeismogram.event_id == event_id
+        )
+    else:
+        statement = select(AimbatSeismogram)
+
+    seismograms = session.exec(statement).all()
+
+    if from_read_model:
+        seismogram_reads = [
+            AimbatSeismogramRead.from_seismogram(s, session=session)
+            for s in seismograms
+        ]
+        adapter_reads: TypeAdapter[Sequence[AimbatSeismogramRead]] = TypeAdapter(
+            Sequence[AimbatSeismogramRead]
+        )
+        data = adapter_reads.dump_python(
+            seismogram_reads, mode="json", exclude=exclude, by_alias=by_alias
+        )
+
+        if by_title:
+            title_map = get_title_map(AimbatSeismogramRead)
+            return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+        return data
+
+    adapter: TypeAdapter[Sequence[AimbatSeismogram]] = TypeAdapter(
+        Sequence[AimbatSeismogram]
+    )
+
+    return adapter.dump_python(
+        seismograms, mode="json", exclude=exclude, by_alias=by_alias
+    )
 
 
-def reset_seismogram_parameters(session: Session, seismogram: AimbatSeismogram) -> None:
+def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
     """Reset an AimbatSeismogram's parameters to their default values.
 
     All fields defined on AimbatSeismogramParametersBase are reset to the
@@ -98,115 +131,31 @@ def reset_seismogram_parameters(session: Session, seismogram: AimbatSeismogram) 
 
     Args:
         session: Database session.
-        seismogram: Seismogram whose parameters should be reset.
+        seismogram_id: ID of seismogram to reset parameters for.
     """
 
-    logger.info(f"Resetting parameters for seismogram {seismogram.id}.")
+    logger.info(f"Resetting parameters for seismogram {seismogram_id}.")
+
+    seismogram = session.get(AimbatSeismogram, seismogram_id)
+    if seismogram is None:
+        raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
+
+    from ._iccs import clear_mccc_quality
+    from ._snapshot import compute_parameters_hash, sync_from_matching_hash
 
     defaults = AimbatSeismogramParametersBase()
     for field_name in AimbatSeismogramParametersBase.model_fields:
         setattr(seismogram.parameters, field_name, getattr(defaults, field_name))
     session.add(seismogram)
-    session.commit()
-
-
-def get_seismogram_parameter_by_id(
-    session: Session, seismogram_id: uuid.UUID, name: SeismogramParameter
-) -> bool | Timestamp:
-    """Get parameter value from an AimbatSeismogram by ID.
-
-    Args:
-        session: Database session.
-        seismogram_id: Seismogram ID.
-        name: Name of the parameter value to return.
-
-    Returns:
-        Seismogram parameter value.
-
-    Raises:
-        ValueError: If no AimbatSeismogram is found with the given ID.
-    """
-
-    logger.info(f"Getting seismogram {name=} for seismogram with id={seismogram_id}.")
-
-    aimbat_seismogram = session.get(AimbatSeismogram, seismogram_id)
-
-    if aimbat_seismogram is None:
-        raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
-
-    return get_seismogram_parameter(aimbat_seismogram, name)
-
-
-@overload
-def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, name: SeismogramParameterBool
-) -> bool: ...
-
-
-@overload
-def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, name: SeismogramParameterTimestamp
-) -> Timestamp: ...
-
-
-@overload
-def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, name: SeismogramParameter
-) -> bool | Timestamp: ...
-
-
-def get_seismogram_parameter(
-    seismogram: AimbatSeismogram, name: SeismogramParameter
-) -> bool | Timestamp:
-    """Get parameter value from an AimbatSeismogram instance.
-
-    Args:
-        seismogram: Seismogram.
-        name: Name of the parameter value to return.
-
-    Returns:
-        Seismogram parameter value.
-    """
-
-    logger.info(f"Getting seismogram parameter {name=} value for {seismogram=}.")
-
-    return getattr(seismogram.parameters, name)
-
-
-def set_seismogram_parameter_by_id(
-    session: Session,
-    seismogram_id: uuid.UUID,
-    name: SeismogramParameter,
-    value: Timestamp | bool | str,
-) -> None:
-    """Set parameter value for an AimbatSeismogram by ID.
-
-    Args:
-        session: Database session
-        seismogram_id: Seismogram id.
-        name: Name of the parameter.
-        value: Value to set.
-
-    Raises:
-        ValueError: If no AimbatSeismogram is found with the given ID.
-    """
-
-    logger.info(
-        f"Setting seismogram {name=} to {value=} for seismogram with id={seismogram_id}."
-    )
-
-    aimbat_seismogram = session.get(AimbatSeismogram, seismogram_id)
-
-    if aimbat_seismogram is None:
-        raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
-
-    set_seismogram_parameter(session, aimbat_seismogram, name, value)
+    parameters_hash = compute_parameters_hash(seismogram.event)
+    if not sync_from_matching_hash(session, parameters_hash):
+        clear_mccc_quality(session, seismogram.event)
 
 
 @overload
 def set_seismogram_parameter(
     session: Session,
-    seismogram: AimbatSeismogram,
+    seismogram_id: UUID,
     name: SeismogramParameterBool,
     value: bool | str,
 ) -> None: ...
@@ -215,7 +164,7 @@ def set_seismogram_parameter(
 @overload
 def set_seismogram_parameter(
     session: Session,
-    seismogram: AimbatSeismogram,
+    seismogram_id: UUID,
     name: SeismogramParameterTimestamp,
     value: Timestamp,
 ) -> None: ...
@@ -224,7 +173,7 @@ def set_seismogram_parameter(
 @overload
 def set_seismogram_parameter(
     session: Session,
-    seismogram: AimbatSeismogram,
+    seismogram_id: UUID,
     name: SeismogramParameter,
     value: Timestamp | bool | str,
 ) -> None: ...
@@ -232,7 +181,7 @@ def set_seismogram_parameter(
 
 def set_seismogram_parameter(
     session: Session,
-    seismogram: AimbatSeismogram,
+    seismogram_id: UUID,
     name: SeismogramParameter,
     value: Timestamp | bool | str,
 ) -> None:
@@ -240,36 +189,44 @@ def set_seismogram_parameter(
 
     Args:
         session: Database session
-        seismogram: Seismogram to set parameter for.
+        seismogram_id: Seismogram id.
         name: Name of the parameter.
         value: Value to set parameter to.
 
     """
+    from ._iccs import clear_mccc_quality
+    from ._snapshot import compute_parameters_hash, sync_from_matching_hash
 
-    logger.info(f"Setting seismogram {name=} to {value=} in {seismogram=}.")
+    logger.debug(
+        f"Setting seismogram {name=} to {value=} in seismogram {seismogram_id=}."
+    )
+
+    seismogram = session.get(AimbatSeismogram, seismogram_id)
+    if seismogram is None:
+        raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
 
     parameters = AimbatSeismogramParametersBase.model_validate(
         seismogram.parameters, update={name: value}
     )
     setattr(seismogram.parameters, name, getattr(parameters, name))
     session.add(seismogram)
-    session.commit()
+    parameters_hash = compute_parameters_hash(seismogram.event)
+    if not sync_from_matching_hash(session, parameters_hash):
+        clear_mccc_quality(session, seismogram.event)
 
 
 def get_selected_seismograms(
-    session: Session, event: AimbatEvent | None = None, all_events: bool = False
+    session: Session, event_id: UUID | None = None, all_events: bool = False
 ) -> Sequence[AimbatSeismogram]:
     """Get the selected seismograms for the given event.
 
     Args:
         session: Database session.
-        event: Event to return selected seismograms for.
+        event_id: Event ID to get seismograms for (only used when all_events is False).
         all_events: Get the selected seismograms for all events.
 
     Returns: Selected seismograms.
     """
-
-    logger.info("Getting selected AIMBAT seismograms.")
 
     if all_events is True:
         logger.debug("Selecting seismograms for all events.")
@@ -279,14 +236,14 @@ def get_selected_seismograms(
             .where(AimbatSeismogramParameters.select == 1)
         )
     else:
-        if event is None:
+        if event_id is None:
             raise ValueError("An event must be provided when all_events is False.")
-        logger.debug(f"Selecting seismograms for event {event.id} only.")
+        logger.debug(f"Selecting seismograms for event {event_id} only.")
         statement = (
             select(AimbatSeismogram)
             .join(AimbatSeismogramParameters)
             .where(AimbatSeismogramParameters.select == 1)
-            .where(AimbatSeismogram.event_id == event.id)
+            .where(AimbatSeismogram.event_id == event_id)
         )
 
     seismograms = session.exec(statement).all()
@@ -296,68 +253,58 @@ def get_selected_seismograms(
     return seismograms
 
 
-def dump_seismogram_table_to_json(session: Session) -> str:
-    """Create a JSON string from the AimbatSeismogram table data."""
-
-    logger.info("Dumping AIMBAT seismogram table to json.")
-    adapter: TypeAdapter[Sequence[AimbatSeismogram]] = TypeAdapter(
-        Sequence[AimbatSeismogram]
-    )
-    aimbat_seismograms = session.exec(select(AimbatSeismogram)).all()
-
-    return adapter.dump_json(aimbat_seismograms).decode("utf-8")
-
-
-@overload
-def dump_seismogram_parameter_table_to_json(
+def dump_seismogram_parameter_table(
     session: Session,
-    all_events: bool,
-    as_string: Literal[True],
-    event: AimbatEvent | None = None,
-) -> str: ...
-
-
-@overload
-def dump_seismogram_parameter_table_to_json(
-    session: Session,
-    all_events: bool,
-    as_string: Literal[False],
-    event: AimbatEvent | None = None,
-) -> list[dict[str, Any]]: ...
-
-
-def dump_seismogram_parameter_table_to_json(
-    session: Session,
-    all_events: bool,
-    as_string: bool,
-    event: AimbatEvent | None = None,
-) -> str | list[dict[str, Any]]:
-    """Dump the seismogram parameter table data to json.
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+    event_id: UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Dump the seismogram parameter table data to json serialisable list of dicts.
 
     Args:
         session: Database session.
-        all_events: Include parameters for all events.
-        as_string: Return as JSON string.
-        event: Event to dump parameters for (only used when all_events is False).
-    """
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_title: Whether to use titles for the field names in the output.
+        exclude: Set of field names to exclude from the output.
+        event_id: Event ID to filter seismogram parameters by (if none is provided,
+            all seismogram parameters for all events are dumped).
 
-    logger.info("Dumping AimbatSeismogramParameters table to json.")
+    Returns:
+        list of dicts representing the seismogram parameters.
+
+    Raises:
+        ValueError: If both `by_alias` and `by_title` are True.
+    """
+    logger.debug("Dumping AimbatSeismogramParameters table to json.")
+
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
 
     adapter: TypeAdapter[Sequence[AimbatSeismogramParameters]] = TypeAdapter(
         Sequence[AimbatSeismogramParameters]
     )
 
-    if all_events:
-        parameters = session.exec(select(AimbatSeismogramParameters)).all()
-    else:
-        if event is None:
-            raise ValueError("An event must be provided when all_events is False.")
-        parameters = session.exec(
+    if event_id is not None:
+        statement = (
             select(AimbatSeismogramParameters)
             .join(AimbatSeismogram)
-            .where(AimbatSeismogram.event_id == event.id)
-        ).all()
+            .where(AimbatSeismogram.event_id == event_id)
+        )
+    else:
+        statement = select(AimbatSeismogramParameters)
 
-    if as_string:
-        return adapter.dump_json(parameters).decode("utf-8")
-    return adapter.dump_python(parameters, mode="json")
+    parameters = session.exec(statement).all()
+
+    data = adapter.dump_python(
+        parameters, mode="json", exclude=exclude, by_alias=by_alias
+    )
+
+    if by_title:
+        title_map = get_title_map(AimbatSeismogramParameters)
+        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+    return data

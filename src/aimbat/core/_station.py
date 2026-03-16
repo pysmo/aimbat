@@ -1,53 +1,42 @@
-import uuid
 from collections.abc import Sequence
 from typing import Any, Literal, overload
+from uuid import UUID
 
 from pydantic import TypeAdapter
-from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
-from sqlmodel import Session, col, select
+from sqlmodel import Session, select
 
 from aimbat.logger import logger
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
+from aimbat.models import (
+    AimbatEvent,
+    AimbatSeismogram,
+    AimbatSeismogramQuality,
+    AimbatStation,
+    AimbatStationRead,
+)
+from aimbat.utils import get_title_map
 
 __all__ = [
-    "delete_station_by_id",
     "delete_station",
     "get_stations_in_event",
-    "dump_station_table_to_json",
-    "dump_station_table_with_counts",
-    "get_stations_with_event_and_seismogram_count",
+    "get_station_iccs_ccs",
+    "dump_station_table",
 ]
 
 
-def delete_station_by_id(session: Session, station_id: uuid.UUID) -> None:
-    """Delete an AimbatStation from the database by ID.
-
-    Args:
-        session: Database session.
-        station_id: Station ID.
-
-    Raises:
-        NoResultFound: If no AimbatStation is found with the given ID.
-    """
-
-    logger.debug(f"Getting station with id={station_id}.")
-
-    station = session.get(AimbatStation, station_id)
-    if station is None:
-        raise NoResultFound(f"No AimbatStation found with {station_id=}")
-    delete_station(session, station)
-
-
-def delete_station(session: Session, station: AimbatStation) -> None:
+def delete_station(session: Session, station_id: UUID) -> None:
     """Delete an AimbatStation from the database.
 
     Args:
         session: Database session.
-        station: Station to delete.
+        station_id: ID of the station to delete.
     """
 
-    logger.info(f"Deleting station {station.id}.")
+    logger.info(f"Deleting station with id={station_id}.")
+
+    station = session.get(AimbatStation, station_id)
+    if station is None:
+        raise NoResultFound(f"No AimbatStation found with {station_id=}")
 
     session.delete(station)
     session.commit()
@@ -55,29 +44,33 @@ def delete_station(session: Session, station: AimbatStation) -> None:
 
 @overload
 def get_stations_in_event(
-    session: Session, event: AimbatEvent, as_json: Literal[False] = ...
+    session: Session, event_id: UUID, as_json: Literal[False] = ...
 ) -> Sequence[AimbatStation]: ...
 
 
 @overload
 def get_stations_in_event(
-    session: Session, event: AimbatEvent, as_json: Literal[True]
+    session: Session, event_id: UUID, as_json: Literal[True]
 ) -> list[dict[str, Any]]: ...
 
 
 def get_stations_in_event(
-    session: Session, event: AimbatEvent, as_json: bool = False
+    session: Session, event_id: UUID, as_json: bool = False
 ) -> Sequence[AimbatStation] | list[dict[str, Any]]:
     """Get the stations for a particular event.
 
     Args:
         session: Database session.
-        event: Event to return stations for.
+        event_id: ID of the event to get stations for.
         as_json: Whether to return the result as JSON.
 
     Returns: Stations in event.
     """
-    logger.info(f"Getting stations for event: {event.id}.")
+    logger.debug(f"Getting stations for event: {event_id}.")
+
+    event = session.get(AimbatEvent, event_id)
+    if event is None:
+        raise NoResultFound(f"Unable to find event with {event_id=}")
 
     statement = (
         select(AimbatStation)
@@ -97,63 +90,97 @@ def get_stations_in_event(
     return adapter.dump_python(results, mode="json")
 
 
-def get_stations_with_event_and_seismogram_count(
-    session: Session,
-) -> Sequence[tuple[AimbatStation, int, int]]:
-    """Get stations along with the count of seismograms and events they are associated with.
+def get_station_iccs_ccs(
+    session: Session, station_id: UUID
+) -> tuple[float | None, ...]:
+    """Get ICCS cross-correlation coefficients for all seismograms of a station across all events.
 
     Args:
         session: Database session.
+        station_id: ID of the station.
 
-    Returns: A sequence of tuples containing the station, count of seismograms
-        and count of events.
+    Returns: Tuple of ICCS CC values, one per seismogram (None if not yet computed).
     """
-    logger.info("Getting stations with associated seismogram and event counts.")
+    logger.debug(f"Getting ICCS CCs for {station_id=}.")
 
     statement = (
-        select(
-            AimbatStation,
-            func.count(col(AimbatSeismogram.id)),
-            func.count(func.distinct(col(AimbatEvent.id))),
-        )
-        .select_from(AimbatStation)
-        .join(AimbatSeismogram, isouter=True)
-        .join(AimbatEvent, isouter=True)
-        .group_by(col(AimbatStation.id))
+        select(AimbatSeismogramQuality.iccs_cc)
+        .join(AimbatSeismogram)
+        .where(AimbatSeismogram.station_id == station_id)
     )
 
-    logger.debug(f"Executing query: {statement}")
-    return session.exec(statement).all()
+    return tuple(session.exec(statement).all())
 
 
-def dump_station_table_with_counts(session: Session) -> list[dict[str, Any]]:
-    """Dump station table with associated seismogram and event counts to a list of dicts.
-
-    Each dict represents a station and includes additional keys for the
-    seismogram and event counts.
-
+def dump_station_table(
+    session: Session,
+    from_read_model: bool = False,
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+    event_id: UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Create a JSON serialisable dict from the AimbatStation table data.
     Args:
         session: Database session.
+        from_read_model: Whether to dump from the read model (True) or the ORM model.
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_title: Whether to use titles for the field names in the output (only
+            applicable when from_read_model is True). Mutually exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+        event_id: Event ID to filter seismograms by (if none is provided,
+            seismograms for all events are dumped).
 
-    Returns: A list of dictionaries representing the stations with counts.
+    Raises:
+        ValueError: If both `by_alias` and `by_title` are True.
+        ValueError: If `by_title` is True but `from_read_model` is False.
     """
-    results = get_stations_with_event_and_seismogram_count(session)
-    formatted_results = []
 
-    for row in results:
-        station_dict = row[0].model_dump(mode="json")
-        station_dict["seismogram_count"] = row[1]
-        station_dict["event_count"] = row[2]
-        formatted_results.append(station_dict)
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
-    return formatted_results
+    if not from_read_model and by_title:
+        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
 
+    logger.debug("Dumping AIMBAT station table to json.")
 
-def dump_station_table_to_json(session: Session) -> str:
-    """Create a JSON string from the AimbatStation table data."""
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
 
-    logger.info("Dumping AIMBAT station table to json.")
+    if event_id is not None:
+        statement = (
+            select(AimbatStation)
+            .join(AimbatSeismogram)
+            .where(AimbatSeismogram.event_id == event_id)
+            .distinct()
+        )
+    else:
+        statement = select(AimbatStation)
+
+    stations = session.exec(statement).all()
+
+    if from_read_model:
+        read_stations = [
+            AimbatStationRead.from_station(
+                station=s,
+                session=session,
+            )
+            for s in stations
+        ]
+        read_adapter: TypeAdapter[Sequence[AimbatStationRead]] = TypeAdapter(
+            Sequence[AimbatStationRead]
+        )
+        data = read_adapter.dump_python(
+            read_stations, exclude=exclude, by_alias=by_alias, mode="json"
+        )
+
+        if by_title:
+            title_map = get_title_map(AimbatStationRead)
+            return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+        return data
 
     adapter: TypeAdapter[Sequence[AimbatStation]] = TypeAdapter(Sequence[AimbatStation])
-    aimbat_station = session.exec(select(AimbatStation)).all()
-    return adapter.dump_json(aimbat_station).decode("utf-8")
+    return adapter.dump_python(
+        stations, mode="json", by_alias=by_alias, exclude=exclude
+    )

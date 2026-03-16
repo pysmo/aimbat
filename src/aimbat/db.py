@@ -20,8 +20,11 @@ from sqlalchemy.pool import ConnectionPoolEntry
 from sqlmodel import create_engine
 
 from aimbat import settings
+from aimbat.logger import logger
 
 __all__ = ["engine"]
+
+logger.debug(f"Initialising AIMBAT database engine with {settings.db_url=}.")
 
 engine = create_engine(
     url=settings.db_url,
@@ -36,6 +39,12 @@ engine = create_engine(
 """AIMBAT database engine."""
 
 
+_SQLITE_PRAGMAS = [
+    "PRAGMA foreign_keys=ON",
+    "PRAGMA journal_mode=WAL",
+]
+
+
 # Automatically enforce foreign keys for every new connection if using SQLite
 if engine.name == "sqlite":
 
@@ -43,10 +52,13 @@ if engine.name == "sqlite":
     def set_sqlite_pragma(
         dbapi_connection: sqlite3.Connection, connection_record: ConnectionPoolEntry
     ) -> None:
-        """Enable foreign key and WAL support for each new SQLite connection."""
+        """Enable specific PRAGMAs for each new SQLite connection."""
+        logger.debug(
+            f"Configuring SQLite connection with: {', '.join(_SQLITE_PRAGMAS)}."
+        )
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.execute("PRAGMA journal_mode=WAL")
+        for pragma in _SQLITE_PRAGMAS:
+            cursor.execute(pragma)
         cursor.close()
 
     @event.listens_for(engine, "handle_error")

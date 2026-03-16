@@ -13,7 +13,7 @@ def _project_exists(engine: Engine) -> bool:
 
     _TABLE_TO_CHECK = "aimbatevent"
 
-    logger.info(
+    logger.debug(
         f"Checking if project already exists with {engine=} by searching for the {_TABLE_TO_CHECK} table."
     )
 
@@ -102,11 +102,227 @@ def create_project(engine: Engine) -> None:
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_seis_params_update
                 AFTER UPDATE ON aimbatseismogramparameters
                 BEGIN
-                    UPDATE aimbatevent 
+                    UPDATE aimbatevent
                     SET last_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
                     WHERE id = (
                         SELECT event_id FROM aimbatseismogram
                         WHERE id = NEW.seismogram_id
+                    );
+                END;
+            """)
+            )
+
+            # Trigger 5: Null all quality when event window/bandpass/ramp parameters change.
+            # These parameters change the signal data used by both ICCS and MCCC.
+            connection.execute(
+                text("""
+                CREATE TRIGGER IF NOT EXISTS null_all_quality_on_window_bandpass_change
+                AFTER UPDATE ON aimbateventparameters
+                WHEN (NEW.window_pre IS NOT OLD.window_pre)
+                  OR (NEW.window_post IS NOT OLD.window_post)
+                  OR (NEW.ramp_width IS NOT OLD.ramp_width)
+                  OR (NEW.bandpass_apply IS NOT OLD.bandpass_apply)
+                  OR (NEW.bandpass_fmin IS NOT OLD.bandpass_fmin)
+                  OR (NEW.bandpass_fmax IS NOT OLD.bandpass_fmax)
+                BEGIN
+                    UPDATE aimbateventquality
+                    SET mccc_rmse = NULL
+                    WHERE event_id = NEW.event_id;
+                    UPDATE aimbatseismogramquality
+                    SET iccs_cc = NULL, mccc_cc_mean = NULL, mccc_cc_std = NULL, mccc_error = NULL
+                    WHERE seismogram_id IN (
+                        SELECT id FROM aimbatseismogram WHERE event_id = NEW.event_id
+                    );
+                END;
+            """)
+            )
+
+            # Trigger 6: Null MCCC quality when MCCC-specific event parameters change.
+            # These parameters affect only the MCCC inversion, not the underlying signal,
+            # so iccs_cc remains valid.
+            connection.execute(
+                text("""
+                CREATE TRIGGER IF NOT EXISTS null_mccc_quality_on_mccc_params_change
+                AFTER UPDATE ON aimbateventparameters
+                WHEN (NEW.mccc_damp IS NOT OLD.mccc_damp)
+                  OR (NEW.mccc_min_cc IS NOT OLD.mccc_min_cc)
+                BEGIN
+                    UPDATE aimbateventquality
+                    SET mccc_rmse = NULL
+                    WHERE event_id = NEW.event_id;
+                    UPDATE aimbatseismogramquality
+                    SET mccc_cc_mean = NULL, mccc_cc_std = NULL, mccc_error = NULL
+                    WHERE seismogram_id IN (
+                        SELECT id FROM aimbatseismogram WHERE event_id = NEW.event_id
+                    );
+                END;
+            """)
+            )
+
+            # Trigger 7a: Null quality when flip changes on a seismogram.
+            # Flipping a trace only affects the ICCS stack if the seismogram is selected.
+            # MCCC stats are invalidated if the seismogram was included in the last MCCC
+            # run, which is inferred from the presence of live mccc_cc_mean stats —
+            # not from select, because MCCC may have been run with --all.
+            # The event-level UPDATE is ordered before the per-seismogram UPDATE so that
+            # the EXISTS check sees the original (non-nulled) stats in both statements.
+            connection.execute(
+                text("""
+                CREATE TRIGGER IF NOT EXISTS null_quality_on_seis_flip_change
+                AFTER UPDATE ON aimbatseismogramparameters
+                WHEN NEW.flip IS NOT OLD.flip
+                BEGIN
+                    -- Null iccs_cc for all event seismograms if selected (stack changed),
+                    -- or just locally if deselected (the flipped seismogram's own CC is stale
+                    -- even though the stack is unchanged).
+                    UPDATE aimbatseismogramquality
+                    SET iccs_cc = NULL
+                    WHERE (
+                        NEW."select" = TRUE
+                        AND seismogram_id IN (
+                            SELECT id FROM aimbatseismogram WHERE event_id = (
+                                SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                            )
+                        )
+                    ) OR (
+                        NEW."select" IS NOT TRUE
+                        AND seismogram_id = NEW.seismogram_id
+                    );
+
+                    -- Null event-level RMSE if this seismogram was in the last MCCC run
+                    UPDATE aimbateventquality
+                    SET mccc_rmse = NULL
+                    WHERE EXISTS (
+                        SELECT 1 FROM aimbatseismogramquality
+                        WHERE seismogram_id = NEW.seismogram_id
+                          AND mccc_cc_mean IS NOT NULL
+                    )
+                      AND event_id = (
+                        SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                    );
+
+                    -- Null per-seismogram MCCC stats for the whole event if this seismogram
+                    -- was in the last MCCC run (checked before these stats are nulled above)
+                    UPDATE aimbatseismogramquality
+                    SET mccc_cc_mean = NULL, mccc_cc_std = NULL, mccc_error = NULL
+                    WHERE EXISTS (
+                        SELECT 1 FROM aimbatseismogramquality
+                        WHERE seismogram_id = NEW.seismogram_id
+                          AND mccc_cc_mean IS NOT NULL
+                    )
+                      AND seismogram_id IN (
+                        SELECT id FROM aimbatseismogram WHERE event_id = (
+                            SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                        )
+                    );
+                END;
+            """)
+            )
+
+            # Trigger 7b: Null quality when t1 changes on a seismogram.
+            # ICCS: if selected, the stack is affected so iccs_cc is stale for all;
+            # if deselected, only this seismogram's own iccs_cc is stale.
+            # MCCC: invalidated whenever the seismogram was in the last MCCC run,
+            # inferred from live mccc_cc_mean — not select — because MCCC may have
+            # been run with --all, meaning a deselected seismogram could still be included.
+            connection.execute(
+                text("""
+                CREATE TRIGGER IF NOT EXISTS null_quality_on_seis_t1_change
+                AFTER UPDATE ON aimbatseismogramparameters
+                WHEN NEW.t1 IS NOT OLD.t1
+                BEGIN
+                    -- Null iccs_cc for all event seismograms if selected (stack changed),
+                    -- otherwise only null locally.
+                    UPDATE aimbatseismogramquality
+                    SET iccs_cc = NULL
+                    WHERE (
+                        NEW."select" = TRUE
+                        AND seismogram_id IN (
+                            SELECT id FROM aimbatseismogram WHERE event_id = (
+                                SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                            )
+                        )
+                    ) OR (
+                        NEW."select" IS NOT TRUE
+                        AND seismogram_id = NEW.seismogram_id
+                    );
+
+                    -- Null event-level RMSE if this seismogram was in the last MCCC run
+                    UPDATE aimbateventquality
+                    SET mccc_rmse = NULL
+                    WHERE EXISTS (
+                        SELECT 1 FROM aimbatseismogramquality
+                        WHERE seismogram_id = NEW.seismogram_id
+                          AND mccc_cc_mean IS NOT NULL
+                    )
+                      AND event_id = (
+                        SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                    );
+
+                    -- Null per-seismogram MCCC stats for the whole event if this seismogram
+                    -- was in the last MCCC run
+                    UPDATE aimbatseismogramquality
+                    SET mccc_cc_mean = NULL, mccc_cc_std = NULL, mccc_error = NULL
+                    WHERE EXISTS (
+                        SELECT 1 FROM aimbatseismogramquality
+                        WHERE seismogram_id = NEW.seismogram_id
+                          AND mccc_cc_mean IS NOT NULL
+                    )
+                      AND seismogram_id IN (
+                        SELECT id FROM aimbatseismogram WHERE event_id = (
+                            SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                        )
+                    );
+                END;
+            """)
+            )
+
+            # Trigger 7c: Null quality when select changes on a seismogram.
+            # ICCS stack composition changes in both directions (select → deselect and
+            # vice versa), so iccs_cc is always invalidated for the whole event.
+            # MCCC stats are only invalidated if the seismogram was in the last MCCC run,
+            # inferred from live mccc_cc_mean — if MCCC was run with --all, changing
+            # select does not change the MCCC set, so live stats remain valid.
+            connection.execute(
+                text("""
+                CREATE TRIGGER IF NOT EXISTS null_quality_on_seis_select_change
+                AFTER UPDATE ON aimbatseismogramparameters
+                WHEN NEW."select" IS NOT OLD."select"
+                BEGIN
+                    -- Always null iccs_cc for the whole event (stack composition changed)
+                    UPDATE aimbatseismogramquality
+                    SET iccs_cc = NULL
+                    WHERE seismogram_id IN (
+                        SELECT id FROM aimbatseismogram WHERE event_id = (
+                            SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                        )
+                    );
+
+                    -- Null event-level RMSE if this seismogram was in the last MCCC run
+                    UPDATE aimbateventquality
+                    SET mccc_rmse = NULL
+                    WHERE EXISTS (
+                        SELECT 1 FROM aimbatseismogramquality
+                        WHERE seismogram_id = NEW.seismogram_id
+                          AND mccc_cc_mean IS NOT NULL
+                    )
+                      AND event_id = (
+                        SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                    );
+
+                    -- Null per-seismogram MCCC stats for the whole event if this seismogram
+                    -- was in the last MCCC run
+                    UPDATE aimbatseismogramquality
+                    SET mccc_cc_mean = NULL, mccc_cc_std = NULL, mccc_error = NULL
+                    WHERE EXISTS (
+                        SELECT 1 FROM aimbatseismogramquality
+                        WHERE seismogram_id = NEW.seismogram_id
+                          AND mccc_cc_mean IS NOT NULL
+                    )
+                      AND seismogram_id IN (
+                        SELECT id FROM aimbatseismogram WHERE event_id = (
+                            SELECT event_id FROM aimbatseismogram WHERE id = NEW.seismogram_id
+                        )
                     );
                 END;
             """)

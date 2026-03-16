@@ -23,7 +23,6 @@ sample-data
 aimbat.db
 .tox
 nohup.out
-blah.py
 .idea
 .direnv
 .venv
@@ -35,9 +34,6 @@ aimbat.log
 docs/usage/defaults-table.md
 .env
 aimbat_test*.log
-GEMINI.md
-CLAUDE.md
-.claude/settings.local.json
 scratch/
 aimbat.db-shm
 aimbat.db-wal

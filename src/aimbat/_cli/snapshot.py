@@ -18,6 +18,7 @@ from .common import (
     DebugParameter,
     GlobalParameters,
     IccsPlotParameters,
+    JsonDumpParameters,
     TableParameters,
     id_parameter,
     simple_exception,
@@ -61,11 +62,11 @@ def cli_snapshot_rollback(
     """Rollback to snapshot."""
     from sqlmodel import Session
 
-    from aimbat.core import rollback_to_snapshot_by_id
+    from aimbat.core import rollback_to_snapshot
     from aimbat.db import engine
 
     with Session(engine) as session:
-        rollback_to_snapshot_by_id(session, snapshot_id)
+        rollback_to_snapshot(session, snapshot_id)
 
 
 @app.command(name="delete")
@@ -78,37 +79,29 @@ def cli_snapshot_delete(
     """Delete existing snapshot."""
     from sqlmodel import Session
 
-    from aimbat.core import delete_snapshot_by_id
+    from aimbat.core import delete_snapshot
     from aimbat.db import engine
 
     with Session(engine) as session:
-        delete_snapshot_by_id(session, snapshot_id)
+        delete_snapshot(session, snapshot_id)
 
 
 @app.command(name="dump")
 @simple_exception
 def cli_snapshot_dump(
     *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
-    """Dump the contents of the AIMBAT snapshot table to json."""
+    """Dump the contents of the AIMBAT snapshot tables to json."""
     from rich import print_json
     from sqlmodel import Session
 
-    from aimbat.core import dump_snapshot_tables_to_json, resolve_event
+    from aimbat.core import dump_snapshot_tables
     from aimbat.db import engine
 
     with Session(engine) as session:
-        event = (
-            resolve_event(session, global_parameters.event_id)
-            if not all_events
-            else None
-        )
         print_json(
-            dump_snapshot_tables_to_json(
-                session, all_events, as_string=True, event=event
-            )
+            data=dump_snapshot_tables(session, by_alias=dump_parameters.by_alias)
         )
 
 
@@ -121,88 +114,46 @@ def cli_snapshot_list(
     global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the snapshots for an event."""
-    from pandas import Timestamp
     from sqlmodel import Session
 
-    from aimbat.core import dump_snapshot_tables_to_json, resolve_event
+    from aimbat.core import dump_snapshot_tables, resolve_event
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.models import AimbatEvent
-    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
+    from aimbat.utils import json_to_table, uuid_shortener
 
-    short = table_parameters.short
+    if short := table_parameters.short:
+        exclude = {"id", "event_id"}
+    else:
+        exclude = {"short_id", "short_event_id"}
 
     with Session(engine) as session:
         logger.info("Printing AIMBAT snapshots table.")
 
-        title = "AIMBAT snapshots for all events"
-
-        event = None
-        if not all_events:
+        if all_events:
+            event = None
+            title = "AIMBAT snapshots for all events"
+        else:
             event = resolve_event(session, global_parameters.event_id)
             if short:
-                title = f"AIMBAT snapshots for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
+                time = event.time.strftime("%Y-%m-%d %H:%M:%S")
+                id = uuid_shortener(session, event)
+                exclude.add("short_event_id")
             else:
-                title = f"AIMBAT snapshots for event {event.time} (ID={event.id})"
+                time = event.time.isoformat()
+                id = str(event.id)
+                exclude.add("event_id")
+            title = f"AIMBAT snapshots for event {time} (ID={id})"
 
-        data = dump_snapshot_tables_to_json(
-            session, all_events, as_string=False, event=event
+        data = dump_snapshot_tables(
+            session,
+            from_read_model=True,
+            by_title=True,
+            event_id=event.id if event else None,
+            exclude=exclude,
         )
         snapshot_data = data["snapshots"]
 
-        column_order = ["id", "date", "comment", "seismogram_count"]
-        if all_events:
-            column_order.append("event_id")
-
-        skip_keys = [] if all_events else ["event_id"]
-
-        json_to_table(
-            data=snapshot_data,
-            title=title,
-            column_order=column_order,
-            skip_keys=skip_keys,
-            formatters={
-                "id": lambda x: (
-                    uuid_shortener(session, AimbatSnapshot, str_uuid=x) if short else x
-                ),
-                "date": lambda x: TABLE_STYLING.timestamp_formatter(
-                    Timestamp(x), short
-                ),
-                "event_id": lambda x: (
-                    uuid_shortener(session, AimbatEvent, str_uuid=x) if short else x
-                ),
-            },
-            common_column_kwargs={"justify": "center"},
-            column_kwargs={
-                "id": {
-                    "header": "ID (shortened)" if short else "ID",
-                    "style": TABLE_STYLING.id,
-                    "no_wrap": True,
-                },
-                "date": {
-                    "header": "Date & Time",
-                    "style": TABLE_STYLING.mine,
-                    "no_wrap": True,
-                },
-                "comment": {"style": TABLE_STYLING.mine},
-                "seismogram_count": {
-                    "header": "# Seismograms",
-                    "style": TABLE_STYLING.linked,
-                },
-                "selected_seismogram_count": {
-                    "header": "# Selected",
-                    "style": TABLE_STYLING.linked,
-                },
-                "flipped_seismogram_count": {
-                    "header": "# Flipped",
-                    "style": TABLE_STYLING.linked,
-                },
-                "event_id": {
-                    "header": "Event ID (shortened)" if short else "Event ID",
-                    "style": TABLE_STYLING.linked,
-                },
-            },
-        )
+        json_to_table(data=snapshot_data, title=title, short=short)
 
 
 @app.command(name="preview")
@@ -251,9 +202,7 @@ def cli_snapshot_details(
     from sqlmodel import Session
 
     from aimbat.db import engine
-    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
-
-    short = table_parameters.short
+    from aimbat.utils import json_to_table, uuid_shortener
 
     with Session(engine) as session:
         snapshot = session.get(AimbatSnapshot, snapshot_id)
@@ -263,17 +212,22 @@ def cli_snapshot_details(
                 f"Unable to print snapshot parameters: snapshot with id={snapshot_id} not found."
             )
 
+        if table_parameters.short:
+            title = f"Saved event parameters in snapshot: {uuid_shortener(session, snapshot)}"
+        else:
+            title = f"Saved event parameters in snapshot: {snapshot.id}"
+
         parameters_snapshot = snapshot.event_parameters_snapshot
+
         json_to_table(
-            data=parameters_snapshot.model_dump(mode="json"),
-            title=f"Saved event parameters in snapshot: {uuid_shortener(session, parameters_snapshot.snapshot) if short else str(parameters_snapshot.snapshot.id)}",
-            skip_keys=["id", "snapshot_id", "parameters_id"],
-            common_column_kwargs={"highlight": True},
+            data=parameters_snapshot.model_dump(
+                mode="json", exclude={"id", "snapshot_id", "parameters_id"}
+            ),
+            title=title,
             column_kwargs={
                 "Key": {
                     "header": "Parameter",
                     "justify": "left",
-                    "style": TABLE_STYLING.id,
                 },
             },
         )
