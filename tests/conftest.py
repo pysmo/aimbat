@@ -12,14 +12,13 @@ from typing import Any, Literal
 import matplotlib.pyplot as plt
 import pytest
 from sqlalchemy import Engine, event
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, create_engine
 
 import aimbat.db
 from aimbat.app import app
-from aimbat.core import add_data_to_project, create_project, set_default_event
+from aimbat.core import add_data_to_project, create_project
 from aimbat.io import DataType
 from aimbat.logger import configure_logging
-from aimbat.models import AimbatEvent
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -260,9 +259,6 @@ def loaded_engine(patched_engine: Engine, multi_event_data: Sequence[Path]) -> E
     datasources = multi_event_data
     with Session(patched_engine) as session:
         add_data_to_project(session, datasources, DataType.SAC)
-        events = session.exec(select(AimbatEvent)).all()
-        lengths = [len(e.seismograms) for e in events]
-        set_default_event(session, events[lengths.index(max(lengths))].id)
     return patched_engine
 
 
@@ -339,6 +335,21 @@ def cli_json(capsys: pytest.CaptureFixture[str]) -> Callable[[str], list | dict]
         return json.loads(captured.out)
 
     return _run
+
+
+@pytest.fixture()
+def event_id(loaded_engine: Engine, cli_json: Callable[[str], list | dict]) -> str:
+    """Returns the ID of the first event from the loaded engine.
+
+    Args:
+        loaded_engine: The monkeypatched SQLAlchemy Engine with data loaded.
+        cli_json: The CLI JSON callable to query event dump.
+
+    Returns:
+        The ID string of the first event.
+    """
+    events = cli_json("event dump")
+    return events[0]["id"]
 
 
 @pytest.fixture()

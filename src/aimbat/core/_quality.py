@@ -15,6 +15,8 @@ from typing import Any
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
 from aimbat._types import PydanticTimedelta
@@ -24,11 +26,12 @@ from aimbat.models import (
     AimbatEventQualityBase,
     AimbatEventQualitySnapshot,
     AimbatSeismogram,
+    AimbatSeismogramParametersSnapshot,
     AimbatSeismogramQualityBase,
     AimbatSeismogramQualitySnapshot,
     AimbatSnapshot,
 )
-from aimbat.utils import mean_and_sem, mean_and_sem_timedelta
+from aimbat.utils import mean_and_sem, mean_and_sem_timedelta, rel
 
 __all__ = [
     "FieldSpec",
@@ -218,6 +221,13 @@ def get_seismogram_mccc_map(
     Must be called within an active SQLModel session so that ORM relationships
     on `event` can lazy-load.
 
+    Warning:
+        This function can cause an N+1 query issue. It iterates over
+        `event.seismograms` and accesses `seis.quality`, which may trigger
+        lazy loading. To avoid performance problems, the `AimbatEvent` object
+        passed to this function should be queried with `selectinload` for the
+        `seismograms` and their nested `quality` relationships.
+
     Args:
         event: Default AimbatEvent.
 
@@ -338,8 +348,7 @@ def get_quality_station(
     """
     logger.debug(f"Getting quality for station {station_id}.")
 
-    # For each event that has seismograms at this station, get the most
-    # recent snapshot with quality data and collect its quality records.
+    # 1. Get all event IDs for the station
     stmt = (
         select(AimbatSeismogram.event_id)
         .where(col(AimbatSeismogram.station_id) == station_id)
@@ -347,24 +356,49 @@ def get_quality_station(
     )
     event_ids = session.exec(stmt).all()
 
+    if not event_ids:
+        return SeismogramQualityStats(count=0), SeismogramQualityStats(count=0)
+
+    # 2. Get the latest snapshot for each of these events that has quality data.
+    # Using a subquery to get the max time for each event_id
+    subq = (
+        select(
+            AimbatSnapshot.event_id,
+            func.max(AimbatSnapshot.time).label("max_time"),
+        )
+        .join(AimbatEventQualitySnapshot)
+        .where(col(AimbatSnapshot.event_id).in_(event_ids))
+        .group_by(col(AimbatSnapshot.event_id))
+        .subquery()
+    )
+
+    # Now join the snapshot table with the subquery to get the latest snapshots
+    snap_stmt = (
+        select(AimbatSnapshot)
+        .join(
+            subq,
+            (col(AimbatSnapshot.event_id) == subq.c.event_id)
+            & (col(AimbatSnapshot.time) == subq.c.max_time),
+        )
+        .options(
+            selectinload(rel(AimbatSnapshot.event)).selectinload(
+                rel(AimbatEvent.seismograms)
+            ),
+            selectinload(
+                rel(AimbatSnapshot.seismogram_parameters_snapshots)
+            ).selectinload(rel(AimbatSeismogramParametersSnapshot.parameters)),
+            selectinload(rel(AimbatSnapshot.seismogram_quality_snapshots)).selectinload(
+                rel(AimbatSeismogramQualitySnapshot.quality)
+            ),
+        )
+    )
+
+    snaps = session.exec(snap_stmt).all()
+
     all_records: list[AimbatSeismogramQualitySnapshot] = []
     selected_records: list[AimbatSeismogramQualitySnapshot] = []
 
-    for event_id in event_ids:
-        snap_stmt = (
-            select(AimbatSnapshot)
-            .join(
-                AimbatEventQualitySnapshot,
-                col(AimbatEventQualitySnapshot.snapshot_id) == col(AimbatSnapshot.id),
-            )
-            .where(col(AimbatSnapshot.event_id) == event_id)
-            .order_by(col(AimbatSnapshot.time).desc())
-            .limit(1)
-        )
-        snap = session.exec(snap_stmt).first()
-        if snap is None:
-            continue
-
+    for snap in snaps:
         # Seismograms at this station in this snapshot.
         station_seis_ids = {
             seis.id for seis in snap.event.seismograms if seis.station_id == station_id

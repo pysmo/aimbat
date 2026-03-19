@@ -4,31 +4,10 @@ import pytest
 
 from aimbat import settings
 from aimbat._cli.common import (
-    GlobalParameters,
     IccsPlotParameters,
     TableParameters,
     simple_exception,
 )
-
-
-class TestGlobalParameters:
-    """Tests for the GlobalParameters dataclass."""
-
-    def test_default_debug_is_false(self) -> None:
-        """Verifies that debug defaults to False."""
-        params = GlobalParameters()
-        assert params.debug is False
-
-    def test_debug_true_sets_log_level(self) -> None:
-        """Verifies that setting debug=True changes the log level to DEBUG."""
-        GlobalParameters(debug=True)
-        assert settings.log_level == "DEBUG"
-
-    def test_debug_false_does_not_change_log_level(self) -> None:
-        """Verifies that debug=False does not alter the log level."""
-        original = settings.log_level
-        GlobalParameters(debug=False)
-        assert settings.log_level == original
 
 
 class TestIccsPlotParameters:
@@ -58,15 +37,15 @@ class TestIccsPlotParameters:
 class TestTableParameters:
     """Tests for the TableParameters dataclass."""
 
-    def test_default_short_is_true(self) -> None:
-        """Verifies that short defaults to True."""
+    def test_default_raw_is_false(self) -> None:
+        """Verifies that raw defaults to False."""
         params = TableParameters()
-        assert params.short is True
+        assert params.raw is False
 
-    def test_short_can_be_set_false(self) -> None:
-        """Verifies that short can be set to False."""
-        params = TableParameters(short=False)
-        assert params.short is False
+    def test_raw_can_be_set_true(self) -> None:
+        """Verifies that raw can be set to True."""
+        params = TableParameters(raw=True)
+        assert params.raw is True
 
 
 class TestSimpleException:

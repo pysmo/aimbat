@@ -20,7 +20,7 @@ data type supports it.
 aimbat project create
 aimbat data add *.sac
 aimbat event list          # list events created from SAC headers
-aimbat event default <ID>  # optionally set default event for future commands
+aimbat snapshot create "initial import" --event-id <ID>
 ```
 
 Re-adding a data source that is already in the project is safe — existing
@@ -28,8 +28,9 @@ records are reused rather than duplicated.
 """
 
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from cyclopts import App, Parameter, validators
 from sqlmodel import Session
@@ -38,15 +39,70 @@ from aimbat.io import DataType
 
 from .common import (
     DebugParameter,
-    GlobalParameters,
     JsonDumpParameters,
     TableParameters,
+    event_parameter_is_all,
+    event_parameter_with_all,
     simple_exception,
     use_event_parameter,
     use_station_parameter,
 )
 
+if TYPE_CHECKING:
+    from aimbat.models import AimbatDataSource
+
 app = App(name="data", help=__doc__, help_format="markdown")
+
+
+def _print_dry_run_results(
+    added_datasources: Sequence[AimbatDataSource],
+    existing_station_ids: set,
+    existing_event_ids: set,
+    existing_seismogram_ids: set,
+) -> None:
+    """Print a summary table showing which entities were added vs skipped."""
+    from pydantic import BaseModel, Field
+    from rich.console import Console
+
+    from .common import json_to_table
+
+    class _DryRunRow(BaseModel):
+        source: str = Field(title="Source")
+        station: bool = Field(title="Station")
+        event: bool = Field(title="Event")
+        seismogram: bool = Field(title="Seismogram")
+
+    json_to_table(
+        [
+            {
+                "source": str(ds.sourcename),
+                "station": ds.seismogram.station_id not in existing_station_ids,
+                "event": ds.seismogram.event_id not in existing_event_ids,
+                "seismogram": ds.seismogram_id not in existing_seismogram_ids,
+            }
+            for ds in added_datasources
+        ],
+        model=_DryRunRow,
+        title="Dry Run: Data to be added",
+    )
+    new_stations = sum(
+        ds.seismogram.station_id not in existing_station_ids for ds in added_datasources
+    )
+    new_events = sum(
+        ds.seismogram.event_id not in existing_event_ids for ds in added_datasources
+    )
+    new_seismograms = sum(
+        ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
+    )
+    console = Console()
+    console.print(
+        f"\n{new_stations} station(s) added, "
+        f"{len(added_datasources) - new_stations} skipped. "
+        f"{new_events} event(s) added, "
+        f"{len(added_datasources) - new_events} skipped. "
+        f"{new_seismograms} seismogram(s) added, "
+        f"{len(added_datasources) - new_seismograms} skipped."
+    )
 
 
 @app.command(name="add")
@@ -56,8 +112,9 @@ def cli_data_add(
         list[Path],
         Parameter(
             name="sources",
-            help="One or more data source file paths to add.",
-            consume_multiple=True,
+            help="One or more data source paths to add.",
+            consume_multiple=1,
+            negative_iterable=(),
             validator=validators.Path(exists=True),
         ),
     ],
@@ -85,7 +142,7 @@ def cli_data_add(
             name="progress", help="Display a progress bar while ingesting sources."
         ),
     ] = True,
-    global_parameters: DebugParameter = DebugParameter(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Add or update data sources in the AIMBAT project.
 
@@ -107,7 +164,7 @@ def cli_data_add(
     disable_progress_bar = not show_progress_bar
 
     with Session(engine) as session:
-        add_data_to_project(
+        results = add_data_to_project(
             session,
             data_sources,
             data_type,
@@ -116,6 +173,9 @@ def cli_data_add(
             dry_run=dry_run,
             disable_progress_bar=disable_progress_bar,
         )
+        if results is not None:
+            if dry_run:
+                _print_dry_run_results(*results)
 
 
 @app.command(name="dump")
@@ -140,47 +200,53 @@ def cli_data_dump(
 @app.command(name="list")
 @simple_exception
 def cli_data_list(
+    event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()],
     *,
     table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print a table of data sources registered in the AIMBAT project."""
     from aimbat.core import dump_data_table, resolve_event
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.models import AimbatDataSource, AimbatSeismogram
-    from aimbat.utils import json_to_table, uuid_shortener
+    from aimbat.models import AimbatDataSource, AimbatSeismogram, RichColSpec
+    from aimbat.utils import uuid_shortener
 
-    short = table_parameters.short
+    from .common import json_to_table
+
+    raw = table_parameters.raw
 
     with Session(engine) as session:
         logger.debug("Printing data sources table.")
 
-        if global_parameters.all_events:
-            data = dump_data_table(session, by_title=True)
+        if event_parameter_is_all(event_id):
+            data = dump_data_table(session)
             title = "Data sources for all events"
         else:
-            event = resolve_event(session, global_parameters.event_id)
-            data = dump_data_table(session, event.id, by_title=True)
-            _time = event.time.strftime("%Y-%m-%d %H:%M:%S") if short else event.time
-            _id = uuid_shortener(session, event) if short else event.id
+            event = resolve_event(session, event_id)
+            data = dump_data_table(session, event.id)
+            _time = event.time.strftime("%Y-%m-%d %H:%M:%S") if not raw else event.time
+            _id = uuid_shortener(session, event) if not raw else event.id
             title = f"Data sources for event {_time} (ID={_id})"
 
-        formatters = {
-            "ID": lambda x: (
-                uuid_shortener(session, AimbatDataSource, str_uuid=x) if short else x
+        col_specs = {
+            "id": RichColSpec(
+                formatter=lambda x: uuid_shortener(
+                    session, AimbatDataSource, str_uuid=x
+                )
             ),
-            "Seismogram ID": lambda x: (
-                uuid_shortener(session, AimbatSeismogram, str_uuid=x) if short else x
+            "seismogram_id": RichColSpec(
+                formatter=lambda x: uuid_shortener(
+                    session, AimbatSeismogram, str_uuid=x
+                )
             ),
         }
-        column_order = ["ID"]
 
         json_to_table(
-            data,
+            model=AimbatDataSource,
+            data=data,
             title=title,
-            formatters=formatters,
-            column_order=column_order,
+            raw=raw,
+            col_specs=col_specs,
         )
 
 

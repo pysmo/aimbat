@@ -7,6 +7,7 @@ from uuid import UUID
 from pandas import Timedelta
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from aimbat._types import EventParameter
@@ -19,16 +20,43 @@ from aimbat.models import (
     AimbatStation,
 )
 from aimbat.models._parameters import AimbatEventParametersBase
-from aimbat.utils import get_title_map
+from aimbat.utils import get_title_map, rel
 
 __all__ = [
     "delete_event",
     "get_completed_events",
     "get_events_using_station",
+    "resolve_event",
     "set_event_parameter",
     "dump_event_table",
     "dump_event_parameter_table",
 ]
+
+
+def resolve_event(session: Session, event_id: UUID | None = None) -> AimbatEvent:
+    """
+    Resolve an event from an explicit ID.
+
+    Args:
+        session: SQL session.
+        event_id: Optional event ID.
+
+    Returns:
+        The specified event.
+
+    Raises:
+        NoResultFound: If an explicit event_id is given but not found.
+        NoResultFound: If no event_id is given.
+    """
+    if event_id:
+        logger.debug(f"Resolving event by explicit ID: {event_id}")
+        event = session.get(AimbatEvent, event_id)
+        if event is None:
+            raise NoResultFound(f"No AimbatEvent found with id: {event_id}.")
+        return event
+
+    raise NoResultFound("No event specified.")
+
 
 type EventParameterBool = Literal[
     EventParameter.COMPLETED, EventParameter.BANDPASS_APPLY
@@ -100,6 +128,13 @@ def get_events_using_station(
         .join(AimbatSeismogram)
         .join(AimbatStation)
         .where(AimbatStation.id == station_id)
+        .options(
+            selectinload(rel(AimbatEvent.seismograms)).selectinload(
+                rel(AimbatSeismogram.parameters)
+            ),
+            selectinload(rel(AimbatEvent.parameters)),
+            selectinload(rel(AimbatEvent.quality)),
+        )
     )
 
     events = session.exec(statement).all()
@@ -176,7 +211,16 @@ def set_event_parameter(
 
     logger.debug(f"Setting {name=} to {value} for event {event_id=}.")
 
-    event = session.get(AimbatEvent, event_id)
+    event = session.exec(
+        select(AimbatEvent)
+        .where(AimbatEvent.id == event_id)
+        .options(
+            selectinload(rel(AimbatEvent.parameters)),
+            selectinload(rel(AimbatEvent.seismograms)).selectinload(
+                rel(AimbatSeismogram.parameters)
+            ),
+        )
+    ).one_or_none()
     if event is None:
         raise NoResultFound(f"No AimbatEvent found with id: {event_id}.")
 
@@ -247,7 +291,14 @@ def dump_event_table(
     if exclude is not None:
         exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
 
-    events = session.exec(select(AimbatEvent)).all()
+    statement = select(AimbatEvent).options(
+        selectinload(rel(AimbatEvent.seismograms)).selectinload(
+            rel(AimbatSeismogram.parameters)
+        ),
+        selectinload(rel(AimbatEvent.parameters)),
+        selectinload(rel(AimbatEvent.quality)),
+    )
+    events = session.exec(statement).all()
 
     if from_read_model:
         event_reads = [AimbatEventRead.from_event(e, session=session) for e in events]

@@ -5,10 +5,9 @@ from sqlmodel import Session, select
 
 from aimbat.core import (
     create_iccs_instance,
-    get_default_event,
     run_mccc,
 )
-from aimbat.models import AimbatSeismogramQuality
+from aimbat.models import AimbatEvent, AimbatSeismogramQuality
 
 
 class TestMccc:
@@ -16,7 +15,7 @@ class TestMccc:
 
     def test_run_mccc_populates_quality_stats(self, loaded_session: Session) -> None:
         """Verifies that running MCCC populates quality metrics in the database."""
-        event = get_default_event(loaded_session)
+        event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         # Ensure no MCCC stats initially
@@ -47,7 +46,7 @@ class TestMccc:
 
     def test_run_mccc_all_seismograms(self, loaded_session: Session) -> None:
         """Verifies that MCCC can be run on all seismograms, including deselected ones."""
-        event = get_default_event(loaded_session)
+        event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         # Deselect one seismogram
@@ -68,7 +67,7 @@ class TestMccc:
 
     def test_run_mccc_selected_only(self, loaded_session: Session) -> None:
         """Verifies that MCCC only processes selected seismograms by default."""
-        event = get_default_event(loaded_session)
+        event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         # Deselect one seismogram

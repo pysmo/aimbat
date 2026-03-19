@@ -7,7 +7,7 @@ from enum import StrEnum
 
 from pandas import Timedelta
 from pydantic import ValidationError
-from sqlmodel import Session, select
+from sqlmodel import Session
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -15,12 +15,15 @@ from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input, Label, Static
 
+from aimbat._tui._format import tui_cell, tui_display_title
 from aimbat._tui._widgets import VimDataTable
 from aimbat._types import EventParameter
-from aimbat.core import delete_event, set_event_parameter
+from aimbat.core import delete_event, dump_event_table, set_event_parameter
 from aimbat.db import engine
-from aimbat.models import AimbatEvent
+from aimbat.models import AimbatEvent, AimbatEventRead
 from aimbat.models._parameters import AimbatEventParametersBase
+
+_SWITCHER_EVENT_EXCLUDE: set[str] = {"snapshot_count", "last_modified"}
 
 
 class _CSS(StrEnum):
@@ -93,48 +96,28 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
         table.cursor_type = "row"
-        table.add_columns(
-            " ",
-            "ID",
-            "Time (UTC)",
-            "Lat °",
-            "Lon °",
-            "Depth km",
-            "Seismograms",
-            "Stations",
-            "Completed",
-        )
+        headers = [
+            tui_display_title(AimbatEventRead, f)
+            for f in AimbatEventRead.model_fields
+            if f not in _SWITCHER_EVENT_EXCLUDE | {"id"}
+        ]
+        table.add_columns(" ", *headers)
         self._populate(table)
 
     def _populate(self, table: DataTable) -> None:
         try:
             with Session(engine) as session:
-                events = session.exec(select(AimbatEvent)).all()
-
-                for event in events:
-                    marker = "▶" if event.id == self._current_event_id else " "
-                    done_marker = "✓" if event.parameters.completed else " "
-                    short_id = str(event.id)[:8]
-                    time_str = str(event.time)[:19] if event.time else "—"
-                    lat = f"{event.latitude:.3f}" if event.latitude is not None else "—"
-                    lon = (
-                        f"{event.longitude:.3f}" if event.longitude is not None else "—"
-                    )
-                    depth = (
-                        f"{event.depth / 1000:.1f}" if event.depth is not None else "—"
-                    )
-                    table.add_row(
-                        marker,
-                        short_id,
-                        time_str,
-                        lat,
-                        lon,
-                        depth,
-                        str(event.seismogram_count),
-                        str(event.station_count),
-                        done_marker,
-                        key=str(event.id),
-                    )
+                rows = dump_event_table(
+                    session,
+                    from_read_model=True,
+                    by_title=True,
+                    exclude=_SWITCHER_EVENT_EXCLUDE,
+                )
+            for row in rows:
+                row_id = str(row.pop("ID"))
+                marker = "▶" if row_id == str(self._current_event_id) else " "
+                cells = [tui_cell(AimbatEventRead, k, v) for k, v in row.items()]
+                table.add_row(marker, *cells, key=row_id)
         except RuntimeError as exc:
             self.notify(str(exc), severity="error")
             self.dismiss(None)

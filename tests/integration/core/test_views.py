@@ -6,9 +6,9 @@ import pandas as pd
 import pytest
 from sqlmodel import Session, col, select
 
-from aimbat.core import get_default_event
 from aimbat.core._quality import get_quality_event, get_quality_seismogram
 from aimbat.core._snapshot import create_snapshot
+from aimbat.models import AimbatEvent
 
 
 def _write_mock_mccc_quality(
@@ -84,9 +84,9 @@ class TestGetQualitySeismogram:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
-        seis = default_event.seismograms[0]
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seis = event.seismograms[0]
         assert get_quality_seismogram(loaded_session, seis.id) is None
 
     def test_returns_quality_for_selected_seismogram(
@@ -97,19 +97,19 @@ class TestGetQualitySeismogram:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
-        seis_ids = [s.id for s in default_event.seismograms]
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seis_ids = [s.id for s in event.seismograms]
         select_flags = [True] * len(seis_ids)
         _write_mock_mccc_quality(
             loaded_session,
-            default_event.id,
+            event.id,
             seis_ids,
             select_flags,
             all_seismograms=False,
         )
-        loaded_session.refresh(default_event)
-        create_snapshot(loaded_session, default_event)
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
 
         result = get_quality_seismogram(loaded_session, seis_ids[0])
         assert result is not None
@@ -126,35 +126,35 @@ class TestGetQualitySeismogram:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
 
-        seis_ids = [s.id for s in default_event.seismograms]
+        seis_ids = [s.id for s in event.seismograms]
         # Snapshot 1: all_seismograms=True — deselected seismogram gets quality data.
         select_flags_all_deselected = [False] + [True] * (len(seis_ids) - 1)
-        for i, seis in enumerate(default_event.seismograms):
+        for i, seis in enumerate(event.seismograms):
             seis.parameters.select = select_flags_all_deselected[i]
         loaded_session.commit()
         _write_mock_mccc_quality(
             loaded_session,
-            default_event.id,
+            event.id,
             seis_ids,
             select_flags_all_deselected,
             all_seismograms=True,
         )
-        loaded_session.refresh(default_event)
-        create_snapshot(loaded_session, default_event)
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
 
         # Snapshot 2 (most recent): all_seismograms=False — deselected seismogram is excluded.
         _write_mock_mccc_quality(
             loaded_session,
-            default_event.id,
+            event.id,
             seis_ids,
             select_flags_all_deselected,
             all_seismograms=False,
         )
-        loaded_session.refresh(default_event)
-        create_snapshot(loaded_session, default_event)
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
 
         # The deselected seismogram should return None despite having data in snapshot 1.
         deselected_id = seis_ids[0]
@@ -168,24 +168,24 @@ class TestGetQualitySeismogram:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
 
-        seis_ids = [s.id for s in default_event.seismograms]
+        seis_ids = [s.id for s in event.seismograms]
         select_flags = [False] + [True] * (len(seis_ids) - 1)
-        for i, seis in enumerate(default_event.seismograms):
+        for i, seis in enumerate(event.seismograms):
             seis.parameters.select = select_flags[i]
         loaded_session.commit()
 
         _write_mock_mccc_quality(
             loaded_session,
-            default_event.id,
+            event.id,
             seis_ids,
             select_flags,
             all_seismograms=True,
         )
-        loaded_session.refresh(default_event)
-        create_snapshot(loaded_session, default_event)
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
 
         deselected_id = seis_ids[0]
         result = get_quality_seismogram(loaded_session, deselected_id)
@@ -202,9 +202,9 @@ class TestGetQualityEvent:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
-        event_quality, stats = get_quality_event(loaded_session, default_event.id)
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        event_quality, stats = get_quality_event(loaded_session, event.id)
         assert event_quality is None
         assert stats.count == 0
 
@@ -216,22 +216,22 @@ class TestGetQualityEvent:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
 
-        seis_ids = [s.id for s in default_event.seismograms]
-        select_flags = [s.select for s in default_event.seismograms]
+        seis_ids = [s.id for s in event.seismograms]
+        select_flags = [s.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session,
-            default_event.id,
+            event.id,
             seis_ids,
             select_flags,
             all_seismograms=False,
         )
-        loaded_session.refresh(default_event)
-        create_snapshot(loaded_session, default_event)
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
 
-        _, stats = get_quality_event(loaded_session, default_event.id)
+        _, stats = get_quality_event(loaded_session, event.id)
         assert stats.count == sum(select_flags)
 
     def test_includes_deselected_seismograms_when_present_in_snapshot(
@@ -245,23 +245,23 @@ class TestGetQualityEvent:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
 
-        default_event.seismograms[0].parameters.select = False
+        event.seismograms[0].parameters.select = False
         loaded_session.commit()
 
-        seis_ids = [s.id for s in default_event.seismograms]
-        select_flags = [s.select for s in default_event.seismograms]
+        seis_ids = [s.id for s in event.seismograms]
+        select_flags = [s.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session,
-            default_event.id,
+            event.id,
             seis_ids,
             select_flags,
             all_seismograms=True,
         )
-        loaded_session.refresh(default_event)
-        create_snapshot(loaded_session, default_event)
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
 
-        _, stats = get_quality_event(loaded_session, default_event.id)
+        _, stats = get_quality_event(loaded_session, event.id)
         assert stats.count == len(seis_ids)

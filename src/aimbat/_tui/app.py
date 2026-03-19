@@ -50,7 +50,6 @@ from aimbat._tui.modals import (
 from aimbat._types import SeismogramParameter
 from aimbat.core import (
     BoundICCS,
-    FieldGroup,
     add_data_to_project,
     build_iccs_from_snapshot,
     create_iccs_instance,
@@ -62,7 +61,7 @@ from aimbat.core import (
     delete_station,
     dump_event_table,
     dump_seismogram_table,
-    dump_snapshot_tables,
+    dump_snapshot_table,
     dump_station_table,
     reset_seismogram_parameters,
     rollback_to_snapshot,
@@ -94,7 +93,11 @@ from aimbat.plot import (
     update_pick,
     update_timewindow,
 )
-from aimbat.utils import get_title_map
+
+from ._format import fmt_float_sem as _fmt_float_sem
+from ._format import fmt_groups as _format_groups
+from ._format import tui_cell as _tui_cell
+from ._format import tui_display_title as _tui_display_title
 
 _DEFAULT_THEME = settings.tui_dark_theme
 _LIGHT_THEME = settings.tui_light_theme
@@ -120,9 +123,7 @@ _TAB_ROW_ACTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
-_TITLE_REMAP: dict[str, str] = {"Short ID": "ID"}
-
-_EVENT_TABLE_EXCLUDE: set[str] = {"is_default", "last_modified"}
+_EVENT_TABLE_EXCLUDE: set[str] = {""}
 _STATION_TABLE_EXCLUDE: set[str] = {"event_count"}
 _SEISMOGRAM_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
 _SNAPSHOT_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
@@ -213,82 +214,6 @@ _TOOL_REGISTRY: dict[str, tuple[str, _ToolFn]] = {
     "stack": ("Stack plot", _tool_stack),
     "image": ("Matrix image", _tool_image),
 }
-
-
-# ---------------------------------------------------------------------------
-# Quality display helpers
-# ---------------------------------------------------------------------------
-
-
-def _fmt_float_sem(v: float | None, sem: float | None, decimals: int = 4) -> str:
-    if v is None:
-        return "—"
-    if sem is not None:
-        return f"{v:.{decimals}f} ± {sem:.{decimals}f}"
-    return f"{v:.{decimals}f}"
-
-
-def _fmt_td_sem(td: Timedelta | None, sem: Timedelta | None, decimals: int = 5) -> str:
-    if td is None:
-        return "—"
-    s = f"{td.total_seconds():.{decimals}f}"
-    if sem is not None:
-        s += f" ± {sem.total_seconds():.{decimals}f}"
-    return s + " s"
-
-
-def _fmt_val(val: object, sem: object = None) -> str:
-    """Format a model field value, optionally with its SEM sibling."""
-    if val is None:
-        return "—"
-    if isinstance(val, bool):
-        return "✓" if val else "✗"
-    if isinstance(val, Timedelta):
-        return _fmt_td_sem(val, sem if isinstance(sem, Timedelta) else None)
-    if isinstance(val, float):
-        return _fmt_float_sem(val, sem if isinstance(sem, float) else None)
-    return str(val)
-
-
-def _format_groups(
-    groups: list[FieldGroup],
-) -> list[tuple[str, list[tuple[str, str]]]]:
-    """Format a list of `FieldGroup` instances for `QualityModal`.
-
-    Returns a list of `(group_title, rows)` pairs, skipping groups with no
-    content. Each `rows` element is a pre-formatted `(label, value)` pair.
-    """
-    result = []
-    for group in groups:
-        rows: list[tuple[str, str]] = []
-        if group.fields:
-            rows = [
-                (spec.title, _fmt_val(spec.value, spec.sem)) for spec in group.fields
-            ]
-        elif group.empty_message:
-            rows = [(group.empty_message, "")]
-        if rows:
-            result.append((group.title, rows))
-    return result
-
-
-def _tui_fmt(val: object, *, field_name: str = "") -> str:
-    """Format a dump value for display in a Textual DataTable cell."""
-    if val is None:
-        return "—"
-    if isinstance(val, bool):
-        if field_name == "Flip":
-            return "↕" if val else ""
-        return "✓" if val else ""
-    if field_name == "Depth" and isinstance(val, (int, float)):
-        return f"{val / 1000:.1f}"
-    if isinstance(val, float):
-        return f"{val:.3f}"
-    if isinstance(val, int):
-        return str(val)
-    if isinstance(val, str) and "T" in val and len(val) >= 19:
-        return val[:19]
-    return str(val)
 
 
 # ---------------------------------------------------------------------------
@@ -486,17 +411,17 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
 
     def _setup_project_tables(self) -> None:
-        event_headers = [
-            _TITLE_REMAP.get(t, t)
-            for f, t in get_title_map(AimbatEventRead).items()
+        et_headers = [
+            _tui_display_title(AimbatEventRead, f)
+            for f in AimbatEventRead.model_fields
             if f not in _EVENT_TABLE_EXCLUDE | {"id"}
         ]
         et = self.query_one("#project-event-table", DataTable)
         et.cursor_type = "row"
-        et.add_columns(" ", *event_headers)
+        et.add_columns(" ", *et_headers)
         station_headers = [
-            _TITLE_REMAP.get(t, t)
-            for f, t in get_title_map(AimbatStationRead).items()
+            _tui_display_title(AimbatStationRead, f)
+            for f in AimbatStationRead.model_fields
             if f not in _STATION_TABLE_EXCLUDE | {"id"}
         ]
         st = self.query_one("#project-station-table", DataTable)
@@ -505,8 +430,8 @@ class AimbatTUI(App[None]):
 
     def _setup_seismogram_table(self) -> None:
         seis_headers = [
-            _TITLE_REMAP.get(t, t)
-            for f, t in get_title_map(AimbatSeismogramRead).items()
+            _tui_display_title(AimbatSeismogramRead, f)
+            for f in AimbatSeismogramRead.model_fields
             if f not in _SEISMOGRAM_TABLE_EXCLUDE | {"id"}
         ]
         t = self.query_one("#seismogram-table", DataTable)
@@ -515,8 +440,8 @@ class AimbatTUI(App[None]):
 
     def _setup_snapshot_table(self) -> None:
         snap_headers = [
-            _TITLE_REMAP.get(t, t)
-            for f, t in get_title_map(AimbatSnapshotRead).items()
+            _tui_display_title(AimbatSnapshotRead, f)
+            for f in AimbatSnapshotRead.model_fields
             if f not in _SNAPSHOT_TABLE_EXCLUDE | {"id"}
         ]
         t = self.query_one("#snapshot-table", DataTable)
@@ -540,7 +465,7 @@ class AimbatTUI(App[None]):
         et_saved, st_saved = et.cursor_row, st.cursor_row
         et.clear()
         st.clear()
-        with suppress(Exception):
+        with suppress(NoResultFound, RuntimeError):
             with Session(engine) as session:
                 event_rows = dump_event_table(
                     session,
@@ -571,19 +496,20 @@ class AimbatTUI(App[None]):
                     None,
                 )
                 if active is not None:
+                    _sc_key = _tui_display_title(AimbatEventRead, "station_count")
                     self.query_one("#stations-title", Static).update(
-                        f"Stations  [dim]{active['Station count']} in active event[/dim]"
+                        f"Stations  [dim]{active.get(_sc_key, '?')} in active event[/dim]"
                     )
 
             for row in event_rows:
                 row_id = str(row.pop("ID"))
                 marker = "▶" if row_id == str(self._current_event_id) else " "
-                cells = [_tui_fmt(v, field_name=k) for k, v in row.items()]
+                cells = [_tui_cell(AimbatEventRead, k, v) for k, v in row.items()]
                 et.add_row(marker, *cells, key=row_id)
 
             for row in station_rows:
                 row_id = str(row.pop("ID"))
-                cells = [_tui_fmt(v, field_name=k) for k, v in row.items()]
+                cells = [_tui_cell(AimbatStationRead, k, v) for k, v in row.items()]
                 st.add_row(*cells, key=row_id)
 
         if et.row_count > 0:
@@ -650,7 +576,7 @@ class AimbatTUI(App[None]):
 
         live_cc_map: dict[str, float] = {}
         if self._bound_iccs is not None:
-            with suppress(Exception):
+            with suppress(AttributeError, ValueError):
                 for iccs_seis, cc in zip(
                     self._bound_iccs.iccs.seismograms, self._bound_iccs.iccs.ccs
                 ):
@@ -687,7 +613,7 @@ class AimbatTUI(App[None]):
                     if row.get("Select"):
                         selected_ccs.append(float(cc_val))
                 row_id = str(row.pop("ID"))
-                cells = [_tui_fmt(v, field_name=k) for k, v in row.items()]
+                cells = [_tui_cell(AimbatSeismogramRead, k, v) for k, v in row.items()]
                 table.add_row(*cells, key=row_id)
 
         title = self.query_one("#seismogram-title", Static)
@@ -717,16 +643,16 @@ class AimbatTUI(App[None]):
         with suppress(NoResultFound, RuntimeError):
             with Session(engine) as session:
                 event = self._get_current_event(session)
-                snap_data = dump_snapshot_tables(
+                snapshots = dump_snapshot_table(
                     session,
                     from_read_model=True,
                     by_title=True,
                     exclude=_SNAPSHOT_TABLE_EXCLUDE,
                     event_id=event.id,
                 )
-            for row in snap_data["snapshots"]:
+            for row in snapshots:
                 row_id = str(row.pop("ID"))
-                cells = [_tui_fmt(v, field_name=k) for k, v in row.items()]
+                cells = [_tui_cell(AimbatSnapshotRead, k, v) for k, v in row.items()]
                 table.add_row(*cells, key=row_id)
         if table.row_count > 0:
             table.move_cursor(row=min(saved_row, table.row_count - 1))

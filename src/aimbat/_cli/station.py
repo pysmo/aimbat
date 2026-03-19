@@ -1,18 +1,18 @@
 """View and manage stations."""
 
-import uuid
-from typing import Annotated
+from typing import Annotated, Literal
+from uuid import UUID
 
 from cyclopts import App
 
 from aimbat.models import AimbatStation
 
 from .common import (
-    ALL_EVENTS_PARAMETER,
     DebugParameter,
-    GlobalParameters,
     JsonDumpParameters,
     TableParameters,
+    event_parameter_is_all,
+    event_parameter_with_all,
     id_parameter,
     simple_exception,
 )
@@ -23,11 +23,17 @@ app = App(name="station", help=__doc__, help_format="markdown")
 @app.command(name="delete")
 @simple_exception
 def cli_station_delete(
-    station_id: Annotated[uuid.UUID, id_parameter(AimbatStation)],
+    station_id: Annotated[
+        UUID,
+        id_parameter(
+            AimbatStation,
+            help="UUID (or unique prefix) of station to delete.",
+        ),
+    ],
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Delete existing station."""
+    """Delete existing station (for all events)."""
     from sqlmodel import Session
 
     from aimbat.core import delete_station
@@ -40,7 +46,13 @@ def cli_station_delete(
 @app.command(name="plotseis")
 @simple_exception
 def cli_station_seismograms_plot(
-    station_id: Annotated[uuid.UUID, id_parameter(AimbatStation)],
+    station_id: Annotated[
+        UUID,
+        id_parameter(
+            AimbatStation,
+            help="UUID (or unique prefix) of station to plot seismograms for.",
+        ),
+    ],
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
@@ -81,10 +93,8 @@ def cli_station_dump(
 @app.command(name="list")
 @simple_exception
 def cli_station_list(
-    *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
+    event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the stations used in an event."""
     from sqlmodel import Session
@@ -92,36 +102,36 @@ def cli_station_list(
     from aimbat.core import dump_station_table, resolve_event
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.utils import json_to_table, uuid_shortener
+    from aimbat.models import AimbatStationRead
+    from aimbat.utils import uuid_shortener
 
-    if short := table_parameters.short:
-        exclude = {"id"}
-    else:
+    from .common import json_to_table
+
+    if raw := table_parameters.raw:
         exclude = {"short_id"}
+    else:
+        exclude = {"id"}
 
     with Session(engine) as session:
-        if all_events:
+        if event_parameter_is_all(event_id):
             logger.debug("Selecting all AIMBAT stations.")
-            data = dump_station_table(
-                session, from_read_model=True, by_title=True, exclude=exclude
-            )
+            data = dump_station_table(session, from_read_model=True, exclude=exclude)
             title = "AIMBAT stations for all events"
         else:
             logger.debug("Selecting AIMBAT stations used by event.")
-            event = resolve_event(session, global_parameters.event_id)
+            event = resolve_event(session, event_id)
             data = dump_station_table(
                 session,
                 event_id=event.id,
                 from_read_model=True,
-                by_title=True,
                 exclude={"seismogram_count", "event_count"} | exclude,
             )
-            if short:
-                title = f"AIMBAT stations for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
-            else:
+            if raw:
                 title = f"AIMBAT stations for event {event.time} (ID={event.id})"
+            else:
+                title = f"AIMBAT stations for event {event.time.strftime('%Y-%m-%d %H:%M:%S')} (ID={uuid_shortener(session, event)})"
 
-        json_to_table(data, title=title, short=short)
+        json_to_table(data, model=AimbatStationRead, title=title, raw=raw)
 
 
 if __name__ == "__main__":

@@ -144,7 +144,24 @@ def print_settings_table(pretty: bool) -> None:
     """
     import json
 
-    from aimbat.utils import TABLE_STYLING, json_to_table
+    from pydantic import BaseModel
+
+    from aimbat._cli.common import json_to_table
+    from aimbat.models import RichColSpec
+
+    class _SettingsRow(BaseModel):
+        name: str = Field(
+            title="Name",
+            json_schema_extra={"rich": RichColSpec(justify="left", no_wrap=True)},  # type: ignore[dict-item]
+        )
+        value: str = Field(
+            title="Value",
+            json_schema_extra={"rich": RichColSpec(justify="left", no_wrap=True)},  # type: ignore[dict-item]
+        )
+        description: str = Field(
+            title="Description",
+            json_schema_extra={"rich": RichColSpec(justify="left")},  # type: ignore[dict-item]
+        )
 
     env_prefix = Settings.model_config.get("env_prefix")
     values: dict[str, str] = json.loads(settings.model_dump_json())
@@ -166,19 +183,10 @@ def print_settings_table(pretty: bool) -> None:
         description = field_info.description if field_info else ""
         description_with_env_var = (f"{description} " if description else "") + env_var
         rows.append(
-            {"Name": k, "Value": str(v), "Description": description_with_env_var}
+            {"name": k, "value": str(v), "description": description_with_env_var}
         )
 
-    json_to_table(
-        rows,
-        title="AIMBAT settings",
-        common_column_kwargs={"justify": "left"},
-        column_kwargs={
-            "Name": {"no_wrap": True, "style": TABLE_STYLING.ID},
-            "Value": {"no_wrap": True, "style": TABLE_STYLING.mine},
-            "Description": {"style": TABLE_STYLING.linked},
-        },
-    )
+    json_to_table(rows, model=_SettingsRow, title="AIMBAT settings")
 
 
 def cli_settings_list(

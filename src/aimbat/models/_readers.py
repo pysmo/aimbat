@@ -6,6 +6,9 @@ from pydantic.alias_generators import to_camel
 
 from aimbat._types import PydanticTimedelta, PydanticTimestamp
 from aimbat.utils import mean_and_sem
+from aimbat.utils.formatters import fmt_depth_km, fmt_flip
+
+from ._format import RichColSpec, TuiColSpec
 
 if TYPE_CHECKING:
     from sqlmodel import Session
@@ -32,19 +35,23 @@ class AimbatEventRead(BaseModel):
     id: UUID = Field(
         title="ID",
         description="Unique identifier for the event",
+        json_schema_extra={
+            "rich": RichColSpec(style="yellow"),  # type: ignore[dict-item]
+        },
     )
     short_id: str | None = Field(
         default=None,
         title="Short ID",
         description="Shortened unique identifier",
-    )
-    is_default: bool | None = Field(
-        title="Default",
-        description="Indicates if this event is the default event",
+        json_schema_extra={
+            "tui": TuiColSpec(display_title="ID"),  # type: ignore[dict-item]
+            "rich": RichColSpec(display_title="ID", style="yellow", highlight=False),  # type: ignore[dict-item]
+        },
     )
     completed: bool = Field(
         title="Completed",
         description="Indicates if the event's parameters are marked as completed",
+        json_schema_extra={"tui": TuiColSpec(text_align="center")},  # type: ignore[dict-item]
     )
     time: PydanticTimestamp = Field(
         title="Event time",
@@ -61,17 +68,23 @@ class AimbatEventRead(BaseModel):
     depth: float | None = Field(
         title="Depth",
         description="Depth of the event",
+        json_schema_extra={
+            "tui": TuiColSpec(display_title="Depth km", formatter=fmt_depth_km),  # type: ignore[dict-item]
+            "rich": RichColSpec(
+                display_title=r"Depth \[km]", justify="right", formatter=fmt_depth_km
+            ),  # type: ignore[dict-item]
+        },
     )
     seismogram_count: int = Field(
-        title="Seismogram count",
+        title="Seismograms",
         description="Number of seismograms associated with this event",
     )
     station_count: int = Field(
-        title="Station count",
+        title="Stations",
         description="Number of stations associated with this event",
     )
     snapshot_count: int = Field(
-        title="Snapshot count",
+        title="Snapshots",
         description="Number of snapshots associated with this event",
     )
     last_modified: PydanticTimestamp | None = Field(
@@ -108,11 +121,23 @@ class AimbatStationRead(BaseModel):
         frozen=True, alias_generator=to_camel, populate_by_name=True
     )
 
-    id: UUID = Field(title="ID", description="Unique identifier for the station")
+    id: UUID = Field(
+        title="ID",
+        description="Unique identifier for the station",
+        json_schema_extra={
+            "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
+    )
     short_id: str | None = Field(
         default=None,
         title="Short ID",
         description="Shortened unique identifier",
+        json_schema_extra={
+            "tui": TuiColSpec(display_title="ID"),  # type: ignore[dict-item]
+            "rich": RichColSpec(
+                display_title="ID", style="yellow", no_wrap=True, highlight=False
+            ),  # type: ignore[dict-item]
+        },
     )
     network: str = Field(title="Network", description="Station network code")
     name: str = Field(title="Name", description="Station name")
@@ -121,7 +146,10 @@ class AimbatStationRead(BaseModel):
     latitude: float = Field(title="Latitude", description="Station latitude")
     longitude: float = Field(title="Longitude", description="Station longitude")
     elevation: float | None = Field(
-        default=None, title="Elevation", description="Station elevation"
+        default=None,
+        title="Elevation",
+        description="Station elevation",
+        json_schema_extra={"tui": TuiColSpec(formatter=lambda x: str(int(x)))},  # type: ignore[dict-item]
     )
 
     cc_mean: float | None = Field(
@@ -155,19 +183,14 @@ class AimbatStationRead(BaseModel):
         data = station.model_dump()
 
         if session is not None:
-            from sqlmodel import select
-
             from aimbat.utils import uuid_shortener
 
-            from ._models import AimbatSeismogram, AimbatSeismogramQuality
-
             data["short_id"] = uuid_shortener(session, station)
-            statement = (
-                select(AimbatSeismogramQuality.iccs_cc)
-                .join(AimbatSeismogram)
-                .where(AimbatSeismogram.station_id == station.id)
+            iccs_ccs = tuple(
+                seis.quality.iccs_cc
+                for seis in station.seismograms
+                if seis.quality is not None and seis.quality.iccs_cc is not None
             )
-            iccs_ccs = tuple(session.exec(statement).all())
             data["cc_mean"], data["cc_sem"] = mean_and_sem(iccs_ccs)
 
         data.update(
@@ -191,11 +214,20 @@ class AimbatSeismogramRead(BaseModel):
     id: UUID = Field(
         title="ID",
         description="Unique identifier for the seismogram",
+        json_schema_extra={
+            "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
     )
     short_id: str | None = Field(
         default=None,
         title="Short ID",
         description="Shortened unique identifier",
+        json_schema_extra={
+            "tui": TuiColSpec(display_title="ID"),  # type: ignore[dict-item]
+            "rich": RichColSpec(
+                display_title="ID", style="yellow", no_wrap=True, highlight=False
+            ),  # type: ignore[dict-item]
+        },
     )
     name: str = Field(title="Name", description="Name of the seismogram.")
 
@@ -207,11 +239,16 @@ class AimbatSeismogramRead(BaseModel):
     select: bool = Field(
         title="Select",
         description="Whether the seismogram is selected for processing.",
+        json_schema_extra={"tui": TuiColSpec(text_align="center")},  # type: ignore[dict-item]
     )
 
     flip: bool = Field(
         title="Flip",
         description="Whether the seismogram is flipped for processing.",
+        json_schema_extra={
+            "tui": TuiColSpec(text_align="center", formatter=fmt_flip),  # type: ignore[dict-item]
+            "rich": RichColSpec(formatter=fmt_flip),  # type: ignore[dict-item]
+        },
     )
 
     delta_t: PydanticTimedelta | None = Field(
@@ -242,11 +279,19 @@ class AimbatSeismogramRead(BaseModel):
     event_id: UUID = Field(
         title="Event ID",
         description="ID of the associated event.",
+        json_schema_extra={
+            "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
     )
 
     short_event_id: str | None = Field(
         title="Short Event ID",
         description="Shortened unique identifier for the associated event.",
+        json_schema_extra={
+            "rich": RichColSpec(
+                display_title="Event ID", style="magenta", no_wrap=True, highlight=False
+            ),  # type: ignore[dict-item]
+        },
     )
 
     @classmethod
@@ -297,11 +342,20 @@ class AimbatSnapshotRead(BaseModel):
     id: UUID = Field(
         title="ID",
         description="Unique identifier for the snapshot",
+        json_schema_extra={
+            "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
     )
     short_id: str | None = Field(
         default=None,
         title="Short ID",
         description="Shortened unique identifier",
+        json_schema_extra={
+            "tui": TuiColSpec(display_title="ID"),  # type: ignore[dict-item]
+            "rich": RichColSpec(
+                display_title="ID", style="yellow", no_wrap=True, highlight=False
+            ),  # type: ignore[dict-item]
+        },
     )
     time: PydanticTimestamp = Field(
         title="Time", description="Timestamp of the snapshot"
@@ -310,15 +364,15 @@ class AimbatSnapshotRead(BaseModel):
         title="Comment", description="Optional comment for the snapshot"
     )
     seismogram_count: int = Field(
-        title="# Seismograms",
+        title="Seismograms",
         description="Total number of seismograms in the snapshot",
     )
     selected_seismogram_count: int = Field(
-        title="# Selected",
+        title="Selected",
         description="Number of selected seismograms in the snapshot",
     )
     flipped_seismogram_count: int = Field(
-        title="# Flipped",
+        title="Flipped",
         description="Number of flipped seismograms in the snapshot",
     )
 
@@ -334,10 +388,27 @@ class AimbatSnapshotRead(BaseModel):
         description="Standard error of the mean of cross-correlation coefficients for this snapshot",
     )
 
-    event_id: UUID = Field(title="Event ID", description="ID of the associated event")
+    mccc: bool | None = Field(
+        default=None,
+        title="MCCC",
+        description="Whether MCCC parameters are included in this snapshot",
+    )
+
+    event_id: UUID = Field(
+        title="Event ID",
+        description="ID of the associated event",
+        json_schema_extra={
+            "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
+    )
     short_event_id: str | None = Field(
         title="Short Event ID",
         description="Shortened unique identifier for the associated event",
+        json_schema_extra={
+            "rich": RichColSpec(
+                display_title="Event ID", style="magenta", no_wrap=True, highlight=False
+            ),  # type: ignore[dict-item]
+        },
     )
 
     @classmethod
@@ -360,6 +431,8 @@ class AimbatSnapshotRead(BaseModel):
             if q.iccs_cc is not None
         ]
         cc_mean, cc_sem = mean_and_sem(iccs_ccs)
+        mccc = bool(snapshot.event_quality_snapshot)
+
         return cls(
             id=snapshot.id,
             short_id=short_id,
@@ -370,6 +443,7 @@ class AimbatSnapshotRead(BaseModel):
             flipped_seismogram_count=snapshot.flipped_seismogram_count,
             cc_mean=cc_mean,
             cc_sem=cc_sem,
+            mccc=mccc,
             event_id=snapshot.event_id,
             short_event_id=short_event_id,
         )

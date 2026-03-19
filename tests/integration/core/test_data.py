@@ -17,7 +17,6 @@ from aimbat.core import (
     add_data_to_project,
     dump_data_table,
     get_data_for_event,
-    get_default_event,
 )
 from aimbat.io import DataType
 from aimbat.models import (
@@ -194,16 +193,14 @@ class TestAddDataToProject:
         self,
         multi_event_data: list[Path],
         patched_session: Session,
-        capsys: pytest.CaptureFixture,
     ) -> None:
         """Verifies dry run behaviour when all data is new.
 
         Args:
             multi_event_data (list[Path]): List of paths to SAC files.
             patched_session (Session): Database session.
-            capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
         """
-        add_data_to_project(
+        result = add_data_to_project(
             patched_session,
             multi_event_data,
             data_type=DataType.SAC,
@@ -213,58 +210,81 @@ class TestAddDataToProject:
         datasource = patched_session.exec(select(AimbatDataSource.sourcename)).all()
         assert len(datasource) == 0, "Expected no data sources after dry run."
 
-        captured = capsys.readouterr()
-        assert "Dry Run: Data to be added" in captured.out
+        assert result is not None
+        (
+            added_datasources,
+            existing_station_ids,
+            existing_event_ids,
+            existing_seismogram_ids,
+        ) = result
         n = len(multi_event_data)
-        assert f"{n} seismogram(s) added, 0 skipped" in captured.out
-        assert "0 skipped" in captured.out
+        assert len(added_datasources) == n
+        assert all(
+            ds.seismogram.station_id not in existing_station_ids
+            for ds in added_datasources
+        )
+        assert all(
+            ds.seismogram.event_id not in existing_event_ids for ds in added_datasources
+        )
+        assert all(
+            ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
+        )
 
     def test_dry_run_all_skipped(
         self,
         multi_event_data: list[Path],
         patched_session: Session,
-        capsys: pytest.CaptureFixture,
     ) -> None:
         """Verifies dry run behaviour when all data already exists (should be skipped).
 
         Args:
             multi_event_data (list[Path]): List of paths to SAC files.
             patched_session (Session): Database session.
-            capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
         """
         add_data_to_project(
             patched_session,
             multi_event_data,
             data_type=DataType.SAC,
         )
-        capsys.readouterr()
 
-        add_data_to_project(
+        result = add_data_to_project(
             patched_session,
             multi_event_data,
             data_type=DataType.SAC,
             dry_run=True,
         )
 
-        captured = capsys.readouterr()
-        assert "Dry Run: Data to be added" in captured.out
+        assert result is not None
+        (
+            added_datasources,
+            existing_station_ids,
+            existing_event_ids,
+            existing_seismogram_ids,
+        ) = result
         n = len(multi_event_data)
-        assert f"0 station(s) added, {n} skipped" in captured.out
-        assert f"0 event(s) added, {n} skipped" in captured.out
-        assert f"0 seismogram(s) added, {n} skipped" in captured.out
+        assert len(added_datasources) == n
+        assert all(
+            ds.seismogram.station_id in existing_station_ids for ds in added_datasources
+        )
+        assert all(
+            ds.seismogram.event_id in existing_event_ids for ds in added_datasources
+        )
+        assert all(
+            ds.seismogram_id in existing_seismogram_ids for ds in added_datasources
+        )
 
 
 class TestGetDataSources:
-    def test_get_data_sources_for_default_event(self, loaded_session: Session) -> None:
+    def test_get_data_sources_for_event(self, loaded_session: Session) -> None:
         """Verifies that get_data_sources returns the expected data sources.
 
         Args:
             loaded_session (Session): Database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
-        data_sources = get_data_for_event(loaded_session, default_event.id)
-        assert len(data_sources) != 0, "Expected data sources for the default event."
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        data_sources = get_data_for_event(loaded_session, event.id)
+        assert len(data_sources) != 0, "Expected data sources for the event."
         assert all(isinstance(ds, AimbatDataSource) for ds in data_sources), (
             "expected all items to be AimbatDataSource instances"
         )

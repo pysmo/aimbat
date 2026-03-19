@@ -6,20 +6,21 @@ Use `snapshot create` before making experimental changes, and `snapshot rollback
 to undo them if needed.
 """
 
-import uuid
-from typing import Annotated
+from typing import Annotated, Literal
+from uuid import UUID
 
 from cyclopts import App, Parameter
 
 from aimbat.models import AimbatSnapshot
 
 from .common import (
-    ALL_EVENTS_PARAMETER,
     DebugParameter,
-    GlobalParameters,
     IccsPlotParameters,
     JsonDumpParameters,
     TableParameters,
+    event_parameter,
+    event_parameter_is_all,
+    event_parameter_with_all,
     id_parameter,
     simple_exception,
 )
@@ -30,9 +31,10 @@ app = App(name="snapshot", help=__doc__, help_format="markdown")
 @app.command(name="create")
 @simple_exception
 def cli_snapshot_create(
+    event_id: Annotated[UUID, event_parameter()],
     comment: str | None = None,
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Create a new snapshot of current processing parameters.
 
@@ -48,14 +50,20 @@ def cli_snapshot_create(
     from aimbat.db import engine
 
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         create_snapshot(session, event, comment)
 
 
 @app.command(name="rollback")
 @simple_exception
 def cli_snapshot_rollback(
-    snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
+    snapshot_id: Annotated[
+        UUID,
+        id_parameter(
+            AimbatSnapshot,
+            help="UUID (or unique prefix) of snapshot to use for rollback.",
+        ),
+    ],
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
@@ -72,7 +80,13 @@ def cli_snapshot_rollback(
 @app.command(name="delete")
 @simple_exception
 def cli_snapshot_delete(
-    snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
+    snapshot_id: Annotated[
+        UUID,
+        id_parameter(
+            AimbatSnapshot,
+            help="UUID (or unique prefix) of snapshot to delete.",
+        ),
+    ],
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
@@ -96,70 +110,98 @@ def cli_snapshot_dump(
     from rich import print_json
     from sqlmodel import Session
 
-    from aimbat.core import dump_snapshot_tables
+    from aimbat.core import (
+        dump_event_parameter_snapshot_table,
+        dump_event_quality_snapshot_table,
+        dump_seismogram_parameter_snapshot_table,
+        dump_seismogram_quality_snapshot_table,
+        dump_snapshot_table,
+    )
     from aimbat.db import engine
 
     with Session(engine) as session:
-        print_json(
-            data=dump_snapshot_tables(session, by_alias=dump_parameters.by_alias)
-        )
+        data = {
+            "snapshots": dump_snapshot_table(
+                session, by_alias=dump_parameters.by_alias
+            ),
+            "event_parameters": dump_event_parameter_snapshot_table(
+                session, by_alias=dump_parameters.by_alias
+            ),
+            "seismogram_parameters": dump_seismogram_parameter_snapshot_table(
+                session, by_alias=dump_parameters.by_alias
+            ),
+            "event_quality": dump_event_quality_snapshot_table(
+                session, by_alias=dump_parameters.by_alias
+            ),
+            "seismogram_quality": dump_seismogram_quality_snapshot_table(
+                session, by_alias=dump_parameters.by_alias
+            ),
+        }
+        print_json(data=data)
 
 
 @app.command(name="list")
 @simple_exception
 def cli_snapshot_list(
+    event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
     table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
     """Print information on the snapshots for an event."""
     from sqlmodel import Session
 
-    from aimbat.core import dump_snapshot_tables, resolve_event
+    from aimbat.core import dump_snapshot_table, resolve_event
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.utils import json_to_table, uuid_shortener
+    from aimbat.models import AimbatSnapshotRead
+    from aimbat.utils import uuid_shortener
 
-    if short := table_parameters.short:
-        exclude = {"id", "event_id"}
-    else:
+    from .common import json_to_table
+
+    if raw := table_parameters.raw:
         exclude = {"short_id", "short_event_id"}
+    else:
+        exclude = {"id", "event_id"}
 
     with Session(engine) as session:
         logger.info("Printing AIMBAT snapshots table.")
 
-        if all_events:
+        if event_parameter_is_all(event_id):
             event = None
             title = "AIMBAT snapshots for all events"
         else:
-            event = resolve_event(session, global_parameters.event_id)
-            if short:
-                time = event.time.strftime("%Y-%m-%d %H:%M:%S")
-                id = uuid_shortener(session, event)
-                exclude.add("short_event_id")
-            else:
+            event = resolve_event(session, event_id)
+            if raw:
                 time = event.time.isoformat()
                 id = str(event.id)
                 exclude.add("event_id")
+            else:
+                time = event.time.strftime("%Y-%m-%d %H:%M:%S")
+                id = uuid_shortener(session, event)
+                exclude.add("short_event_id")
             title = f"AIMBAT snapshots for event {time} (ID={id})"
 
-        data = dump_snapshot_tables(
+        snapshot_data = dump_snapshot_table(
             session,
             from_read_model=True,
-            by_title=True,
             event_id=event.id if event else None,
             exclude=exclude,
         )
-        snapshot_data = data["snapshots"]
 
-        json_to_table(data=snapshot_data, title=title, short=short)
+        json_to_table(
+            data=snapshot_data, model=AimbatSnapshotRead, title=title, raw=raw
+        )
 
 
 @app.command(name="preview")
 @simple_exception
 def cli_snapshot_preview(
-    snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
+    snapshot_id: Annotated[
+        UUID,
+        id_parameter(
+            AimbatSnapshot, help="UUID (or unique prefix) of snapshot to preview."
+        ),
+    ],
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     as_matrix: Annotated[bool, Parameter(name="matrix")] = False,
@@ -193,16 +235,24 @@ def cli_snapshot_preview(
 @app.command(name="details")
 @simple_exception
 def cli_snapshot_details(
-    snapshot_id: Annotated[uuid.UUID, id_parameter(AimbatSnapshot)],
+    snapshot_id: Annotated[
+        UUID,
+        id_parameter(
+            AimbatSnapshot,
+            help="UUID (or unique prefix) of snapshot to show details for.",
+        ),
+    ],
     *,
     table_parameters: TableParameters = TableParameters(),
-    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Print information on the event parameters saved in a snapshot."""
     from sqlmodel import Session
 
     from aimbat.db import engine
-    from aimbat.utils import json_to_table, uuid_shortener
+    from aimbat.models import AimbatEventParametersSnapshot
+    from aimbat.utils import uuid_shortener
+
+    from .common import json_to_table
 
     with Session(engine) as session:
         snapshot = session.get(AimbatSnapshot, snapshot_id)
@@ -212,10 +262,12 @@ def cli_snapshot_details(
                 f"Unable to print snapshot parameters: snapshot with id={snapshot_id} not found."
             )
 
-        if table_parameters.short:
-            title = f"Saved event parameters in snapshot: {uuid_shortener(session, snapshot)}"
-        else:
+        raw = table_parameters.raw
+
+        if raw:
             title = f"Saved event parameters in snapshot: {snapshot.id}"
+        else:
+            title = f"Saved event parameters in snapshot: {uuid_shortener(session, snapshot)}"
 
         parameters_snapshot = snapshot.event_parameters_snapshot
 
@@ -223,13 +275,9 @@ def cli_snapshot_details(
             data=parameters_snapshot.model_dump(
                 mode="json", exclude={"id", "snapshot_id", "parameters_id"}
             ),
+            model=AimbatEventParametersSnapshot,
             title=title,
-            column_kwargs={
-                "Key": {
-                    "header": "Parameter",
-                    "justify": "left",
-                },
-            },
+            key_header="Parameter",
         )
 
 

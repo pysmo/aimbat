@@ -7,8 +7,7 @@ SQLAlchemy (for database access) with Pydantic (for validation).
 
 The main classes and their relationships are:
 
-- `AimbatEvent` — a seismic event. Only one event can be the default at a time,
-  enforced by a database constraint on the `is_default` column.
+- `AimbatEvent` — a seismic event.
 - `AimbatStation` — a seismic recording station.
 - `AimbatSeismogram` — links an `AimbatEvent` to an `AimbatStation` and holds
   the timing metadata (`begin_time`, `delta`, `t0`). Waveform data is accessed
@@ -34,6 +33,7 @@ from .._utils import export_module_names
 
 _internal_names = set(dir())
 
+from ._format import *
 from ._models import *
 from ._parameters import *
 from ._quality import *

@@ -1,6 +1,6 @@
 """Functional tests exercising the AIMBAT CLI.
 
-All commands are invoked in-process via ``app()`` with ``aimbat.db.engine``
+All commands are invoked in-process via `app()` with `aimbat.db.engine`
 monkeypatched to the test fixture's in-memory database.
 """
 
@@ -109,7 +109,7 @@ class TestDataManagement:
 
     def test_data_list(self, loaded_engine: Engine, cli: Callable[[str], None]) -> None:
         """Verifies that data list command runs successfully."""
-        cli("data list --all")
+        cli("data list --event-id all")
 
     def test_data_dump(
         self,
@@ -228,39 +228,21 @@ class TestEventOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that an event can be set as default."""
-        events = cli_json("event dump")
-
-        non_default_events = [e for e in events if e["is_default"] is None]
-        assert len(non_default_events) > 0
-        target_id = non_default_events[0]["id"]
-
-        cli(f"event default {target_id}")
-
-        events_after = cli_json("event dump")
-        default_events = [e for e in events_after if e["is_default"] is True]
-        assert len(default_events) == 1
-        assert default_events[0]["id"] == target_id
+        """Verifies that event default command was removed."""
+        # The default event concept was removed; this test verifies the command is gone
+        with pytest.raises((SystemExit, RuntimeError)):
+            cli("event default")
 
     def test_default_switches_previous(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Setting a different default event replaces the previous one."""
-        events = cli_json("event dump")
-        ids = [e["id"] for e in events]
-
-        cli(f"event default {ids[0]}")
-        cli(f"event default {ids[1]}")
-
-        events_after = cli_json("event dump")
-        default_events = [e for e in events_after if e["is_default"] is True]
-        assert len(default_events) == 1
-        assert default_events[0]["id"] == ids[1]
+        """Verifies that event default command was removed."""
+        # The default event concept was removed; this test verifies the command is gone
+        with pytest.raises((SystemExit, RuntimeError)):
+            cli("event default")
 
     def test_delete_event(
         self,
@@ -283,27 +265,11 @@ class TestEventOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Verifies that an event can be set as default using a shortened ID.
-
-        Args:
-            loaded_engine: The monkeypatched engine with data loaded.
-            cli: The in-process CLI callable.
-            cli_json: The in-process CLI JSON dump callable.
-        """
-        events = cli_json("event dump")
-        non_default_events = [e for e in events if e["is_default"] is None]
-        assert len(non_default_events) > 0
-        target_id = non_default_events[0]["id"]
-        short_id = target_id[:8]
-
-        cli(f"event default {short_id}")
-
-        events_after = cli_json("event dump")
-        default_events = [e for e in events_after if e["is_default"] is True]
-        assert len(default_events) == 1
-        assert default_events[0]["id"] == target_id
+        """Verifies that event default command with short ID was removed."""
+        # The default event concept was removed; this test verifies the command is gone
+        with pytest.raises((SystemExit, RuntimeError)):
+            cli("event default 00000000")
 
     def test_delete_event_with_short_id(
         self,
@@ -356,24 +322,31 @@ class TestEventParameters:
     """Tests for event parameter CLI commands."""
 
     def test_parameter_list(
-        self, loaded_engine: Engine, cli: Callable[[str], None]
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
     ) -> None:
         """Verifies that parameter list command runs successfully."""
-        cli("event parameter list")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"event parameter list --event-id {event_id}")
 
     def test_parameter_get_and_set(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Verifies getting and setting event parameters."""
-        cli("event parameter get completed")
+        event_id = cli_json("event dump")[0]["id"]
+
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out
 
-        cli("event parameter set completed true")
+        cli(f"event parameter set completed true --event-id {event_id}")
 
-        cli("event parameter get completed")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "True" in capsys.readouterr().out
 
     def test_parameter_dump(
@@ -383,7 +356,9 @@ class TestEventParameters:
     ) -> None:
         """Verifies that parameter dump returns parameter data."""
         data = cli_json("event parameter dump")
-        assert "completed" in data
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert "completed" in data[0]
 
 
 # ===================================================================
@@ -399,7 +374,7 @@ class TestStationOperations:
         self, loaded_engine: Engine, cli: Callable[[str], None]
     ) -> None:
         """Verifies that station list command runs successfully."""
-        cli("station list --all")
+        cli("station list --event-id all")
 
     def test_station_dump(
         self,
@@ -458,10 +433,14 @@ class TestSeismogramOperations:
     """Tests for seismogram-related CLI commands."""
 
     def test_seismogram_list(
-        self, loaded_engine: Engine, cli: Callable[[str], None]
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
     ) -> None:
         """Verifies that seismogram list command runs successfully."""
-        cli("seismogram list")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"seismogram list --event-id {event_id}")
 
     def test_seismogram_dump(
         self,
@@ -526,7 +505,8 @@ class TestSnapshotLifecycle:
         cli_json: Callable[[str], list | dict],
     ) -> None:
         """Verifies that a snapshot can be created."""
-        cli("snapshot create initial")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"snapshot create --event-id {event_id} --comment initial")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
         snapshots = data["snapshots"]
@@ -542,8 +522,9 @@ class TestSnapshotLifecycle:
         cli_json: Callable[[str], list | dict],
     ) -> None:
         """Verifies that multiple snapshots can be created."""
-        cli("snapshot create first")
-        cli("snapshot create second")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"snapshot create --event-id {event_id} --comment first")
+        cli(f"snapshot create --event-id {event_id} --comment second")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
         snapshots = data["snapshots"]
@@ -558,7 +539,8 @@ class TestSnapshotLifecycle:
         cli_json: Callable[[str], list | dict],
     ) -> None:
         """Verifies that a snapshot can be deleted."""
-        cli("snapshot create to-delete")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"snapshot create --event-id {event_id} --comment to-delete")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
         snapshots = data["snapshots"]
@@ -583,7 +565,8 @@ class TestSnapshotLifecycle:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create to-delete")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"snapshot create --event-id {event_id} --comment to-delete")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
         snapshots = data["snapshots"]
@@ -596,13 +579,6 @@ class TestSnapshotLifecycle:
         assert isinstance(data_after, dict)
         assert len(data_after["snapshots"]) == 0
 
-    def test_snapshot_list(
-        self, loaded_engine: Engine, cli: Callable[[str], None]
-    ) -> None:
-        """Verifies that snapshot list command runs successfully."""
-        cli("snapshot create")
-        cli("snapshot list")
-
     def test_rollback_snapshot(
         self,
         loaded_engine: Engine,
@@ -611,17 +587,18 @@ class TestSnapshotLifecycle:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Rollback restores parameter values from a snapshot."""
-        cli("snapshot create before-change")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"snapshot create --event-id {event_id} --comment before-change")
 
-        cli("event parameter set completed true")
-        cli("event parameter get completed")
+        cli(f"event parameter set completed true --event-id {event_id}")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "True" in capsys.readouterr().out
 
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
         cli(f"snapshot rollback {data['snapshots'][0]['id']}")
 
-        cli("event parameter get completed")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out
 
     def test_rollback_snapshot_with_short_id(
@@ -639,10 +616,11 @@ class TestSnapshotLifecycle:
             cli_json: The in-process CLI JSON dump callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create before-change")
+        event_id = cli_json("event dump")[0]["id"]
+        cli(f"snapshot create --event-id {event_id} --comment before-change")
 
-        cli("event parameter set completed true")
-        cli("event parameter get completed")
+        cli(f"event parameter set completed true --event-id {event_id}")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "True" in capsys.readouterr().out
 
         data = cli_json("snapshot dump")
@@ -650,7 +628,7 @@ class TestSnapshotLifecycle:
         short_id = data["snapshots"][0]["id"][:8]
         cli(f"snapshot rollback {short_id}")
 
-        cli("event parameter get completed")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out
 
 

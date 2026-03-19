@@ -5,17 +5,19 @@ from uuid import UUID
 from pandas import Timestamp
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from aimbat._types import SeismogramParameter
 from aimbat.logger import logger
 from aimbat.models import (
+    AimbatEvent,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatSeismogramParametersBase,
     AimbatSeismogramRead,
 )
-from aimbat.utils import get_title_map
+from aimbat.utils import get_title_map, rel
 
 __all__ = [
     "delete_seismogram",
@@ -93,6 +95,13 @@ def dump_seismogram_table(
     else:
         statement = select(AimbatSeismogram)
 
+    statement = statement.options(
+        selectinload(rel(AimbatSeismogram.station)),
+        selectinload(rel(AimbatSeismogram.event)),
+        selectinload(rel(AimbatSeismogram.parameters)),
+        selectinload(rel(AimbatSeismogram.quality)),
+    )
+
     seismograms = session.exec(statement).all()
 
     if from_read_model:
@@ -136,7 +145,19 @@ def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
 
     logger.info(f"Resetting parameters for seismogram {seismogram_id}.")
 
-    seismogram = session.get(AimbatSeismogram, seismogram_id)
+    seismogram = session.exec(
+        select(AimbatSeismogram)
+        .where(AimbatSeismogram.id == seismogram_id)
+        .options(
+            selectinload(rel(AimbatSeismogram.parameters)),
+            selectinload(rel(AimbatSeismogram.event)).options(
+                selectinload(rel(AimbatEvent.parameters)),
+                selectinload(rel(AimbatEvent.seismograms)).selectinload(
+                    rel(AimbatSeismogram.parameters)
+                ),
+            ),
+        )
+    ).one_or_none()
     if seismogram is None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
 
@@ -201,7 +222,19 @@ def set_seismogram_parameter(
         f"Setting seismogram {name=} to {value=} in seismogram {seismogram_id=}."
     )
 
-    seismogram = session.get(AimbatSeismogram, seismogram_id)
+    seismogram = session.exec(
+        select(AimbatSeismogram)
+        .where(AimbatSeismogram.id == seismogram_id)
+        .options(
+            selectinload(rel(AimbatSeismogram.parameters)),
+            selectinload(rel(AimbatSeismogram.event)).options(
+                selectinload(rel(AimbatEvent.parameters)),
+                selectinload(rel(AimbatEvent.seismograms)).selectinload(
+                    rel(AimbatSeismogram.parameters)
+                ),
+            ),
+        )
+    ).one_or_none()
     if seismogram is None:
         raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
 
@@ -246,6 +279,12 @@ def get_selected_seismograms(
             .where(AimbatSeismogram.event_id == event_id)
         )
 
+    statement = statement.options(
+        selectinload(rel(AimbatSeismogram.station)),
+        selectinload(rel(AimbatSeismogram.event)),
+        selectinload(rel(AimbatSeismogram.parameters)),
+        selectinload(rel(AimbatSeismogram.quality)),
+    )
     seismograms = session.exec(statement).all()
 
     logger.debug(f"Found {len(seismograms)} selected seismograms.")

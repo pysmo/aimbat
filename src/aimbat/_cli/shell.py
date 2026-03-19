@@ -4,18 +4,17 @@ All CLI commands are available. Press Tab to complete commands, Ctrl+D
 or type `exit` to leave.
 
 Shell-only commands:
-  event switch [ID]  Switch the shell's event context without changing the
-                     database default. Omit the ID to reset to the default event.
+  event switch [ID]  Switch the shell's event context.
 """
 
 import uuid
 from typing import TYPE_CHECKING, Annotated
 
-from cyclopts import App, Parameter
+from cyclopts import App
 
 from .common import (
     DebugParameter,
-    _event_id_converter,
+    event_parameter,
     print_error_panel,
     simple_exception,
 )
@@ -65,48 +64,6 @@ def _extract_event_flag(tokens: list[str]) -> str | None:
     return None
 
 
-# Commands where --event must NOT be auto-injected even if the flag exists.
-# These use --event for a purpose other than selecting the processing event.
-_EVENT_INJECTION_EXCLUDED: frozenset[tuple[str, ...]] = frozenset(
-    {
-        ("data", "add"),
-    }
-)
-
-
-def _inject_event(tokens: list[str], event_id: uuid.UUID) -> list[str]:
-    """Append --event <id> to tokens unless an event flag is already present."""
-    if _extract_event_flag(tokens) is None:
-        return tokens + ["--event", str(event_id)]
-    return tokens
-
-
-def _command_accepts_event_flag(
-    tokens: list[str], completion_dict: dict[str, dict | None]
-) -> bool:
-    """Return True if the resolved command declares --event or --event-id."""
-    node: dict | None = completion_dict
-    for tok in tokens:
-        if tok.startswith("-"):
-            break
-        if isinstance(node, dict) and tok in node:
-            node = node[tok]
-        else:
-            break
-    return isinstance(node, dict) and bool({"--event", "--event-id"} & node.keys())
-
-
-def _should_inject_event(
-    tokens: list[str], completion_dict: dict[str, dict | None]
-) -> bool:
-    """Return True if the shell should auto-inject --event into this command."""
-    non_flag = tuple(tok for tok in tokens if not tok.startswith("-"))
-    for excluded in _EVENT_INJECTION_EXCLUDED:
-        if non_flag[: len(excluded)] == excluded:
-            return False
-    return _command_accepts_event_flag(tokens, completion_dict)
-
-
 def _parse_event_id(value: str) -> uuid.UUID:
     """Parse a full UUID or unique prefix into a UUID.
 
@@ -143,7 +100,7 @@ def _check_iccs(
         console: Rich console for output.
         prev: The BoundICCS from the previous check, or None.
         startup: If True, always print regardless of previous state.
-        event_id: Event to check ICCS for, or None to use the default event.
+        event_id: Event to check ICCS for.
 
     Returns:
         The current BoundICCS, or None if unavailable.
@@ -175,20 +132,18 @@ def _check_iccs(
 @app.default
 @simple_exception
 def cli_shell(
-    *,
     event_id: Annotated[
         uuid.UUID | None,
-        Parameter(
-            name=["--event", "--event-id"],
+        event_parameter(
             help="Start the shell in the context of a specific event. "
             "Full UUID or any unique prefix as shown in the table. "
-            "Does not change the database default event.",
-            converter=_event_id_converter,
         ),
     ] = None,
+    *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Start an interactive AIMBAT shell."""
+    import os
     import shlex
     from pathlib import Path
 
@@ -202,9 +157,24 @@ def cli_shell(
 
     console = Console()
 
-    # Shell-local event context — None means "use DB default event".
-    # Modified by `event switch`; never written to the database.
+    # Shell-local event context — None if no event specified.
+    # Modified by `event switch`.
     shell_event_id: uuid.UUID | None = event_id
+
+    # Propagate the shell event context to commands via the DEFAULT_EVENT_ID env
+    # var, which all event_parameter() / event_parameter_with_all() converters
+    # pick up as a fallback.  Explicit --event flags always take precedence.
+    _prev_default_event = os.environ.get("DEFAULT_EVENT_ID")
+
+    def _set_shell_event(eid: uuid.UUID | None) -> None:
+        nonlocal shell_event_id
+        shell_event_id = eid
+        if eid is not None:
+            os.environ["DEFAULT_EVENT_ID"] = str(eid)
+        else:
+            os.environ.pop("DEFAULT_EVENT_ID", None)
+
+    _set_shell_event(shell_event_id)
 
     completion_dict = _build_completion_dict(aimbat_app)
     completion_dict.pop("shell", None)
@@ -236,71 +206,80 @@ def cli_shell(
             return f"aimbat [{str(shell_event_id)[:8]}]> "
         return "aimbat> "
 
-    while True:
-        try:
-            if pt_session is not None:
-                text = pt_session.prompt(_prompt).strip()
-            else:
-                raw = sys.stdin.readline()
-                if not raw:
-                    break
-                text = raw.strip()
-        except KeyboardInterrupt:
-            continue
-        except EOFError:
-            break
+    try:
+        while True:
+            try:
+                if pt_session is not None:
+                    text = pt_session.prompt(_prompt).strip()
+                else:
+                    raw = sys.stdin.readline()
+                    if not raw:
+                        break
+                    text = raw.strip()
+            except KeyboardInterrupt:
+                continue
+            except EOFError:
+                break
 
-        if not text:
-            continue
-        if text in ("exit", "quit", "q"):
-            break
+            if not text:
+                continue
+            if text in ("exit", "quit", "q"):
+                break
 
-        try:
-            tokens = shlex.split(text)
-        except ValueError as exc:
-            console.print(f"[red]Parse error:[/red] {exc}")
-            continue
-
-        # Strip a leading "aimbat" token typed out of habit and remind the user.
-        if tokens and tokens[0] == "aimbat":
-            tokens = tokens[1:]
-            console.print("[dim]Tip: no need to type 'aimbat' in the shell.[/dim]")
-            if not tokens:
+            try:
+                tokens = shlex.split(text)
+            except ValueError as exc:
+                console.print(f"[red]Parse error:[/red] {exc}")
                 continue
 
-        # Shell-only: event switch [id]  — changes context without touching the DB.
-        if tokens[:2] == ["event", "switch"]:
-            if len(tokens) < 3:
-                # No argument: reset to DB default event.
-                shell_event_id = None
-                current_bound = _check_iccs(console, None, startup=True, event_id=None)
-            else:
-                try:
-                    new_event_id = _parse_event_id(tokens[2])
-                    shell_event_id = new_event_id
+            # Strip a leading "aimbat" token typed out of habit and remind the user.
+            if tokens and tokens[0] == "aimbat":
+                tokens = tokens[1:]
+                console.print("[dim]Tip: no need to type 'aimbat' in the shell.[/dim]")
+                if not tokens:
+                    continue
+
+            # Shell-only: event switch [id]  — changes context.
+            if tokens[:2] == ["event", "switch"]:
+                if len(tokens) < 3:
+                    # No argument: clear shell event context.
+                    _set_shell_event(None)
                     current_bound = _check_iccs(
-                        console, None, startup=True, event_id=shell_event_id
+                        console, None, startup=True, event_id=None
                     )
-                except Exception as exc:
-                    print_error_panel(exc)
-            continue
+                else:
+                    try:
+                        _set_shell_event(_parse_event_id(tokens[2]))
+                        current_bound = _check_iccs(
+                            console, None, startup=True, event_id=shell_event_id
+                        )
+                    except Exception as exc:
+                        print_error_panel(exc)
+                continue
 
-        # Inject the shell event context only for commands that accept it and
-        # where automatic injection is appropriate.
-        if shell_event_id is not None and _should_inject_event(tokens, completion_dict):
-            tokens = _inject_event(tokens, shell_event_id)
+            try:
+                aimbat_app(tokens, exit_on_error=False)
 
-        try:
-            aimbat_app(tokens, exit_on_error=False)
-
-            # Check ICCS for whichever event was actually targeted by the command.
-            effective_flag = _extract_event_flag(tokens)
-            check_event_id = (
-                _parse_event_id(effective_flag) if effective_flag else shell_event_id
-            )
-            current_bound = _check_iccs(console, current_bound, event_id=check_event_id)
-        except (CycloptsError, SystemExit):
-            # Errors already printed by Cyclopts or subcommand
-            pass
-        except Exception as exc:
-            print_error_panel(exc)
+                # Check ICCS for the event targeted by the command.  If the
+                # user passed --event all (or no explicit flag), fall back to
+                # the shell context event.
+                explicit_flag = _extract_event_flag(tokens)
+                check_event_id: uuid.UUID | None
+                if explicit_flag and explicit_flag.lower() != "all":
+                    check_event_id = _parse_event_id(explicit_flag)
+                else:
+                    check_event_id = shell_event_id
+                current_bound = _check_iccs(
+                    console, current_bound, event_id=check_event_id
+                )
+            except (CycloptsError, SystemExit):
+                # Errors already printed by Cyclopts or subcommand
+                pass
+            except Exception as exc:
+                print_error_panel(exc)
+    finally:
+        # Restore DEFAULT_EVENT_ID to whatever it was before the shell started.
+        if _prev_default_event is not None:
+            os.environ["DEFAULT_EVENT_ID"] = _prev_default_event
+        else:
+            os.environ.pop("DEFAULT_EVENT_ID", None)

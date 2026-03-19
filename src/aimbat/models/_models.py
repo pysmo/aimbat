@@ -25,6 +25,7 @@ from aimbat._types import (
 )
 from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
 
+from ._format import RichColSpec
 from ._parameters import AimbatEventParametersBase, AimbatSeismogramParametersBase
 from ._quality import (
     AimbatEventQualityBase,
@@ -73,6 +74,7 @@ class AimbatDataSource(SQLModel, table=True):
         primary_key=True,
         title="ID",
         description="Unique data source ID.",
+        schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
     )
     sourcename: str = Field(
         title="Source name",
@@ -89,6 +91,7 @@ class AimbatDataSource(SQLModel, table=True):
         ondelete="CASCADE",
         title="Seismogram ID",
         description="Foreign key referencing the parent seismogram.",
+        schema_extra={"rich": RichColSpec(style="magenta", highlight=False)},
     )
     seismogram: "AimbatSeismogram" = Relationship(back_populates="datasource")
     "The seismogram this data source belongs to."
@@ -170,6 +173,9 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
         primary_key=True,
         title="ID",
         description="Unique ID.",
+        schema_extra={
+            "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False)
+        },
     )
     event_id: uuid.UUID = Field(
         default=None,
@@ -177,6 +183,9 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
         ondelete="CASCADE",
         title="Event ID",
         description="Foreign key referencing the parent event.",
+        schema_extra={
+            "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False)
+        },
     )
     event: "AimbatEvent" = Relationship(back_populates="parameters")
     "The event these parameters belong to."
@@ -572,7 +581,6 @@ class AimbatEvent(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    is_default: bool | None = Field(default=None, unique=True)
     time: PydanticTimestamp = Field(
         unique=True, sa_type=SAPandasTimestamp, allow_mutation=False
     )

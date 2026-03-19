@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from pandas import Timestamp
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
 from pysmo.tools.iccs import (
@@ -24,6 +25,7 @@ from aimbat.models._parameters import (
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
 )
+from aimbat.utils import rel
 
 __all__ = [
     "BoundICCS",
@@ -86,6 +88,7 @@ def _build_iccs(
 
     Returns:
         A freshly constructed ICCS instance.
+
     """
     p = parameters or event.parameters
     seismograms = [
@@ -132,11 +135,23 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
 
     Returns:
         BoundICCS instance tied to the given event.
+
     """
     cached = _iccs_cache.get(event.id)
     if cached is not None and not cached.is_stale(event):
         logger.debug(f"Returning cached BoundICCS for event {event.id}.")
         return cached
+
+    event = session.exec(
+        select(AimbatEvent)
+        .where(AimbatEvent.id == event.id)
+        .options(
+            selectinload(rel(AimbatEvent.parameters)),
+            selectinload(rel(AimbatEvent.seismograms)).selectinload(
+                rel(AimbatSeismogram.parameters)
+            ),
+        )
+    ).one()
 
     logger.debug(f"Creating ICCS instance for event {event.id}.")
     bound = BoundICCS(
@@ -320,7 +335,18 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     """
     logger.info(f"Building ICCS from snapshot {snapshot_id}.")
 
-    snapshot = session.get(AimbatSnapshot, snapshot_id)
+    statement = (
+        select(AimbatSnapshot)
+        .where(AimbatSnapshot.id == snapshot_id)
+        .options(
+            selectinload(rel(AimbatSnapshot.event))
+            .selectinload(rel(AimbatEvent.seismograms))
+            .selectinload(rel(AimbatSeismogram.parameters)),
+            selectinload(rel(AimbatSnapshot.event_parameters_snapshot)),
+        )
+    )
+    snapshot = session.exec(statement).one_or_none()
+
     if snapshot is None:
         raise ValueError(f"Snapshot {snapshot_id} not found.")
 

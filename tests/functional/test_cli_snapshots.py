@@ -1,7 +1,7 @@
 """Functional tests for the AIMBAT snapshot CLI commands.
 
-All commands are invoked in-process via ``app()`` with ``aimbat.db.engine``
-monkeypatched to the test fixture's in-memory database.  The ``snapshot dump``
+All commands are invoked in-process via `app()` with `aimbat.db.engine`
+monkeypatched to the test fixture's in-memory database.  The `snapshot dump`
 JSON output is used as the ground truth for ID verification after mutations.
 """
 
@@ -22,13 +22,14 @@ from aimbat.models import AimbatSeismogram
 
 @pytest.mark.cli
 class TestSnapshotCreate:
-    """Tests for the ``snapshot create`` CLI command."""
+    """Tests for the `snapshot create` CLI command."""
 
     def test_create_without_comment(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that a snapshot is created with a null comment by default.
 
@@ -37,7 +38,7 @@ class TestSnapshotCreate:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert len(data["snapshots"]) == 1, "Expected exactly one snapshot"
@@ -50,6 +51,7 @@ class TestSnapshotCreate:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the comment is stored when provided.
 
@@ -58,7 +60,7 @@ class TestSnapshotCreate:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create my-comment")
+        cli(f"snapshot create --event-id {event_id} --comment my-comment")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert data["snapshots"][0]["comment"] == "my-comment", (
@@ -70,6 +72,7 @@ class TestSnapshotCreate:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that one event parameter snapshot is created per snapshot.
 
@@ -78,7 +81,7 @@ class TestSnapshotCreate:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert len(data["event_parameters"]) == 1, (
@@ -90,6 +93,7 @@ class TestSnapshotCreate:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that seismogram parameter snapshots are created.
 
@@ -98,7 +102,7 @@ class TestSnapshotCreate:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert len(data["seismogram_parameters"]) > 0, (
@@ -110,6 +114,7 @@ class TestSnapshotCreate:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that multiple snapshots accumulate correctly.
 
@@ -118,8 +123,8 @@ class TestSnapshotCreate:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create first")
-        cli("snapshot create second")
+        cli(f"snapshot create --event-id {event_id} --comment first")
+        cli(f"snapshot create --event-id {event_id} --comment second")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert len(data["snapshots"]) == 2, "Expected two snapshots"
@@ -140,9 +145,9 @@ class TestSnapshotCreate:
 
 @pytest.mark.cli
 class TestSnapshotDelete:
-    """Tests for the ``snapshot delete`` CLI command.
+    """Tests for the `snapshot delete` CLI command.
 
-    Uses IDs obtained from ``snapshot dump`` to verify complete removal of
+    Uses IDs obtained from `snapshot dump` to verify complete removal of
     the snapshot and all related child records.
     """
 
@@ -151,6 +156,7 @@ class TestSnapshotDelete:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the snapshot ID is absent from the dump after deletion.
 
@@ -159,7 +165,7 @@ class TestSnapshotDelete:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data_before = cli_json("snapshot dump")
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
@@ -178,6 +184,7 @@ class TestSnapshotDelete:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the related event parameter snapshot is removed after deletion.
 
@@ -186,7 +193,7 @@ class TestSnapshotDelete:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data_before = cli_json("snapshot dump")
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
@@ -206,6 +213,7 @@ class TestSnapshotDelete:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that all related seismogram parameter snapshots are removed after deletion.
 
@@ -214,7 +222,7 @@ class TestSnapshotDelete:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data_before = cli_json("snapshot dump")
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
@@ -239,6 +247,7 @@ class TestSnapshotDelete:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that deleting one snapshot does not affect the other.
 
@@ -247,8 +256,8 @@ class TestSnapshotDelete:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create first")
-        cli("snapshot create second")
+        cli(f"snapshot create --event-id {event_id} --comment first")
+        cli(f"snapshot create --event-id {event_id} --comment second")
         data_before = cli_json("snapshot dump")
         assert isinstance(data_before, dict), "Dump should return a dict"
         first_id = next(
@@ -275,6 +284,7 @@ class TestSnapshotDelete:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies deletion via short ID removes the snapshot and all related records.
 
@@ -283,7 +293,7 @@ class TestSnapshotDelete:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data_before = cli_json("snapshot dump")
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
@@ -315,6 +325,7 @@ class TestSnapshotDelete:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Verifies that deleting a non-existent snapshot ID fails gracefully.
@@ -344,7 +355,7 @@ class TestSnapshotDelete:
 
 @pytest.mark.cli
 class TestSnapshotRollback:
-    """Tests for the ``snapshot rollback`` CLI command."""
+    """Tests for the `snapshot rollback` CLI command."""
 
     def test_rollback_restores_event_parameter(
         self,
@@ -352,6 +363,7 @@ class TestSnapshotRollback:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that rollback restores a previously changed event parameter.
 
@@ -361,10 +373,10 @@ class TestSnapshotRollback:
             cli_json: The in-process CLI JSON dump callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create before-change")
+        cli(f"snapshot create --event-id {event_id} --comment before-change")
 
-        cli("event parameter set completed true")
-        cli("event parameter get completed")
+        cli(f"event parameter set completed true --event-id {event_id}")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "True" in capsys.readouterr().out, (
             "Parameter should read True after being set"
         )
@@ -375,7 +387,7 @@ class TestSnapshotRollback:
 
         cli(f"snapshot rollback {snapshot_id}")
 
-        cli("event parameter get completed")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out, (
             "Parameter should be restored to False after rollback"
         )
@@ -386,6 +398,7 @@ class TestSnapshotRollback:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that rollback restores a previously changed seismogram parameter.
 
@@ -401,11 +414,11 @@ class TestSnapshotRollback:
             assert seis is not None
             seis_id = seis.id
 
-        cli("snapshot create before-seis-change")
+        cli(f"snapshot create --event-id {event_id} --comment before-seis-change")
 
         # Flip the seismogram
-        cli(f"seismogram parameter set {seis_id} flip true")
-        cli(f"seismogram parameter get {seis_id} flip")
+        cli(f"seismogram parameter set flip true --id {seis_id}")
+        cli(f"seismogram parameter get flip --id {seis_id}")
         assert "True" in capsys.readouterr().out, "Seismogram should be flipped"
 
         data = cli_json("snapshot dump")
@@ -414,7 +427,7 @@ class TestSnapshotRollback:
 
         cli(f"snapshot rollback {snapshot_id}")
 
-        cli(f"seismogram parameter get {seis_id} flip")
+        cli(f"seismogram parameter get flip --id {seis_id}")
         assert "False" in capsys.readouterr().out, (
             "Seismogram flip should be restored to False after rollback"
         )
@@ -425,6 +438,7 @@ class TestSnapshotRollback:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that rollback restores a parameter when given a shortened snapshot ID.
 
@@ -434,10 +448,10 @@ class TestSnapshotRollback:
             cli_json: The in-process CLI JSON dump callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create before-change")
+        cli(f"snapshot create --event-id {event_id} --comment before-change")
 
-        cli("event parameter set completed true")
-        cli("event parameter get completed")
+        cli(f"event parameter set completed true --event-id {event_id}")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "True" in capsys.readouterr().out, (
             "Parameter should read True after being set"
         )
@@ -448,7 +462,7 @@ class TestSnapshotRollback:
 
         cli(f"snapshot rollback {short_id}")
 
-        cli("event parameter get completed")
+        cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out, (
             "Parameter should be restored to False after rollback via short ID"
         )
@@ -458,6 +472,7 @@ class TestSnapshotRollback:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that rolling back leaves the snapshot itself in place.
 
@@ -466,7 +481,7 @@ class TestSnapshotRollback:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data_before = cli_json("snapshot dump")
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
@@ -488,12 +503,13 @@ class TestSnapshotRollback:
 
 @pytest.mark.cli
 class TestSnapshotDump:
-    """Tests for the ``snapshot dump`` CLI command."""
+    """Tests for the `snapshot dump` CLI command."""
 
     def test_dump_empty_returns_empty_lists(
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the dump is empty when no snapshots have been created.
 
@@ -514,6 +530,7 @@ class TestSnapshotDump:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the dump dict contains the three expected top-level keys.
 
@@ -522,7 +539,7 @@ class TestSnapshotDump:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert "snapshots" in data, "Dump should contain 'snapshots' key"
@@ -536,6 +553,7 @@ class TestSnapshotDump:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that dump returns snapshots for all events by default.
 
@@ -544,7 +562,7 @@ class TestSnapshotDump:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         assert len(data["snapshots"]) >= 1, (
@@ -556,6 +574,7 @@ class TestSnapshotDump:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that snapshot IDs referenced in event/seismogram params match the snapshots list.
 
@@ -564,7 +583,7 @@ class TestSnapshotDump:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_ids = {s["id"] for s in data["snapshots"]}
@@ -585,13 +604,14 @@ class TestSnapshotDump:
 
 @pytest.mark.cli
 class TestSnapshotList:
-    """Tests for the ``snapshot list`` CLI command."""
+    """Tests for the `snapshot list` CLI command."""
 
     def test_list_default_event(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that the list command produces output for the default event.
 
@@ -600,8 +620,8 @@ class TestSnapshotList:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create test-comment")
-        cli("snapshot list")
+        cli(f"snapshot create --event-id {event_id} --comment test-comment")
+        cli(f"snapshot list --event-id {event_id}")
         output = capsys.readouterr().out
         assert "AIMBAT snapshots for event" in output
         assert "test-comment" in output
@@ -611,35 +631,37 @@ class TestSnapshotList:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
-        """Verifies that `--all` produces output for all events.
+        """Verifies that `--event-id all` produces output for all events.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create test-comment-all")
-        cli("snapshot list --all")
+        cli(f"snapshot create --event-id {event_id} --comment test-comment-all")
+        cli("snapshot list --event-id all")
         output = capsys.readouterr().out
         assert "AIMBAT snapshots for all events" in output
         assert "test-comment-all" in output
 
-    def test_list_short(
+    def test_list_raw(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
-        """Verifies that `--short` produces output.
+        """Verifies that `--raw` produces output.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create")
-        cli("snapshot list --short")
+        cli(f"snapshot create --event-id {event_id}")
+        cli(f"snapshot list --raw --event-id {event_id}")
         output = capsys.readouterr().out
         assert "ID" in output
 
@@ -651,7 +673,7 @@ class TestSnapshotList:
 
 @pytest.mark.cli
 class TestSnapshotDetails:
-    """Tests for the ``snapshot details`` CLI command."""
+    """Tests for the `snapshot details` CLI command."""
 
     def test_details_produces_output(
         self,
@@ -659,6 +681,7 @@ class TestSnapshotDetails:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that the details command produces output for a valid snapshot ID.
 
@@ -668,7 +691,7 @@ class TestSnapshotDetails:
             cli_json: The in-process CLI JSON dump callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_id = data["snapshots"][0]["id"]
@@ -676,7 +699,7 @@ class TestSnapshotDetails:
         cli(f"snapshot details {snapshot_id}")
         output = capsys.readouterr().out
         assert "Saved event parameters" in output
-        assert "window_pre" in output
+        assert "Window pre" in output
 
     def test_details_produces_output_with_short_id(
         self,
@@ -684,6 +707,7 @@ class TestSnapshotDetails:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that the details command works with a shortened snapshot ID.
 
@@ -693,7 +717,7 @@ class TestSnapshotDetails:
             cli_json: The in-process CLI JSON dump callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         short_id = data["snapshots"][0]["id"][:8]
@@ -702,14 +726,15 @@ class TestSnapshotDetails:
         output = capsys.readouterr().out
         assert "Saved event parameters" in output
 
-    def test_details_short_flag(
+    def test_details_raw_flag(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
-        """Verifies that ``--short`` produces output.
+        """Verifies that `--raw` produces output.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
@@ -717,12 +742,12 @@ class TestSnapshotDetails:
             cli_json: The in-process CLI JSON dump callable.
             capsys: The pytest capsys fixture.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_id = data["snapshots"][0]["id"]
 
-        cli(f"snapshot details {snapshot_id} --short")
+        cli(f"snapshot details {snapshot_id} --raw")
         assert "Saved event parameters" in capsys.readouterr().out
 
 
@@ -733,7 +758,7 @@ class TestSnapshotDetails:
 
 @pytest.mark.cli
 class TestSnapshotPreview:
-    """Tests for the ``snapshot preview`` CLI command."""
+    """Tests for the `snapshot preview` CLI command."""
 
     @patch("aimbat.plot.plot_stack")
     def test_preview_stack_is_called(
@@ -742,6 +767,7 @@ class TestSnapshotPreview:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that plot_stack is called when previewing without --matrix.
 
@@ -751,7 +777,7 @@ class TestSnapshotPreview:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_id = data["snapshots"][0]["id"]
@@ -766,6 +792,7 @@ class TestSnapshotPreview:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that plot_matrix_image is called when previewing with --matrix.
 
@@ -775,7 +802,7 @@ class TestSnapshotPreview:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("snapshot create")
+        cli(f"snapshot create --event-id {event_id}")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_id = data["snapshots"][0]["id"]

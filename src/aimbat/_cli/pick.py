@@ -1,15 +1,23 @@
 """Interactively pick phase arrival times and processing parameters.
 
-These commands open an interactive matplotlib plot for the default event.
-Click on the plot to set the chosen value, then close the window to save it.
-Use `aimbat event default` to switch the default event before picking.
+These commands open an interactive matplotlib plot for an event. Use
+`--event-id` or set the `DEFAULT_EVENT_ID` environment variable to choose
+which event to pick. Click on the plot to set the chosen value, then close
+the window to save it.
 """
 
 from typing import Annotated
+from uuid import UUID
 
-from cyclopts import App, Parameter
+from cyclopts import App
 
-from .common import GlobalParameters, IccsPlotParameters, simple_exception
+from .common import (
+    DebugParameter,
+    IccsPlotParameters,
+    event_parameter,
+    simple_exception,
+    use_matrix_image,
+)
 
 app = App(name="pick", help=__doc__, help_format="markdown")
 
@@ -17,18 +25,16 @@ app = App(name="pick", help=__doc__, help_format="markdown")
 @app.command(name="phase")
 @simple_exception
 def cli_update_phase_pick(
+    event_id: Annotated[UUID, event_parameter()],
     *,
-    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_matrix_image: Annotated[bool, Parameter(name="img")] = False,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
+    use_matrix_image: Annotated[bool, use_matrix_image()] = False,
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new phase arrival time (t1) for an event.
 
     Opens an interactive plot; click to place the new pick, then close the window
     to save. The pick is stored as `t1` for each seismogram in the ICCS instance.
-
-    Args:
-        use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
     """
     from sqlmodel import Session
 
@@ -37,13 +43,13 @@ def cli_update_phase_pick(
     from aimbat.plot import update_pick
 
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
         update_pick(
             session,
             iccs,
-            iccs_parameters.context,
-            all_seismograms=iccs_parameters.all_seismograms,
+            context=iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
             use_matrix_image=use_matrix_image,
             return_fig=False,
         )
@@ -52,19 +58,17 @@ def cli_update_phase_pick(
 @app.command(name="window")
 @simple_exception
 def cli_pick_timewindow(
+    event_id: Annotated[UUID, event_parameter()],
     *,
-    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_matrix_image: Annotated[bool, Parameter(name="img")] = False,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
+    use_matrix_image: Annotated[bool, use_matrix_image()] = False,
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new cross-correlation time window for an event.
 
     Opens an interactive plot; click to set the left and right window boundaries,
     then close the window to save. The window controls which portion of each
     seismogram is used during ICCS alignment.
-
-    Args:
-        use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
     """
     from sqlmodel import Session
 
@@ -73,14 +77,14 @@ def cli_pick_timewindow(
     from aimbat.plot import update_timewindow
 
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
         update_timewindow(
             session,
             event,
             iccs,
-            iccs_parameters.context,
-            all_seismograms=iccs_parameters.all_seismograms,
+            iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
             use_matrix_image=use_matrix_image,
             return_fig=False,
         )
@@ -89,9 +93,11 @@ def cli_pick_timewindow(
 @app.command(name="cc")
 @simple_exception
 def cli_pick_min_cc(
+    event_id: Annotated[UUID, event_parameter()],
     *,
-    iccs_parameters: IccsPlotParameters = IccsPlotParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
+    iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
+    use_matrix_image: Annotated[bool, use_matrix_image()] = True,
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new minimum cross-correlation for auto-selection.
 
@@ -106,14 +112,14 @@ def cli_pick_min_cc(
     from aimbat.plot import update_min_cc
 
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
         update_min_cc(
             session,
             event,
             iccs,
-            iccs_parameters.context,
-            all_seismograms=iccs_parameters.all_seismograms,
+            iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
             return_fig=False,
         )
 
