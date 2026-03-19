@@ -14,6 +14,8 @@ __all__ = [
     "fmt_timestamp",
 ]
 
+_MISSING_MARKER = " — "
+
 type Formatter[T] = Callable[[T], str]
 
 
@@ -30,32 +32,32 @@ def fmt_bool(val: bool | object) -> str:
 
 
 def fmt_float(val: float | object) -> str:
-    """Format a float to 3 decimal places, or `—` for None/NaN."""
+    """Format a float to 3 decimal places, or ` — ` for None/NaN."""
     if val is None or (isinstance(val, float) and math.isnan(val)):
-        return "— "
+        return _MISSING_MARKER
     if isinstance(val, float):
         return f"{val:.3f}"
     return str(val)
 
 
 def fmt_timestamp(val: Any) -> str:
-    """Format a timestamp as `YYYY-MM-DD HH:MM:SS`, or `—` for missing values."""
+    """Format a timestamp as `YYYY-MM-DD HH:MM:SS`, or ` — ` for missing values."""
     if isinstance(val, str) and val.strip():
         try:
             val = to_datetime(val)
         except (ValueError, TypeError):
             return str(val)
     if val is None or val is NaT or val == "":
-        return "— "
+        return _MISSING_MARKER
     if hasattr(val, "strftime"):
         return val.strftime("%Y-%m-%d %H:%M:%S")
     return str(val)
 
 
 def fmt_timedelta(val: Timedelta | object) -> str:
-    """Format a Timedelta as total seconds to 5 decimal places, or `—` for None."""
+    """Format a Timedelta as total seconds to 5 decimal places, or ` — ` for None."""
     if val is None:
-        return "— "
+        return _MISSING_MARKER
     if isinstance(val, Timedelta):
         return f"{val.total_seconds():.5f} s"
     return str(val)

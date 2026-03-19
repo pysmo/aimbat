@@ -1,5 +1,6 @@
 """Common parameters and functions for the AIMBAT CLI."""
 
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Literal, overload
@@ -9,9 +10,9 @@ from cyclopts import Parameter, Token
 
 from aimbat import settings
 
-try:
+if sys.version_info >= (3, 13):
     from typing import TypeIs
-except ImportError:
+else:
     from typing_extensions import TypeIs
 
 __all__ = [

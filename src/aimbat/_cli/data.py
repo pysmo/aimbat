@@ -27,6 +27,8 @@ Re-adding a data source that is already in the project is safe — existing
 records are reused rather than duplicated.
 """
 
+from __future__ import annotations
+
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -55,7 +57,7 @@ app = App(name="data", help=__doc__, help_format="markdown")
 
 
 def _print_dry_run_results(
-    added_datasources: Sequence["AimbatDataSource"],
+    added_datasources: Sequence[AimbatDataSource],
     existing_station_ids: set,
     existing_event_ids: set,
     existing_seismogram_ids: set,

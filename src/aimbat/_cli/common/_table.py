@@ -19,6 +19,8 @@ from aimbat.utils.formatters import fmt_bool, fmt_float, fmt_timedelta, fmt_time
 
 __all__ = ["json_to_table"]
 
+_MISSING_MARKER = " — "
+
 
 def _justify_for_annotation(annotation: Any) -> str | None:
     """Infer a default column justification from a field's type annotation.
@@ -120,7 +122,7 @@ def json_to_table(
         if raw:
             return "" if val is None else str(val)
         if val is None or val is NaT:
-            return "—"
+            return _MISSING_MARKER
         spec = specs.get(name)
         if spec and spec.formatter:
             return spec.formatter(val)
