@@ -123,7 +123,7 @@ _TAB_ROW_ACTIONS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
-_EVENT_TABLE_EXCLUDE: set[str] = {""}
+_EVENT_TABLE_EXCLUDE: set[str] = set()
 _STATION_TABLE_EXCLUDE: set[str] = {"event_count"}
 _SEISMOGRAM_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
 _SNAPSHOT_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
