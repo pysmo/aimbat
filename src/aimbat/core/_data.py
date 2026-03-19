@@ -1,10 +1,9 @@
 import os
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal, overload
 from uuid import UUID
 
 from pydantic import TypeAdapter
-from rich.console import Console
 from rich.progress import track
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
@@ -26,7 +25,7 @@ from aimbat.models._models import (
     AimbatStation,
     _AimbatDataSourceCreate,
 )
-from aimbat.utils import get_title_map, json_to_table
+from aimbat.utils import get_title_map
 
 __all__ = [
     "add_data_to_project",
@@ -188,43 +187,29 @@ def _process_datasource(
     return aimbat_data_source
 
 
-def _print_dry_run_results(
-    added_datasources: Sequence[AimbatDataSource],
-    existing_station_ids: set,
-    existing_event_ids: set,
-    existing_seismogram_ids: set,
-) -> None:
-    """Print a summary table showing which entities were added vs skipped."""
-    json_to_table(
-        [
-            {
-                "Source": str(ds.sourcename),
-                "Station": ds.seismogram.station_id not in existing_station_ids,
-                "Event": ds.seismogram.event_id not in existing_event_ids,
-                "Seismogram": ds.seismogram_id not in existing_seismogram_ids,
-            }
-            for ds in added_datasources
-        ],
-        title="Dry Run: Data to be added",
-    )
-    new_stations = sum(
-        ds.seismogram.station_id not in existing_station_ids for ds in added_datasources
-    )
-    new_events = sum(
-        ds.seismogram.event_id not in existing_event_ids for ds in added_datasources
-    )
-    new_seismograms = sum(
-        ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
-    )
-    console = Console()
-    console.print(
-        f"\n{new_stations} station(s) added, "
-        f"{len(added_datasources) - new_stations} skipped. "
-        f"{new_events} event(s) added, "
-        f"{len(added_datasources) - new_events} skipped. "
-        f"{new_seismograms} seismogram(s) added, "
-        f"{len(added_datasources) - new_seismograms} skipped."
-    )
+@overload
+def add_data_to_project(
+    session: Session,
+    data_sources: Sequence[os.PathLike | str],
+    data_type: DataType,
+    station_id: UUID | None = ...,
+    event_id: UUID | None = ...,
+    dry_run: Literal[False] = ...,
+    disable_progress_bar: bool = ...,
+) -> None: ...
+
+
+@overload
+def add_data_to_project(
+    session: Session,
+    data_sources: Sequence[os.PathLike | str],
+    data_type: DataType,
+    station_id: UUID | None = ...,
+    event_id: UUID | None = ...,
+    *,
+    dry_run: Literal[True],
+    disable_progress_bar: bool = ...,
+) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]]: ...
 
 
 def add_data_to_project(
@@ -235,7 +220,7 @@ def add_data_to_project(
     event_id: UUID | None = None,
     dry_run: bool = False,
     disable_progress_bar: bool = True,
-) -> None:
+) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]] | None:
     """Add data sources to the AIMBAT database.
 
     What gets created depends on which capabilities `data_type` supports:
@@ -293,18 +278,18 @@ def add_data_to_project(
                 logger.info("Dry run: displaying data that would be added.")
                 if added_datasources:
                     session.flush()
-                    _print_dry_run_results(
-                        added_datasources,
-                        existing_station_ids,
-                        existing_event_ids,
-                        existing_seismogram_ids,
-                    )
                 nested.rollback()
                 logger.info("Dry run complete. Rolling back changes.")
-                return
+                return (
+                    added_datasources,
+                    existing_station_ids,
+                    existing_event_ids,
+                    existing_seismogram_ids,
+                )
 
         session.commit()
         logger.info("Data added successfully.")
+        return None
 
     except Exception as e:
         logger.error(f"Failed to add data. Rolling back changes. Error: {e}")

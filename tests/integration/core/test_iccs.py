@@ -4,11 +4,10 @@ from sqlmodel import Session, select
 
 from aimbat.core import (
     create_iccs_instance,
-    get_default_event,
     run_iccs,
     run_mccc,
 )
-from aimbat.models import AimbatSeismogramQuality
+from aimbat.models import AimbatEvent, AimbatSeismogramQuality
 
 
 class TestIccsMcccInterplay:
@@ -18,7 +17,7 @@ class TestIccsMcccInterplay:
         """Verifies that running ICCS nulls MCCC stats if t1 changed."""
         from pandas import Timedelta
 
-        event = get_default_event(loaded_session)
+        event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         # 1. Run MCCC to populate quality stats
@@ -71,7 +70,7 @@ class TestIccsMcccInterplay:
 
         from aimbat.models import AimbatEventQuality
 
-        event = get_default_event(loaded_session)
+        event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         # 1. Run ICCS first to ensure alignment
@@ -128,7 +127,7 @@ class TestIccsMcccInterplay:
         """
         from pandas import Timedelta
 
-        event = get_default_event(loaded_session)
+        event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         # 1. Run ICCS to populate iccs_cc

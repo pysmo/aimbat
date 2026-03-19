@@ -1,7 +1,7 @@
 """View and manage events in the AIMBAT project."""
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from cyclopts import App
 from sqlmodel import Session
@@ -10,19 +10,18 @@ from aimbat._types import EventParameter
 from aimbat.models import AimbatEvent
 
 from .common import (
-    ALL_EVENTS_PARAMETER,
     DebugParameter,
-    GlobalParameters,
+    EventDebugParameters,
     JsonDumpParameters,
     TableParameters,
     event_parameter,
-    id_parameter,
+    event_parameter_is_all,
+    event_parameter_with_all,
     simple_exception,
 )
 
 __all__ = [
     "cli_event_delete",
-    "cli_event_default",
     "cli_event_dump",
     "cli_event_list",
     "cli_event_parameter_get",
@@ -32,42 +31,16 @@ __all__ = [
 ]
 
 app = App(name="event", help=__doc__, help_format="markdown")
-parameter = App(
+_parameter = App(
     name="parameter", help="Manage event parameters.", help_format="markdown"
 )
-app.command(parameter)
-
-
-@app.command(name="default")
-@simple_exception
-def cli_event_default(
-    new_default_event_id: Annotated[
-        uuid.UUID,
-        id_parameter(
-            AimbatEvent,
-            help="Full UUID or unique prefix of event ID to set as default.",
-        ),
-    ],
-    /,
-    *,
-    _: DebugParameter = DebugParameter(),
-) -> None:
-    """Select default event for CLI commands.
-
-    Sets an event to be used by default when no explicit event ID is given.
-    Avoids having to specify an event ID for every command.
-    """
-    from aimbat.core import set_default_event
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        set_default_event(session, new_default_event_id)
+app.command(_parameter)
 
 
 @app.command(name="delete")
 @simple_exception
 def cli_event_delete(
-    event_id: Annotated[uuid.UUID | None, event_parameter()] = None,
+    event_id: Annotated[uuid.UUID, event_parameter()],
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
@@ -103,43 +76,38 @@ def cli_event_dump(
 def cli_event_list(
     *,
     table_parameters: TableParameters = TableParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
 ) -> None:
-    """Print a table of events stored in the AIMBAT project.
-
-    The default event is highlighted. Use `event default` to change which event
-    is processed by subsequent commands.
-    """
+    """Print a table of events stored in the AIMBAT project."""
 
     from aimbat.core import dump_event_table
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.utils import TABLE_STYLING, json_to_table
+    from aimbat.models import AimbatEventRead
 
-    if short := table_parameters.short:
-        exclude = {"id"}
-    else:
+    from .common import json_to_table
+
+    if raw := table_parameters.raw:
         exclude = {"short_id"}
+    else:
+        exclude = {"id"}
 
     with Session(engine) as session:
         logger.info("Printing AIMBAT events table.")
 
         json_to_table(
             data=dump_event_table(
-                session, from_read_model=True, by_title=True, exclude=exclude
+                session, from_read_model=True, by_title=False, exclude=exclude
             ),
+            model=AimbatEventRead,
             title="AIMBAT Events",
-            formatters={"Default": TABLE_STYLING.bool_formatter},
-            short=short,
+            raw=raw,
         )
 
 
-@parameter.command(name="get")
+@_parameter.command(name="get")
 @simple_exception
 def cli_event_parameter_get(
-    name: EventParameter,
-    *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    name: EventParameter, *, event_debug_parameters: EventDebugParameters
 ) -> None:
     """Get parameter value for an event.
 
@@ -152,19 +120,18 @@ def cli_event_parameter_get(
     from aimbat.core import resolve_event
     from aimbat.db import engine
 
+    event_id = event_debug_parameters.event_id
+
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         value = event.parameters.model_dump(mode="json").get(name)
         print(value)
 
 
-@parameter.command(name="set")
+@_parameter.command(name="set")
 @simple_exception
 def cli_event_parameter_set(
-    name: EventParameter,
-    value: str,
-    *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    name: EventParameter, value: str, *, event_debug_parameters: EventDebugParameters
 ) -> None:
     """Set parameter value for an event.
 
@@ -177,42 +144,40 @@ def cli_event_parameter_set(
     from aimbat.core import resolve_event, set_event_parameter
     from aimbat.db import engine
 
+    event_id = event_debug_parameters.event_id
+
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         set_event_parameter(session, event.id, name, value, validate_iccs=True)
 
 
-@parameter.command(name="dump")
+@_parameter.command(name="dump")
 @simple_exception
 def cli_event_parameter_dump(
     *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
     """Dump event parameter table to json."""
     from rich import print_json
     from sqlmodel import Session
 
-    from aimbat.core import dump_event_parameter_table, resolve_event
+    from aimbat.core import dump_event_parameter_table
     from aimbat.db import engine
 
+    by_alias = dump_parameters.by_alias
+
     with Session(engine) as session:
-        if all_events:
-            print_json(data=dump_event_parameter_table(session, by_alias=True))
-        else:
-            event = resolve_event(session, global_parameters.event_id)
-            print_json(event.parameters.model_dump_json(by_alias=True))
+        print_json(data=dump_event_parameter_table(session, by_alias=by_alias))
 
 
-@parameter.command(name="list")
+@_parameter.command(name="list")
 @simple_exception
 def cli_event_parameter_list(
+    event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()],
     *,
-    all_events: Annotated[bool, ALL_EVENTS_PARAMETER] = False,
-    global_parameters: GlobalParameters = GlobalParameters(),
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
-    """List processing parameter values for the default event.
+    """List processing parameter for an event or all events.
 
     Displays all event-level parameters (e.g. time window, bandpass filter
     settings, minimum cc) in a table.
@@ -220,55 +185,43 @@ def cli_event_parameter_list(
 
     from aimbat.core import dump_event_parameter_table, resolve_event
     from aimbat.db import engine
-    from aimbat.utils import TABLE_STYLING, json_to_table, uuid_shortener
+    from aimbat.models import AimbatEventParameters, RichColSpec
+    from aimbat.utils import uuid_shortener
 
-    short = table_parameters.short
+    from .common import json_to_table
+
+    raw = table_parameters.raw
 
     with Session(engine) as session:
-        if all_events:
+        if event_parameter_is_all(event_id):
             title = "Event parameters for all events"
-            data = dump_event_parameter_table(session, by_title=True)
+            data = dump_event_parameter_table(session)
         else:
-            event = resolve_event(session, global_parameters.event_id)
-            title = f"Event parameters for event: {uuid_shortener(session, event) if short else str(event.id)}"
+            event = resolve_event(session, event_id)
+            title = f"Event parameters for event: {uuid_shortener(session, event) if not raw else str(event.id)}"
             data = dump_event_parameter_table(
-                session, event_id=event.id, by_title=True, exclude={"event_id"}
+                session, event_id=event.id, exclude={"event_id"}
             )
 
+        column_order = ["id"]
+        col_specs = {
+            "id": RichColSpec(
+                formatter=lambda x: uuid_shortener(
+                    session, AimbatEventParameters, str_uuid=x
+                )
+            ),
+            "event_id": RichColSpec(
+                formatter=lambda x: uuid_shortener(session, AimbatEvent, str_uuid=x)
+            ),
+        }
+
         json_to_table(
+            model=AimbatEventParameters,
             title=title,
             data=data,
-            skip_keys=["ID"],
-            formatters={
-                "Event ID": lambda x: (
-                    uuid_shortener(session, AimbatEvent, str_uuid=x)
-                    if short
-                    else str(x)
-                ),
-                "Completed": TABLE_STYLING.bool_formatter,
-                "Bandpass apply": TABLE_STYLING.bool_formatter,
-            },
-            column_order=[
-                "Event ID",
-                "Completed",
-                "Window pre",
-                "Window post",
-                "Ramp width",
-                "Bandpass apply",
-                "Bandpass f min",
-                "Bandpass f max",
-                "Min CC",
-            ],
-            common_column_kwargs={"highlight": True},
-            column_kwargs={
-                "Event ID": {
-                    "justify": "center",
-                    "no_wrap": True,
-                    "style": TABLE_STYLING.mine,
-                },
-                "Completed": {"justify": "center"},
-                "Bandpass apply": {"justify": "center"},
-            },
+            raw=raw,
+            col_specs=col_specs,
+            column_order=column_order,
         )
 
 

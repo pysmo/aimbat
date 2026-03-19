@@ -33,6 +33,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Add asciinema
 - Switch to zensical
 - Re-arange api reference
+- Restructure usage section into workflow-based pages and TUI improvements
 
 ### 📦 Miscellaneous
 
@@ -123,6 +124,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Add JSON datasource
 - Add TUI and supporting changes
 - Implement interactive shell and major documentation update for v2
+- Store ICCS/MCCC quality metrics in database
 
 ### 🧪 Testing
 

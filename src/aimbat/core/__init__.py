@@ -4,12 +4,10 @@
 All functions take a SQLModel `Session` and work with the models in
 `aimbat.models`. The main areas covered are:
 
-- **Default event** — get and set the default event (`get_default_event`,
-  `set_default_event`).
 - **Data** — add data to the project, linking each source to its station,
   event, and seismogram records (`add_data_to_project`).
 - **Events, seismograms, stations** — query, update, and delete records; read
-  and write parameters.
+  and write parameters; resolve an event from an explicit ID (`resolve_event`).
 - **ICCS / MCCC** — run the Iterative Cross-Correlation and Stack (`run_iccs`)
   and Multi-Channel Cross-Correlation (`run_mccc`) algorithms; update picks,
   time windows, and correlation thresholds.
@@ -29,7 +27,6 @@ from .._utils import export_module_names
 _internal_names = set(dir())
 
 from ._data import *
-from ._default_event import *
 from ._event import *
 from ._iccs import *
 from ._project import *

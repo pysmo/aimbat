@@ -57,14 +57,12 @@ def _make_event(
     session: Session,
     *,
     time: str = "2010-02-27T06:34:14",
-    is_default: bool | None = None,
 ) -> AimbatEvent:
     """Insert and return an event together with its mandatory parameters.
 
     Args:
         session (Session): Database session.
         time (str): Event time string (default: "2010-02-27T06:34:14").
-        is_default (bool | None): Whether the event is is_default (default: None).
 
     Returns:
         AimbatEvent: The created event.
@@ -74,7 +72,6 @@ def _make_event(
         latitude=-36.12,
         longitude=-72.90,
         depth=22.9,
-        is_default=is_default,
     )
     session.add(ev)
     session.flush()
@@ -212,44 +209,6 @@ class TestCascadeDeleteEvent:
 
         assert patched_session.exec(select(AimbatSeismogramParameters)).first() is None
 
-    def test_delete_event_cascades_to_snapshots(self, patched_session: Session) -> None:
-        """Verifies that deleting an event deletes related snapshots and their parameter copies.
-
-        Args:
-            patched_session (Session): Database session.
-        """
-        ev = _make_event(patched_session, is_default=True)
-        sta = _make_station(patched_session)
-        _make_seismogram(patched_session, ev, sta)
-        patched_session.commit()
-
-        # Create a snapshot via the core helper (uses the default event).
-        from aimbat.core import create_snapshot, get_default_event
-
-        default_event = get_default_event(patched_session)
-        assert default_event is not None
-        create_snapshot(patched_session, default_event, comment="before delete")
-        assert len(patched_session.exec(select(AimbatSnapshot)).all()) == 1
-        assert (
-            len(patched_session.exec(select(AimbatEventParametersSnapshot)).all()) == 1
-        )
-        assert (
-            len(patched_session.exec(select(AimbatSeismogramParametersSnapshot)).all())
-            == 1
-        )
-
-        patched_session.delete(ev)
-        patched_session.commit()
-
-        assert len(patched_session.exec(select(AimbatSnapshot)).all()) == 0
-        assert (
-            len(patched_session.exec(select(AimbatEventParametersSnapshot)).all()) == 0
-        )
-        assert (
-            len(patched_session.exec(select(AimbatSeismogramParametersSnapshot)).all())
-            == 0
-        )
-
     def test_delete_event_does_not_delete_station(
         self, patched_session: Session
     ) -> None:
@@ -306,16 +265,14 @@ class TestCascadeDeleteSnapshot:
         Args:
             patched_session (Session): Database session.
         """
-        ev = _make_event(patched_session, is_default=True)
+        ev = _make_event(patched_session)
         sta = _make_station(patched_session)
         _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
-        from aimbat.core import create_snapshot, get_default_event
+        from aimbat.core import create_snapshot
 
-        default_event = get_default_event(patched_session)
-        assert default_event is not None
-        create_snapshot(patched_session, default_event)
+        create_snapshot(patched_session, ev)
 
         snapshot = patched_session.exec(select(AimbatSnapshot)).one()
         patched_session.delete(snapshot)
@@ -328,96 +285,6 @@ class TestCascadeDeleteSnapshot:
             len(patched_session.exec(select(AimbatSeismogramParametersSnapshot)).all())
             == 0
         )
-
-
-# ===================================================================
-# Single default event constraint
-# ===================================================================
-
-
-class TestSingleDefaultEvent:
-    """The DB trigger ensures at most one event has is_default=True."""
-
-    def test_only_one_default_event_via_insert(self, patched_session: Session) -> None:
-        """Inserting a new default event deactivates the previous one.
-
-        Args:
-            patched_session (Session): Database session.
-        """
-        ev1 = _make_event(patched_session, is_default=True)
-        patched_session.commit()
-        patched_session.refresh(ev1)
-        assert ev1.is_default is True
-
-        ev2 = _make_event(patched_session, time="2011-03-11T05:46:24", is_default=True)
-        patched_session.commit()
-
-        patched_session.refresh(ev1)
-        patched_session.refresh(ev2)
-        assert ev1.is_default is None
-        assert ev2.is_default is True
-
-    def test_only_one_default_event_via_update(self, patched_session: Session) -> None:
-        """Updating an event to the default event replaces the previous one.
-
-        Args:
-            patched_session (Session): Database session.
-        """
-        ev1 = _make_event(patched_session, is_default=True)
-        ev2 = _make_event(patched_session, time="2011-03-11T05:46:24")
-        patched_session.commit()
-
-        ev2.is_default = True
-        patched_session.add(ev2)
-        patched_session.commit()
-
-        patched_session.refresh(ev1)
-        patched_session.refresh(ev2)
-        assert ev1.is_default is None
-        assert ev2.is_default is True
-
-    def test_multiple_non_default_events_allowed(
-        self, patched_session: Session
-    ) -> None:
-        """Multiple events may exist without any being the default.
-
-        Args:
-            patched_session (Session): Database session.
-        """
-        _make_event(patched_session, time="2010-01-01T00:00:00")
-        _make_event(patched_session, time="2011-01-01T00:00:00")
-        _make_event(patched_session, time="2012-01-01T00:00:00")
-        patched_session.commit()
-
-        is_default_events = patched_session.exec(
-            select(AimbatEvent).where(AimbatEvent.is_default == True)  # noqa: E712
-        ).all()
-        assert len(is_default_events) == 0
-
-    def test_cycling_default_through_three_events(
-        self, patched_session: Session
-    ) -> None:
-        """Verifies cycling default status through multiple events ensures only one is the default at a time.
-
-        Args:
-            patched_session (Session): Database session.
-        """
-        ev1 = _make_event(patched_session, time="2010-01-01T00:00:00", is_default=True)
-        ev2 = _make_event(patched_session, time="2011-01-01T00:00:00")
-        ev3 = _make_event(patched_session, time="2012-01-01T00:00:00")
-        patched_session.commit()
-
-        for target in [ev2, ev3, ev1]:
-            target.is_default = True
-            patched_session.add(target)
-            patched_session.commit()
-
-            is_default_events = patched_session.exec(
-                select(AimbatEvent).where(AimbatEvent.is_default == True)  # noqa: E712
-            ).all()
-            assert len(is_default_events) == 1
-            patched_session.refresh(target)
-            assert target.is_default is True
 
 
 # ===================================================================

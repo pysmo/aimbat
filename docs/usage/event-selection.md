@@ -12,9 +12,9 @@ one event at a time.
     aimbat event list
     ```
 
-    The table shows each event's ID, time, location, and whether it is
-    currently the default. IDs are displayed in their shortest unambiguous
-    form — use any unique prefix when passing an ID to other commands.
+    The table shows each event's ID, time, and location. IDs are displayed in
+    their shortest unambiguous form — use any unique prefix when passing an
+    ID to other commands.
 
 === "TUI"
 
@@ -26,36 +26,42 @@ one event at a time.
 
 ---
 
-## Setting the default event (CLI / Shell)
+## Selecting an Event for CLI / Shell
 
-The CLI and shell operate on a **default event** — a single event stored in
-the database that all commands target unless overridden with `--event`. Set it
-after import:
+Most processing commands (like `aimbat align iccs` or `aimbat snapshot create`)
+operate on a single event. You can specify the target event in two ways:
 
-```bash
-aimbat event default <EVENT_ID>
-```
+### 1. The `--event-id` flag (or `--event`)
 
-From that point on, commands like `aimbat plot seismograms` or
-`aimbat align iccs` automatically target this event without needing an
-explicit ID.
-
-To target a different event for a single command without changing the default:
+Pass the ID directly to any command. You can use the full UUID or any unique
+prefix:
 
 ```bash
-aimbat align iccs --event <EVENT_ID>
+aimbat align iccs --event-id 6a4a
 ```
 
-The default event is marked in `aimbat event list` and is also shown in the
-shell prompt.
+### 2. The `DEFAULT_EVENT_ID` environment variable
+
+If you are working on the same event for multiple commands, you can set the
+`DEFAULT_EVENT_ID` environment variable in your shell. This tells AIMBAT to
+use that event whenever the `--event-id` flag is omitted:
+
+```bash
+export DEFAULT_EVENT_ID=6a4a
+aimbat align iccs
+aimbat snapshot create "post-ICCS"
+```
+
+The shell prompt also reflects this ID when set. To clear it, simply unset the
+variable: `unset DEFAULT_EVENT_ID`.
 
 ---
 
 ## Selecting an event for processing (TUI / GUI)
 
 The TUI and GUI maintain their own event selection independently of the
-database default — changing it here does not affect what the CLI uses, and
-vice versa.
+CLI / shell context — changing it here does not affect what the CLI uses,
+and vice versa.
 
 === "TUI"
 

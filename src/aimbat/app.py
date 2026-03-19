@@ -20,6 +20,8 @@ from importlib import metadata
 from cyclopts import App
 from rich.console import Console
 
+import aimbat._cli as cli
+
 try:
     __version__ = str(metadata.version("aimbat"))
 except Exception:
@@ -28,19 +30,22 @@ except Exception:
 console = Console()
 
 app = App(version=__version__, help=__doc__, help_format="markdown", console=console)
-app.command("aimbat._cli.align:app", name="align")
-app.command("aimbat._cli.data:app", name="data")
-app.command("aimbat._cli.event:app", name="event")
-app.command("aimbat._cli.pick:app", name="pick")
-app.command("aimbat._cli.plot:app", name="plot")
-app.command("aimbat._cli.quality:app", name="quality")
-app.command("aimbat._cli.project:app", name="project")
-app.command("aimbat._cli.station:app", name="station")
-app.command("aimbat._cli.seismogram:app", name="seismogram")
-app.command("aimbat._cli.snapshot:app", name="snapshot")
-app.command("aimbat._cli.utils:app", name="utils")
-app.command("aimbat._cli.shell:app", name="shell")
-app.command("aimbat._tui.app:main", name="tui")
+app.command(cli.align)
+app.command(cli.data)
+app.command(cli.event)
+app.command(cli.pick)
+app.command(cli.plot)
+app.command(cli.project)
+app.command(cli.seismogram)
+app.command(cli.snapshot)
+app.command(cli.station)
+app.command(cli.utils)
+app.command(cli.shell)
+app.command(
+    "aimbat._tui.app:main",
+    name="tui",
+    help="Launch the AIMBAT terminal user interface",
+)
 
 
 if __name__ == "__main__":

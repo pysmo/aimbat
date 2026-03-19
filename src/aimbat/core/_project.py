@@ -58,33 +58,7 @@ def create_project(engine: Engine) -> None:
 
     if engine.name == "sqlite":
         with engine.begin() as connection:
-            # Trigger 1: Handle updates to existing rows
-            connection.execute(
-                text("""
-                CREATE TRIGGER IF NOT EXISTS single_default_event_update
-                BEFORE UPDATE ON aimbatevent
-                FOR EACH ROW WHEN NEW.is_default = TRUE
-                BEGIN
-                    UPDATE aimbatevent SET is_default = NULL 
-                    WHERE is_default = TRUE AND id != NEW.id;
-                END;
-            """)
-            )
-
-            # Trigger 2: Handle brand new default events being inserted
-            connection.execute(
-                text("""
-                CREATE TRIGGER IF NOT EXISTS single_default_event_insert
-                BEFORE INSERT ON aimbatevent
-                FOR EACH ROW WHEN NEW.is_default = TRUE
-                BEGIN
-                    UPDATE aimbatevent SET is_default = NULL
-                    WHERE is_default = TRUE;
-                END;
-            """)
-            )
-
-            # Trigger 3: Track last modification time when event parameters change
+            # Trigger 1: Track last modification time when event parameters change
             connection.execute(
                 text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_params_update
@@ -96,7 +70,7 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 4: Track last modification time when seismogram parameters change
+            # Trigger 2: Track last modification time when seismogram parameters change
             connection.execute(
                 text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_seis_params_update
@@ -112,7 +86,7 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 5: Null all quality when event window/bandpass/ramp parameters change.
+            # Trigger 3: Null all quality when event window/bandpass/ramp parameters change.
             # These parameters change the signal data used by both ICCS and MCCC.
             connection.execute(
                 text("""
@@ -137,7 +111,7 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 6: Null MCCC quality when MCCC-specific event parameters change.
+            # Trigger 4: Null MCCC quality when MCCC-specific event parameters change.
             # These parameters affect only the MCCC inversion, not the underlying signal,
             # so iccs_cc remains valid.
             connection.execute(
@@ -159,7 +133,7 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 7a: Null quality when flip changes on a seismogram.
+            # Trigger 5a: Null quality when flip changes on a seismogram.
             # Flipping a trace only affects the ICCS stack if the seismogram is selected.
             # MCCC stats are invalidated if the seismogram was included in the last MCCC
             # run, which is inferred from the presence of live mccc_cc_mean stats —
@@ -219,7 +193,7 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 7b: Null quality when t1 changes on a seismogram.
+            # Trigger 5b: Null quality when t1 changes on a seismogram.
             # ICCS: if selected, the stack is affected so iccs_cc is stale for all;
             # if deselected, only this seismogram's own iccs_cc is stale.
             # MCCC: invalidated whenever the seismogram was in the last MCCC run,
@@ -277,7 +251,7 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 7c: Null quality when select changes on a seismogram.
+            # Trigger 5c: Null quality when select changes on a seismogram.
             # ICCS stack composition changes in both directions (select → deselect and
             # vice versa), so iccs_cc is always invalidated for the whole event.
             # MCCC stats are only invalidated if the seismogram was in the last MCCC run,

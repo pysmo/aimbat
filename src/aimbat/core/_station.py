@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from aimbat.logger import logger
@@ -14,7 +15,7 @@ from aimbat.models import (
     AimbatStation,
     AimbatStationRead,
 )
-from aimbat.utils import get_title_map
+from aimbat.utils import get_title_map, rel
 
 __all__ = [
     "delete_station",
@@ -77,6 +78,17 @@ def get_stations_in_event(
         .distinct()
         .join(AimbatSeismogram)
         .where(AimbatSeismogram.event_id == event.id)
+        .options(
+            selectinload(rel(AimbatStation.seismograms)).selectinload(
+                rel(AimbatSeismogram.parameters)
+            ),
+            selectinload(rel(AimbatStation.seismograms)).selectinload(
+                rel(AimbatSeismogram.quality)
+            ),
+            selectinload(rel(AimbatStation.seismograms)).selectinload(
+                rel(AimbatSeismogram.event)
+            ),
+        )
     )
 
     logger.debug(f"Executing query: {statement}")
@@ -156,6 +168,18 @@ def dump_station_table(
         )
     else:
         statement = select(AimbatStation)
+
+    statement = statement.options(
+        selectinload(rel(AimbatStation.seismograms)).selectinload(
+            rel(AimbatSeismogram.quality)
+        ),
+        selectinload(rel(AimbatStation.seismograms)).selectinload(
+            rel(AimbatSeismogram.parameters)
+        ),
+        selectinload(rel(AimbatStation.seismograms)).selectinload(
+            rel(AimbatSeismogram.event)
+        ),
+    )
 
     stations = session.exec(statement).all()
 

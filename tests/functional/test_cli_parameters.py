@@ -1,7 +1,7 @@
 """Functional tests for CLI commands that read and write event and seismogram parameters.
 
-All commands are invoked in-process via ``app()`` with ``aimbat.db.engine``
-monkeypatched to the test fixture's in-memory database.  The ``dump``
+All commands are invoked in-process via `app()` with `aimbat.db.engine`
+monkeypatched to the test fixture's in-memory database.  The `dump`
 sub-commands are used as the source of truth for verifying parameter changes.
 """
 
@@ -17,13 +17,14 @@ from sqlalchemy import Engine
 
 @pytest.mark.cli
 class TestEventParameterGet:
-    """Tests for ``event parameter get``."""
+    """Tests for `event parameter get`."""
 
     def test_get_bool_parameter(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that getting a bool parameter prints its current value.
 
@@ -32,7 +33,7 @@ class TestEventParameterGet:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("event parameter get completed")
+        cli(f"event parameter get --event-id {event_id} completed")
         assert "False" in capsys.readouterr().out, "'completed' should default to False"
 
     def test_get_float_parameter(
@@ -40,6 +41,7 @@ class TestEventParameterGet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that getting a float parameter prints a numeric value.
 
@@ -48,7 +50,7 @@ class TestEventParameterGet:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("event parameter get min_cc")
+        cli(f"event parameter get --event-id {event_id} min_cc")
         output = capsys.readouterr().out.strip()
         assert output, "Expected a non-empty output for min_cc"
         assert float(output) >= 0.0, "min_cc should be a non-negative float"
@@ -58,6 +60,7 @@ class TestEventParameterGet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that getting a timedelta parameter prints a value ending in 's'.
 
@@ -66,7 +69,7 @@ class TestEventParameterGet:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("event parameter get window_pre")
+        cli(f"event parameter get --event-id {event_id} window_pre")
         output = capsys.readouterr().out.strip()
         assert output, "Expected a non-empty output for window_pre"
         assert float(output.rstrip("s")) <= 0.0, (
@@ -78,6 +81,7 @@ class TestEventParameterGet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that getting bandpass_apply prints a bool value.
 
@@ -86,7 +90,7 @@ class TestEventParameterGet:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("event parameter get bandpass_apply")
+        cli(f"event parameter get --event-id {event_id} bandpass_apply")
         output = capsys.readouterr().out.strip()
         assert output in (
             "True",
@@ -108,6 +112,7 @@ class TestEventParameterSetBool:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting completed=true is reflected in the dump.
 
@@ -116,14 +121,14 @@ class TestEventParameterSetBool:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        before = cli_json("event parameter dump")
-        assert isinstance(before, dict), "Dump should return a dict for default event"
+        all_params = cli_json("event parameter dump")
+        before = all_params[0]
         assert before["completed"] is False, "'completed' should default to False"
 
-        cli("event parameter set completed true")
+        cli(f"event parameter set --event-id {event_id} completed true")
 
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
         assert after["completed"] is True, "'completed' should be True after being set"
 
     def test_set_completed_false(
@@ -131,6 +136,7 @@ class TestEventParameterSetBool:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting completed=false is reflected in the dump.
 
@@ -139,10 +145,10 @@ class TestEventParameterSetBool:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set completed true")
-        cli("event parameter set completed false")
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
+        cli(f"event parameter set --event-id {event_id} completed true")
+        cli(f"event parameter set --event-id {event_id} completed false")
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
         assert after["completed"] is False, (
             "'completed' should be False after being set back"
         )
@@ -152,6 +158,7 @@ class TestEventParameterSetBool:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting bandpass_apply is reflected in the dump.
 
@@ -160,15 +167,17 @@ class TestEventParameterSetBool:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        before = cli_json("event parameter dump")
-        assert isinstance(before, dict), "Dump should return a dict for default event"
-        original = before["bandpassApply"]
+        all_params = cli_json("event parameter dump")
+        before = all_params[0]
+        original = before["bandpass_apply"]
 
-        cli(f"event parameter set bandpass_apply {not original}".lower())
+        cli(
+            f"event parameter set bandpass_apply {not original} --event-id {event_id}".lower()
+        )
 
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["bandpassApply"] is not original, (
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
+        assert after["bandpass_apply"] is not original, (
             "'bandpassApply' should have toggled after set"
         )
 
@@ -182,6 +191,7 @@ class TestEventParameterSetFloat:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting min_cc is reflected in the dump.
 
@@ -190,10 +200,10 @@ class TestEventParameterSetFloat:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set min_cc 0.42")
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["minCc"] == pytest.approx(0.42), (
+        cli(f"event parameter set --event-id {event_id} min_cc 0.42")
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
+        assert after["min_cc"] == pytest.approx(0.42), (
             "'minCc' should be 0.42 after being set"
         )
 
@@ -202,6 +212,7 @@ class TestEventParameterSetFloat:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting bandpass_fmin is reflected in the dump.
 
@@ -210,10 +221,10 @@ class TestEventParameterSetFloat:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set bandpass_fmin 0.1")
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["bandpassFmin"] == pytest.approx(0.1), (
+        cli(f"event parameter set --event-id {event_id} bandpass_fmin 0.1")
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
+        assert after["bandpass_fmin"] == pytest.approx(0.1), (
             "'bandpassFmin' should be 0.1 after being set"
         )
 
@@ -222,6 +233,7 @@ class TestEventParameterSetFloat:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting bandpass_fmax is reflected in the dump.
 
@@ -230,10 +242,10 @@ class TestEventParameterSetFloat:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set bandpass_fmax 2.0")
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["bandpassFmax"] == pytest.approx(2.0), (
+        cli(f"event parameter set --event-id {event_id} bandpass_fmax 2.0")
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
+        assert after["bandpass_fmax"] == pytest.approx(2.0), (
             "'bandpassFmax' should be 2.0 after being set"
         )
 
@@ -252,6 +264,7 @@ class TestEventParameterSetTimedelta:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that a bare number is interpreted as seconds for window_pre.
 
@@ -260,10 +273,10 @@ class TestEventParameterSetTimedelta:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set window_pre -20")
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["windowPre"] == pytest.approx(-20.0), (
+        cli(f"event parameter set --event-id {event_id} window_pre -20")
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
+        assert after["window_pre"] == pytest.approx(-20.0), (
             "'windowPre' should be -20.0 seconds after being set with a bare number"
         )
 
@@ -272,6 +285,7 @@ class TestEventParameterSetTimedelta:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that a bare number is interpreted as seconds for window_post.
 
@@ -280,10 +294,10 @@ class TestEventParameterSetTimedelta:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set window_post 30")
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["windowPost"] == pytest.approx(30.0), (
+        cli(f"event parameter set --event-id {event_id} window_post 30")
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
+        assert after["window_post"] == pytest.approx(30.0), (
             "'windowPost' should be 30.0 seconds after being set with a bare number"
         )
 
@@ -292,6 +306,7 @@ class TestEventParameterSetTimedelta:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that a pandas-style unit string (e.g. '10s') is accepted for window_post.
 
@@ -300,10 +315,10 @@ class TestEventParameterSetTimedelta:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set window_post 20s")
-        after = cli_json("event parameter dump")
-        assert isinstance(after, dict), "Dump should return a dict for default event"
-        assert after["windowPost"] == pytest.approx(20.0), (
+        cli(f"event parameter set --event-id {event_id} window_post 20s")
+        all_params = cli_json("event parameter dump")
+        after = all_params[0]
+        assert after["window_post"] == pytest.approx(20.0), (
             "'windowPost' should be 20.0 seconds after being set with '20s'"
         )
 
@@ -315,12 +330,13 @@ class TestEventParameterSetTimedelta:
 
 @pytest.mark.cli
 class TestEventParameterDump:
-    """Tests for ``event parameter dump``."""
+    """Tests for `event parameter dump`."""
 
     def test_default_event_returns_dict(
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the default-event dump returns a dict.
 
@@ -329,12 +345,14 @@ class TestEventParameterDump:
             cli_json: The in-process CLI JSON dump callable.
         """
         data = cli_json("event parameter dump")
-        assert isinstance(data, dict), "Default-event dump should be a dict"
+        assert isinstance(data, list), "Dump should return a list"
+        assert len(data) > 0, "Expected at least one event parameter"
 
     def test_default_event_contains_all_parameter_keys(
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that all expected parameter keys are present in the dump.
 
@@ -342,16 +360,16 @@ class TestEventParameterDump:
             loaded_engine: The monkeypatched engine with data loaded.
             cli_json: The in-process CLI JSON dump callable.
         """
-        data = cli_json("event parameter dump")
-        assert isinstance(data, dict), "Default-event dump should be a dict"
+        all_data = cli_json("event parameter dump")
+        data = all_data[0]
         for key in (
             "completed",
-            "minCc",
-            "windowPre",
-            "windowPost",
-            "bandpassApply",
-            "bandpassFmin",
-            "bandpassFmax",
+            "min_cc",
+            "window_pre",
+            "window_post",
+            "bandpass_apply",
+            "bandpass_fmin",
+            "bandpass_fmax",
         ):
             assert key in data, f"Expected key '{key}' in event parameter dump"
 
@@ -359,14 +377,15 @@ class TestEventParameterDump:
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
-        """Verifies that ``--all`` returns a list of parameter dicts.
+        """Verifies that `--all` returns a list of parameter dicts.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
             cli_json: The in-process CLI JSON dump callable.
         """
-        data = cli_json("event parameter dump --all")
+        data = cli_json("event parameter dump")
         assert isinstance(data, list), "All-events dump should be a list"
         assert len(data) > 1, "Expected parameters for more than one event"
 
@@ -374,6 +393,7 @@ class TestEventParameterDump:
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that each entry in the all-events dump has the expected keys.
 
@@ -381,17 +401,18 @@ class TestEventParameterDump:
             loaded_engine: The monkeypatched engine with data loaded.
             cli_json: The in-process CLI JSON dump callable.
         """
-        data = cli_json("event parameter dump --all")
+        data = cli_json("event parameter dump")
         assert isinstance(data, list), "All-events dump should be a list"
         for entry in data:
             assert "completed" in entry, "Each entry should have 'completed' key"
-            assert "minCc" in entry, "Each entry should have 'minCc' key"
+            assert "min_cc" in entry, "Each entry should have 'minCc' key"
 
     def test_set_visible_in_all_events_dump(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that a parameter change to the default event appears in the all-events dump.
 
@@ -400,8 +421,8 @@ class TestEventParameterDump:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        cli("event parameter set completed true")
-        all_data = cli_json("event parameter dump --all")
+        cli(f"event parameter set --event-id {event_id} completed true")
+        all_data = cli_json("event parameter dump")
         assert isinstance(all_data, list), "All-events dump should be a list"
         default_entries = [e for e in all_data if e.get("completed") is True]
         assert len(default_entries) == 1, (
@@ -416,13 +437,14 @@ class TestEventParameterDump:
 
 @pytest.mark.cli
 class TestEventParameterList:
-    """Tests for ``event parameter list``."""
+    """Tests for `event parameter list`."""
 
     def test_list_produces_output(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that the list command produces output.
 
@@ -431,27 +453,28 @@ class TestEventParameterList:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("event parameter list")
+        cli(f"event parameter list --event-id {event_id}")
         assert len(capsys.readouterr().out) > 0, (
             "Expected output from event parameter list"
         )
 
-    def test_list_short_produces_output(
+    def test_list_raw_produces_output(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
-        """Verifies that ``--short`` produces output.
+        """Verifies that `--raw` produces output.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("event parameter list --short")
+        cli(f"event parameter list --raw --event-id {event_id}")
         assert len(capsys.readouterr().out) > 0, (
-            "Expected output from event parameter list --short"
+            "Expected output from event parameter list --raw"
         )
 
     def test_list_all_events_produces_output(
@@ -459,15 +482,16 @@ class TestEventParameterList:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
-        """Verifies that ``--all`` produces output covering all events.
+        """Verifies that `--all` produces output covering all events.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("event parameter list --all")
+        cli("event parameter list --event-id all")
         assert len(capsys.readouterr().out) > 0, (
             "Expected output from event parameter list --all"
         )
@@ -480,7 +504,7 @@ class TestEventParameterList:
 
 @pytest.mark.cli
 class TestSeismogramParameterGet:
-    """Tests for ``seismogram parameter get``."""
+    """Tests for `seismogram parameter get`."""
 
     def test_get_select_with_full_id(
         self,
@@ -488,6 +512,7 @@ class TestSeismogramParameterGet:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that 'select' can be retrieved using the full seismogram ID.
 
@@ -503,7 +528,7 @@ class TestSeismogramParameterGet:
         )
         target_id = seis[0]["id"]
 
-        cli(f"seismogram parameter get {target_id} select")
+        cli(f"seismogram parameter get select --id {target_id}")
         output = capsys.readouterr().out.strip()
         assert output in (
             "True",
@@ -516,6 +541,7 @@ class TestSeismogramParameterGet:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that 'select' can be retrieved using a shortened seismogram ID.
 
@@ -531,7 +557,7 @@ class TestSeismogramParameterGet:
         )
         short_id = seis[0]["id"][:8]
 
-        cli(f"seismogram parameter get {short_id} select")
+        cli(f"seismogram parameter get select --id {short_id}")
         output = capsys.readouterr().out.strip()
         assert output in (
             "True",
@@ -544,6 +570,7 @@ class TestSeismogramParameterGet:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that 'flip' defaults to False.
 
@@ -556,7 +583,7 @@ class TestSeismogramParameterGet:
         seis = cli_json("seismogram dump")
         target_id = seis[0]["id"]
 
-        cli(f"seismogram parameter get {target_id} flip")
+        cli(f"seismogram parameter get flip --id {target_id}")
         assert "False" in capsys.readouterr().out, "'flip' should default to False"
 
     def test_get_select_default_is_true(
@@ -565,6 +592,7 @@ class TestSeismogramParameterGet:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that 'select' defaults to True.
 
@@ -577,7 +605,7 @@ class TestSeismogramParameterGet:
         seis = cli_json("seismogram dump")
         target_id = seis[0]["id"]
 
-        cli(f"seismogram parameter get {target_id} select")
+        cli(f"seismogram parameter get select --id {target_id}")
         assert "True" in capsys.readouterr().out, "'select' should default to True"
 
 
@@ -595,6 +623,7 @@ class TestSeismogramParameterSet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting select=false is reflected in the dump.
 
@@ -609,7 +638,7 @@ class TestSeismogramParameterSet:
         )
         target_id = seis[0]["id"]
 
-        cli(f"seismogram parameter set {target_id} select false")
+        cli(f"seismogram parameter set select false --id {target_id}")
 
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
@@ -623,6 +652,7 @@ class TestSeismogramParameterSet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting select=false via a shortened ID is reflected in the dump.
 
@@ -635,7 +665,7 @@ class TestSeismogramParameterSet:
         target_id = seis[0]["id"]
         short_id = target_id[:8]
 
-        cli(f"seismogram parameter set {short_id} select false")
+        cli(f"seismogram parameter set select false --id {short_id}")
 
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
@@ -649,6 +679,7 @@ class TestSeismogramParameterSet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting flip=true is reflected in the dump.
 
@@ -660,7 +691,7 @@ class TestSeismogramParameterSet:
         seis = cli_json("seismogram dump")
         target_id = seis[0]["id"]
 
-        cli(f"seismogram parameter set {target_id} flip true")
+        cli(f"seismogram parameter set flip true --id {target_id}")
 
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
@@ -674,6 +705,7 @@ class TestSeismogramParameterSet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that setting flip=true via a shortened ID is reflected in the dump.
 
@@ -686,7 +718,7 @@ class TestSeismogramParameterSet:
         target_id = seis[0]["id"]
         short_id = target_id[:8]
 
-        cli(f"seismogram parameter set {short_id} flip true")
+        cli(f"seismogram parameter set flip true --id {short_id}")
 
         params = cli_json("seismogram parameter dump")
         assert isinstance(params, list), "Seismogram parameter dump should be a list"
@@ -700,6 +732,7 @@ class TestSeismogramParameterSet:
         loaded_engine: Engine,
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that changing one seismogram's parameter does not affect others.
 
@@ -719,7 +752,7 @@ class TestSeismogramParameterSet:
         other_id = params_before[1]["seismogram_id"]
         other_select_before = params_before[1]["select"]
 
-        cli(f"seismogram parameter set {target_id} select false")
+        cli(f"seismogram parameter set select false --id {target_id}")
 
         params_after = cli_json("seismogram parameter dump")
         assert isinstance(params_after, list), (
@@ -740,12 +773,13 @@ class TestSeismogramParameterSet:
 
 @pytest.mark.cli
 class TestSeismogramParameterDump:
-    """Tests for ``seismogram parameter dump``."""
+    """Tests for `seismogram parameter dump`."""
 
     def test_returns_list(
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the dump returns a list of parameter dicts.
 
@@ -761,6 +795,7 @@ class TestSeismogramParameterDump:
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that each entry contains the expected parameter keys.
 
@@ -780,6 +815,7 @@ class TestSeismogramParameterDump:
         self,
         loaded_engine: Engine,
         cli_json: Callable[[str], list | dict],
+        event_id: str,
     ) -> None:
         """Verifies that the parameter dump entry count matches the seismogram count.
 
@@ -803,13 +839,14 @@ class TestSeismogramParameterDump:
 
 @pytest.mark.cli
 class TestSeismogramParameterList:
-    """Tests for ``seismogram parameter list``."""
+    """Tests for `seismogram parameter list`."""
 
     def test_list_produces_output(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
         """Verifies that the list command produces output.
 
@@ -818,25 +855,26 @@ class TestSeismogramParameterList:
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("seismogram parameter list")
+        cli(f"seismogram parameter list --event-id {event_id}")
         assert len(capsys.readouterr().out) > 0, (
             "Expected output from seismogram parameter list"
         )
 
-    def test_list_short_produces_output(
+    def test_list_raw_produces_output(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
         capsys: pytest.CaptureFixture[str],
+        event_id: str,
     ) -> None:
-        """Verifies that ``--short`` produces output.
+        """Verifies that `--raw` produces output.
 
         Args:
             loaded_engine: The monkeypatched engine with data loaded.
             cli: The in-process CLI callable.
             capsys: The pytest capsys fixture.
         """
-        cli("seismogram parameter list --short")
+        cli(f"seismogram parameter list --raw --event-id {event_id}")
         assert len(capsys.readouterr().out) > 0, (
-            "Expected output from seismogram parameter list --short"
+            "Expected output from seismogram parameter list --raw"
         )

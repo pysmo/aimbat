@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from aimbat.logger import logger
@@ -14,6 +15,7 @@ from aimbat.models import (
     AimbatEventParametersSnapshot,
     AimbatEventQuality,
     AimbatEventQualitySnapshot,
+    AimbatSeismogram,
     AimbatSeismogramParametersSnapshot,
     AimbatSeismogramQuality,
     AimbatSeismogramQualitySnapshot,
@@ -28,7 +30,7 @@ from aimbat.models._quality import (
     AimbatEventQualityBase,
     AimbatSeismogramQualityBase,
 )
-from aimbat.utils import get_title_map
+from aimbat.utils import get_title_map, rel
 
 __all__ = [
     "compute_parameters_hash",
@@ -37,7 +39,11 @@ __all__ = [
     "sync_from_matching_hash",
     "delete_snapshot",
     "get_snapshots",
-    "dump_snapshot_tables",
+    "dump_snapshot_table",
+    "dump_event_parameter_snapshot_table",
+    "dump_seismogram_parameter_snapshot_table",
+    "dump_event_quality_snapshot_table",
+    "dump_seismogram_quality_snapshot_table",
 ]
 
 
@@ -108,6 +114,19 @@ def create_snapshot(
     """
 
     logger.info(f"Creating snapshot for event with id={event.id} with {comment=}.")
+
+    event = session.exec(
+        select(AimbatEvent)
+        .where(AimbatEvent.id == event.id)
+        .options(
+            selectinload(rel(AimbatEvent.parameters)),
+            selectinload(rel(AimbatEvent.quality)),
+            selectinload(rel(AimbatEvent.seismograms)).options(
+                selectinload(rel(AimbatSeismogram.parameters)),
+                selectinload(rel(AimbatSeismogram.quality)),
+            ),
+        )
+    ).one()
 
     event_parameters_snapshot = AimbatEventParametersSnapshot.model_validate(
         event.parameters,
@@ -191,7 +210,20 @@ def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
 
     logger.info(f"Rolling back to snapshot with id={snapshot_id}.")
 
-    snapshot = session.get(AimbatSnapshot, snapshot_id)
+    statement = (
+        select(AimbatSnapshot)
+        .where(AimbatSnapshot.id == snapshot_id)
+        .options(
+            selectinload(rel(AimbatSnapshot.event)).selectinload(
+                rel(AimbatEvent.parameters)
+            ),
+            selectinload(rel(AimbatSnapshot.event_parameters_snapshot)),
+            selectinload(
+                rel(AimbatSnapshot.seismogram_parameters_snapshots)
+            ).selectinload(rel(AimbatSeismogramParametersSnapshot.parameters)),
+        )
+    )
+    snapshot = session.exec(statement).one_or_none()
     if snapshot is None:
         raise ValueError(f"No AimbatSnapshot found with {snapshot_id=}")
 
@@ -361,40 +393,40 @@ def get_snapshots(
     else:
         statement = select(AimbatSnapshot).where(AimbatSnapshot.event_id == event_id)
 
+    statement = statement.options(
+        selectinload(rel(AimbatSnapshot.event)),
+        selectinload(rel(AimbatSnapshot.event_parameters_snapshot)),
+        selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)),
+        selectinload(rel(AimbatSnapshot.event_quality_snapshot)),
+        selectinload(rel(AimbatSnapshot.seismogram_quality_snapshots)),
+    )
+
     logger.debug(f"Executing statement to get snapshots: {statement}")
     return session.exec(statement).all()
 
 
-def dump_snapshot_tables(
+def dump_snapshot_table(
     session: Session,
+    event_id: UUID | None = None,
     from_read_model: bool = False,
     by_alias: bool = False,
     by_title: bool = False,
     exclude: set[str] | None = None,
-    event_id: UUID | None = None,
-) -> dict[str, list[dict[str, Any]]]:
-    """Dump snapshot data as a dict of lists of dicts.
-
-    Returns a structure with three keys:
-
-    - `snapshots`: flat list of snapshot metadata.
-    - `event_parameters`: flat list of event parameter snapshots.
-    - `seismogram_parameters`: flat list of seismogram parameter snapshots.
-
-    Each entry includes a `snapshot_id` for cross-referencing.
+) -> list[dict[str, Any]]:
+    """Dump snapshot metadata as a list of dicts.
 
     Args:
         session: Database session.
+        event_id: Event ID to filter seismograms by (if none is provided,
+            seismograms for all events are dumped).
         from_read_model: Whether to dump from the read model (True) or the ORM model.
             Only affects the `snapshots` table.
         by_alias: Whether to use serialization aliases for the field names in the output.
         by_title: Whether to use titles for the field names in the output (only
             applicable when from_read_model is True). Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
-        event_id: Event ID to filter seismograms by (if none is provided,
-            seismograms for all events are dumped).
     """
-    logger.debug("Dumping AimbatSnapshot tables to json.")
+    logger.debug("Dumping AimbatSnapshot table to json.")
 
     if by_alias and by_title:
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
@@ -406,22 +438,6 @@ def dump_snapshot_tables(
         exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
 
     snapshots = get_snapshots(session, event_id)
-
-    event_params_adapter: TypeAdapter[Sequence[AimbatEventParametersSnapshot]] = (
-        TypeAdapter(Sequence[AimbatEventParametersSnapshot])
-    )
-    event_snaps = [s.event_parameters_snapshot for s in snapshots]
-    event_dicts = event_params_adapter.dump_python(
-        event_snaps, mode="json", by_alias=by_alias
-    )
-
-    seis_params_adapter: TypeAdapter[Sequence[AimbatSeismogramParametersSnapshot]] = (
-        TypeAdapter(Sequence[AimbatSeismogramParametersSnapshot])
-    )
-    seis_snaps = [sp for s in snapshots for sp in s.seismogram_parameters_snapshots]
-    seis_dicts = seis_params_adapter.dump_python(
-        seis_snaps, mode="json", by_alias=by_alias
-    )
 
     if from_read_model:
         snapshot_read_adapter: TypeAdapter[Sequence[AimbatSnapshotRead]] = TypeAdapter(
@@ -448,10 +464,144 @@ def dump_snapshot_tables(
             snapshots, mode="json", by_alias=by_alias, exclude=exclude
         )
 
-    data: dict[str, list[dict[str, Any]]] = {
-        "snapshots": snapshot_dicts,
-        "event_parameters": event_dicts,
-        "seismogram_parameters": seis_dicts,
-    }
+    return snapshot_dicts
 
-    return data
+
+def dump_event_parameter_snapshot_table(
+    session: Session,
+    event_id: UUID | None = None,
+    by_alias: bool = False,
+    exclude: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Dump event parameter snapshots as a list of dicts.
+
+    Args:
+        session: Database session.
+        event_id: Event ID to filter seismograms by (if none is provided,
+            seismograms for all events are dumped).
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        exclude: Set of field names to exclude from the output.
+    """
+    logger.debug("Dumping AimbatEventParametersSnapshot table to json.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    snapshots = get_snapshots(session, event_id)
+
+    event_params_adapter: TypeAdapter[Sequence[AimbatEventParametersSnapshot]] = (
+        TypeAdapter(Sequence[AimbatEventParametersSnapshot])
+    )
+    event_snaps = [s.event_parameters_snapshot for s in snapshots]
+    event_dicts = event_params_adapter.dump_python(
+        event_snaps, mode="json", by_alias=by_alias, exclude=exclude
+    )
+
+    return event_dicts
+
+
+def dump_seismogram_parameter_snapshot_table(
+    session: Session,
+    event_id: UUID | None = None,
+    by_alias: bool = False,
+    exclude: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Dump seismogram parameter snapshots as a list of dicts.
+
+    Args:
+        session: Database session.
+        event_id: Event ID to filter seismograms by (if none is provided,
+            seismograms for all events are dumped).
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        exclude: Set of field names to exclude from the output.
+    """
+    logger.debug("Dumping AimbatSeismogramParametersSnapshot table to json.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    snapshots = get_snapshots(session, event_id)
+
+    seis_params_adapter: TypeAdapter[Sequence[AimbatSeismogramParametersSnapshot]] = (
+        TypeAdapter(Sequence[AimbatSeismogramParametersSnapshot])
+    )
+    seis_snaps = [sp for s in snapshots for sp in s.seismogram_parameters_snapshots]
+    seis_dicts = seis_params_adapter.dump_python(
+        seis_snaps, mode="json", by_alias=by_alias, exclude=exclude
+    )
+
+    return seis_dicts
+
+
+def dump_event_quality_snapshot_table(
+    session: Session,
+    event_id: UUID | None = None,
+    by_alias: bool = False,
+    exclude: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Dump event quality snapshots as a list of dicts.
+
+    Args:
+        session: Database session.
+        event_id: Event ID to filter snapshots by (if none is provided,
+            snapshots for all events are dumped).
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        exclude: Set of field names to exclude from the output.
+    """
+    logger.debug("Dumping AimbatEventQualitySnapshot table to json.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    snapshots = get_snapshots(session, event_id)
+
+    event_quality_adapter: TypeAdapter[Sequence[AimbatEventQualitySnapshot]] = (
+        TypeAdapter(Sequence[AimbatEventQualitySnapshot])
+    )
+    # Filter out snapshots that don't have event quality records.
+    event_quality_snaps = [
+        s.event_quality_snapshot
+        for s in snapshots
+        if s.event_quality_snapshot is not None
+    ]
+    event_quality_dicts = event_quality_adapter.dump_python(
+        event_quality_snaps, mode="json", by_alias=by_alias, exclude=exclude
+    )
+
+    return event_quality_dicts
+
+
+def dump_seismogram_quality_snapshot_table(
+    session: Session,
+    event_id: UUID | None = None,
+    by_alias: bool = False,
+    exclude: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Dump seismogram quality snapshots as a list of dicts.
+
+    Args:
+        session: Database session.
+        event_id: Event ID to filter snapshots by (if none is provided,
+            snapshots for all events are dumped).
+        by_alias: Whether to use serialization aliases for the field names in the output.
+        exclude: Set of field names to exclude from the output.
+    """
+    logger.debug("Dumping AimbatSeismogramQualitySnapshot table to json.")
+
+    if exclude is not None:
+        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    snapshots = get_snapshots(session, event_id)
+
+    seis_quality_adapter: TypeAdapter[Sequence[AimbatSeismogramQualitySnapshot]] = (
+        TypeAdapter(Sequence[AimbatSeismogramQualitySnapshot])
+    )
+    # Collect all seismogram quality records from all snapshots.
+    seis_quality_snaps = [
+        sq for s in snapshots for sq in s.seismogram_quality_snapshots
+    ]
+    seis_quality_dicts = seis_quality_adapter.dump_python(
+        seis_quality_snaps, mode="json", by_alias=by_alias, exclude=exclude
+    )
+
+    return seis_quality_dicts

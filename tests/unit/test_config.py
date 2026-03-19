@@ -27,7 +27,7 @@ def _capture_pretty(monkeypatch: pytest.MonkeyPatch) -> str:
     """
     buffer = io.StringIO()
     console = Console(file=buffer, highlight=False, no_color=True, width=500)
-    monkeypatch.setattr("aimbat.utils._table.Console", lambda: console)
+    monkeypatch.setattr("aimbat._cli.common._table.Console", lambda: console)
     print_settings_table(pretty=True)
     return buffer.getvalue()
 

@@ -13,90 +13,13 @@ from aimbat.core import (
     dump_event_parameter_table,
     dump_event_table,
     get_completed_events,
-    get_default_event,
     get_events_using_station,
-    set_default_event,
     set_event_parameter,
 )
 from aimbat.models import AimbatEvent, AimbatStation
 
 # ===================================================================
 # Default event
-# ===================================================================
-
-
-class TestDefaultEvent:
-    """Tests for retrieving and switching the default event."""
-
-    def test_get(self, loaded_session: Session) -> None:
-        """Verifies that `get_default_event` returns the event marked as default in the DB.
-
-        Args:
-            loaded_session (Session): The database session.
-        """
-        default_event = loaded_session.exec(
-            select(AimbatEvent).where(AimbatEvent.is_default == 1)
-        ).one()
-        assert default_event == get_default_event(loaded_session)
-
-    def test_switch(self, loaded_session: Session) -> None:
-        """Verifies switching the default event using an event object.
-
-        Args:
-            loaded_session (Session): The database session.
-        """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None, "expected a default event in the test data"
-
-        all_events = list(loaded_session.exec(select(AimbatEvent)).all())
-        assert len(all_events) > 1, "expected multiple events in the test data"
-
-        all_events.remove(default_event)
-        new_default_event = all_events.pop()
-        assert new_default_event != default_event, (
-            "expected a different event to switch to"
-        )
-
-        set_default_event(loaded_session, new_default_event.id)
-        assert get_default_event(loaded_session) == new_default_event
-
-    def test_switch_by_id_invalid(self, loaded_session: Session) -> None:
-        """Verifies that switching the default event using an invalid event ID raises an error."""
-
-        new_uuid = uuid.uuid4()
-        assert (
-            len(
-                loaded_session.exec(
-                    select(AimbatEvent).where(AimbatEvent.id == new_uuid)
-                ).all()
-            )
-            == 0
-        ), "expected no event with the generated UUID in the test data"
-
-        with pytest.raises(ValueError):
-            set_default_event(loaded_session, uuid.uuid4())
-
-    def test_get_default_event_no_default(self, loaded_session: Session) -> None:
-        """Verifies that `get_default_event` returns None if no event is marked as default.
-
-        Args:
-            loaded_session (Session): The database session.
-        """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None, "expected a default event in the test data"
-        default_event.is_default = None
-        assert (
-            loaded_session.exec(
-                select(AimbatEvent).where(AimbatEvent.is_default == 1)
-            ).first()
-            is None
-        ), "expected no default event in the database after deactivating"
-
-        assert get_default_event(loaded_session) is None
-
-
-# ===================================================================
-# Delete event
 # ===================================================================
 
 
@@ -111,13 +34,13 @@ class TestDeleteEvent:
         """
         events = loaded_session.exec(select(AimbatEvent)).all()
         count_before = len(events)
-        non_default = next(e for e in events if not e.is_default)
+        to_delete = events[0]
 
-        delete_event(loaded_session, non_default.id)
+        delete_event(loaded_session, to_delete.id)
 
         remaining = loaded_session.exec(select(AimbatEvent)).all()
         assert len(remaining) == count_before - 1
-        assert non_default not in remaining
+        assert to_delete not in remaining
 
     def test_delete_event_by_id_not_found(self, loaded_session: Session) -> None:
         """Verifies that deleting a non-existent event ID raises NoResultFound.
@@ -216,13 +139,13 @@ class TestSetEventParameter:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
         new_value = Timedelta(seconds=20)
         set_event_parameter(
-            loaded_session, default_event.id, EventParameter.WINDOW_POST, new_value
+            loaded_session, event.id, EventParameter.WINDOW_POST, new_value
         )
-        assert default_event.parameters.window_post == new_value
+        assert event.parameters.window_post == new_value
 
     def test_set_float_parameter(self, loaded_session: Session) -> None:
         """Verifies that a float parameter is persisted correctly.
@@ -230,13 +153,11 @@ class TestSetEventParameter:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
         new_value = 0.75
-        set_event_parameter(
-            loaded_session, default_event.id, EventParameter.MIN_CC, new_value
-        )
-        assert default_event.parameters.min_cc == new_value
+        set_event_parameter(loaded_session, event.id, EventParameter.MIN_CC, new_value)
+        assert event.parameters.min_cc == new_value
 
     def test_set_bool_parameter(self, loaded_session: Session) -> None:
         """Verifies that a bool parameter is persisted correctly.
@@ -244,12 +165,10 @@ class TestSetEventParameter:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
-        set_event_parameter(
-            loaded_session, default_event.id, EventParameter.COMPLETED, True
-        )
-        assert default_event.parameters.completed is True
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        set_event_parameter(loaded_session, event.id, EventParameter.COMPLETED, True)
+        assert event.parameters.completed is True
 
     def test_set_parameter_with_validate_iccs(self, loaded_session: Session) -> None:
         """Verifies that validate_iccs=True triggers ICCS validation.
@@ -257,26 +176,26 @@ class TestSetEventParameter:
         Args:
             loaded_session: The database session.
         """
-        default_event = get_default_event(loaded_session)
-        assert default_event is not None
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
 
         # Test valid change
         new_value = Timedelta(seconds=1.5)
         set_event_parameter(
             loaded_session,
-            default_event.id,
+            event.id,
             EventParameter.WINDOW_POST,
             new_value,
             validate_iccs=True,
         )
-        assert default_event.parameters.window_post == new_value
+        assert event.parameters.window_post == new_value
 
         # Test invalid change (e.g., window that would result in no data)
         # Very large window might fail construction if it exceeds data bounds
         with pytest.raises(ValueError, match="ICCS validation failed"):
             set_event_parameter(
                 loaded_session,
-                default_event.id,
+                event.id,
                 EventParameter.WINDOW_POST,
                 Timedelta(seconds=10000),
                 validate_iccs=True,
@@ -311,7 +230,7 @@ class TestDumpEventTableToJson:
         assert isinstance(result, list)
         assert len(result) > 0
         assert "id" in result[0]
-        assert "is_default" in result[0]
+        assert "last_modified" in result[0]
 
     def test_from_read_model_with_alias(self, loaded_session: Session) -> None:
         """Verifies that aliases are used when by_alias=True.
@@ -322,8 +241,8 @@ class TestDumpEventTableToJson:
         result = dump_event_table(loaded_session, from_read_model=True, by_alias=True)
         assert isinstance(result, list)
         assert len(result) > 0
-        assert "isDefault" in result[0]
-        assert "is_default" not in result[0]
+        assert "lastModified" in result[0]
+        assert "last_modified" not in result[0]
 
 
 class TestDumpEventParameterTableToJson:

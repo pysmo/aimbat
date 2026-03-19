@@ -21,11 +21,19 @@ runs, prints its result, and exits. It is the natural choice for scripting,
 batch jobs, and any task where you already know what you want to do.
 
 Every command accepts `--help` for a full option listing. Most processing
-commands operate on the [default event](index.md#default-event) unless you
-pass an explicit `--event` flag:
+commands require an event to operate on. You can pass an explicit `--event`
+flag:
 
 ```bash
 aimbat align iccs --event 6a4a
+```
+
+Alternatively, you can set the `DEFAULT_EVENT_ID` environment variable to
+avoid passing the flag every time:
+
+```bash
+export DEFAULT_EVENT_ID=6a4a
+aimbat align iccs
 ```
 
 IDs can be supplied as the full UUID or any unique prefix.
@@ -60,9 +68,9 @@ aimbat> event list
 aimbat> align iccs
 ```
 
-The shell maintains a local **event context** that is independent of the
-database default event and is never written to the database. Switch it at any
-time:
+The shell maintains a local **event context** that can be pre-selected on
+launch or switched at any time. When an event is selected, the shell
+automatically injects it into all relevant commands:
 
 ```
 aimbat [6a4a]> event switch <ID>
@@ -201,18 +209,22 @@ with an environment variable:
 export AIMBAT_PROJECT=/path/to/my/project.db
 ```
 
-### Default event
+### Event selection
 
-Projects can contain multiple seismic events. The **default event** is a
-database-level setting used by the CLI and, on startup, by the shell. Set it
-with:
+Projects can contain multiple seismic events. Most commands operate on a single
+event at a time. You can choose the target event by passing the `--event-id`
+(or `--event`) flag to any command.
+
+For convenience, you can also set the `DEFAULT_EVENT_ID` environment variable:
 
 ```bash
-aimbat event default <EVENT_ID>
+export DEFAULT_EVENT_ID=6a4a
 ```
 
-The TUI and GUI maintain their own **event selection** independently of the
-database default and never change it.
+When this variable is set, the CLI and shell use it as the default target
+whenever an explicit ID is omitted. The shell prompt also reflects this ID.
+The TUI and GUI maintain their own event selection independently and never
+change it.
 
 ### The ICCS instance
 

@@ -9,9 +9,16 @@ environment variable to the desired filename. Alternatively, `aimbat` can be
 executed with a database url directly.
 """
 
+from typing import Annotated
+from uuid import UUID
+
 from cyclopts import App
 
-from .common import DebugParameter, GlobalParameters, simple_exception
+from .common import (
+    DebugParameter,
+    event_parameter,
+    simple_exception,
+)
 
 app = App(name="project", help=__doc__, help_format="markdown")
 
@@ -43,7 +50,9 @@ def cli_project_delete(*, _: DebugParameter = DebugParameter()) -> None:
 @app.command(name="info")
 @simple_exception
 def cli_project_info(
-    *, global_parameters: GlobalParameters = GlobalParameters()
+    event_id: Annotated[UUID | None, event_parameter()] = None,
+    *,
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Show information on an existing project."""
 
@@ -59,10 +68,7 @@ def cli_project_info(
     from aimbat.core import resolve_event
     from aimbat.core._project import _project_exists
     from aimbat.db import engine
-    from aimbat.logger import logger
     from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
-
-    logger.info("Printing project info.")
 
     if not _project_exists(engine):
         raise RuntimeError(
@@ -93,7 +99,7 @@ def cli_project_info(
         )
 
         try:
-            target_event = resolve_event(session, global_parameters.event_id)
+            target_event = resolve_event(session, event_id)
             target_event_id = target_event.id
             active_stations = len(
                 station.get_stations_in_event(session, target_event.id)
@@ -108,11 +114,7 @@ def cli_project_info(
             seismograms_in_event = None
             selected_seismograms_in_event = None
 
-        event_label = (
-            "Selected Event ID: "
-            if global_parameters.event_id
-            else "Default Event ID: "
-        )
+        event_label = "Selected Event ID: "
         grid.add_row(event_label, f"{target_event_id}")
         grid.add_row(
             "Number of Stations in Project (total/selected event): ",

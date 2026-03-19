@@ -10,9 +10,17 @@ Most plot commands support `--context` / `--no-context` to toggle extra
 waveform context, and `--all` to include deselected seismograms.
 """
 
+from typing import Annotated
+from uuid import UUID
+
 from cyclopts import App
 
-from .common import GlobalParameters, IccsPlotParameters, simple_exception
+from .common import (
+    DebugParameter,
+    IccsPlotParameters,
+    event_parameter,
+    simple_exception,
+)
 
 app = App(name="plot", help=__doc__, help_format="markdown")
 
@@ -20,8 +28,9 @@ app = App(name="plot", help=__doc__, help_format="markdown")
 @app.command(name="seismograms")
 @simple_exception
 def cli_seismogram_plot(
+    event_id: Annotated[UUID, event_parameter()],
     *,
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Plot input seismograms in an event sorted by epicentral distance."""
     from sqlmodel import Session
@@ -31,16 +40,17 @@ def cli_seismogram_plot(
     from aimbat.plot import plot_seismograms
 
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         plot_seismograms(session, event, return_fig=False)
 
 
 @app.command(name="stack")
 @simple_exception
 def cli_plot_stack(
+    event_id: Annotated[UUID, event_parameter()],
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Plot the ICCS stack of an event."""
     from sqlmodel import Session
@@ -50,7 +60,7 @@ def cli_plot_stack(
     from aimbat.plot import plot_stack
 
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
         plot_stack(
             iccs,
@@ -63,9 +73,10 @@ def cli_plot_stack(
 @app.command(name="matrix")
 @simple_exception
 def cli_plot_matrix_image(
+    event_id: Annotated[UUID, event_parameter()],
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
-    global_parameters: GlobalParameters = GlobalParameters(),
+    _: DebugParameter = DebugParameter(),
 ) -> None:
     """Plot the ICCS seismograms of an event as a matrix image.
 
@@ -82,7 +93,7 @@ def cli_plot_matrix_image(
     from aimbat.plot import plot_matrix_image
 
     with Session(engine) as session:
-        event = resolve_event(session, global_parameters.event_id)
+        event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
         plot_matrix_image(
             iccs,

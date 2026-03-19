@@ -3,7 +3,6 @@
 import pytest
 from sqlmodel import Session, select
 
-from aimbat.core import get_default_event
 from aimbat.core._snapshot import create_snapshot
 from aimbat.models import (
     AimbatDataSource,
@@ -209,31 +208,31 @@ class TestSeismogramRelationships:
 class TestSnapshotRelationships:
     """Tests for navigating relationships on AimbatSnapshot."""
 
-    def test_snapshot_has_event_parameters_snapshot(self, session: Session) -> None:
+    def test_snapshot_has_event_parameters_snapshot(
+        self, session: Session, event: AimbatEvent
+    ) -> None:
         """Verifies that a snapshot exposes its event parameter snapshot.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert isinstance(
             snapshot.event_parameters_snapshot, AimbatEventParametersSnapshot
         )
 
     def test_snapshot_has_seismogram_parameter_snapshots(
-        self, session: Session
+        self, session: Session, event: AimbatEvent
     ) -> None:
         """Verifies that a snapshot exposes its seismogram parameter snapshots.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert len(snapshot.seismogram_parameters_snapshots) > 0
         assert all(
@@ -241,63 +240,67 @@ class TestSnapshotRelationships:
             for s in snapshot.seismogram_parameters_snapshots
         )
 
-    def test_snapshot_back_reference_to_event(self, session: Session) -> None:
+    def test_snapshot_back_reference_to_event(
+        self, session: Session, event: AimbatEvent
+    ) -> None:
         """Verifies that a snapshot links back to its parent event.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         assert isinstance(snapshot.event, AimbatEvent)
 
-    def test_snapshot_seismogram_count(self, session: Session) -> None:
+    def test_snapshot_seismogram_count(
+        self, session: Session, event: AimbatEvent
+    ) -> None:
         """Verifies that seismogram_count matches the number of seismogram parameter snapshots.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
         assert snapshot.seismogram_count == len(
             snapshot.seismogram_parameters_snapshots
         )
 
-    def test_snapshot_selected_seismogram_count(self, session: Session) -> None:
+    def test_snapshot_selected_seismogram_count(
+        self, session: Session, event: AimbatEvent
+    ) -> None:
         """Verifies that selected_seismogram_count reflects snapshots marked as selected.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
         expected = sum(1 for s in snapshot.seismogram_parameters_snapshots if s.select)
         assert snapshot.selected_seismogram_count == expected
 
-    def test_snapshot_flipped_seismogram_count(self, session: Session) -> None:
+    def test_snapshot_flipped_seismogram_count(
+        self, session: Session, event: AimbatEvent
+    ) -> None:
         """Verifies that flipped_seismogram_count reflects snapshots marked as flipped.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
         expected = sum(1 for s in snapshot.seismogram_parameters_snapshots if s.flip)
         assert snapshot.flipped_seismogram_count == expected
 
     def test_snapshot_counts_reflect_toggled_flip_and_select(
-        self, session: Session
+        self, session: Session, event: AimbatEvent
     ) -> None:
         """Verifies snapshot counts reflect toggled flip and select on seismograms.
 
@@ -307,10 +310,9 @@ class TestSnapshotRelationships:
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        seismograms = default_event.seismograms
+        seismograms = event.seismograms
         assert len(seismograms) >= 2
 
         to_flip = seismograms[0]
@@ -322,7 +324,7 @@ class TestSnapshotRelationships:
         session.add(to_deselect.parameters)
         session.commit()
 
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
 
@@ -511,9 +513,8 @@ class TestCascadeDeleteSeismogram:
             session: The database session.
             seismogram: An AimbatSeismogram to delete.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        event = seismogram.event
+        create_snapshot(session, event)
         parameters_id = seismogram.parameters.id
 
         session.delete(seismogram)
@@ -527,15 +528,16 @@ class TestCascadeDeleteSeismogram:
 class TestCascadeDeleteSnapshot:
     """Tests that deleting a snapshot cascades to all its dependants."""
 
-    def test_event_parameters_snapshot_deleted(self, session: Session) -> None:
+    def test_event_parameters_snapshot_deleted(
+        self, session: Session, event: AimbatEvent
+    ) -> None:
         """Verifies that deleting a snapshot removes its event parameter snapshot.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         ep_snapshot_id = snapshot.event_parameters_snapshot.id
 
@@ -544,15 +546,16 @@ class TestCascadeDeleteSnapshot:
 
         assert session.get(AimbatEventParametersSnapshot, ep_snapshot_id) is None
 
-    def test_seismogram_parameters_snapshots_deleted(self, session: Session) -> None:
+    def test_seismogram_parameters_snapshots_deleted(
+        self, session: Session, event: AimbatEvent
+    ) -> None:
         """Verifies that deleting a snapshot removes all its seismogram parameter snapshots.
 
         Args:
             session: The database session.
+            event: An AimbatEvent instance.
         """
-        default_event = get_default_event(session)
-        assert default_event is not None
-        create_snapshot(session, default_event)
+        create_snapshot(session, event)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         sp_snapshot_ids = [s.id for s in snapshot.seismogram_parameters_snapshots]
         assert len(sp_snapshot_ids) > 0

@@ -6,13 +6,12 @@ exercised via subprocess with piped stdin.
 
 import os
 import subprocess
-import uuid
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import pytest
 
-from aimbat._cli.shell import _build_completion_dict, _extract_event_flag, _inject_event
+from aimbat._cli.shell import _build_completion_dict, _extract_event_flag
 from aimbat.app import app as aimbat_app
 
 _AIMBAT_LOGFILE = "aimbat_test.log"
@@ -90,43 +89,6 @@ class TestExtractEventFlag:
 
 
 # ===========================================================================
-# _inject_event
-# ===========================================================================
-
-
-class TestInjectEvent:
-    """Tests for the ``_inject_event`` helper."""
-
-    _UID = uuid.UUID("12345678-1234-5678-1234-567812345678")
-
-    def test_appends_event_flag_when_absent(self) -> None:
-        result = _inject_event(["event", "list"], self._UID)
-        assert "--event" in result
-        assert str(self._UID) in result
-
-    def test_no_change_when_event_already_present(self) -> None:
-        tokens = ["event", "dump", "--event", "other-id"]
-        result = _inject_event(tokens, self._UID)
-        assert result == tokens
-
-    def test_no_change_when_event_id_already_present(self) -> None:
-        tokens = ["event", "dump", "--event-id", "other-id"]
-        result = _inject_event(tokens, self._UID)
-        assert result == tokens
-
-    def test_original_tokens_not_mutated(self) -> None:
-        tokens = ["event", "list"]
-        original = tokens[:]
-        _inject_event(tokens, self._UID)
-        assert tokens == original
-
-    def test_returns_new_list(self) -> None:
-        tokens = ["event", "list"]
-        result = _inject_event(tokens, self._UID)
-        assert result is not tokens
-
-
-# ===========================================================================
 # _build_completion_dict
 # ===========================================================================
 
@@ -146,7 +108,7 @@ class TestBuildCompletionDict:
         result = _build_completion_dict(aimbat_app)
         event_cmds = result.get("event")
         assert isinstance(event_cmds, dict)
-        for sub in ("list", "dump", "default", "delete"):
+        for sub in ("list", "dump", "delete"):
             assert sub in event_cmds, f"'event {sub}' missing from completion dict"
 
     def test_help_flags_excluded(self) -> None:
