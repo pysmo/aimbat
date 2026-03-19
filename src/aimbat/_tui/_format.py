@@ -137,10 +137,10 @@ def tui_cell(model: type[BaseModel], title: str, val: object) -> str | Text:
 def tui_fmt(val: object) -> str:
     """Format a raw field value for display in a Textual DataTable cell.
 
-    Applies generic type-based rules (bool as ✓/✗, float to 3 d.p., ISO
-    timestamp truncation) before falling back to `str`. Field-specific
-    formatting should be handled via `TuiColSpec.formatter` instead.
-    Returns `—` for `None`."""
+    Applies generic type-based rules (bool via ``fmt_bool``, float via
+    ``fmt_float``, ISO timestamp truncation) before falling back to ``str``.
+    Field-specific formatting should be handled via ``TuiColSpec.formatter``
+    instead. Returns ``—`` for ``None``."""
     if val is None:
         return "—"
     if isinstance(val, bool):
