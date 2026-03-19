@@ -166,18 +166,27 @@ def cli_data_add(
     disable_progress_bar = not show_progress_bar
 
     with Session(engine) as session:
-        results = add_data_to_project(
-            session,
-            data_sources,
-            data_type,
-            station_id=station_id,
-            event_id=event_id,
-            dry_run=dry_run,
-            disable_progress_bar=disable_progress_bar,
-        )
-        if results is not None:
-            if dry_run:
-                _print_dry_run_results(*results)
+        if dry_run:
+            results = add_data_to_project(
+                session,
+                data_sources,
+                data_type,
+                station_id=station_id,
+                event_id=event_id,
+                dry_run=True,
+                disable_progress_bar=disable_progress_bar,
+            )
+            _print_dry_run_results(*results)
+        else:
+            add_data_to_project(
+                session,
+                data_sources,
+                data_type,
+                station_id=station_id,
+                event_id=event_id,
+                dry_run=False,
+                disable_progress_bar=disable_progress_bar,
+            )
 
 
 @app.command(name="dump")

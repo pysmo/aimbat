@@ -1,6 +1,6 @@
 import os
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal, overload
 from uuid import UUID
 
 from pydantic import TypeAdapter
@@ -185,6 +185,31 @@ def _process_datasource(
         aimbat_data_source.seismogram = aimbat_seismogram
     session.add(aimbat_data_source)
     return aimbat_data_source
+
+
+@overload
+def add_data_to_project(
+    session: Session,
+    data_sources: Sequence[os.PathLike | str],
+    data_type: DataType,
+    station_id: UUID | None = ...,
+    event_id: UUID | None = ...,
+    dry_run: Literal[False] = ...,
+    disable_progress_bar: bool = ...,
+) -> None: ...
+
+
+@overload
+def add_data_to_project(
+    session: Session,
+    data_sources: Sequence[os.PathLike | str],
+    data_type: DataType,
+    station_id: UUID | None = ...,
+    event_id: UUID | None = ...,
+    *,
+    dry_run: Literal[True],
+    disable_progress_bar: bool = ...,
+) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]]: ...
 
 
 def add_data_to_project(
