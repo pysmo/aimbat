@@ -1,9 +1,13 @@
 """Functional tests for the AIMBAT Terminal User Interface.
 
 Each test runs the Textual app in headless mode via ``App.run_test()``.
-Because ``aimbat._tui.app`` imports ``engine`` at module level, both
-``aimbat.db.engine`` and ``aimbat._tui.app.engine`` must be monkeypatched
-to the test fixture's database.
+All TUI sub-modules that import ``engine`` at module level must be
+monkeypatched to the test fixture's database:
+
+- ``aimbat.db.engine`` — the canonical engine attribute
+- ``aimbat._tui.app.engine`` — top-level import in the app module
+- ``aimbat._tui.modals.engine`` — top-level import in the modals module
+- ``aimbat._tui._widgets.engine`` — top-level import in the widgets module
 """
 
 import asyncio
@@ -14,7 +18,9 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 from textual.widgets import DataTable, Static, TabbedContent, TabPane
 
+import aimbat._tui._widgets
 import aimbat._tui.app
+import aimbat._tui.modals
 import aimbat.db
 from aimbat._tui.app import AimbatTUI
 from aimbat.models import AimbatEvent
@@ -28,9 +34,11 @@ _TUI_SIZE = (120, 40)
 
 
 def _patch_engine(monkeypatch: pytest.MonkeyPatch, engine: Engine) -> None:
-    """Patch the engine in both the db module and the TUI app module."""
+    """Patch the engine in all TUI modules that import it at module level."""
     monkeypatch.setattr(aimbat.db, "engine", engine)
     monkeypatch.setattr(aimbat._tui.app, "engine", engine)
+    monkeypatch.setattr(aimbat._tui.modals, "engine", engine)
+    monkeypatch.setattr(aimbat._tui._widgets, "engine", engine)
 
 
 # ===========================================================================

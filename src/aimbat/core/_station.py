@@ -1,3 +1,5 @@
+"""Functions for managing and querying stations in AIMBAT."""
+
 from collections.abc import Sequence
 from typing import Any, Literal, overload
 from uuid import UUID
@@ -14,6 +16,7 @@ from aimbat.models import (
     AimbatSeismogramQuality,
     AimbatStation,
     AimbatStationRead,
+    SeismogramQualityStats,
 )
 from aimbat.utils import get_title_map, rel
 
@@ -21,7 +24,9 @@ __all__ = [
     "delete_station",
     "get_stations_in_event",
     "get_station_iccs_ccs",
+    "get_station_quality",
     "dump_station_table",
+    "dump_station_quality_table",
 ]
 
 
@@ -124,6 +129,37 @@ def get_station_iccs_ccs(
     return tuple(session.exec(statement).all())
 
 
+def get_station_quality(session: Session, station_id: UUID) -> SeismogramQualityStats:
+    """Get aggregated quality statistics for a station.
+
+    Args:
+        session: Database session.
+        station_id: UUID of the station.
+
+    Returns:
+        Aggregated seismogram quality statistics.
+
+    Raises:
+        NoResultFound: If no station with the given ID is found.
+    """
+    logger.debug(f"Getting quality stats for station {station_id}.")
+
+    station = session.exec(
+        select(AimbatStation)
+        .where(AimbatStation.id == station_id)
+        .options(
+            selectinload(rel(AimbatStation.seismograms)).selectinload(
+                rel(AimbatSeismogram.quality)
+            ),
+        )
+    ).one_or_none()
+
+    if station is None:
+        raise NoResultFound(f"No AimbatStation found with id: {station_id}.")
+
+    return SeismogramQualityStats.from_station(station)
+
+
 def dump_station_table(
     session: Session,
     from_read_model: bool = False,
@@ -133,6 +169,7 @@ def dump_station_table(
     event_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Create a JSON serialisable dict from the AimbatStation table data.
+
     Args:
         session: Database session.
         from_read_model: Whether to dump from the read model (True) or the ORM model.
@@ -208,3 +245,56 @@ def dump_station_table(
     return adapter.dump_python(
         stations, mode="json", by_alias=by_alias, exclude=exclude
     )
+
+
+def dump_station_quality_table(
+    session: Session,
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+    station_id: UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Dump station quality statistics to json.
+
+    Args:
+        session: Database session.
+        by_alias: Whether to use serialization aliases for the field names.
+        by_title: Whether to use the field title metadata for the field names.
+            Mutually exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+        station_id: Station ID to filter by (if none is provided, quality for
+            all stations is dumped).
+
+    Raises:
+        ValueError: If both `by_alias` and `by_title` are True.
+    """
+
+    logger.debug("Dumping AIMBAT station quality table to json.")
+
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
+
+    exclude = (exclude or set()) | {"event_id", "snapshot_id"}
+    exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    statement = select(AimbatStation).options(
+        selectinload(rel(AimbatStation.seismograms)).selectinload(
+            rel(AimbatSeismogram.quality)
+        ),
+    )
+    if station_id is not None:
+        statement = statement.where(AimbatStation.id == station_id)
+
+    stations = session.exec(statement).all()
+    stats = [SeismogramQualityStats.from_station(s) for s in stations]
+
+    adapter: TypeAdapter[Sequence[SeismogramQualityStats]] = TypeAdapter(
+        Sequence[SeismogramQualityStats]
+    )
+    data = adapter.dump_python(stats, mode="json", exclude=exclude, by_alias=by_alias)
+
+    if by_title:
+        title_map = get_title_map(SeismogramQualityStats)
+        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+    return data

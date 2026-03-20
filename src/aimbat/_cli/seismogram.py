@@ -15,14 +15,67 @@ from .common import (
     event_parameter_is_all,
     event_parameter_with_all,
     id_parameter,
+    open_in_editor,
     simple_exception,
 )
 
 app = App(name="seismogram", help=__doc__, help_format="markdown")
+_note = App(name="note", help="Read and edit seismogram notes.", help_format="markdown")
 parameter = App(
     name="parameter", help="Manage seismogram parameters.", help_format="markdown"
 )
+app.command(_note)
 app.command(parameter)
+
+
+@_note.command(name="read")
+@simple_exception
+def cli_seismogram_note_read(
+    seismogram_id: Annotated[
+        UUID,
+        id_parameter(AimbatSeismogram, help="UUID (or unique prefix) of seismogram."),
+    ],
+    *,
+    _: DebugParameter = DebugParameter(),
+) -> None:
+    """Display the note attached to a seismogram, rendered as Markdown."""
+    from rich.console import Console
+    from rich.markdown import Markdown
+    from sqlmodel import Session
+
+    from aimbat.core import get_note_content
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        content = get_note_content(session, "seismogram", seismogram_id)
+
+    Console().print(Markdown(content) if content else "(no note)")
+
+
+@_note.command(name="edit")
+@simple_exception
+def cli_seismogram_note_edit(
+    seismogram_id: Annotated[
+        UUID,
+        id_parameter(AimbatSeismogram, help="UUID (or unique prefix) of seismogram."),
+    ],
+    *,
+    _: DebugParameter = DebugParameter(),
+) -> None:
+    """Open the seismogram note in `$EDITOR` and save changes on exit."""
+    from sqlmodel import Session
+
+    from aimbat.core import get_note_content, save_note
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        original = get_note_content(session, "seismogram", seismogram_id)
+
+    updated = open_in_editor(original)
+
+    if updated != original:
+        with Session(engine) as session:
+            save_note(session, "seismogram", seismogram_id, updated)
 
 
 @app.command(name="delete")

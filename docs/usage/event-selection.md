@@ -6,15 +6,21 @@ one event at a time.
 
 ## Listing events
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
     aimbat event list
     ```
 
-    The table shows each event's ID, time, and location. IDs are displayed in
-    their shortest unambiguous form — use any unique prefix when passing an
-    ID to other commands.
+=== "Shell"
+
+    ```bash
+    event list
+    ```
+
+The table shows each event's ID, time, and location. IDs are displayed in
+their shortest unambiguous form — use any unique prefix when passing an
+ID to other commands.
 
 === "TUI"
 
@@ -26,25 +32,32 @@ one event at a time.
 
 ---
 
-## Selecting an Event for CLI / Shell
+## Selecting an Event for the CLI and Shell
 
 Most processing commands (like `aimbat align iccs` or `aimbat snapshot create`)
 operate on a single event. You can specify the target event in two ways:
 
-### 1. The `--event-id` flag (or `--event`)
+### 1. Positional argument
 
-Pass the ID directly to any command. You can use the full UUID or any unique
-prefix:
+Pass the ID directly as the first argument. You can use the full UUID or any
+unique prefix:
 
 ```bash
-aimbat align iccs --event-id 6a4a
+aimbat align iccs 6a4a
+```
+
+The named forms `--event` and `--event-id` are also accepted and behave
+identically:
+
+```bash
+aimbat align iccs --event 6a4a
 ```
 
 ### 2. The `DEFAULT_EVENT_ID` environment variable
 
-If you are working on the same event for multiple commands, you can set the
-`DEFAULT_EVENT_ID` environment variable in your shell. This tells AIMBAT to
-use that event whenever the `--event-id` flag is omitted:
+If you are working on the same event for multiple commands, set the
+`DEFAULT_EVENT_ID` environment variable in your shell. AIMBAT uses it
+whenever no explicit ID is provided:
 
 ```bash
 export DEFAULT_EVENT_ID=6a4a
@@ -52,8 +65,14 @@ aimbat align iccs
 aimbat snapshot create "post-ICCS"
 ```
 
-The shell prompt also reflects this ID when set. To clear it, simply unset the
+The shell prompt also reflects this ID when set. To clear it, unset the
 variable: `unset DEFAULT_EVENT_ID`.
+
+!!! note
+    `DEFAULT_EVENT_ID` is a plain shell environment variable consumed directly
+    by the CLI argument parser. It is **not** an AIMBAT setting: it has no
+    `AIMBAT_` prefix, cannot be set in `.env`, and does not appear in
+    `aimbat settings list`.
 
 ---
 

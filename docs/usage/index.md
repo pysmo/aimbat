@@ -21,15 +21,21 @@ runs, prints its result, and exits. It is the natural choice for scripting,
 batch jobs, and any task where you already know what you want to do.
 
 Every command accepts `--help` for a full option listing. Most processing
-commands require an event to operate on. You can pass an explicit `--event`
-flag:
+commands require an event to operate on. Pass the event ID as a positional
+argument:
+
+```bash
+aimbat align iccs 6a4a
+```
+
+You can also use the named form (`--event` or `--event-id`) if you prefer:
 
 ```bash
 aimbat align iccs --event 6a4a
 ```
 
-Alternatively, you can set the `DEFAULT_EVENT_ID` environment variable to
-avoid passing the flag every time:
+Alternatively, set the `DEFAULT_EVENT_ID` environment variable to avoid
+repeating the ID every time:
 
 ```bash
 export DEFAULT_EVENT_ID=6a4a
@@ -44,7 +50,7 @@ in shell scripts:
 ```bash
 aimbat project create
 aimbat data add *.sac
-aimbat event default $(aimbat event dump | jq -r '.[0].id')
+export DEFAULT_EVENT_ID=$(aimbat event dump | jq -r '.[0].id')
 aimbat snapshot create "initial import"
 aimbat align iccs --autoflip --autoselect
 aimbat align mccc
@@ -101,16 +107,16 @@ without leaving the terminal.
 #### Layout
 
 ```
-┌─ AIMBAT ───────────────────────────────────────────────────────┐
-│ ▶ 2000-01-01 12:00  |  45.1°, 120.4°  ● ICCS ready (abc12345)  │  ← event bar
-├────────────────────────────────────────────────────────────────┤
-│  Project │ Seismograms │ Snapshots                             │  ← tabs
-│ ┌───────────────────────────────────────────────────────────┐  │
-│ │  ...                                                      │  │
-│ └───────────────────────────────────────────────────────────┘  │
-├────────────────────────────────────────────────────────────────┤
-│ e Events  a Align  t Tools  p Parameters  n Snapshot  q Quit   │  ← footer
-└────────────────────────────────────────────────────────────────┘
+┌─ AIMBAT ────────────────────────────────────────────────────────┐
+│ ▶ 2000-01-01 12:00:00  |  45.100°, 120.400°  ● ICCS ready        │  ← event bar
+├─────────────────────────────────────────────────────────────────┤
+│  Project │ Live data │ Snapshots                                 │  ← tabs
+│ ┌──────────────────────────────────────────────────────────────┐ │
+│ │  ...                                                         │ │
+│ └──────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
+│ e Events  d Add Data  a Align  t Tools  p Parameters  ...  q Quit│  ← footer
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 The **event bar** shows the event currently selected for processing and the
@@ -119,6 +125,14 @@ ICCS status (`● ICCS ready` / `○ no ICCS`).
 The **footer** lists the available key bindings. Actions that require an event
 to be selected (Align, Tools, Parameters, New Snapshot) only appear once one
 is chosen.
+
+#### Tabs
+
+The TUI has three tabs:
+
+- **Project** — two tables side by side: the events in the project and the stations. Pressing `Enter` on an event row lets you select it, mark it completed, view its seismograms, or delete it.
+- **Live data** — the seismogram table for the currently selected event. "Live" means the table always reflects the current in-memory ICCS state: picks, CC norms, and select/flip flags update immediately as you run alignment or change parameters, without any manual refresh. See [The ICCS Stack](iccs-stack.md) for a detailed explanation.
+- **Snapshots** — a list of saved parameter snapshots for the selected event with a quality summary panel.
 
 #### Navigation
 
@@ -131,10 +145,27 @@ Switch tabs with `H` / `L` (vim-style) or with the mouse. All tables support:
 | `g` / `G` | Jump to top / bottom |
 | `Enter` | Open row action menu |
 
-#### Seismogram row actions
+#### Row actions
 
-Pressing `Enter` on a seismogram row opens a context menu with the following
-actions:
+Pressing `Enter` on any table row opens a context menu. Available actions depend on the tab:
+
+**Project — Events table:**
+
+| Action | Description |
+|--------|-------------|
+| Select event | Make this the active event for processing |
+| Toggle completed | Mark or unmark the event as completed |
+| View seismograms | Switch to the Live data tab filtered to this event |
+| Delete event | Remove the event and its seismograms from the project |
+
+**Project — Stations table:**
+
+| Action | Description |
+|--------|-------------|
+| View seismograms | Switch to the Live data tab filtered to this station |
+| Delete station | Remove the station from the project |
+
+**Live data — Seismograms table:**
 
 | Action | Description |
 |--------|-------------|
@@ -212,10 +243,17 @@ export AIMBAT_PROJECT=/path/to/my/project.db
 ### Event selection
 
 Projects can contain multiple seismic events. Most commands operate on a single
-event at a time. You can choose the target event by passing the `--event-id`
-(or `--event`) flag to any command.
+event at a time. Pass the event ID as a positional argument:
 
-For convenience, you can also set the `DEFAULT_EVENT_ID` environment variable:
+```bash
+aimbat align iccs 6a4a
+```
+
+The named forms `--event` and `--event-id` are also accepted and behave
+identically. IDs can be the full UUID or any unique prefix.
+
+For convenience, set the `DEFAULT_EVENT_ID` environment variable to avoid
+repeating the ID:
 
 ```bash
 export DEFAULT_EVENT_ID=6a4a
@@ -225,6 +263,11 @@ When this variable is set, the CLI and shell use it as the default target
 whenever an explicit ID is omitted. The shell prompt also reflects this ID.
 The TUI and GUI maintain their own event selection independently and never
 change it.
+
+Note that `DEFAULT_EVENT_ID` is a plain shell environment variable consumed
+directly by the CLI argument parser — it has no `AIMBAT_` prefix, cannot be
+set in `.env`, and does not appear in `aimbat settings list`. See
+[Selecting an Event](event-selection.md) for details.
 
 ### The ICCS instance
 

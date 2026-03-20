@@ -16,11 +16,16 @@ epicentral distance, with absolute time on the x-axis. This gives an immediate
 overview of the array — coherent arrivals should appear as a roughly linear
 moveout across the traces.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat plot seismograms
-    aimbat plot seismograms --event <ID>   # specific event
+    aimbat plot seismograms <ID>
+    ```
+
+=== "Shell"
+
+    ```bash
+    plot seismograms <ID>
     ```
 
 === "TUI"
@@ -31,6 +36,10 @@ moveout across the traces.
 === "GUI"
 
     Select an event in the **Project** tab and click **View seismograms**.
+
+When there are many traces, only a subset is shown initially. Scroll the mouse
+wheel to pan through the remaining traces; hold **Shift** and scroll to pan
+along the time axis.
 
 **What to look for:**
 
@@ -49,16 +58,25 @@ to the pick; traces are stacked vertically in chronological order. This view
 is useful for checking whether a station is consistently problematic across
 multiple events, or whether an issue is isolated to one.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
     aimbat station plotseis <STATION_ID>
+    ```
+
+=== "Shell"
+
+    ```bash
+    station plotseis <STATION_ID>
     ```
 
 === "TUI"
 
     In the **Project** tab, navigate to the **Stations** table, press `Enter`
     on a row, and choose **View seismograms**.
+
+The same scroll behaviour applies: scroll to pan through traces, shift+scroll
+to pan the time axis.
 
 === "API"
 

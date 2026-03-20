@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Self
 from uuid import UUID
 
@@ -5,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from aimbat._types import PydanticTimedelta, PydanticTimestamp
-from aimbat.utils import mean_and_sem
+from aimbat.logger import logger
+from aimbat.utils import mean_and_sem, mean_and_sem_timedelta
 from aimbat.utils.formatters import fmt_depth_km, fmt_flip
 
 from ._format import RichColSpec, TuiColSpec
@@ -18,9 +21,208 @@ if TYPE_CHECKING:
 __all__ = [
     "AimbatEventRead",
     "AimbatSeismogramRead",
+    "SeismogramQualityStats",
     "AimbatSnapshotRead",
     "AimbatStationRead",
 ]
+
+
+class SeismogramQualityStats(BaseModel):
+    """Aggregated seismogram quality statistics for an event or station.
+
+    Built from live quality records. All mean fields are `None` when no
+    seismograms in the group have quality data. SEM fields are `None` when
+    fewer than two values are available. `mccc_rmse` is only populated by
+    `from_event` and `from_snapshot`; it is always `None` for `from_station`.
+    `event_id` is populated by `from_event` and `from_snapshot`; it is always
+    `None` for `from_station`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    event_id: UUID | None = Field(
+        default=None,
+        title="Event ID",
+        json_schema_extra={
+            "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
+    )
+    snapshot_id: UUID | None = Field(
+        default=None,
+        title="Snapshot ID",
+        json_schema_extra={
+            "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
+    )
+    station_id: UUID | None = Field(
+        default=None,
+        title="Station ID",
+        json_schema_extra={
+            "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
+    )
+    count: int = Field(title="Count")
+    cc_mean: float | None = Field(default=None, title="ICCS CC mean")
+    cc_mean_sem: float | None = Field(default=None, title="ICCS CC mean SEM")
+    mccc_cc_mean: float | None = Field(default=None, title="MCCC CC mean")
+    mccc_cc_mean_sem: float | None = Field(default=None, title="MCCC CC mean SEM")
+    mccc_cc_std: float | None = Field(default=None, title="MCCC CC std")
+    mccc_cc_std_sem: float | None = Field(default=None, title="MCCC CC std SEM")
+    mccc_error: PydanticTimedelta | None = Field(default=None, title="MCCC error")
+    mccc_error_sem: PydanticTimedelta | None = Field(
+        default=None, title="MCCC error SEM"
+    )
+    mccc_rmse: PydanticTimedelta | None = Field(default=None, title="MCCC RMSE")
+
+    @classmethod
+    def from_event(cls, event: AimbatEvent) -> Self:
+        """Build quality stats from live quality records for an event.
+
+        Aggregates `iccs_cc` and MCCC metrics across all seismograms that
+        have live quality records. `mccc_rmse` is taken from the event-level
+        quality record.
+
+        Warning:
+            This method may trigger lazy-loading of `event.seismograms` and
+            each `seis.quality` relationship. For performance, query `event`
+            with `selectinload` for `seismograms` and their nested `quality`
+            relationships before calling.
+
+        Args:
+            event: The event whose seismograms' live quality to aggregate.
+
+        Returns:
+            Aggregated quality statistics.
+        """
+        logger.debug(f"Building quality stats for event {event.id}.")
+        qualities = [
+            seis.quality for seis in event.seismograms if seis.quality is not None
+        ]
+
+        cc_mean, cc_mean_sem = mean_and_sem(
+            [q.iccs_cc for q in qualities if q.iccs_cc is not None]
+        )
+        mccc_cc_mean, mccc_cc_mean_sem = mean_and_sem(
+            [q.mccc_cc_mean for q in qualities if q.mccc_cc_mean is not None]
+        )
+        mccc_cc_std, mccc_cc_std_sem = mean_and_sem(
+            [q.mccc_cc_std for q in qualities if q.mccc_cc_std is not None]
+        )
+        mccc_error, mccc_error_sem = mean_and_sem_timedelta(
+            [q.mccc_error for q in qualities if q.mccc_error is not None]
+        )
+        mccc_rmse = event.quality.mccc_rmse if event.quality is not None else None
+
+        return cls(
+            event_id=event.id,
+            count=len(event.seismograms),
+            cc_mean=cc_mean,
+            cc_mean_sem=cc_mean_sem,
+            mccc_cc_mean=mccc_cc_mean,
+            mccc_cc_mean_sem=mccc_cc_mean_sem,
+            mccc_cc_std=mccc_cc_std,
+            mccc_cc_std_sem=mccc_cc_std_sem,
+            mccc_error=mccc_error,
+            mccc_error_sem=mccc_error_sem,
+            mccc_rmse=mccc_rmse,
+        )
+
+    @classmethod
+    def from_station(cls, station: AimbatStation) -> Self:
+        """Build quality stats from live quality records for a station.
+
+        Aggregates `iccs_cc` and MCCC metrics across all seismograms at the
+        station that have live quality records.
+
+        Warning:
+            This method may trigger lazy-loading of `station.seismograms` and
+            each `seis.quality` relationship. For performance, query `station`
+            with `selectinload` for `seismograms` and their nested `quality`
+            relationships before calling.
+
+        Args:
+            station: The station whose seismograms' live quality to aggregate.
+
+        Returns:
+            Aggregated quality statistics. `mccc_rmse` is always `None`.
+        """
+        logger.debug(f"Building quality stats for station {station.id}.")
+        qualities = [
+            seis.quality for seis in station.seismograms if seis.quality is not None
+        ]
+
+        cc_mean, cc_mean_sem = mean_and_sem(
+            [q.iccs_cc for q in qualities if q.iccs_cc is not None]
+        )
+        mccc_cc_mean, mccc_cc_mean_sem = mean_and_sem(
+            [q.mccc_cc_mean for q in qualities if q.mccc_cc_mean is not None]
+        )
+        mccc_cc_std, mccc_cc_std_sem = mean_and_sem(
+            [q.mccc_cc_std for q in qualities if q.mccc_cc_std is not None]
+        )
+        mccc_error, mccc_error_sem = mean_and_sem_timedelta(
+            [q.mccc_error for q in qualities if q.mccc_error is not None]
+        )
+
+        return cls(
+            station_id=station.id,
+            count=len(station.seismograms),
+            cc_mean=cc_mean,
+            cc_mean_sem=cc_mean_sem,
+            mccc_cc_mean=mccc_cc_mean,
+            mccc_cc_mean_sem=mccc_cc_mean_sem,
+            mccc_cc_std=mccc_cc_std,
+            mccc_cc_std_sem=mccc_cc_std_sem,
+            mccc_error=mccc_error,
+            mccc_error_sem=mccc_error_sem,
+            mccc_rmse=None,
+        )
+
+    @classmethod
+    def from_snapshot(cls, snapshot: AimbatSnapshot) -> Self:
+        """Build quality stats from the frozen quality records in a snapshot.
+
+        Aggregates from `AimbatSeismogramQualitySnapshot` records rather than
+        live quality, so the result reflects the state at snapshot time.
+
+        Args:
+            snapshot: The snapshot to aggregate quality from.
+
+        Returns:
+            Aggregated quality statistics.
+        """
+        logger.debug(f"Building quality stats for snapshot {snapshot.id}.")
+        records = snapshot.seismogram_quality_snapshots
+
+        cc_mean, cc_mean_sem = mean_and_sem(
+            [r.iccs_cc for r in records if r.iccs_cc is not None]
+        )
+        mccc_cc_mean, mccc_cc_mean_sem = mean_and_sem(
+            [r.mccc_cc_mean for r in records if r.mccc_cc_mean is not None]
+        )
+        mccc_cc_std, mccc_cc_std_sem = mean_and_sem(
+            [r.mccc_cc_std for r in records if r.mccc_cc_std is not None]
+        )
+        mccc_error, mccc_error_sem = mean_and_sem_timedelta(
+            [r.mccc_error for r in records if r.mccc_error is not None]
+        )
+        eq = snapshot.event_quality_snapshot
+        mccc_rmse = eq.mccc_rmse if eq is not None else None
+
+        return cls(
+            event_id=snapshot.event_id,
+            snapshot_id=snapshot.id,
+            count=snapshot.seismogram_count,
+            cc_mean=cc_mean,
+            cc_mean_sem=cc_mean_sem,
+            mccc_cc_mean=mccc_cc_mean,
+            mccc_cc_mean_sem=mccc_cc_mean_sem,
+            mccc_cc_std=mccc_cc_std,
+            mccc_cc_std_sem=mccc_cc_std_sem,
+            mccc_error=mccc_error,
+            mccc_error_sem=mccc_error_sem,
+            mccc_rmse=mccc_rmse,
+        )
 
 
 class AimbatEventRead(BaseModel):
@@ -177,8 +379,8 @@ class AimbatStationRead(BaseModel):
     @classmethod
     def from_station(
         cls,
-        station: "AimbatStation",
-        session: "Session | None" = None,
+        station: AimbatStation,
+        session: Session | None = None,
     ) -> Self:
         data = station.model_dump()
 
@@ -296,7 +498,7 @@ class AimbatSeismogramRead(BaseModel):
 
     @classmethod
     def from_seismogram(
-        cls, seismogram: "AimbatSeismogram", session: "Session | None" = None
+        cls, seismogram: AimbatSeismogram, session: Session | None = None
     ) -> Self:
         name = (f"{seismogram.station.network}." or "") + seismogram.station.name
 
@@ -413,7 +615,7 @@ class AimbatSnapshotRead(BaseModel):
 
     @classmethod
     def from_snapshot(
-        cls, snapshot: "AimbatSnapshot", session: "Session | None" = None
+        cls, snapshot: AimbatSnapshot, session: Session | None = None
     ) -> Self:
         """Create an AimbatSnapshotRead from an AimbatSnapshot ORM instance."""
 

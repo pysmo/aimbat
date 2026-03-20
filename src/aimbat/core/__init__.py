@@ -11,11 +11,6 @@ All functions take a SQLModel `Session` and work with the models in
 - **ICCS / MCCC** — run the Iterative Cross-Correlation and Stack (`run_iccs`)
   and Multi-Channel Cross-Correlation (`run_mccc`) algorithms; update picks,
   time windows, and correlation thresholds.
-- **Quality / views** — retrieve and aggregate alignment quality metrics
-  (`get_quality_seismogram`, `get_quality_event`, `get_quality_station`,
-  `dump_quality_event`, `dump_quality_station`); structured view data for
-  rendering (`FieldSpec`, `FieldGroup`, `seismogram_quality_groups`,
-  `event_quality_groups`, `station_quality_groups`).
 - **Snapshots** — save, restore, and delete parameter snapshots
   (`create_snapshot`, `rollback_to_snapshot`).
 - **Project** — create and delete the project database (`create_project`,
@@ -29,8 +24,8 @@ _internal_names = set(dir())
 from ._data import *
 from ._event import *
 from ._iccs import *
+from ._note import *
 from ._project import *
-from ._quality import *
 from ._seismogram import *
 from ._snapshot import *
 from ._station import *
