@@ -90,6 +90,8 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Active event -> default event
 - Use default event concept only for cli commands
 - Update plot seismograms.
+- Remove dead code ([#231](https://github.com/pysmo/aimbat/issues/231))
+- Quality stats integrated into read models and tui
 
 ### 🚀 New Features
 

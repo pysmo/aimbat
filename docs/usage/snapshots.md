@@ -48,14 +48,21 @@ point available is worth it.
 
 ## Creating a snapshot
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat snapshot create                        # no comment
-    aimbat snapshot create "after bandpass 1–3Hz" # with comment
+    aimbat snapshot create <ID>                        # no comment
+    aimbat snapshot create <ID> "after bandpass 1–3Hz" # with comment
     ```
 
-    The comment is optional but useful for identifying the snapshot later.
+=== "Shell"
+
+    ```bash
+    snapshot create                        # no comment
+    snapshot create "after bandpass 1–3Hz" # with comment
+    ```
+
+The comment is optional but useful for identifying the snapshot later.
 
 === "TUI"
 
@@ -71,15 +78,22 @@ point available is worth it.
 
 ## Listing snapshots
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat snapshot list               # for the default event
-    aimbat snapshot list --all-events  # across all events
+    aimbat snapshot list <ID>              # for a specific event
+    aimbat snapshot list --all-events      # across all events
     ```
 
-    The table shows the snapshot ID, date and time, comment, and number of
-    seismograms captured.
+=== "Shell"
+
+    ```bash
+    snapshot list                          # uses the current event context
+    snapshot list --all-events
+    ```
+
+The table shows the snapshot ID, date and time, comment, and number of
+seismograms captured.
 
 === "TUI"
 
@@ -97,18 +111,26 @@ point available is worth it.
 
 Before rolling back, it can be useful to see what a snapshot contains.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat snapshot details <SNAPSHOT_ID>  # view saved event parameters
-    aimbat snapshot preview <SNAPSHOT_ID>  # view stack plot
-    aimbat snapshot preview --matrix <SNAPSHOT_ID>  # view matrix image
+    aimbat snapshot details <SNAPSHOT_ID>          # view saved event parameters
+    aimbat snapshot preview <SNAPSHOT_ID>          # view stack plot
+    aimbat snapshot preview --matrix <SNAPSHOT_ID> # view matrix image
     ```
 
-    `details` shows the event-level parameters (window, filter, min_ccnorm) as
-    they were when the snapshot was taken. `preview` builds the ICCS stack from
-    the snapshot's parameters and displays it — without modifying anything in
-    the database.
+=== "Shell"
+
+    ```bash
+    snapshot details <SNAPSHOT_ID>
+    snapshot preview <SNAPSHOT_ID>
+    snapshot preview --matrix <SNAPSHOT_ID>
+    ```
+
+`details` shows the event-level parameters (window, filter, min_ccnorm) as
+they were when the snapshot was taken. `preview` builds the ICCS stack from
+the snapshot's parameters and displays it — without modifying anything in
+the database.
 
 === "TUI"
 
@@ -134,10 +156,16 @@ Before rolling back, it can be useful to see what a snapshot contains.
 Rolling back restores the snapshot's parameters as the current live values.
 This overwrites the current event and seismogram parameters for this event.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
     aimbat snapshot rollback <SNAPSHOT_ID>
+    ```
+
+=== "Shell"
+
+    ```bash
+    snapshot rollback <SNAPSHOT_ID>
     ```
 
 === "TUI"
@@ -163,10 +191,16 @@ the most recent snapshot with the same parameters and MCCC data is used instead.
 
 ## Deleting a snapshot
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
     aimbat snapshot delete <SNAPSHOT_ID>
+    ```
+
+=== "Shell"
+
+    ```bash
+    snapshot delete <SNAPSHOT_ID>
     ```
 
 === "TUI"
@@ -186,13 +220,27 @@ Deletion is permanent. The snapshot cannot be recovered after deletion.
 
 For archiving or scripting purposes, snapshot data can be exported to JSON:
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat snapshot dump                  # default event
+    aimbat snapshot dump <ID>             # specific event
     aimbat snapshot dump --all-events     # all events
     ```
 
-    The output contains three sections: snapshot metadata, event parameter
-    snapshots, and seismogram parameter snapshots, cross-referenced by
-    snapshot ID.
+=== "Shell"
+
+    ```bash
+    snapshot dump                         # uses the current event context
+    snapshot dump --all-events
+    ```
+
+The output is a JSON object with five keys, all cross-referenced by
+`snapshot_id`:
+
+| Key | Contents | Always present? |
+|-----|----------|----------------|
+| `snapshots` | Snapshot metadata (ID, time, comment, hash) | Yes |
+| `event_parameters` | Event parameter snapshots | Yes |
+| `seismogram_parameters` | Per-seismogram parameter snapshots | Yes |
+| `event_quality` | Event quality snapshots (MCCC RMSE) | Only if MCCC has been run |
+| `seismogram_quality` | Per-seismogram quality snapshots (ICCS CC, MCCC metrics) | Only if quality metrics exist |

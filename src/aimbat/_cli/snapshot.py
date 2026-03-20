@@ -22,10 +22,67 @@ from .common import (
     event_parameter_is_all,
     event_parameter_with_all,
     id_parameter,
+    open_in_editor,
     simple_exception,
 )
 
 app = App(name="snapshot", help=__doc__, help_format="markdown")
+_note = App(name="note", help="Read and edit snapshot notes.", help_format="markdown")
+_quality = App(
+    name="quality", help="View snapshot quality metrics.", help_format="markdown"
+)
+app.command(_note)
+app.command(_quality)
+
+
+@_note.command(name="read")
+@simple_exception
+def cli_snapshot_note_read(
+    snapshot_id: Annotated[
+        UUID,
+        id_parameter(AimbatSnapshot, help="UUID (or unique prefix) of snapshot."),
+    ],
+    *,
+    _: DebugParameter = DebugParameter(),
+) -> None:
+    """Display the note attached to a snapshot, rendered as Markdown."""
+    from rich.console import Console
+    from rich.markdown import Markdown
+    from sqlmodel import Session
+
+    from aimbat.core import get_note_content
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        content = get_note_content(session, "snapshot", snapshot_id)
+
+    Console().print(Markdown(content) if content else "(no note)")
+
+
+@_note.command(name="edit")
+@simple_exception
+def cli_snapshot_note_edit(
+    snapshot_id: Annotated[
+        UUID,
+        id_parameter(AimbatSnapshot, help="UUID (or unique prefix) of snapshot."),
+    ],
+    *,
+    _: DebugParameter = DebugParameter(),
+) -> None:
+    """Open the snapshot note in `$EDITOR` and save changes on exit."""
+    from sqlmodel import Session
+
+    from aimbat.core import get_note_content, save_note
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        original = get_note_content(session, "snapshot", snapshot_id)
+
+    updated = open_in_editor(original)
+
+    if updated != original:
+        with Session(engine) as session:
+            save_note(session, "snapshot", snapshot_id, updated)
 
 
 @app.command(name="create")
@@ -279,6 +336,86 @@ def cli_snapshot_details(
             title=title,
             key_header="Parameter",
         )
+
+
+@_quality.command(name="dump")
+@simple_exception
+def cli_snapshot_quality_dump(
+    *, dump_parameters: JsonDumpParameters = JsonDumpParameters()
+) -> None:
+    """Dump snapshot quality statistics to JSON.
+
+    Output can be piped or redirected for use in external tools or scripts.
+    """
+    from rich import print_json
+    from sqlmodel import Session
+
+    from aimbat.core import dump_snapshot_quality_table
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        data = dump_snapshot_quality_table(session, by_alias=dump_parameters.by_alias)
+
+    print_json(data=data)
+
+
+@_quality.command(name="list")
+@simple_exception
+def cli_snapshot_quality_list(
+    event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
+    *,
+    table_parameters: TableParameters = TableParameters(),
+) -> None:
+    """Show aggregated quality statistics for snapshots of an event or all events.
+
+    Displays ICCS and MCCC quality metrics (means, SEMs, RMSE) from the frozen
+    quality records of each snapshot.
+    """
+    from sqlmodel import Session
+
+    from aimbat.core import dump_snapshot_quality_table, resolve_event
+    from aimbat.db import engine
+    from aimbat.models import AimbatEvent, RichColSpec, SeismogramQualityStats
+    from aimbat.utils import uuid_shortener
+
+    from .common import json_to_table
+
+    raw = table_parameters.raw
+
+    with Session(engine) as session:
+        if event_parameter_is_all(event_id):
+            title = "Quality statistics for all snapshots"
+            exclude = None
+            filter_event_id = None
+        else:
+            event = resolve_event(session, event_id)
+            label = str(event.id) if raw else uuid_shortener(session, event)
+            title = f"Quality statistics for snapshots of event: {label}"
+            exclude = {"event_id"}
+            filter_event_id = event.id
+
+        col_specs = {
+            "event_id": RichColSpec(
+                formatter=lambda x: uuid_shortener(session, AimbatEvent, str_uuid=x),
+            ),
+            "snapshot_id": RichColSpec(
+                formatter=lambda x: uuid_shortener(session, AimbatSnapshot, str_uuid=x),
+            ),
+        }
+
+        data = dump_snapshot_quality_table(
+            session,
+            event_id=filter_event_id,
+            exclude=exclude,
+        )
+
+    json_to_table(
+        data=data,
+        model=SeismogramQualityStats,
+        title=title,
+        raw=raw,
+        col_specs=col_specs,
+    )
 
 
 if __name__ == "__main__":

@@ -5,10 +5,16 @@
 Before adding data, a project must be initialised. This creates the database
 schema in a new SQLite file.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
     aimbat project create
+    ```
+
+=== "Shell"
+
+    ```bash
+    project create
     ```
 
 === "TUI"

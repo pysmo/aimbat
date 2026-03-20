@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import numpy.typing as npt
 from pandas import Timestamp
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from pydantic.alias_generators import to_camel
-from sqlalchemy import Column, PickleType, func
+from sqlalchemy import CheckConstraint, Column, PickleType, func
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel, col, select
@@ -35,6 +35,7 @@ from ._quality import (
 __all__ = [
     "AimbatTypes",
     "AimbatDataSource",
+    "AimbatNote",
     "AimbatStation",
     "AimbatEvent",
     "AimbatEventParameters",
@@ -425,7 +426,13 @@ class AimbatSeismogram(SQLModel, table=True):
         populate_by_name=True,
     )
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        title="ID",
+        description="Unique seismogram ID.",
+        schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
+    )
     begin_time: PydanticTimestamp = Field(
         sa_type=SAPandasTimestamp,
         title="Begin time",
@@ -546,21 +553,49 @@ class AimbatSeismogram(SQLModel, table=True):
 
 
 class AimbatStation(SQLModel, table=True):
-    """Class to store station information."""
+    """Recording station with network, location, and channel metadata."""
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
         populate_by_name=True,
     )
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    name: str = Field(allow_mutation=False)
-    network: str = Field(allow_mutation=False)
-    location: str = Field(allow_mutation=False)
-    channel: str = Field(allow_mutation=False)
-    latitude: float
-    longitude: float
-    elevation: float | None = None
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        title="ID",
+        description="Unique station ID.",
+        schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
+    )
+    name: str = Field(
+        allow_mutation=False,
+        title="Name",
+        description="Station name (SEED station code).",
+    )
+    network: str = Field(
+        allow_mutation=False,
+        title="Network",
+        description="Network code.",
+    )
+    location: str = Field(
+        allow_mutation=False,
+        title="Location",
+        description="Location code.",
+    )
+    channel: str = Field(
+        allow_mutation=False,
+        title="Channel",
+        description="Channel code (e.g. BHZ).",
+    )
+    latitude: float = Field(
+        title="Latitude", description="Station latitude in degrees."
+    )
+    longitude: float = Field(
+        title="Longitude", description="Station longitude in degrees."
+    )
+    elevation: float | None = Field(
+        default=None, title="Elevation", description="Station elevation in metres."
+    )
     seismograms: list[AimbatSeismogram] = Relationship(
         back_populates="station", cascade_delete=True
     )
@@ -573,22 +608,39 @@ class AimbatStation(SQLModel, table=True):
 
 
 class AimbatEvent(SQLModel, table=True):
-    """Class to store seismic event information."""
+    """Seismic event with origin time, location, and depth."""
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
         populate_by_name=True,
     )
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    time: PydanticTimestamp = Field(
-        unique=True, sa_type=SAPandasTimestamp, allow_mutation=False
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        title="ID",
+        description="Unique event ID.",
+        schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
     )
-    latitude: float
-    longitude: float
-    depth: float | None = None
+    time: PydanticTimestamp = Field(
+        unique=True,
+        sa_type=SAPandasTimestamp,
+        allow_mutation=False,
+        title="Time",
+        description="Event origin time (UTC).",
+    )
+    latitude: float = Field(title="Latitude", description="Event latitude in degrees.")
+    longitude: float = Field(
+        title="Longitude", description="Event longitude in degrees."
+    )
+    depth: float | None = Field(
+        default=None, title="Depth", description="Event depth in metres."
+    )
     last_modified: PydanticTimestamp | None = Field(
-        default=None, sa_type=SAPandasTimestamp
+        default=None,
+        sa_type=SAPandasTimestamp,
+        title="Last modified",
+        description="Timestamp of the last parameter modification.",
     )
     seismograms: list[AimbatSeismogram] = Relationship(
         back_populates="event", cascade_delete=True
@@ -694,8 +746,84 @@ AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assig
 "Number of seismogram parameter snapshots associated with this snapshot that are marked as flipped."
 
 
+class AimbatNote(SQLModel, table=True):
+    """Free-text Markdown note attached to an event, station, seismogram, or snapshot.
+
+    At most one of the four FK fields is set per row. Deletion of the parent
+    record cascades to delete the note via the DB-level foreign key constraint.
+    """
+
+    model_config = SQLModelConfig(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END"
+            " + CASE WHEN station_id IS NOT NULL THEN 1 ELSE 0 END"
+            " + CASE WHEN seismogram_id IS NOT NULL THEN 1 ELSE 0 END"
+            " + CASE WHEN snapshot_id IS NOT NULL THEN 1 ELSE 0 END) <= 1",
+            name="aimbat_note_at_most_one_parent",
+        ),
+    )
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        description="Unique note ID.",
+    )
+    content: str = Field(
+        default="",
+        description="Note content in Markdown format.",
+    )
+    event_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="aimbatevent.id",
+        ondelete="CASCADE",
+        description="Foreign key referencing the parent event.",
+    )
+    station_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="aimbatstation.id",
+        ondelete="CASCADE",
+        description="Foreign key referencing the parent station.",
+    )
+    seismogram_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="aimbatseismogram.id",
+        ondelete="CASCADE",
+        description="Foreign key referencing the parent seismogram.",
+    )
+    snapshot_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="aimbatsnapshot.id",
+        ondelete="CASCADE",
+        description="Foreign key referencing the parent snapshot.",
+    )
+
+    @model_validator(mode="after")
+    def _at_most_one_parent(self) -> "AimbatNote":
+        set_count = sum(
+            fk is not None
+            for fk in (
+                self.event_id,
+                self.station_id,
+                self.seismogram_id,
+                self.snapshot_id,
+            )
+        )
+        if set_count > 1:
+            raise ValueError(
+                "At most one of event_id, station_id, seismogram_id, snapshot_id"
+                " may be set on AimbatNote."
+            )
+        return self
+
+
 type AimbatTypes = (
     AimbatDataSource
+    | AimbatNote
     | AimbatStation
     | AimbatEvent
     | AimbatEventParameters

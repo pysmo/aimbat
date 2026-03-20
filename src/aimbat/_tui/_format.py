@@ -3,27 +3,73 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import TYPE_CHECKING
 
 from pandas import Timedelta
 from pydantic import BaseModel
+from rich.console import Group, RenderableType
+from rich.panel import Panel
 from rich.text import Text
 
+from aimbat.models import SeismogramQualityStats
 from aimbat.models._format import TuiColSpec
 from aimbat.utils.formatters import fmt_bool, fmt_float
 
-if TYPE_CHECKING:
-    from aimbat.core import FieldGroup
-
 __all__ = [
     "fmt_float_sem",
-    "fmt_groups",
-    "fmt_td_sem",
-    "fmt_val",
+    "format_quality_panel",
     "tui_cell",
     "tui_display_title",
     "tui_fmt",
 ]
+
+
+def format_quality_panel(
+    stats: SeismogramQualityStats | None,
+) -> tuple[RenderableType, str]:
+    """Format quality stats for a Static quality panel.
+
+    Returns `(body, subtitle)` where `body` is a Rich renderable suitable for
+    `Static.update()` and `subtitle` is intended for `Widget.border_subtitle`.
+    """
+    if stats is None:
+        return "[dim]No row selected[/dim]", ""
+
+    def _fmt_td(td: Timedelta | None) -> str:
+        if td is None:
+            return "[dim]—[/dim]"
+        return f"{td.total_seconds() * 1000:.3f} ms"
+
+    def _fmt_td_sem(mean: Timedelta | None, sem: Timedelta | None) -> str:
+        if mean is None:
+            return "[dim]—[/dim]"
+        ms = mean.total_seconds() * 1000
+        if sem is not None:
+            return f"{ms:.3f} ± {sem.total_seconds() * 1000:.3f} ms"
+        return f"{ms:.3f} ms"
+
+    iccs_body = f"CC   {fmt_float_sem(stats.cc_mean, stats.cc_mean_sem)}"
+    panels: list[Panel] = [
+        Panel(iccs_body, title="ICCS", title_align="left", padding=(0, 1))
+    ]
+
+    has_mccc = any(
+        v is not None for v in [stats.mccc_cc_mean, stats.mccc_error, stats.mccc_rmse]
+    )
+    if has_mccc:
+        mccc_lines = [
+            f"CC       {fmt_float_sem(stats.mccc_cc_mean, stats.mccc_cc_mean_sem)}",
+            f"CC std   {fmt_float_sem(stats.mccc_cc_std, stats.mccc_cc_std_sem)}",
+            f"Error    {_fmt_td_sem(stats.mccc_error, stats.mccc_error_sem)}",
+        ]
+        if stats.mccc_rmse is not None:
+            mccc_lines.append(f"RMSE     {_fmt_td(stats.mccc_rmse)}")
+        panels.append(
+            Panel(
+                "\n".join(mccc_lines), title="MCCC", title_align="left", padding=(0, 1)
+            )
+        )
+
+    return Group(*panels), f"n = {stats.count}"
 
 
 def tui_display_title(model: type[BaseModel], field_name: str) -> str:
@@ -50,55 +96,6 @@ def fmt_float_sem(v: float | None, sem: float | None, decimals: int = 4) -> str:
     if sem is not None:
         return f"{v:.{decimals}f} ± {sem:.{decimals}f}"
     return f"{v:.{decimals}f}"
-
-
-def fmt_td_sem(td: Timedelta | None, sem: Timedelta | None, decimals: int = 5) -> str:
-    """Format a Timedelta in seconds with an optional SEM, or `—` if None."""
-    if td is None:
-        return "—"
-    s = f"{td.total_seconds():.{decimals}f}"
-    if sem is not None:
-        s += f" ± {sem.total_seconds():.{decimals}f}"
-    return s + " s"
-
-
-def fmt_val(val: object, sem: object = None) -> str:
-    """Format a model field value for display in a quality panel.
-
-    Dispatches to `fmt_float_sem` or `fmt_td_sem` for numeric types so that an
-    optional `sem` sibling is rendered as `value ± sem`. Booleans render as ✓/✗.
-    Returns `—` for None."""
-    if val is None:
-        return "—"
-    if isinstance(val, bool):
-        return "✓" if val else "✗"
-    if isinstance(val, Timedelta):
-        return fmt_td_sem(val, sem if isinstance(sem, Timedelta) else None)
-    if isinstance(val, float):
-        return fmt_float_sem(val, sem if isinstance(sem, float) else None)
-    return str(val)
-
-
-def fmt_groups(
-    groups: list[FieldGroup],
-) -> list[tuple[str, list[tuple[str, str]]]]:
-    """Format a list of `FieldGroup` instances for `QualityModal`.
-
-    Returns a list of `(group_title, rows)` pairs, skipping groups with no
-    content. Each `rows` element is a pre-formatted `(label, value)` pair.
-    """
-    result = []
-    for group in groups:
-        rows: list[tuple[str, str]] = []
-        if group.fields:
-            rows = [
-                (spec.title, fmt_val(spec.value, spec.sem)) for spec in group.fields
-            ]
-        elif group.empty_message:
-            rows = [(group.empty_message, "")]
-        if rows:
-            result.append((group.title, rows))
-    return result
 
 
 @lru_cache(maxsize=None)
@@ -137,10 +134,11 @@ def tui_cell(model: type[BaseModel], title: str, val: object) -> str | Text:
 def tui_fmt(val: object) -> str:
     """Format a raw field value for display in a Textual DataTable cell.
 
-    Applies generic type-based rules (bool via ``fmt_bool``, float via
-    ``fmt_float``, ISO timestamp truncation) before falling back to ``str``.
-    Field-specific formatting should be handled via ``TuiColSpec.formatter``
-    instead. Returns ``—`` for ``None``."""
+    Applies generic type-based rules (`bool` via `fmt_bool`, `float` via
+    `fmt_float`, ISO timestamp truncation) before falling back to `str`.
+    Field-specific formatting should be handled via `TuiColSpec.formatter`.
+    Returns `—` for `None`.
+    """
     if val is None:
         return "—"
     if isinstance(val, bool):

@@ -34,7 +34,6 @@ erDiagram
 
     AimbatEvent {
         uuid id PK
-        bool is_default UK
         timestamp time UK
         float latitude
         float longitude
@@ -81,7 +80,7 @@ erDiagram
 
     AimbatSnapshot {
         uuid id PK
-        timestamp date UK
+        timestamp time UK
         string comment
         string parameters_hash
         uuid event_id FK

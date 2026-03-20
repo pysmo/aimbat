@@ -31,24 +31,52 @@ TabbedContent {
 
 /* ---- Project tab ---- */
 
-
-.project-divider {
-    margin: 0;
-    height: 1;
+#project-layout,
+#snapshot-layout,
+#seismogram-layout {
+    height: 1fr;
 }
 
-.project-table-title {
-    height: 1;
-    padding: 0 2;
-    color: $secondary;
-    text-style: bold;
+#project-tables,
+#snapshot-table {
+    width: 3fr;
+}
+
+#project-right-panel,
+#seismogram-right-panel,
+#snapshot-right-panel {
+    width: 1fr;
+}
+
+.quality-panel {
+    width: 1fr;
+    height: auto;
+    border: solid $primary;
+    padding: 0 1;
+}
+
+NoteWidget {
+    height: 1fr;
+    border: solid $primary;
+    padding: 0 1;
 }
 
 #project-event-table,
 #project-station-table,
-#seismogram-table,
 #snapshot-table {
     height: 1fr;
+    border: solid $primary;
+}
+
+#seismogram-table {
+    width: 3fr;
+    height: 1fr;
+    border: solid $primary;
+}
+
+SeismogramPlotWidget {
+    height: 2fr;
+    border: solid $primary;
 }
 
 /* ---- No-project modal ---- */
@@ -231,34 +259,6 @@ SnapshotDetailsModal {
     border: none;
 }
 
-QualityModal {
-    align: center middle;
-}
-
-#quality-dialog {
-    background: $background;
-    border: solid $primary;
-    width: 70;
-    height: auto;
-    max-height: 80vh;
-    padding: 1 2;
-}
-
-#quality-dialog .modal-title {
-    color: $secondary;
-    text-style: bold;
-}
-
-#quality-dialog .quality-section {
-    color: $secondary;
-    margin-top: 1;
-}
-
-#quality-dialog DataTable {
-    background: $background;
-    border: none;
-}
-
 /* ---- Parameters modal ---- */
 ParametersModal {
     align: center middle;
@@ -298,4 +298,28 @@ ActionMenuModal {
 #action-table {
     background: $background;
     border: none;
+}
+
+/* ---- Help modal ---- */
+HelpModal {
+    align: center middle;
+}
+
+#help-dialog {
+    background: $background;
+    border: solid $secondary;
+    width: 80%;
+    max-width: 100;
+    height: 80%;
+    padding: 1 2;
+}
+
+#help-dialog .modal-title {
+    color: $secondary;
+    text-style: bold;
+}
+
+#help-content {
+    height: 1fr;
+    overflow-y: auto;
 }

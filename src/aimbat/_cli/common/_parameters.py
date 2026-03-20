@@ -20,9 +20,12 @@ __all__ = [
     "event_parameter",
     "event_parameter_with_all",
     "event_parameter_is_all",
+    "station_parameter_with_all",
+    "station_parameter_is_all",
     "use_station_parameter",
     "use_event_parameter",
     "use_matrix_image",
+    "open_in_editor",
     "DebugParameter",
     "EventDebugParameters",
     "IccsPlotParameters",
@@ -80,6 +83,12 @@ def _make_uuid_converter(
 
 
 def id_parameter(model_class: type, help: str = "") -> Parameter:
+    """Return a cyclopts `Parameter` for selecting a record by UUID or unique prefix.
+
+    Args:
+        model_class: AIMBAT model class used to resolve short UUID prefixes.
+        help: Custom help string; falls back to a generic UUID prompt if empty.
+    """
     return Parameter(
         name="id",
         help=help or "UUID (or any unique prefix).",
@@ -88,6 +97,11 @@ def id_parameter(model_class: type, help: str = "") -> Parameter:
 
 
 def event_parameter(help: str | None = None) -> Parameter:
+    """Return a cyclopts `Parameter` for selecting a single event by UUID or prefix.
+
+    Args:
+        help: Custom help string; falls back to a generic event UUID prompt.
+    """
     from aimbat.models import AimbatEvent
 
     return Parameter(
@@ -99,6 +113,11 @@ def event_parameter(help: str | None = None) -> Parameter:
 
 
 def event_parameter_with_all(help: str | None = None) -> Parameter:
+    """Return a cyclopts `Parameter` for selecting an event or the literal `"all"`.
+
+    Args:
+        help: Custom help string; falls back to a generic prompt.
+    """
     from aimbat.models import AimbatEvent
 
     return Parameter(
@@ -112,12 +131,40 @@ def event_parameter_with_all(help: str | None = None) -> Parameter:
 
 
 def event_parameter_is_all(event_id: UUID | Literal["all"]) -> TypeIs[Literal["all"]]:
+    """Return `True` if `event_id` is the literal string `"all"` (case-insensitive)."""
     if isinstance(event_id, str) and event_id.lower() == "all":
         return True
     return False
 
 
+def station_parameter_with_all(help: str | None = None) -> Parameter:
+    """Return a cyclopts `Parameter` for selecting a station or the literal `"all"`.
+
+    Args:
+        help: Custom help string; falls back to a generic prompt.
+    """
+    from aimbat.models import AimbatStation
+
+    return Parameter(
+        name=["station", "station-id"],
+        help=help
+        or '"all" for all stations, or UUID (or unique prefix) of station to process.',
+        converter=_make_uuid_converter(AimbatStation, allow_all=True),
+        show_choices=False,
+    )
+
+
+def station_parameter_is_all(
+    station_id: UUID | Literal["all"],
+) -> TypeIs[Literal["all"]]:
+    """Return `True` if `station_id` is the literal string `"all"` (case-insensitive)."""
+    if isinstance(station_id, str) and station_id.lower() == "all":
+        return True
+    return False
+
+
 def use_station_parameter() -> Parameter:
+    """Return a cyclopts `Parameter` for linking data to an existing station record."""
     from aimbat.models import AimbatStation
 
     return Parameter(
@@ -129,6 +176,7 @@ def use_station_parameter() -> Parameter:
 
 
 def use_event_parameter() -> Parameter:
+    """Return a cyclopts `Parameter` for linking data to an existing event record."""
     from aimbat.models import AimbatEvent
 
     return Parameter(
@@ -140,10 +188,55 @@ def use_event_parameter() -> Parameter:
 
 
 def use_matrix_image() -> Parameter:
+    """Return a cyclopts `Parameter` for switching from stack to matrix image plots."""
     return Parameter(
         name="matrix",
         help="Use matrix image instead of stack plot.",
     )
+
+
+# -----------------------------------------------------------------------
+# Editor helper
+# -----------------------------------------------------------------------
+
+
+def open_in_editor(initial_content: str) -> str:
+    """Write `initial_content` to a temporary Markdown file, open it in `$EDITOR`,
+    and return the (possibly updated) content after the editor exits.
+
+    The temporary file uses `delete=False` so that it can be opened by a
+    second process on Windows (which prohibits opening a file that is already
+    open). It is always removed in a `finally` block.
+
+    The editor command is taken from `$EDITOR` or `$VISUAL`. If neither is
+    set, `notepad` is used on Windows and `vi` elsewhere. To use a GUI editor
+    that does not block by default (e.g. VS Code), set
+    ``EDITOR="code --wait"``.
+    """
+    import os
+    import shlex
+    import subprocess
+    import tempfile
+
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
+    if not editor:
+        editor = "notepad" if sys.platform == "win32" else "vi"
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".md",
+        delete=False,
+        encoding="utf-8",
+    ) as tmp:
+        tmp.write(initial_content)
+        tmp_path = tmp.name
+
+    try:
+        subprocess.run([*shlex.split(editor), tmp_path], check=False)
+        with open(tmp_path, encoding="utf-8") as f:
+            return f.read()
+    finally:
+        os.unlink(tmp_path)
 
 
 # -----------------------------------------------------------------------
@@ -153,6 +246,8 @@ def use_matrix_image() -> Parameter:
 
 @dataclass
 class _DebugTrait:
+    """Mixin that adds an optional `--debug` flag to a CLI command."""
+
     debug: bool = False
     """Enable verbose logging for troubleshooting."""
 
@@ -167,16 +262,22 @@ class _DebugTrait:
 
 @dataclass
 class _EventContextTrait:
+    """Mixin that adds a required `--event` argument to a CLI command."""
+
     event_id: Annotated[UUID, event_parameter()]
 
 
 @dataclass
 class _TableParametersTrait:
+    """Mixin that adds a `--raw` flag for unformatted table output."""
+
     raw: bool = False
 
 
 @dataclass
 class _ByAliasTrait:
+    """Mixin that adds a `--alias` flag for alias-keyed JSON output."""
+
     by_alias: Annotated[
         bool,
         Parameter(
@@ -197,24 +298,32 @@ class EventDebugParameters(_DebugTrait, _EventContextTrait):
 @Parameter(name="*")
 @dataclass
 class JsonDumpParameters(_ByAliasTrait, _DebugTrait):
+    """Shared parameters for JSON dump commands (`--alias`, `--debug`)."""
+
     pass
 
 
 @Parameter(name="*")
 @dataclass
 class TableParameters(_TableParametersTrait, _DebugTrait):
+    """Shared parameters for table display commands (`--raw`, `--debug`)."""
+
     pass
 
 
 @Parameter(name="*")
 @dataclass
 class DebugParameter(_DebugTrait):
+    """Shared parameter that adds `--debug` to any CLI command."""
+
     pass
 
 
 @Parameter(name="*")
 @dataclass
 class IccsPlotParameters:
+    """Shared parameters for ICCS plot commands (`--context`, `--all`)."""
+
     context: Annotated[
         bool,
         Parameter(

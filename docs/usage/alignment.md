@@ -17,13 +17,22 @@ making further adjustments.
 
 ## Running ICCS
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat align iccs                          # basic run
-    aimbat align iccs --autoflip               # flip inverted polarity automatically
-    aimbat align iccs --autoselect             # deselect poor-quality seismograms automatically
-    aimbat align iccs --autoflip --autoselect  # both
+    aimbat align iccs <ID>                          # basic run
+    aimbat align iccs <ID> --autoflip               # flip inverted polarity automatically
+    aimbat align iccs <ID> --autoselect             # deselect poor-quality seismograms automatically
+    aimbat align iccs <ID> --autoflip --autoselect  # both
+    ```
+
+=== "Shell"
+
+    ```bash
+    align iccs                          # basic run
+    align iccs --autoflip               # flip inverted polarity automatically
+    align iccs --autoselect             # deselect poor-quality seismograms automatically
+    align iccs --autoflip --autoselect  # both
     ```
 
 === "TUI"
@@ -101,19 +110,26 @@ In addition to setting parameters directly, three tools let you adjust values
 by interacting with the plot — clicking or scrolling in a waveform display
 rather than typing numbers.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat pick phase    # adjust t1 by clicking on the stack
-    aimbat pick window   # set window_pre / window_post by clicking
-    aimbat pick ccnorm   # set min_ccnorm by scrolling the matrix image
+    aimbat pick phase <ID>    # adjust t1 by clicking on the stack
+    aimbat pick window <ID>   # set window_pre / window_post by clicking
+    aimbat pick ccnorm <ID>   # set min_ccnorm by scrolling the matrix image
     ```
 
-    Each command opens a matplotlib window. Click (or scroll, for ccnorm) to
-    set the value, then close the window to save it.
+=== "Shell"
 
-    All three accept `--no-context` and `--all` (include deselected
-    seismograms).
+    ```bash
+    pick phase    # adjust t1 by clicking on the stack
+    pick window   # set window_pre / window_post by clicking
+    pick ccnorm   # set min_ccnorm by scrolling the matrix image
+    ```
+
+Each command opens a matplotlib window. Click (or scroll, for ccnorm) to
+set the value, then close the window to save it.
+
+All three accept `--no-context` and `--all` (include deselected seismograms).
 
 === "TUI"
 

@@ -1,5 +1,34 @@
 # The ICCS Stack
 
+## Live data
+
+The TUI's **Live data** tab shows the seismogram table for the currently
+selected event. The name reflects the data's nature: it is always derived
+directly from the in-memory ICCS instance and therefore always reflects the
+current working state of the project.
+
+Concretely, this means:
+
+- **CC values** shown in the table come from `ICCS.ccs` — a cached property
+  that cross-correlates each seismogram against the current stack on first
+  access and clears automatically whenever parameters change. You do not need
+  to run `align iccs` to see CC values; they exist as soon as seismograms are
+  loaded.
+- **Picks** (`t1`), **select** and **flip** flags all reflect the values
+  stored in the database and loaded into the ICCS instance. Any change made
+  from the CLI, shell, or TUI row-action menu is reflected immediately, without
+  restarting any interface.
+
+This is deliberately different from **Snapshots**, which capture a frozen copy
+of all parameters at a point in time. Live data is the working set you are
+actively adjusting; snapshots are the checkpoints you save along the way.
+
+The TUI polls the database every five seconds to detect changes made externally
+(e.g. from the CLI or shell) and silently rebuilds the ICCS instance if
+necessary, keeping the Live data tab in sync.
+
+---
+
 ## How the stack is assembled
 
 At the start of each ICCS run, each seismogram is windowed around the current
@@ -13,7 +42,7 @@ Each seismogram is then cross-correlated with this stack to determine the time
 shift that aligns it most closely. The picks (`t1`) are updated with these
 refined shifts and the stack is rebuilt from the newly aligned seismograms.
 This process repeats iteratively — each new stack is better aligned than the
-last — until the picks converge. The CC norm produced at each iteration
+last — until the picks converge. The CC value produced at each iteration
 quantifies how closely each seismogram matches the current stack.
 
 Because every seismogram is correlated against the stack rather than against
@@ -47,18 +76,26 @@ the two representations is always visible.
 ## Viewing the stack
 
 The **stack view** overlays all individual seismograms as thin lines on top of
-the bold stack waveform. Lines are coloured by their CC norm on a light-blue-to-pink scale using a
+the bold stack waveform. Lines are coloured by their CC on a light-blue-to-pink scale using a
 power-law normalisation (γ = 2), which compresses the low end and spreads
 out the high end. Differences among well-aligned seismograms are therefore
 more visually distinct than differences among poorly-matching ones, making
 it easy to identify which traces are contributing most to the stack.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
     aimbat plot stack                  # context mode (default)
     aimbat plot stack --no-context     # CC seismograms only
     aimbat plot stack --all            # include deselected seismograms
+    ```
+
+=== "Shell"
+
+    ```bash
+    plot stack
+    plot stack --no-context
+    plot stack --all
     ```
 
 === "TUI"
@@ -78,19 +115,27 @@ it easy to identify which traces are contributing most to the stack.
 
 The **matrix image** plots each seismogram as a horizontal row in a 2-D
 colour image, with time on the x-axis and one row per seismogram. Rows are
-sorted by CC norm, so the best-aligned seismograms appear at the top and the
+sorted by CC, so the best-aligned seismograms appear at the top and the
 worst at the bottom. This layout makes it easy to spot systematic misalignment
 or outlier traces that stand out from the rest of the array.
 
 The same time window highlight and `context` / `--no-context` toggle apply as
 in the stack view.
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
     aimbat plot matrix
     aimbat plot matrix --no-context
     aimbat plot matrix --all
+    ```
+
+=== "Shell"
+
+    ```bash
+    plot matrix
+    plot matrix --no-context
+    plot matrix --all
     ```
 
 === "TUI"
@@ -111,7 +156,7 @@ The two views complement each other:
   phase arrival — the waveform shape of the stack and its coherence with
   individual traces is immediately apparent.
 - **Matrix image** is better for spotting patterns: a cluster of rows at the
-  bottom with poor CC norms, a seismogram whose polarity is inverted (shows as
+  bottom with poor CCs, a seismogram whose polarity is inverted (shows as
   an opposite-coloured band), or a group of traces that are consistently
   shifted in one direction.
 
@@ -127,7 +172,7 @@ used when interactively adjusting the phase pick, time window, and minimum CC
 norm threshold. Which view is presented depends on the tool and can usually
 be chosen before launching it.
 
-During interactive adjustment of the minimum CC norm, the matrix image gains
+During interactive adjustment of the minimum CC, the matrix image gains
 an additional behaviour: scrolling the mouse wheel removes rows from the top,
 progressively revealing where the well-aligned seismograms end and the poor
 ones begin. The point where the remaining rows stop looking coherent is a

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from enum import StrEnum
+from pathlib import Path
 
 from pandas import Timedelta
 from pydantic import ValidationError
@@ -13,7 +14,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Input, Label, Static
+from textual.widgets import DataTable, Input, Label, Markdown, Static
 
 from aimbat._tui._format import tui_cell, tui_display_title
 from aimbat._tui._widgets import VimDataTable
@@ -52,11 +53,11 @@ __all__ = [
     "AlignModal",
     "ConfirmModal",
     "EventSwitcherModal",
+    "HelpModal",
     "InteractiveToolsModal",
     "NoProjectModal",
     "ParameterInputModal",
     "ParametersModal",
-    "QualityModal",
     "SnapshotActionMenuModal",
     "SnapshotCommentModal",
     "SnapshotDetailsModal",
@@ -78,11 +79,18 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
     ]
 
     def __init__(self, current_event_id: uuid.UUID | None = None) -> None:
+        """Initialise the modal.
+
+        Args:
+            current_event_id: ID of the currently active event, used to mark
+                the active row with a `▶` indicator.
+        """
         super().__init__()
         self._current_event_id = current_event_id
         self._selected_event_id: str | None = None
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Disable destructive actions when no row is highlighted."""
         if action in {"delete_event", "toggle_completed"}:
             return True if self._selected_event_id else False
         return True
@@ -105,6 +113,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
         self._populate(table)
 
     def _populate(self, table: DataTable) -> None:
+        """Fetch events from the database and populate `table` with rows."""
         try:
             with Session(engine) as session:
                 rows = dump_event_table(
@@ -123,6 +132,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
             self.dismiss(None)
 
     def _refresh_table(self) -> None:
+        """Clear and repopulate the event table, preserving cursor position."""
         table = self.query_one("#event-table", DataTable)
         saved_row = table.cursor_row
         table.clear()
@@ -197,6 +207,13 @@ class ParameterInputModal(ModalScreen[str | None]):
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     def __init__(self, param_name: str, current: str, unit: str) -> None:
+        """Initialise the modal.
+
+        Args:
+            param_name: Display name of the parameter being edited.
+            current: Current value shown as the default input text.
+            unit: Unit label appended to the hint (e.g. `"s"` for seconds).
+        """
         super().__init__()
         self._param_name = param_name
         self._current = current
@@ -283,6 +300,11 @@ class ConfirmModal(ModalScreen[bool | None]):
     ]
 
     def __init__(self, message: str) -> None:
+        """Initialise the modal.
+
+        Args:
+            message: Confirmation prompt displayed to the user.
+        """
         super().__init__()
         self._message = message
 
@@ -352,6 +374,11 @@ class ParametersModal(ModalScreen[bool]):
     BINDINGS = [Binding("escape", "cancel", show=False)]
 
     def __init__(self, event_id: uuid.UUID) -> None:
+        """Initialise the modal.
+
+        Args:
+            event_id: ID of the event whose parameters are displayed.
+        """
         super().__init__()
         self._event_id = event_id
         self._changed = False
@@ -370,6 +397,7 @@ class ParametersModal(ModalScreen[bool]):
         table.focus()
 
     def _populate(self) -> None:
+        """Reload the parameter table from the database, preserving cursor position."""
         table = self.query_one("#param-modal-table", DataTable)
         saved_row = table.cursor_row
         table.clear()
@@ -402,6 +430,7 @@ class ParametersModal(ModalScreen[bool]):
         self._edit_parameter(attr)
 
     def _edit_parameter(self, attr: str) -> None:
+        """Open an edit dialog for `attr`, toggling booleans inline."""
         with Session(engine) as session:
             ev = session.get(AimbatEvent, self._event_id)
             if ev is None:
@@ -435,6 +464,7 @@ class ParametersModal(ModalScreen[bool]):
         self.app.push_screen(ParameterInputModal(label, current_str, unit), on_input)
 
     def _apply_parameter(self, attr: str, value: object) -> None:
+        """Persist a validated parameter change to the database."""
         try:
             with Session(engine) as session:
                 event = session.get(AimbatEvent, self._event_id)
@@ -483,6 +513,12 @@ class ActionMenuModal(ModalScreen[str | None]):
     ]
 
     def __init__(self, title: str, actions: list[tuple[str, str]]) -> None:
+        """Initialise the modal.
+
+        Args:
+            title: Heading displayed at the top of the menu.
+            actions: List of `(action_key, display_label)` pairs shown as rows.
+        """
         super().__init__()
         self._title = title
         self._actions = actions  # [(action_key, display_label), ...]
@@ -522,7 +558,6 @@ class ActionMenuModal(ModalScreen[str | None]):
 
 _SNAPSHOT_ACTIONS: list[tuple[str, str]] = [
     ("show_details", "Show details"),
-    ("show_quality", "Show quality"),
     ("preview_stack", "Preview stack"),
     ("preview_image", "Preview matrix image"),
     ("rollback", "Rollback to this snapshot"),
@@ -546,6 +581,11 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
     ]
 
     def __init__(self, title: str) -> None:
+        """Initialise the modal.
+
+        Args:
+            title: Heading displayed above the action list.
+        """
         super().__init__()
         self._title = title
         self._use_context = True
@@ -569,6 +609,7 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
         table.focus()
 
     def _update_options(self) -> None:
+        """Refresh the context/all-seismograms toggle display."""
         opts = self.query_one("#snapshot-action-options", Static)
         if self._highlighted in _PREVIEW_ACTIONS:
             ctx = "✓" if self._use_context else "✗"
@@ -660,6 +701,7 @@ class InteractiveToolsModal(ModalScreen[tuple[str, bool, bool] | None]):
         table.focus()
 
     def _update_options(self) -> None:
+        """Refresh the context/all-seismograms toggle display."""
         ctx = "✓" if self._use_context else "✗"
         al = "✓" if self._all_seis else "✗"
         self.query_one("#tools-options", Static).update(
@@ -740,6 +782,7 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
         table.focus()
 
     def _update_options(self) -> None:
+        """Refresh the algorithm-specific option toggles."""
         opts = self.query_one("#align-options", Static)
         if self._highlighted_algorithm == "iccs":
             fl = "✓" if self._autoflip else "✗"
@@ -788,54 +831,6 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
 
 
 # ---------------------------------------------------------------------------
-# Quality modal
-# ---------------------------------------------------------------------------
-
-
-class QualityModal(ModalScreen[None]):
-    """Read-only quality metrics view with one headerless table per group.
-
-    Each element of `groups` is a `(title, rows)` pair where `rows` is
-    a list of pre-formatted `(label, value)` strings. An empty title
-    suppresses the section heading.
-    """
-
-    BINDINGS = [Binding("escape", "cancel", show=False)]
-
-    def __init__(
-        self,
-        title: str,
-        groups: list[tuple[str, list[tuple[str, str]]]],
-    ) -> None:
-        super().__init__()
-        self._title = title
-        self._groups = groups
-
-    def compose(self) -> ComposeResult:
-        with Container(id="quality-dialog"):
-            yield Label(self._title, classes=_CSS.TITLE)
-            for i, (group_title, _) in enumerate(self._groups):
-                if group_title:
-                    yield Label(
-                        f"[bold]{group_title}[/bold]", classes="quality-section"
-                    )
-                yield VimDataTable(id=f"quality-table-{i}", show_header=False)
-            yield Label(_Hint.CLOSE, classes=_CSS.HINT)
-
-    def on_mount(self) -> None:
-        for i, (_, rows) in enumerate(self._groups):
-            table = self.query_one(f"#quality-table-{i}", DataTable)
-            table.cursor_type = "none"
-            table.add_columns("label", "value")
-            for row in rows:
-                table.add_row(*row)
-            table.styles.height = len(rows) + 1
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-# ---------------------------------------------------------------------------
 # Snapshot details modal
 # ---------------------------------------------------------------------------
 
@@ -848,6 +843,12 @@ class SnapshotDetailsModal(ModalScreen[None]):
     ]
 
     def __init__(self, title: str, rows: list[tuple[str, str]]) -> None:
+        """Initialise the modal.
+
+        Args:
+            title: Heading displayed above the parameter table.
+            rows: List of `(label, value)` pairs to display as read-only rows.
+        """
         super().__init__()
         self._title = title
         self._rows = rows  # [(label, value), ...]
@@ -865,6 +866,56 @@ class SnapshotDetailsModal(ModalScreen[None]):
         for row in self._rows:
             table.add_row(*row)
         table.styles.height = len(self._rows) + 2
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+# ---------------------------------------------------------------------------
+# Help modal
+# ---------------------------------------------------------------------------
+
+_HELP_DIR = Path(__file__).parent / "help"
+_HELP_FALLBACK = "No help available for this tab."
+
+
+def _load_help(tab_id: str) -> str:
+    """Load help Markdown for the given tab from a file.
+
+    Args:
+        tab_id: The `TabPane` ID (e.g. `tab-project`).
+
+    Returns:
+        Markdown text, or a fallback string if no file exists.
+    """
+    path = _HELP_DIR / f"{tab_id}.md"
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    return _HELP_FALLBACK
+
+
+class HelpModal(ModalScreen[None]):
+    """Modal screen showing keyboard help for the current TUI tab."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Close", show=False),
+        Binding("question_mark", "cancel", "Close", show=False),
+    ]
+
+    def __init__(self, tab_id: str) -> None:
+        """Initialise the modal for the given tab.
+
+        Args:
+            tab_id: The ID of the active `TabPane` whose help to display.
+        """
+        super().__init__()
+        self._tab_id = tab_id
+
+    def compose(self) -> ComposeResult:
+        with Container(id="help-dialog"):
+            yield Label("Help", classes=_CSS.TITLE)
+            yield Markdown(_load_help(self._tab_id), id="help-content")
+            yield Label(_Hint.CLOSE, classes=_CSS.HINT)
 
     def action_cancel(self) -> None:
         self.dismiss(None)

@@ -21,6 +21,7 @@ from aimbat.models import (
     AimbatSeismogramQualitySnapshot,
     AimbatSnapshot,
     AimbatSnapshotRead,
+    SeismogramQualityStats,
 )
 from aimbat.models._parameters import (
     AimbatEventParametersBase,
@@ -39,7 +40,9 @@ __all__ = [
     "sync_from_matching_hash",
     "delete_snapshot",
     "get_snapshots",
+    "get_snapshot_quality",
     "dump_snapshot_table",
+    "dump_snapshot_quality_table",
     "dump_event_parameter_snapshot_table",
     "dump_seismogram_parameter_snapshot_table",
     "dump_event_quality_snapshot_table",
@@ -465,6 +468,81 @@ def dump_snapshot_table(
         )
 
     return snapshot_dicts
+
+
+def get_snapshot_quality(session: Session, snapshot_id: UUID) -> SeismogramQualityStats:
+    """Get aggregated quality statistics for a snapshot.
+
+    Args:
+        session: Database session.
+        snapshot_id: UUID of the snapshot.
+
+    Returns:
+        Aggregated seismogram quality statistics from the frozen snapshot records.
+
+    Raises:
+        NoResultFound: If no snapshot with the given ID is found.
+    """
+    logger.debug(f"Getting quality stats for snapshot {snapshot_id}.")
+
+    snapshot = session.exec(
+        select(AimbatSnapshot)
+        .where(AimbatSnapshot.id == snapshot_id)
+        .options(
+            selectinload(rel(AimbatSnapshot.seismogram_quality_snapshots)),
+            selectinload(rel(AimbatSnapshot.event_quality_snapshot)),
+        )
+    ).one_or_none()
+
+    if snapshot is None:
+        raise NoResultFound(f"No AimbatSnapshot found with id: {snapshot_id}.")
+
+    return SeismogramQualityStats.from_snapshot(snapshot)
+
+
+def dump_snapshot_quality_table(
+    session: Session,
+    by_alias: bool = False,
+    by_title: bool = False,
+    exclude: set[str] | None = None,
+    event_id: UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Dump snapshot quality statistics to json.
+
+    Args:
+        session: Database session.
+        by_alias: Whether to use serialization aliases for the field names.
+        by_title: Whether to use the field title metadata for the field names.
+            Mutually exclusive with by_alias.
+        exclude: Set of field names to exclude from the output.
+        event_id: Event ID to filter snapshots by (if none is provided, quality
+            for all snapshots is dumped).
+
+    Raises:
+        ValueError: If both `by_alias` and `by_title` are True.
+    """
+
+    logger.debug("Dumping AIMBAT snapshot quality table to json.")
+
+    if by_alias and by_title:
+        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
+
+    exclude = (exclude or set()) | {"station_id"}
+    exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+
+    snapshots = get_snapshots(session, event_id)
+    stats = [SeismogramQualityStats.from_snapshot(s) for s in snapshots]
+
+    adapter: TypeAdapter[Sequence[SeismogramQualityStats]] = TypeAdapter(
+        Sequence[SeismogramQualityStats]
+    )
+    data = adapter.dump_python(stats, mode="json", exclude=exclude, by_alias=by_alias)
+
+    if by_title:
+        title_map = get_title_map(SeismogramQualityStats)
+        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
+
+    return data
 
 
 def dump_event_parameter_snapshot_table(

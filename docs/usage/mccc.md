@@ -58,11 +58,18 @@ a filter — is done beforehand with ICCS.
 
 ## Running MCCC
 
-=== "CLI / Shell"
+=== "CLI"
 
     ```bash
-    aimbat align mccc          # selected seismograms only
-    aimbat align mccc --all    # include deselected seismograms
+    aimbat align mccc <ID>          # selected seismograms only
+    aimbat align mccc <ID> --all    # include deselected seismograms
+    ```
+
+=== "Shell"
+
+    ```bash
+    align mccc          # selected seismograms only
+    align mccc --all    # include deselected seismograms
     ```
 
 === "TUI"
