@@ -14,6 +14,9 @@ from pysmo.tools.iccs import (
     plot_stack as _plot_stack,
 )
 from pysmo.tools.iccs import (
+    update_bandpass as _update_bandpass,
+)
+from pysmo.tools.iccs import (
     update_min_cc as _update_min_cc,
 )
 from pysmo.tools.iccs import (
@@ -41,6 +44,7 @@ _RETURN_FIG_WARNING = (
 __all__ = [
     "plot_stack",
     "plot_matrix_image",
+    "update_bandpass",
     "update_pick",
     "update_timewindow",
     "update_min_cc",
@@ -87,6 +91,56 @@ def plot_matrix_image(
     logger.info("Plotting matrix image.")
 
     return _plot_matrix_image(iccs, context, all_seismograms, return_fig=return_fig)  # type: ignore[call-overload]
+
+
+def update_bandpass(
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all_seismograms: bool,
+    use_matrix_image: bool,
+    return_fig: bool,
+) -> tuple["Figure", "Axes", Any] | None:
+    """Update the bandpass filter parameters for an event.
+
+    Args:
+        session: Database session.
+        event: AimbatEvent.
+        iccs: ICCS instance.
+        context: If True, plot waveforms with extra context around the taper window.
+        all_seismograms: If True, include deselected seismograms in the plot.
+        use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
+        return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
+
+    Returns:
+        A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
+    """
+
+    logger.info(f"Updating bandpass filter parameters for event {event.id}.")
+
+    result = _update_bandpass(  # type: ignore[call-overload]
+        iccs, context, all_seismograms, use_matrix_image, return_fig=return_fig
+    )
+
+    if not return_fig:
+        logger.debug(
+            f"Saving new bandpass filter parameters for event {event.id}: "
+            f"apply={iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, fmax={iccs.bandpass_fmax}"
+        )
+        set_event_parameter(
+            session, event.id, EventParameter.BANDPASS_APPLY, iccs.bandpass_apply
+        )
+        set_event_parameter(
+            session, event.id, EventParameter.BANDPASS_FMIN, iccs.bandpass_fmin
+        )
+        set_event_parameter(
+            session, event.id, EventParameter.BANDPASS_FMAX, iccs.bandpass_fmax
+        )
+        return None
+
+    logger.warning(_RETURN_FIG_WARNING)
+    return result
 
 
 def update_pick(

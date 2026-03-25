@@ -40,23 +40,27 @@ arrival times.
 ## Version 2
 
 AIMBAT v2 is a complete rewrite. It shares the same goal as v1 but none of the
-code.
+code. The main improvements for users are:
 
-- **Complete rewrite.** The algorithms are optimised and projects are stored in
-  a SQLite database (via [SQLModel](https://sqlmodel.tiangolo.com)), making them
-  persistent, portable, and inspectable.
-- **Focused scope.** Much of the underlying code has moved into the
-  [pysmo](https://github.com/pysmo/pysmo) library, leaving AIMBAT to focus on
-  the user-facing ICCS → quality-control → MCCC workflow rather than
-  reimplementing general seismogram utilities.
-- **Flexible data storage.** A single project can hold any number of seismic
-  events. Files from different events can live anywhere on disk — no need to
-  keep them in separate directories or follow a particular layout.
-- **Maintainable.** v2 is built on modern, typed Python with a comprehensive
-  test suite and strict dependency management, so it keeps working as the
-  ecosystem evolves.
+- **Flexible workflow.** Snapshots save the complete processing state at any
+  point, making it straightforward to roll back, compare parameter sets, or
+  try a different approach without losing prior work. ICCS and MCCC can be run
+  in any order and as many times as needed; results can be exported from any
+  snapshot, not only after a final MCCC pass.
+- **Multi-event projects.** A single project database holds any number of
+  seismic events. Waveform files can live anywhere on disk — no prescribed
+  directory layout and no need to manage separate directories per event.
+- **Structured output for downstream analysis.** Each snapshot can be exported
+  as a structured JSON document containing per-station arrival times, ICCS
+  correlation coefficients, and — if MCCC has been run — formal timing standard
+  errors. This makes AIMBAT useful as a data source beyond tomographic
+  inversion: station quality assessment, delay patterns as a function of
+  back-azimuth, or any workflow that requires picks and quality metrics in a
+  machine-readable format.
 - **Multiple interfaces.** AIMBAT can be used via a CLI, an interactive shell,
-  a terminal UI, or directly as a Python library.
+  a terminal UI, or directly as a Python library. All functionality is
+  accessible through the Python API, making it straightforward to script any
+  part of the workflow.
 
 ## Quick Start
 

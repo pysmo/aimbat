@@ -16,6 +16,7 @@ from aimbat.core._snapshot import (
     dump_event_quality_snapshot_table,
     dump_seismogram_parameter_snapshot_table,
     dump_seismogram_quality_snapshot_table,
+    dump_snapshot_results,
     dump_snapshot_table,
     get_snapshots,
     rollback_to_snapshot,
@@ -967,3 +968,173 @@ class TestLiveQualityTable:
         create_snapshot(loaded_session, event)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         assert len(snapshot.seismogram_quality_snapshots) == 0
+
+
+class TestDumpSnapshotResults:
+    """Tests for dump_snapshot_results."""
+
+    def test_returns_one_row_per_seismogram(self, loaded_session: Session) -> None:
+        """Verifies that the seismograms list has one entry per seismogram in the snapshot.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        result = dump_snapshot_results(loaded_session, snapshot.id)
+
+        assert isinstance(result, dict)
+        assert len(result["seismograms"]) == len(event.seismograms)
+
+    def test_contains_expected_envelope_fields(self, loaded_session: Session) -> None:
+        """Verifies that the envelope contains the required header fields.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        result = dump_snapshot_results(loaded_session, snapshot.id)
+
+        for field in (
+            "snapshot_id",
+            "snapshot_time",
+            "snapshot_comment",
+            "event_id",
+            "event_time",
+            "event_latitude",
+            "event_longitude",
+            "event_depth_km",
+            "mccc_rmse",
+            "seismograms",
+        ):
+            assert field in result, f"Expected field '{field}' in result envelope"
+
+    def test_contains_expected_seismogram_fields(self, loaded_session: Session) -> None:
+        """Verifies that each seismogram entry contains the required fields.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        result = dump_snapshot_results(loaded_session, snapshot.id)
+
+        row = result["seismograms"][0]
+        for field in (
+            "seismogram_id",
+            "name",
+            "channel",
+            "select",
+            "flip",
+            "t1",
+            "iccs_cc",
+            "mccc_cc_mean",
+            "mccc_cc_std",
+            "mccc_error",
+        ):
+            assert field in row, f"Expected field '{field}' in seismogram row"
+
+    def test_repeated_scalars_not_in_seismogram_rows(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies that envelope-level scalars are not duplicated in seismogram rows.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        result = dump_snapshot_results(loaded_session, snapshot.id)
+
+        for row in result["seismograms"]:
+            assert "snapshot_id" not in row
+            assert "event_id" not in row
+            assert "mccc_rmse" not in row
+
+    def test_mccc_fields_null_without_mccc_run(self, loaded_session: Session) -> None:
+        """Verifies that MCCC fields are null when no MCCC run was captured.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        result = dump_snapshot_results(loaded_session, snapshot.id)
+
+        assert result["mccc_rmse"] is None
+        for row in result["seismograms"]:
+            assert row["mccc_cc_mean"] is None
+            assert row["mccc_cc_std"] is None
+            assert row["mccc_error"] is None
+
+    def test_mccc_fields_populated_after_mccc_run(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies that MCCC fields are present after a mock MCCC run.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seis_ids = [s.id for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
+        _write_mock_mccc_quality(
+            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
+        )
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        result = dump_snapshot_results(loaded_session, snapshot.id)
+
+        assert result["mccc_rmse"] is not None
+        assert all(row["mccc_cc_mean"] is not None for row in result["seismograms"])
+        assert all(row["mccc_error"] is not None for row in result["seismograms"])
+
+    def test_snapshot_id_not_found_raises(self, loaded_session: Session) -> None:
+        """Verifies that a missing snapshot ID raises NoResultFound.
+
+        Args:
+            loaded_session: The database session.
+        """
+        from sqlalchemy.exc import NoResultFound
+
+        with pytest.raises(NoResultFound):
+            dump_snapshot_results(loaded_session, uuid.uuid4())
+
+    def test_by_alias_uses_camel_case_keys(self, loaded_session: Session) -> None:
+        """Verifies that by_alias=True produces camelCase field names at all levels.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        result = dump_snapshot_results(loaded_session, snapshot.id, by_alias=True)
+
+        assert "snapshotId" in result
+        assert "snapshot_id" not in result
+        assert "eventTime" in result
+        assert "event_time" not in result
+        assert "seismogramId" in result["seismograms"][0]
+        assert "seismogram_id" not in result["seismograms"][0]

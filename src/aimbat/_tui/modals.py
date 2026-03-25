@@ -560,6 +560,7 @@ _SNAPSHOT_ACTIONS: list[tuple[str, str]] = [
     ("show_details", "Show details"),
     ("preview_stack", "Preview stack"),
     ("preview_image", "Preview matrix image"),
+    ("save_results", "Save results to JSON"),
     ("rollback", "Rollback to this snapshot"),
     ("delete", "Delete snapshot"),
 ]
@@ -658,6 +659,7 @@ _TOOLS: list[tuple[str, str]] = [
     ("phase", "Phase arrival (t1)"),
     ("window", "Time window"),
     ("cc", "Min CC"),
+    ("bandpass", "Bandpass filter"),
     ("stack", "Stack plot"),
     ("image", "Matrix image"),
 ]

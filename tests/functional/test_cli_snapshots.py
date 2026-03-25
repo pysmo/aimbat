@@ -6,6 +6,7 @@ JSON output is used as the ground truth for ID verification after mutations.
 """
 
 from collections.abc import Callable
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -809,3 +810,119 @@ class TestSnapshotPreview:
 
         cli(f"snapshot preview {snapshot_id} --matrix")
         mock_plot.assert_called_once()
+
+
+# ===================================================================
+# Snapshot results
+# ===================================================================
+
+
+@pytest.mark.cli
+class TestSnapshotResults:
+    """Tests for the `snapshot results` CLI command."""
+
+    def test_results_stdout_contains_expected_fields(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+        event_id: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verifies that stdout JSON output contains the expected envelope and seismogram fields.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            event_id: The default event ID fixture.
+            capsys: The pytest capsys fixture.
+        """
+        import json
+
+        cli(f"snapshot create --event-id {event_id}")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict)
+        snapshot_id = data["snapshots"][0]["id"]
+
+        cli(f"snapshot results {snapshot_id}")
+        output = capsys.readouterr().out
+        result = json.loads(output)
+        assert isinstance(result, dict)
+        for field in (
+            "snapshot_id",
+            "event_id",
+            "event_time",
+            "mccc_rmse",
+            "seismograms",
+        ):
+            assert field in result, f"Expected field '{field}' in results envelope"
+        assert len(result["seismograms"]) > 0
+        for field in ("seismogram_id", "name", "flip", "t1"):
+            assert field in result["seismograms"][0], (
+                f"Expected field '{field}' in seismogram row"
+            )
+
+    def test_results_output_to_file(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str | list[str]], None],
+        cli_json: Callable[[str], list | dict],
+        event_id: str,
+        tmp_path: Path,
+    ) -> None:
+        """Verifies that --output writes a valid JSON file.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            event_id: The default event ID fixture.
+            tmp_path: Pytest temporary directory.
+        """
+        import json
+
+        cli(f"snapshot create --event-id {event_id}")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict)
+        snapshot_id: str = data["snapshots"][0]["id"]
+
+        out_file = tmp_path / "results.json"
+        cli(["snapshot", "results", snapshot_id, "--output", str(out_file)])
+
+        assert out_file.exists(), "Output file should be created"
+        result = json.loads(out_file.read_text())
+        assert isinstance(result, dict)
+        assert len(result["seismograms"]) > 0
+
+    def test_results_by_alias(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+        event_id: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verifies that --alias produces camelCase keys in the output.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            event_id: The default event ID fixture.
+            capsys: The pytest capsys fixture.
+        """
+        import json
+
+        cli(f"snapshot create --event-id {event_id}")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict)
+        snapshot_id = data["snapshots"][0]["id"]
+
+        cli(f"snapshot results {snapshot_id} --alias")
+        output = capsys.readouterr().out
+        result = json.loads(output)
+        assert "snapshotId" in result
+        assert "snapshot_id" not in result
+        assert "seismogramId" in result["seismograms"][0]
+        assert "seismogram_id" not in result["seismograms"][0]

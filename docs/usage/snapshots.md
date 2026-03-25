@@ -6,7 +6,8 @@ A snapshot saves the current processing parameters and quality metrics for an
 event at a point in time. Specifically, it stores:
 
 - All event-level parameters: the time window, bandpass filter settings, and
-  Min CC (`min_cc`, exposed in the CLI via `pick cc`)
+  Min CC (`min_cc`) — see [Aligning with ICCS](alignment.md) for what each
+  controls
 - Per-seismogram parameters for every seismogram in the event: the current `t1`
   pick, `select` flag, and `flip` flag
 - Quality metrics, if available at snapshot time:
@@ -244,3 +245,92 @@ The output is a JSON object with five keys, all cross-referenced by
 | `seismogram_parameters` | Per-seismogram parameter snapshots | Yes |
 | `event_quality` | Event quality snapshots (MCCC RMSE) | Only if MCCC has been run |
 | `seismogram_quality` | Per-seismogram quality snapshots (ICCS CC, MCCC metrics) | Only if quality metrics exist |
+
+---
+
+## Saving results
+
+Any snapshot can be exported as a structured JSON document containing the
+frozen `t1` picks, ICCS correlation coefficients, and — if MCCC was run before
+the snapshot — per-seismogram MCCC quality metrics and the event-level RMSE.
+MCCC does not need to have been run; the export is useful at any stage of
+processing.
+
+This is the primary format for passing AIMBAT picks into downstream tools such
+as tomographic inversion codes. See [Exporting Results](results.md) for full
+details on the output format and how to work with it.
+
+=== "CLI"
+
+    ```bash
+    aimbat snapshot results <SNAPSHOT_ID>                    # print to stdout
+    aimbat snapshot results <SNAPSHOT_ID> --output out.json  # save to file
+    ```
+
+=== "Shell"
+
+    ```bash
+    snapshot results <SNAPSHOT_ID>
+    snapshot results <SNAPSHOT_ID> --output out.json
+    ```
+
+=== "TUI"
+
+    Press `Enter` on a snapshot row in the **Snapshots** tab and choose
+    **Save results to JSON**. A file-picker dialog opens; the suggested
+    filename is `results_<short_id>.json`. Confirm to write the file.
+
+Pass `--alias` to use camelCase field names in the output.
+
+---
+
+## Snapshot notes
+
+Each snapshot can carry a freeform Markdown note — useful for recording
+observations, decisions, or links to external references at the time the
+snapshot was taken.
+
+=== "CLI"
+
+    ```bash
+    aimbat snapshot note read <SNAPSHOT_ID>  # display the note
+    aimbat snapshot note edit <SNAPSHOT_ID>  # open in $EDITOR and save on exit
+    ```
+
+=== "Shell"
+
+    ```bash
+    snapshot note read <SNAPSHOT_ID>
+    snapshot note edit <SNAPSHOT_ID>
+    ```
+
+If no note exists yet, `read` prints `(no note)` and `edit` opens an empty
+buffer. The note is saved when you close the editor without error.
+
+---
+
+## Snapshot quality statistics
+
+A summary of quality metrics across all snapshots for an event can be viewed
+without opening individual snapshot records:
+
+=== "CLI"
+
+    ```bash
+    aimbat snapshot quality list <ID>          # for a specific event
+    aimbat snapshot quality list --all-events  # across all events
+    aimbat snapshot quality dump               # raw JSON export
+    ```
+
+=== "Shell"
+
+    ```bash
+    snapshot quality list
+    snapshot quality list --all-events
+    snapshot quality dump
+    ```
+
+The table shows per-snapshot aggregated ICCS correlation coefficients and, where
+MCCC has been run, MCCC metrics (mean, SEM) and the global RMSE. This makes it
+easy to compare the quality evolution across snapshots without having to export
+each one individually.

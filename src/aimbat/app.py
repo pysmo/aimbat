@@ -33,7 +33,7 @@ app = App(version=__version__, help=__doc__, help_format="markdown", console=con
 app.command(cli.align)
 app.command(cli.data)
 app.command(cli.event)
-app.command(cli.pick)
+app.command(cli.tool)
 app.command(cli.plot)
 app.command(cli.project)
 app.command(cli.seismogram)
@@ -41,11 +41,7 @@ app.command(cli.snapshot)
 app.command(cli.station)
 app.command(cli.utils)
 app.command(cli.shell)
-app.command(
-    "aimbat._tui.app:main",
-    name="tui",
-    help="Launch the AIMBAT terminal user interface",
-)
+app.command(cli.tui)
 
 
 if __name__ == "__main__":

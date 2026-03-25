@@ -25,10 +25,11 @@ nav = [
     { "Selecting an Event" = "usage/event-selection.md" },
     { "Initial Inspection" = "usage/inspection.md" },
     { "The ICCS Stack" = "usage/iccs-stack.md" },
-    { "Aligning with ICCS" = "usage/alignment.md" },
     { "Snapshots" = "usage/snapshots.md" },
-    { "Finalising with MCCC" = "usage/mccc.md" },
+    { "Aligning with ICCS" = "usage/alignment.md" },
+    { "MCCC Alignment" = "usage/mccc.md" },
     { "Quality Assessment" = "usage/quality.md" },
+    { "Exporting Results" = "usage/results.md" },
     { "Python API" = "usage/api.md" },
   ] },
   { "API reference" = [

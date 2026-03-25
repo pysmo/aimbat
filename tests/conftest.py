@@ -296,14 +296,18 @@ def loaded_session(loaded_engine: Engine) -> Generator[Session, None, None]:
 
 
 @pytest.fixture()
-def cli() -> Callable[[str], None]:
+def cli() -> Callable[[str | list[str]], None]:
     """Returns a callable that invokes ``app()`` in-process with command tokens.
 
+    Accepts either a command string (split via ``shlex``) or a pre-tokenised
+    list of strings.  Pass a list when tokens contain platform-specific path
+    separators (e.g. Windows backslashes) that ``shlex`` would otherwise mangle.
+
     Returns:
-        A callable that accepts a command string and runs it via the app.
+        A callable that accepts a command string or token list and runs it via the app.
     """
 
-    def _run(command: str) -> None:
+    def _run(command: str | list[str]) -> None:
         try:
             app(command)
         except SystemExit as exc:

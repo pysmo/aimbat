@@ -54,6 +54,7 @@ you are in the parameter space.
 | Show details | View the event parameters (window, filter, min CC) as saved |
 | Preview stack | Open the ICCS stack plot built from this snapshot's parameters, without changing anything in the database |
 | Preview matrix image | Open the cross-correlation matrix image from this snapshot |
+| Save results to JSON | Export the snapshot's quality metrics and picks to a JSON file via a file-save dialogue |
 | Rollback to this snapshot | Restore these parameters as the current live values — overwrites the current parameters for this event |
 | Delete snapshot | Permanently remove the snapshot (the live parameters are not affected) |
 

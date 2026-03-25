@@ -6,6 +6,7 @@ Use `snapshot create` before making experimental changes, and `snapshot rollback
 to undo them if needed.
 """
 
+from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -416,6 +417,53 @@ def cli_snapshot_quality_list(
         raw=raw,
         col_specs=col_specs,
     )
+
+
+@app.command(name="results")
+@simple_exception
+def cli_snapshot_results(
+    snapshot_id: Annotated[
+        UUID,
+        id_parameter(AimbatSnapshot, help="UUID (or unique prefix) of snapshot."),
+    ],
+    *,
+    output: Annotated[
+        Path | None,
+        Parameter(
+            name="output",
+            help="Write results to this JSON file instead of printing to stdout.",
+        ),
+    ] = None,
+    dump_parameters: JsonDumpParameters = JsonDumpParameters(),
+) -> None:
+    """Export per-seismogram MCCC results from a snapshot as JSON.
+
+    Each row contains the frozen pick time (T1), ICCS correlation coefficient,
+    per-seismogram MCCC quality metrics, and the event-level MCCC RMSE.
+
+    Results are printed to stdout unless `--output` is given, in which case
+    they are written to the specified file.
+    """
+    import json
+
+    from sqlmodel import Session
+
+    from aimbat.core import dump_snapshot_results
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        data = dump_snapshot_results(
+            session,
+            snapshot_id,
+            by_alias=dump_parameters.by_alias,
+        )
+
+    if output is None:
+        from rich import print_json
+
+        print_json(data=data)
+    else:
+        output.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
