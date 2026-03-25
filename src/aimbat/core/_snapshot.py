@@ -16,12 +16,15 @@ from aimbat.models import (
     AimbatEventQuality,
     AimbatEventQualitySnapshot,
     AimbatSeismogram,
+    AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
     AimbatSeismogramQuality,
     AimbatSeismogramQualitySnapshot,
     AimbatSnapshot,
     AimbatSnapshotRead,
     SeismogramQualityStats,
+    SnapshotResults,
+    SnapshotSeismogramResult,
 )
 from aimbat.models._parameters import (
     AimbatEventParametersBase,
@@ -43,6 +46,7 @@ __all__ = [
     "get_snapshot_quality",
     "dump_snapshot_table",
     "dump_snapshot_quality_table",
+    "dump_snapshot_results",
     "dump_event_parameter_snapshot_table",
     "dump_seismogram_parameter_snapshot_table",
     "dump_event_quality_snapshot_table",
@@ -683,3 +687,85 @@ def dump_seismogram_quality_snapshot_table(
     )
 
     return seis_quality_dicts
+
+
+def dump_snapshot_results(
+    session: Session,
+    snapshot_id: UUID,
+    by_alias: bool = False,
+) -> dict[str, Any]:
+    """Dump per-seismogram MCCC results from a snapshot as a results envelope.
+
+    Returns a dict with event- and snapshot-level header fields plus a
+    `seismograms` list containing one entry per seismogram. Event-level
+    scalars (`snapshot_id`, `event_id`, `mccc_rmse`) appear once in the
+    envelope rather than being repeated on every row.
+
+    Args:
+        session: Database session.
+        snapshot_id: UUID of the snapshot to export results from.
+        by_alias: Whether to use camelCase serialisation aliases for field names.
+
+    Returns:
+        Dict with header fields and a `seismograms` list.
+
+    Raises:
+        NoResultFound: If no snapshot with the given ID is found.
+    """
+    logger.debug(f"Dumping per-seismogram results for snapshot {snapshot_id}.")
+
+    snapshot = session.exec(
+        select(AimbatSnapshot)
+        .where(AimbatSnapshot.id == snapshot_id)
+        .options(
+            selectinload(rel(AimbatSnapshot.event)),
+            selectinload(rel(AimbatSnapshot.event_quality_snapshot)),
+            selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)).options(
+                selectinload(
+                    rel(AimbatSeismogramParametersSnapshot.parameters)
+                ).options(
+                    selectinload(
+                        rel(AimbatSeismogramParameters.seismogram)
+                    ).selectinload(rel(AimbatSeismogram.station))
+                )
+            ),
+            selectinload(rel(AimbatSnapshot.seismogram_quality_snapshots)).selectinload(
+                rel(AimbatSeismogramQualitySnapshot.quality)
+            ),
+        )
+    ).one_or_none()
+
+    if snapshot is None:
+        raise NoResultFound(f"No AimbatSnapshot found with id: {snapshot_id}.")
+
+    eq = snapshot.event_quality_snapshot
+    mccc_rmse = eq.mccc_rmse if eq is not None else None
+
+    # Build a lookup from seismogram_id → quality snapshot.
+    quality_map: dict[UUID, AimbatSeismogramQualitySnapshot] = {
+        sq.quality.seismogram_id: sq for sq in snapshot.seismogram_quality_snapshots
+    }
+
+    seismograms = [
+        SnapshotSeismogramResult.from_snapshot_records(
+            param_snap=ps,
+            quality_snap=quality_map.get(ps.parameters.seismogram_id),
+        )
+        for ps in snapshot.seismogram_parameters_snapshots
+    ]
+
+    event = snapshot.event
+    results = SnapshotResults(
+        snapshot_id=snapshot.id,
+        snapshot_time=snapshot.time,
+        snapshot_comment=snapshot.comment,
+        event_id=snapshot.event_id,
+        event_time=event.time,
+        event_latitude=event.latitude,
+        event_longitude=event.longitude,
+        event_depth_km=event.depth / 1000 if event.depth is not None else None,
+        mccc_rmse=mccc_rmse,
+        seismograms=seismograms,
+    )
+
+    return results.model_dump(mode="json", by_alias=by_alias)

@@ -92,6 +92,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Update plot seismograms.
 - Remove dead code ([#231](https://github.com/pysmo/aimbat/issues/231))
 - Quality stats integrated into read models and tui
+- Quality stats integrated into read models and tui ([#232](https://github.com/pysmo/aimbat/issues/232))
 
 ### 🚀 New Features
 

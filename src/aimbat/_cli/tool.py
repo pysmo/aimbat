@@ -1,9 +1,9 @@
-"""Interactively pick phase arrival times and processing parameters.
+"""Launch interactive tools for picking phase arrival times and processing parameters.
 
-These commands open an interactive matplotlib plot for an event. Use
+Each subcommand opens an interactive matplotlib plot for an event. Use
 `--event-id` or set the `DEFAULT_EVENT_ID` environment variable to choose
-which event to pick. Click on the plot to set the chosen value, then close
-the window to save it.
+which event to work with. Click on the plot to set the chosen value, then
+close the window to save it.
 """
 
 from typing import Annotated
@@ -19,7 +19,42 @@ from .common import (
     use_matrix_image,
 )
 
-app = App(name="pick", help=__doc__, help_format="markdown")
+app = App(name="tool", help=__doc__, help_format="markdown")
+
+
+@app.command(name="bandpass")
+@simple_exception
+def cli_update_bandpass(
+    event_id: Annotated[UUID, event_parameter()],
+    *,
+    iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
+    use_matrix_image: Annotated[bool, use_matrix_image()] = False,
+    _: DebugParameter = DebugParameter(),
+) -> None:
+    """Interactively update the bandpass filter parameters for an event.
+
+    Opens an interactive plot with controls for enabling/disabling the bandpass
+    filter and adjusting the minimum and maximum frequencies. Close the window
+    to save the updated parameters.
+    """
+    from sqlmodel import Session
+
+    from aimbat.core import create_iccs_instance, resolve_event
+    from aimbat.db import engine
+    from aimbat.plot import update_bandpass
+
+    with Session(engine) as session:
+        event = resolve_event(session, event_id)
+        iccs = create_iccs_instance(session, event).iccs
+        update_bandpass(
+            session,
+            event,
+            iccs,
+            context=iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
+            use_matrix_image=use_matrix_image,
+            return_fig=False,
+        )
 
 
 @app.command(name="phase")

@@ -23,7 +23,7 @@ between that seismogram and the current ICCS stack as `iccs_cc`.
   minimum CC threshold. You do not need to run any explicit step.
 - **What it tells you**: How closely the waveform matches the array stack under
   the current window and filter settings. It is the basis for the
-  `--autoselect` threshold set with `aimbat pick cc`.
+  `--autoselect` threshold.
 - **Interpretation**: Values closer to 1.0 indicate high similarity to the stack.
   Values near 0 or negative suggest misalignment, poor SNR, or a polarity flip.
 

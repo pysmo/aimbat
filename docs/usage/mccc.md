@@ -1,21 +1,21 @@
-# Finalising with MCCC
+# MCCC Alignment
 
 ## When to run MCCC
 
-MCCC works best on data that is already reasonably well aligned — coherent
-stack, high CC norms across most of the array, a clean and stable time window.
-It cannot recover poor alignment; if the seismograms are badly misaligned,
-many pairwise correlations will be weak and the inversion will be poorly
-constrained.
+ICCS alignment produces relative arrival-time picks that are directly usable
+for many purposes. MCCC is the natural next step for most analyses because it
+adds formal standard errors to those picks — derived from a pairwise
+least-squares inversion — making the output suitable for applications that
+require timing uncertainties, such as tomographic inversion.
 
-Running ICCS first is therefore the usual approach, not because of a strict
-rule, but because ICCS gives you tools that MCCC does not: interactive
-parameter adjustment, autoflip to correct polarity, and autoselect to remove
-seismograms that consistently fail to align. Once the dataset is in a state
-where those tools are no longer improving things, MCCC is the natural next
-step — and because it produces formal standard errors for each delay estimate,
-its output is directly usable in further analyses such as tomographic
-inversion.
+MCCC works best on data that is already well aligned. It cannot recover poor
+alignment: if seismograms are badly misaligned, many pairwise correlations will
+be weak and the inversion will be poorly constrained. Running ICCS first is
+therefore the standard approach — not because of a strict rule, but because
+ICCS provides tools that MCCC does not: interactive parameter adjustment,
+autoflip to correct polarity, and autoselect to remove seismograms that
+consistently fail to align. Once the dataset is in a state where those tools
+are no longer improving things, MCCC is ready to run.
 
 Take a snapshot before running MCCC.
 
@@ -88,24 +88,24 @@ confirm the picks improved.
 
 ## Parameters
 
-### Minimum CC norm (`mccc_min_ccnorm`)
+### Minimum CC norm (`mccc_min_cc`)
 
 Pairs of seismograms whose cross-correlation coefficient falls below this
-threshold are excluded from the inversion. Unlike ICCS's `min_ccnorm`, which
+threshold are excluded from the inversion. Unlike ICCS's `min_cc`, which
 operates on whole seismograms, this threshold applies to **pairs**: a
 seismogram can still contribute to the solution through its good pairs even if
 some of its pairings are weak.
 
 Setting this too low allows noisy pairs to degrade the inversion; setting it
-too high may leave too few constraints for a stable solution. The ICCS CC
-norms give a rough sense of which seismograms are likely to correlate well with
-each other.
+too high may leave too few constraints for a stable solution. The ICCS
+correlation coefficients give a rough sense of which seismograms are likely to
+correlate well with each other.
 
 ### Damping (`mccc_damp`)
 
 Tikhonov regularisation applied to the inversion. A small amount of damping
 stabilises the solution when the constraint matrix is poorly conditioned —
-for example, when a seismogram has few pairs above `mccc_min_ccnorm` and its
+for example, when a seismogram has few pairs above `mccc_min_cc` and its
 time shift is therefore weakly constrained. Higher damping pulls all shifts
 closer to zero (the group mean), producing a more conservative solution.
 
@@ -122,3 +122,28 @@ subset that contributed to the ICCS stack. Passing `--all` includes deselected
 seismograms in the inversion. Their picks are still updated, but they may
 degrade the inversion if they are genuinely noisy or misaligned. Use with
 caution.
+
+---
+
+## Exporting results
+
+Once MCCC has run and you are satisfied with the picks, take a snapshot and
+export the results:
+
+=== "CLI"
+
+    ```bash
+    aimbat snapshot create <ID> "post-MCCC"
+    aimbat snapshot results <SNAPSHOT_ID> --output results.json
+    ```
+
+=== "TUI"
+
+    Press `n` to create a snapshot, then press `Enter` on the new snapshot row
+    and choose **Save results to JSON**.
+
+The output is a JSON document with event-level header fields (snapshot
+metadata, event coordinates, MCCC RMSE) and a `seismograms` list containing
+the frozen `t1` pick, ICCS and MCCC correlation coefficients, and formal timing
+standard errors for each station. See [Exporting Results](results.md) for the
+full field reference and examples of working with the output.

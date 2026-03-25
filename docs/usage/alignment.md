@@ -5,8 +5,8 @@
 ICCS alignment is inherently exploratory. There is no fixed sequence of steps
 that works for every dataset — it is a feedback loop between adjusting
 parameters, running the algorithm, and examining the results. The goal is a
-stack that is coherent across the array and CC norms that are high enough to
-give MCCC a clean dataset to work with.
+stack that is coherent across the array and correlation coefficients that are
+high across most of the array.
 
 Parameters interact: a filter that sharpens the waveform may allow a narrower
 time window, which in turn changes which seismograms align well. It is
@@ -93,43 +93,48 @@ refinement.
 
 ### Minimum CC norm
 
-`min_ccnorm` is the threshold used by autoselect to deselect seismograms
+`min_cc` is the threshold used by autoselect to deselect seismograms
 automatically. It does not affect the cross-correlation itself — only which
 seismograms are excluded from contributing to the stack in subsequent
 iterations.
 
 Setting this too high early on may exclude seismograms that would align well
 once the stack improves. It is usually more effective to start with a
-permissive threshold and tighten it as alignment converges.
+permissive threshold and tighten it as alignment converges. The threshold can
+be adjusted interactively with `aimbat tool cc`.
 
 ---
 
 ## Interactive adjustment
 
-In addition to setting parameters directly, three tools let you adjust values
-by interacting with the plot — clicking or scrolling in a waveform display
-rather than typing numbers.
+In addition to setting parameters directly, four interactive tools let you
+adjust values by interacting with the plot — clicking or scrolling in a
+waveform display rather than typing numbers. They are the most convenient way
+to explore parameters, but the same values can also be set directly via CLI
+arguments or the Python API.
 
 === "CLI"
 
     ```bash
-    aimbat pick phase <ID>    # adjust t1 by clicking on the stack
-    aimbat pick window <ID>   # set window_pre / window_post by clicking
-    aimbat pick ccnorm <ID>   # set min_ccnorm by scrolling the matrix image
+    aimbat tool phase <ID>    # adjust t1 by clicking on the stack
+    aimbat tool window <ID>   # set window_pre / window_post by clicking
+    aimbat tool cc <ID>       # set min_cc by scrolling the matrix image
+    aimbat tool bandpass <ID> # adjust bandpass filter settings interactively
     ```
 
 === "Shell"
 
     ```bash
-    pick phase    # adjust t1 by clicking on the stack
-    pick window   # set window_pre / window_post by clicking
-    pick ccnorm   # set min_ccnorm by scrolling the matrix image
+    tool phase    # adjust t1 by clicking on the stack
+    tool window   # set window_pre / window_post by clicking
+    tool cc       # set min_cc by scrolling the matrix image
+    tool bandpass # adjust bandpass filter settings interactively
     ```
 
-Each command opens a matplotlib window. Click (or scroll, for ccnorm) to
-set the value, then close the window to save it.
+Each command opens a matplotlib window. Click (or scroll) to set the value,
+then close the window to save it.
 
-All three accept `--no-context` and `--all` (include deselected seismograms).
+All four accept `--no-context` and `--all` (include deselected seismograms).
 
 === "TUI"
 
@@ -137,14 +142,15 @@ All three accept `--no-context` and `--all` (include deselected seismograms).
 
     - **Phase arrival (t1)** — click in the stack to shift all picks globally
     - **Time window** — click to place the window boundaries
-    - **Min CC norm** — scroll the matrix image to set the threshold
+    - **Min CC** — scroll the matrix image to set the threshold
+    - **Bandpass filter** — toggle the filter and adjust frequency bounds
 
     Before launching, toggle **Context** (`c`) and **All seismograms** (`a`)
     as needed. The TUI suspends while the matplotlib window is open and
     resumes when you close it.
 
-The pick and window tools open the **stack view**; the CC norm tool opens the
-**matrix image**. The behaviour of each is described in [The ICCS
+The `phase`, `window`, and `bandpass` tools open the **stack view**; `cc`
+opens the **matrix image**. The behaviour of each is described in [The ICCS
 Stack](iccs-stack.md#use-in-interactive-adjustment).
 
 ---
@@ -174,7 +180,7 @@ throughout. It is safe to run repeatedly.
 
 ### Autoselect
 
-With autoselect enabled, seismograms whose CC norm falls below `min_ccnorm`
+With autoselect enabled, seismograms whose CC norm falls below `min_cc`
 are automatically set to `select = False` and excluded from the stack in
 subsequent iterations. Importantly, they are still cross-correlated against
 the stack — so if parameters improve and they start to align better, they can
@@ -200,25 +206,29 @@ automatically; there is no need to monitor it. Running ICCS again from
 AIMBAT's interface always starts a fresh run from the current picks.
 
 What matters is the convergence of the *overall process*: across multiple
-runs with adjusted parameters, do the stack and CC norms keep improving, or
-have they plateaued? When further adjustments produce no visible improvement
-in the stack, alignment is as good as it is going to get with ICCS, and it is
-time to move to MCCC.
+runs with adjusted parameters, do the stack and correlation coefficients keep
+improving, or have they plateaued? When further adjustments produce no visible
+improvement in the stack, the data is ready — either for direct export, or as
+input to MCCC for formal timing uncertainties.
 
 ---
 
 ## Knowing when to stop
 
 There is no objective criterion for when ICCS alignment is "done". Practical
-signals that the dataset is ready for MCCC:
+signals that the dataset is ready:
 
 - The stack is visually coherent — individual traces closely follow its shape
-- CC norms are high across most of the array
+- Correlation coefficients are high across most of the array
 - The time window highlights a clean, well-defined arrival
 - Running ICCS again with or without autoflip/autoselect produces no
   meaningful change
 
-It is worth taking a snapshot at this point before running MCCC.
+At this point the ICCS picks can be exported directly from a snapshot — see
+[Exporting Results](results.md). If formal per-station timing standard errors
+are needed (for example, as input to tomographic inversion), continue to
+[MCCC alignment](mccc.md) before taking the final snapshot. Either way, it is
+worth taking a snapshot now before making any further changes.
 
 ---
 
@@ -228,9 +238,11 @@ It is worth taking a snapshot at this point before running MCCC.
   an improvement or regression if multiple things change at once.
 - **Take snapshots liberally.** They are lightweight and make it easy to
   backtrack to a promising state.
-- **Don't over-optimise.** MCCC is more precise than ICCS and will further
-  refine picks. The job of ICCS is to get the data to a state where MCCC can
-  succeed — not to produce perfect picks itself.
+- **ICCS picks are directly usable.** For workflows that do not require formal
+  timing uncertainties, ICCS picks exported from a snapshot are suitable for
+  further analysis as-is. MCCC adds formal standard errors and a more rigorous
+  pairwise solution — run it when those are needed, but there is no obligation
+  to do so.
 - **Outlier seismograms.** If a seismogram consistently has a poor CC norm
   across many runs and parameter combinations, it may be worth deleting it
   from the project rather than letting it drag down the stack.

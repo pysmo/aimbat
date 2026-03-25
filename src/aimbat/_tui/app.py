@@ -30,7 +30,7 @@ from textual.widgets import (
     TabPane,
     Tabs,
 )
-from textual_fspicker import FileOpen, Filters
+from textual_fspicker import FileOpen, FileSave, Filters
 
 from pysmo.tools.iccs import ICCS
 
@@ -63,6 +63,7 @@ from aimbat.core import (
     delete_station,
     dump_event_table,
     dump_seismogram_table,
+    dump_snapshot_results,
     dump_snapshot_table,
     dump_station_table,
     get_event_quality,
@@ -76,6 +77,7 @@ from aimbat.core import (
 from aimbat.core._project import _project_exists
 from aimbat.db import engine
 from aimbat.io import DATATYPE_SUFFIXES, DataType
+from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
     AimbatEventRead,
@@ -93,6 +95,7 @@ from aimbat.plot import (
     plot_matrix_image,
     plot_seismograms,
     plot_stack,
+    update_bandpass,
     update_min_cc,
     update_pick,
     update_timewindow,
@@ -190,6 +193,24 @@ def _tool_cc(
     )
 
 
+def _tool_bandpass(
+    session: Session,
+    event: AimbatEvent,
+    iccs: ICCS,
+    context: bool,
+    all_seismograms: bool,
+) -> None:
+    update_bandpass(
+        session,
+        event,
+        iccs,
+        context,
+        all_seismograms=all_seismograms,
+        use_matrix_image=False,
+        return_fig=False,
+    )
+
+
 def _tool_stack(
     session: Session,
     event: AimbatEvent,
@@ -214,6 +235,7 @@ _TOOL_REGISTRY: dict[str, tuple[str, _ToolFn]] = {
     "phase": ("Phase arrival (t1)", _tool_phase),
     "window": ("Time window", _tool_window),
     "cc": ("Min CC", _tool_cc),
+    "bandpass": ("Bandpass filter", _tool_bandpass),
     "stack": ("Stack plot", _tool_stack),
     "image": ("Matrix image", _tool_image),
 }
@@ -297,6 +319,7 @@ class AimbatTUI(App[None]):
 
         self.set_interval(5, self._check_iccs_staleness)
 
+        logger.info("TUI started.")
         if not _project_exists(engine):
             self.push_screen(NoProjectModal(), self._on_no_project_modal)
         else:
@@ -305,10 +328,12 @@ class AimbatTUI(App[None]):
 
     def _on_no_project_modal(self, create: bool | None) -> None:
         if create:
+            logger.info("User chose to create a new project.")
             create_project(engine)
             self._create_iccs()
             self.refresh_all()
         else:
+            logger.info("User declined to create a project. Exiting.")
             self.exit()
 
     @on(TabbedContent.TabActivated)
@@ -404,6 +429,9 @@ class AimbatTUI(App[None]):
         Concurrent calls are ignored — only one worker runs at a time.
         """
         if self._iccs_creating:
+            logger.debug(
+                "ICCS creation already in progress; skipping duplicate request."
+            )
             return
         self._iccs_creating = True
         self._bound_iccs = None
@@ -417,20 +445,24 @@ class AimbatTUI(App[None]):
                 event = self._get_current_event(session)
                 bound_iccs = create_iccs_instance(session, event)
         except (NoResultFound, RuntimeError):
+            logger.debug("ICCS worker: no event selected or no data; aborting.")
             self.call_from_thread(setattr, self, "_iccs_creating", False)
             return
         except Exception as exc:
+            logger.exception(f"ICCS worker: unexpected error during creation: {exc}")
             self.call_from_thread(
                 self.notify, f"ICCS init failed: {exc}", severity="error"
             )
             self.call_from_thread(setattr, self, "_iccs_creating", False)
             return
+        logger.debug("ICCS worker: instance created successfully.")
         self.call_from_thread(self._assign_iccs, bound_iccs)
 
     def _assign_iccs(self, bound_iccs: BoundICCS) -> None:
         """Main-thread callback: store the new BoundICCS instance and refresh status."""
         self._iccs_creating = False
         self._bound_iccs = bound_iccs
+        logger.info("ICCS instance ready and assigned.")
         self._refresh_event_bar()
         self._refresh_seismograms()
 
@@ -582,6 +614,9 @@ class AimbatTUI(App[None]):
         except (NoResultFound, RuntimeError):
             return
         if stale:
+            logger.debug(
+                "ICCS staleness detected; recreating instance and refreshing UI."
+            )
             self._iccs_last_modified_seen = last_modified
             self._create_iccs()
             self.refresh_all()
@@ -760,6 +795,8 @@ class AimbatTUI(App[None]):
                 self._preview_snapshot_plot(snap_id, "stack", context, all_seis)
             elif action == "preview_image":
                 self._preview_snapshot_plot(snap_id, "image", context, all_seis)
+            elif action == "save_results":
+                self._save_snapshot_results(snap_id)
             else:
                 self._handle_row_action("tab-snapshots", snap_id, action)
 
@@ -965,12 +1002,14 @@ class AimbatTUI(App[None]):
             self._reset_seismogram_parameters(item_id)
 
     def _select_event(self, item_id: str) -> None:
+        logger.debug(f"User selected event {item_id[:8]}.")
         self._current_event_id = uuid.UUID(item_id)
         self._create_iccs()
         self.refresh_all()
         self.notify("Event selected", timeout=2)
 
     def _toggle_event_completed(self, item_id: str) -> None:
+        logger.debug(f"User toggled completed flag for event {item_id[:8]}.")
         try:
             with Session(engine) as session:
                 event = session.get(AimbatEvent, uuid.UUID(item_id))
@@ -1003,6 +1042,7 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _toggle_seismogram_bool(self, item_id: str, param: SeismogramParameter) -> None:
+        logger.debug(f"User toggled {param} for seismogram {item_id[:8]}.")
         try:
             seis_uuid = uuid.UUID(item_id)
             with Session(engine) as session:
@@ -1026,6 +1066,7 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _reset_seismogram_parameters(self, item_id: str) -> None:
+        logger.debug(f"User reset parameters for seismogram {item_id[:8]}.")
         try:
             with Session(engine) as session:
                 reset_seismogram_parameters(session, uuid.UUID(item_id))
@@ -1050,6 +1091,7 @@ class AimbatTUI(App[None]):
                 return
             try:
                 if tab == "project-events":
+                    logger.info(f"User confirmed deletion of event {item_id[:8]}.")
                     with Session(engine) as session:
                         delete_event(session, uuid.UUID(item_id))
                     if self._current_event_id == uuid.UUID(item_id):
@@ -1058,23 +1100,27 @@ class AimbatTUI(App[None]):
                     self.refresh_all()
                     self.notify("Event deleted", timeout=2)
                 elif tab == "project-stations":
+                    logger.info(f"User confirmed deletion of station {item_id[:8]}.")
                     with Session(engine) as session:
                         delete_station(session, uuid.UUID(item_id))
                     self._create_iccs()
                     self.refresh_all()
                     self.notify("Station deleted", timeout=2)
                 elif tab == "tab-seismograms":
+                    logger.info(f"User confirmed deletion of seismogram {item_id[:8]}.")
                     with Session(engine) as session:
                         delete_seismogram(session, uuid.UUID(item_id))
                     self._create_iccs()
                     self.refresh_all()
                     self.notify("Seismogram deleted", timeout=2)
                 elif tab == "tab-snapshots":
+                    logger.info(f"User confirmed deletion of snapshot {item_id[:8]}.")
                     with Session(engine) as session:
                         delete_snapshot(session, uuid.UUID(item_id))
                     self._refresh_snapshots()
                     self.notify("Snapshot deleted", timeout=2)
             except Exception as exc:
+                logger.exception(f"Deletion failed: {exc}")
                 self.notify(str(exc), severity="error")
 
         self.push_screen(ConfirmModal(msg), on_confirm)
@@ -1101,9 +1147,32 @@ class AimbatTUI(App[None]):
         except Exception as exc:
             self.notify(str(exc), severity="error")
 
+    def _save_snapshot_results(self, snap_id: str) -> None:
+        default_name = f"results_{snap_id[:8]}.json"
+
+        def on_path(path: Path | None) -> None:
+            if path is None:
+                return
+            import json
+
+            try:
+                with Session(engine) as session:
+                    data = dump_snapshot_results(session, uuid.UUID(snap_id))
+                path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                logger.info(f"Snapshot results saved to {path}.")
+                self.notify(f"Results saved to {path.name}", timeout=3)
+            except Exception as exc:
+                logger.exception(f"Failed to save snapshot results: {exc}")
+                self.notify(str(exc), severity="error")
+
+        self.push_screen(
+            FileSave(".", title="Save results", default_file=default_name), on_path
+        )
+
     def _preview_snapshot_plot(
         self, snap_id: str, plot_type: str, context: bool, all_seis: bool
     ) -> None:
+        logger.debug(f"User previewing {plot_type} plot for snapshot {snap_id[:8]}.")
         try:
             with self._suspend("Previewing snapshot"):
                 with Session(engine) as session:
@@ -1113,6 +1182,7 @@ class AimbatTUI(App[None]):
                 else:
                     plot_matrix_image(bound.iccs, context, all_seis, return_fig=False)
         except Exception as exc:
+            logger.exception(f"Snapshot preview failed: {exc}")
             self.notify(str(exc), severity="error")
 
     def _confirm_rollback(self, snap_id: str) -> None:
@@ -1120,6 +1190,7 @@ class AimbatTUI(App[None]):
             if not confirmed:
                 return
             try:
+                logger.info(f"User confirmed rollback to snapshot {snap_id[:8]}.")
                 with Session(engine) as session:
                     rollback_to_snapshot(session, uuid.UUID(snap_id))
                 self._create_iccs()
@@ -1128,6 +1199,7 @@ class AimbatTUI(App[None]):
                     self.query_one(TabbedContent).active = "tab-seismograms"
                 self.notify("Rolled back to snapshot", timeout=3)
             except Exception as exc:
+                logger.exception(f"Rollback failed: {exc}")
                 self.notify(str(exc), severity="error")
 
         self.push_screen(ConfirmModal("Roll back to this snapshot?"), on_confirm)
@@ -1137,6 +1209,7 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
 
     def action_open_parameters(self) -> None:
+        logger.debug("User opened parameters modal.")
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
@@ -1147,6 +1220,7 @@ class AimbatTUI(App[None]):
 
         def on_close(changed: bool | None) -> None:
             if changed:
+                logger.info("Parameters changed; recreating ICCS.")
                 self._create_iccs()
                 self.refresh_all()
 
@@ -1155,6 +1229,7 @@ class AimbatTUI(App[None]):
     def action_switch_event(self) -> None:
         def on_result(result: uuid.UUID | None) -> None:
             if result is not None:
+                logger.debug(f"User switched to event {str(result)[:8]}.")
                 self._current_event_id = result
                 self._create_iccs()
             self.refresh_all()
@@ -1180,9 +1255,11 @@ class AimbatTUI(App[None]):
                             session, [path], data_type, disable_progress_bar=True
                         )
                         session.commit()
+                    logger.info(f"User added data file: {path}.")
                     self.notify(f"Added: {path.name}", severity="information")
                     self.refresh_all()
                 except Exception as exc:
+                    logger.exception(f"Failed to add data file {path}: {exc}")
                     self.notify(str(exc), severity="error")
 
             self.push_screen(
@@ -1229,6 +1306,9 @@ class AimbatTUI(App[None]):
         matplotlib on the main thread via App.suspend(), which is the correct
         Textual pattern for blocking terminal-adjacent processes.
         """
+        logger.debug(
+            f"User launched interactive tool '{tool}' (context={context}, all_seis={all_seis})."
+        )
         if self._bound_iccs is None:
             self.notify("ICCS not ready — please wait", severity="warning")
             return
@@ -1241,6 +1321,7 @@ class AimbatTUI(App[None]):
                     event = self._get_current_event(session)
                     fn(session, event, iccs, context, all_seis)
         except Exception as exc:
+            logger.exception(f"Interactive tool '{tool}' raised: {exc}")
             self.notify(str(exc), severity="error")
             return
 
@@ -1269,6 +1350,9 @@ class AimbatTUI(App[None]):
         all_seis: bool,
     ) -> None:
         """Run ICCS or MCCC in a background thread."""
+        logger.debug(
+            f"Alignment worker starting: {algorithm=}, {autoflip=}, {autoselect=}, {all_seis=}."
+        )
         notify_msg = "Alignment complete"
         notify_severity: Literal["information", "warning", "error"] = "information"
         try:
@@ -1285,6 +1369,7 @@ class AimbatTUI(App[None]):
                     run_mccc(session, event, bound.iccs, all_seis)
                     notify_msg = "MCCC complete"
         except Exception as exc:
+            logger.exception(f"Alignment worker error ({algorithm}): {exc}")
             self.call_from_thread(self.notify, str(exc), severity="error")
             return
         self.call_from_thread(self._post_align_complete, notify_msg, notify_severity)
@@ -1304,12 +1389,14 @@ class AimbatTUI(App[None]):
             if comment is None:
                 return
             try:
+                logger.info(f"User creating snapshot with comment={comment!r}.")
                 with Session(engine) as session:
                     event = self._get_current_event(session)
                     create_snapshot(session, event, comment or None)
                 self._refresh_snapshots()
                 self.notify("Snapshot created", timeout=2)
             except Exception as exc:
+                logger.exception(f"Snapshot creation failed: {exc}")
                 self.notify(str(exc), severity="error")
 
         self.push_screen(SnapshotCommentModal(), on_comment)
@@ -1329,6 +1416,7 @@ class AimbatTUI(App[None]):
         self.push_screen(HelpModal(self._active_tab))
 
     def action_refresh(self) -> None:
+        logger.debug("User triggered manual refresh.")
         self.refresh_all()
         self.notify("Refreshed", timeout=1)
 

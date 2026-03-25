@@ -16,7 +16,14 @@ from ._format import RichColSpec, TuiColSpec
 if TYPE_CHECKING:
     from sqlmodel import Session
 
-    from ._models import AimbatEvent, AimbatSeismogram, AimbatSnapshot, AimbatStation
+    from ._models import (
+        AimbatEvent,
+        AimbatSeismogram,
+        AimbatSeismogramParametersSnapshot,
+        AimbatSeismogramQualitySnapshot,
+        AimbatSnapshot,
+        AimbatStation,
+    )
 
 __all__ = [
     "AimbatEventRead",
@@ -24,6 +31,8 @@ __all__ = [
     "SeismogramQualityStats",
     "AimbatSnapshotRead",
     "AimbatStationRead",
+    "SnapshotSeismogramResult",
+    "SnapshotResults",
 ]
 
 
@@ -649,3 +658,135 @@ class AimbatSnapshotRead(BaseModel):
             event_id=snapshot.event_id,
             short_event_id=short_event_id,
         )
+
+
+class SnapshotSeismogramResult(BaseModel):
+    """Per-seismogram result record from a snapshot.
+
+    Joins the frozen parameter and quality records from a snapshot to produce
+    one row per seismogram. Only snapshots with MCCC data will have meaningful
+    MCCC columns; `iccs_cc` is populated whenever ICCS was run before the
+    snapshot was taken.
+
+    Event- and snapshot-level scalars (`snapshot_id`, `event_id`, `mccc_rmse`)
+    are not repeated here — they live in the enclosing `SnapshotResults` envelope.
+    """
+
+    model_config = ConfigDict(
+        frozen=True,
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+    seismogram_id: UUID = Field(
+        title="Seismogram ID",
+        json_schema_extra={
+            "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False),  # type: ignore[dict-item]
+        },
+    )
+    name: str = Field(title="Name", description="Station network and name.")
+    channel: str = Field(title="Channel", description="Station channel code.")
+    select: bool = Field(
+        title="Select",
+        description="Whether this seismogram was selected at snapshot time.",
+    )
+    flip: bool = Field(
+        title="Flip",
+        description="Whether this seismogram was flipped at snapshot time.",
+    )
+    t1: PydanticTimestamp | None = Field(
+        default=None,
+        title="T1",
+        description="Frozen pick time (absolute timestamp) at snapshot time.",
+    )
+    iccs_cc: float | None = Field(
+        default=None,
+        title="Stack CC",
+        description="Cross-correlation coefficient with ICCS stack at snapshot time.",
+    )
+    mccc_cc_mean: float | None = Field(
+        default=None,
+        title="MCCC CC",
+        description="Mean cross-correlation coefficient of MCCC cluster.",
+    )
+    mccc_cc_std: float | None = Field(
+        default=None,
+        title="MCCC CC std",
+        description="Standard deviation of cross-correlation coefficients in MCCC cluster.",
+    )
+    mccc_error: PydanticTimedelta | None = Field(
+        default=None,
+        title="MCCC err Δt (s)",
+        description="Uncertainty in the MCCC arrival time residual in seconds.",
+    )
+
+    @classmethod
+    def from_snapshot_records(
+        cls,
+        param_snap: "AimbatSeismogramParametersSnapshot",
+        quality_snap: "AimbatSeismogramQualitySnapshot | None",
+    ) -> "SnapshotSeismogramResult":
+        """Build a result record from pre-loaded snapshot records.
+
+        Warning:
+            `param_snap.parameters.seismogram.station` must be loaded before
+            calling (e.g. via `selectinload`). `quality_snap.quality` must also
+            be loaded when `quality_snap` is not `None`.
+
+        Args:
+            param_snap: Seismogram parameters snapshot record.
+            quality_snap: Matching seismogram quality snapshot, or `None` if
+                no quality data was captured for this seismogram.
+
+        Returns:
+            Assembled result record.
+        """
+        seis = param_snap.parameters.seismogram
+        station = seis.station
+        name = (f"{station.network}." if station.network else "") + station.name
+        return cls(
+            seismogram_id=seis.id,
+            name=name,
+            channel=station.channel,
+            select=param_snap.select,
+            flip=param_snap.flip,
+            t1=param_snap.t1,
+            iccs_cc=getattr(quality_snap, "iccs_cc", None),
+            mccc_cc_mean=getattr(quality_snap, "mccc_cc_mean", None),
+            mccc_cc_std=getattr(quality_snap, "mccc_cc_std", None),
+            mccc_error=getattr(quality_snap, "mccc_error", None),
+        )
+
+
+class SnapshotResults(BaseModel):
+    """Full results export for a snapshot.
+
+    Contains event- and snapshot-level header information followed by
+    per-seismogram result records. All repeated scalars (UUIDs, event
+    details, MCCC RMSE) appear once in the envelope rather than being
+    duplicated across every row.
+    """
+
+    model_config = ConfigDict(
+        frozen=True,
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+    snapshot_id: UUID = Field(title="Snapshot ID")
+    snapshot_time: PydanticTimestamp = Field(title="Snapshot time")
+    snapshot_comment: str | None = Field(default=None, title="Snapshot comment")
+    event_id: UUID = Field(title="Event ID")
+    event_time: PydanticTimestamp = Field(title="Event time")
+    event_latitude: float = Field(title="Event latitude")
+    event_longitude: float = Field(title="Event longitude")
+    event_depth_km: float | None = Field(default=None, title="Event depth (km)")
+    mccc_rmse: PydanticTimedelta | None = Field(
+        default=None,
+        title="MCCC RMSE",
+        description="Global MCCC root-mean-square error for the event (seconds).",
+    )
+    seismograms: list[SnapshotSeismogramResult] = Field(
+        title="Seismograms",
+        description="Per-seismogram result records.",
+    )

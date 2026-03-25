@@ -53,7 +53,12 @@ aimbat data add *.sac
 export DEFAULT_EVENT_ID=$(aimbat event dump | jq -r '.[0].id')
 aimbat snapshot create "initial import"
 aimbat align iccs --autoflip --autoselect
+aimbat snapshot create "post-ICCS"
+aimbat snapshot results <SNAPSHOT_ID> --output results.json  # export ICCS picks
+# or continue to MCCC for formal timing uncertainties:
 aimbat align mccc
+aimbat snapshot create "post-MCCC"
+aimbat snapshot results <SNAPSHOT_ID> --output results.json
 ```
 
 ---
@@ -96,7 +101,9 @@ Exit with `exit`, `quit`, `q`, or **Ctrl+D**.
 ### Terminal UI (TUI)
 
 ```bash
-aimbat tui
+aimbat tui           # via main CLI
+aimbat-tui           # standalone entry point (same app)
+aimbat tui --debug   # enable verbose logging
 ```
 
 The TUI is a full-screen, keyboard-driven interface built for efficient
@@ -174,13 +181,29 @@ Pressing `Enter` on any table row opens a context menu. Available actions depend
 | Reset parameters | Restore all per-seismogram parameters to their defaults |
 | Delete seismogram | Remove the seismogram from the project |
 
+**Snapshots — Snapshots table:**
+
+| Action | Description |
+|--------|-------------|
+| Show details | Display the event-level parameters saved in the snapshot |
+| Preview stack | Open the ICCS stack plot built from the snapshot's parameters |
+| Preview matrix image | Open the matrix image built from the snapshot's parameters |
+| Save results to JSON | Export per-seismogram picks and MCCC metrics to a JSON file |
+| Rollback to this snapshot | Restore the snapshot's parameters as the current live values |
+| Delete snapshot | Permanently remove the snapshot |
+
+Both preview options support `c` (toggle context waveforms) and `a` (include
+all seismograms) key bindings inside the action menu before the plot opens.
+See [Snapshots](snapshots.md) for a description of each action and the format
+of the exported results file.
+
 #### Global key bindings
 
 | Key | Action |
 |-----|--------|
 | `e` | Open event switcher |
 | `a` | Run alignment (ICCS or MCCC) |
-| `t` | Open interactive tools (matplotlib picking) |
+| `t` | Open interactive parameter tools (phase pick, time window, min CC, bandpass filter) |
 | `p` | Edit processing parameters |
 | `n` | Create a new snapshot |
 | `d` | Add data files to the project |
@@ -288,10 +311,12 @@ alignment and interactive tools are unavailable until the problem is resolved.
 
 AIMBAT writes a log to `aimbat.log` in the current directory. By default only
 `INFO`-level messages and above are recorded. To get more detail, pass
-`--debug` to any CLI command:
+`--debug` to any CLI command or TUI entry point:
 
 ```bash
-aimbat align iccs --debug
+aimbat align iccs --debug   # any CLI command
+aimbat tui --debug           # TUI via main CLI
+aimbat-tui --debug           # TUI standalone entry point
 ```
 
 This sets the log level to `DEBUG` for that invocation and writes verbose
