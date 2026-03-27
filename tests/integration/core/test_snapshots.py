@@ -579,6 +579,70 @@ class TestSyncFromMatchingHash:
             is False
         )
 
+    def test_sync_prefers_specified_snapshot_id_over_most_recent(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies that sync_from_matching_hash prefers the snapshot whose ID
+        is given as a tie-breaker, even when a more recent candidate exists.
+
+        Args:
+            loaded_session: The database session with data loaded.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        seis_ids = [s.id for s in event.seismograms]
+        select_flags = [s.select for s in event.seismograms]
+
+        # Write MCCC quality (RMSE = 1 ms) and take first snapshot
+        _write_mock_mccc_quality(
+            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
+        )
+        loaded_session.refresh(event)
+        eq = loaded_session.exec(
+            select(AimbatEventQuality).where(
+                col(AimbatEventQuality.event_id) == event.id
+            )
+        ).one()
+        eq.mccc_rmse = pd.Timedelta(milliseconds=1)
+        loaded_session.add(eq)
+        loaded_session.commit()
+
+        create_snapshot(loaded_session, event)
+        snapshot1 = loaded_session.exec(select(AimbatSnapshot)).one()
+        parameters_hash = compute_parameters_hash(event)
+
+        # Change RMSE to 2 ms (no parameter change) and take a second snapshot
+        loaded_session.refresh(eq)
+        eq.mccc_rmse = pd.Timedelta(milliseconds=2)
+        loaded_session.add(eq)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+
+        # Clear live RMSE
+        loaded_session.refresh(eq)
+        eq.mccc_rmse = None
+        loaded_session.add(eq)
+        loaded_session.commit()
+
+        # Without a snapshot_id the most recent candidate wins (snapshot2, RMSE=2 ms)
+        sync_from_matching_hash(loaded_session, parameters_hash=parameters_hash)
+        loaded_session.refresh(eq)
+        assert eq.mccc_rmse == pd.Timedelta(milliseconds=2)
+
+        # With snapshot_id=snapshot1.id the older candidate is preferred (RMSE=1 ms)
+        eq.mccc_rmse = None
+        loaded_session.add(eq)
+        loaded_session.commit()
+        sync_from_matching_hash(
+            loaded_session,
+            parameters_hash=parameters_hash,
+            snapshot_id=snapshot1.id,
+        )
+        loaded_session.refresh(eq)
+        assert eq.mccc_rmse == pd.Timedelta(milliseconds=1)
+
 
 class TestDumpSnapshotTable:
     """Tests for dump_snapshot_table."""

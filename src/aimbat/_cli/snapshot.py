@@ -125,7 +125,17 @@ def cli_snapshot_rollback(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Rollback to snapshot."""
+    """Restore saved parameters from a snapshot as the current live values.
+
+    Overwrites the current event and per-seismogram parameters for the event
+    with those recorded in the snapshot. Any ICCS runs or parameter changes
+    made after the snapshot was taken are undone. The snapshot itself is not
+    deleted — you can roll back to it again.
+
+    If the snapshot has MCCC quality data, the live quality metrics are also
+    restored from the best matching snapshot (same parameter hash, most recent
+    MCCC run).
+    """
     from sqlmodel import Session
 
     from aimbat.core import rollback_to_snapshot

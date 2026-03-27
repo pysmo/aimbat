@@ -120,7 +120,11 @@ def create_snapshot(
         comment: Optional comment.
     """
 
-    logger.info(f"Creating snapshot for event with id={event.id} with {comment=}.")
+    logger.info(
+        f"Creating snapshot for event {event.id}"
+        + (f" with comment '{comment}'" if comment else "")
+        + "."
+    )
 
     event = session.exec(
         select(AimbatEvent)
@@ -332,7 +336,10 @@ def sync_from_matching_hash(
     logger.info(f"Syncing quality metrics from snapshot {snapshot.id}.")
 
     event_quality_snap = snapshot.event_quality_snapshot
-    assert event_quality_snap is not None
+    if event_quality_snap is None:
+        raise ValueError(
+            f"Snapshot {snapshot.id} has no event quality data despite passing filter."
+        )
     live_event_quality = session.get(
         AimbatEventQuality, event_quality_snap.event_quality_id
     )
@@ -424,8 +431,8 @@ def dump_snapshot_table(
 
     Args:
         session: Database session.
-        event_id: Event ID to filter seismograms by (if none is provided,
-            seismograms for all events are dumped).
+        event_id: Event ID to filter snapshots by (if none is provided,
+            snapshots for all events are dumped).
         from_read_model: Whether to dump from the read model (True) or the ORM model.
             Only affects the `snapshots` table.
         by_alias: Whether to use serialization aliases for the field names in the output.
@@ -559,8 +566,8 @@ def dump_event_parameter_snapshot_table(
 
     Args:
         session: Database session.
-        event_id: Event ID to filter seismograms by (if none is provided,
-            seismograms for all events are dumped).
+        event_id: Event ID to filter snapshots by (if none is provided,
+            snapshots for all events are dumped).
         by_alias: Whether to use serialization aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
     """
@@ -592,8 +599,8 @@ def dump_seismogram_parameter_snapshot_table(
 
     Args:
         session: Database session.
-        event_id: Event ID to filter seismograms by (if none is provided,
-            seismograms for all events are dumped).
+        event_id: Event ID to filter snapshots by (if none is provided,
+            snapshots for all events are dumped).
         by_alias: Whether to use serialization aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
     """

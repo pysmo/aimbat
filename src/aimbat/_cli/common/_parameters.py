@@ -232,7 +232,14 @@ def open_in_editor(initial_content: str) -> str:
         tmp_path = tmp.name
 
     try:
-        subprocess.run([*shlex.split(editor), tmp_path], check=False)
+        result = subprocess.run([*shlex.split(editor), tmp_path], check=False)
+        if result.returncode != 0:
+            from aimbat.logger import logger
+
+            logger.warning(
+                f"Editor '{editor}' exited with code {result.returncode}; discarding changes."
+            )
+            return initial_content
         with open(tmp_path, encoding="utf-8") as f:
             return f.read()
     finally:

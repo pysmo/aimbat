@@ -1,4 +1,4 @@
-"""Integration tests for the AimbatNote model's single-parent constraint."""
+"""Integration tests for the AimbatNote model's single-parent constraint and core note functions."""
 
 import uuid
 from datetime import timezone
@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
+from aimbat.core import get_note_content, save_note
 from aimbat.models import AimbatEvent, AimbatEventParameters, AimbatNote, AimbatStation
 
 
@@ -86,3 +87,45 @@ class TestAimbatNoteAtMostOneParent:
         patched_session.add(note)
         with pytest.raises(IntegrityError):
             patched_session.flush()
+
+
+class TestNoteCore:
+    """Tests for get_note_content and save_note at the core layer."""
+
+    def test_get_note_content_returns_empty_string_when_no_note_exists(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies that get_note_content returns an empty string when no note exists.
+
+        Args:
+            patched_session: The database session.
+        """
+        result = get_note_content(patched_session, "event", uuid.uuid4())
+        assert result == ""
+
+    def test_save_note_creates_note_when_none_exists(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies that save_note creates a new note record when one does not yet exist.
+
+        Args:
+            patched_session: The database session.
+        """
+        ev = _make_event(patched_session)
+        assert get_note_content(patched_session, "event", ev.id) == ""
+
+        save_note(patched_session, "event", ev.id, "initial content")
+
+        assert get_note_content(patched_session, "event", ev.id) == "initial content"
+
+    def test_save_note_updates_existing_note(self, patched_session: Session) -> None:
+        """Verifies that save_note updates the content of an existing note.
+
+        Args:
+            patched_session: The database session.
+        """
+        ev = _make_event(patched_session)
+        save_note(patched_session, "event", ev.id, "first version")
+        save_note(patched_session, "event", ev.id, "second version")
+
+        assert get_note_content(patched_session, "event", ev.id) == "second version"
