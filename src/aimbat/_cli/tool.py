@@ -136,7 +136,7 @@ def cli_pick_min_cc(
 ) -> None:
     """Interactively pick a new minimum cross-correlation for auto-selection.
 
-    Opens an interactive plot; click to set the cc threshold. Seismograms
+    Opens an interactive plot; scroll to set the cc threshold. Seismograms
     whose cross-correlation with the stack falls below this value will be
     automatically de-selected when running ICCS with `--autoselect`.
     """

@@ -45,7 +45,7 @@ def create_project(engine: Engine) -> None:
     # Import locally to ensure SQLModel registers all table metadata before create_all()
     import aimbat.models  # noqa: F401
 
-    logger.info(f"Creating new project in {engine.url}")
+    logger.info(f"Creating new project in {engine.url}.")
 
     if _project_exists(engine):
         raise RuntimeError(
@@ -64,7 +64,7 @@ def create_project(engine: Engine) -> None:
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_params_update
                 AFTER UPDATE ON aimbateventparameters
                 BEGIN
-                    UPDATE aimbatevent SET last_modified = datetime('now')
+                    UPDATE aimbatevent SET last_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
                     WHERE id = NEW.event_id;
                 END;
             """)
@@ -310,18 +310,23 @@ def delete_project(engine: Engine) -> None:
         RuntimeError: If unable to delete project.
     """
 
-    logger.info(f"Deleting project in {engine=}.")
+    logger.info(f"Deleting project at {engine.url}.")
 
-    if _project_exists(engine):
-        if engine.driver == "pysqlite":
-            database = engine.url.database
-            engine.dispose()
-            if database == ":memory:":
-                logger.info("Running database in memory, nothing to delete.")
-                return
-            elif database:
-                project_path = Path(database)
-                logger.info(f"Deleting project file: {project_path=}")
-                project_path.unlink()
-                return
-    raise RuntimeError("Unable to find/delete project.")
+    if not _project_exists(engine):
+        raise RuntimeError("No project found to delete.")
+
+    if engine.driver == "pysqlite":
+        database = engine.url.database
+        engine.dispose()
+        if database == ":memory:":
+            logger.info("Running database in memory, nothing to delete.")
+            return
+        elif database:
+            project_path = Path(database)
+            logger.info(f"Deleting project file: {project_path}.")
+            project_path.unlink()
+            return
+
+    raise RuntimeError(
+        f"Unable to delete project: unsupported engine driver '{engine.driver}'."
+    )

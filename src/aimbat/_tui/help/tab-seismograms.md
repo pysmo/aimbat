@@ -33,10 +33,10 @@ algorithm. It cross-correlates each selected seismogram against the current
 stack waveform, adjusts the picks, rebuilds the stack, and repeats until
 convergence. Only seismograms with `Select = ✓` contribute to the stack.
 
-The Stack CC column updates live as soon as the event is loaded — it shows
-how well each seismogram matches the current stack, even before you run
-alignment. After running ICCS (`a`), the picks (Δt) and Stack CC values are
-updated and written to the database immediately.
+The Stack CC column is recalculated each time the event is loaded or after
+any parameter change — it shows how well each seismogram matches the current
+stack, even before you run alignment. After running ICCS (`a`), the picks
+(Δt) and Stack CC values are updated and written to the database immediately.
 
 ### Seismogram plot (right panel)
 

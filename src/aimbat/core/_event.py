@@ -8,7 +8,7 @@ from pandas import Timedelta
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from aimbat._types import EventParameter
 from aimbat.logger import logger
@@ -51,7 +51,7 @@ def resolve_event(session: Session, event_id: UUID | None = None) -> AimbatEvent
         NoResultFound: If no event_id is given.
     """
     if event_id:
-        logger.debug(f"Resolving event by explicit ID: {event_id}")
+        logger.debug(f"Resolving event by explicit ID: {event_id}.")
         event = session.get(AimbatEvent, event_id)
         if event is None:
             raise NoResultFound(f"No AimbatEvent found with id: {event_id}.")
@@ -108,7 +108,7 @@ def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
     statement = (
         select(AimbatEvent)
         .join(AimbatEventParameters)
-        .where(AimbatEventParameters.completed == 1)
+        .where(col(AimbatEventParameters.completed).is_(True))
     )
 
     return session.exec(statement).all()
@@ -157,7 +157,9 @@ def get_event_quality(session: Session, event_id: UUID) -> SeismogramQualityStat
         event_id: UUID of the event.
 
     Returns:
-        Aggregated seismogram quality statistics.
+        Aggregated seismogram quality statistics. The `mccc_rmse` field is
+        taken from the event-level quality record rather than the per-seismogram
+        records, and is `None` if MCCC has not been run.
 
     Raises:
         NoResultFound: If no event with the given ID is found.

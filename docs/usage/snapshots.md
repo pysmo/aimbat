@@ -82,15 +82,15 @@ The comment is optional but useful for identifying the snapshot later.
 === "CLI"
 
     ```bash
-    aimbat snapshot list <ID>              # for a specific event
-    aimbat snapshot list --all-events      # across all events
+    aimbat snapshot list <ID>  # for a specific event
+    aimbat snapshot list all   # across all events
     ```
 
 === "Shell"
 
     ```bash
-    snapshot list                          # uses the current event context
-    snapshot list --all-events
+    snapshot list <ID>  # uses the current event context
+    snapshot list all   # across all events
     ```
 
 The table shows the snapshot ID, date and time, comment, and number of
@@ -128,7 +128,7 @@ Before rolling back, it can be useful to see what a snapshot contains.
     snapshot preview --matrix <SNAPSHOT_ID>
     ```
 
-`details` shows the event-level parameters (window, filter, min_ccnorm) as
+`details` shows the event-level parameters (window, filter, min_cc) as
 they were when the snapshot was taken. `preview` builds the ICCS stack from
 the snapshot's parameters and displays it — without modifying anything in
 the database.
@@ -224,15 +224,13 @@ For archiving or scripting purposes, snapshot data can be exported to JSON:
 === "CLI"
 
     ```bash
-    aimbat snapshot dump <ID>             # specific event
-    aimbat snapshot dump --all-events     # all events
+    aimbat snapshot dump
     ```
 
 === "Shell"
 
     ```bash
-    snapshot dump                         # uses the current event context
-    snapshot dump --all-events
+    snapshot dump
     ```
 
 The output is a JSON object with five keys, all cross-referenced by
@@ -317,17 +315,17 @@ without opening individual snapshot records:
 === "CLI"
 
     ```bash
-    aimbat snapshot quality list <ID>          # for a specific event
-    aimbat snapshot quality list --all-events  # across all events
-    aimbat snapshot quality dump               # raw JSON export
+    aimbat snapshot quality list <ID>  # for a specific event
+    aimbat snapshot quality list all   # across all events
+    aimbat snapshot quality dump       # raw JSON export
     ```
 
 === "Shell"
 
     ```bash
-    snapshot quality list
-    snapshot quality list --all-events
-    snapshot quality dump
+    snapshot quality list <ID>  # for a specific event
+    snapshot quality list all   # across all events
+    snapshot quality dump       # raw JSON export
     ```
 
 The table shows per-snapshot aggregated ICCS correlation coefficients and, where

@@ -3,11 +3,13 @@
 from sqlmodel import Session, select
 
 from aimbat.core import (
+    build_iccs_from_snapshot,
     create_iccs_instance,
+    create_snapshot,
     run_iccs,
     run_mccc,
 )
-from aimbat.models import AimbatEvent, AimbatSeismogramQuality
+from aimbat.models import AimbatEvent, AimbatSeismogramQuality, AimbatSnapshot
 
 
 class TestIccsMcccInterplay:
@@ -155,3 +157,66 @@ class TestIccsMcccInterplay:
             if s.id in initial_ccs:
                 assert s.quality is not None
                 assert s.quality.iccs_cc is None
+
+
+class TestBuildIccsFromSnapshot:
+    """Tests for building an ICCS instance from a snapshot."""
+
+    def test_uses_snapshot_event_parameters(self, loaded_session: Session) -> None:
+        """Verifies that the ICCS built from a snapshot uses the snapshot's
+        event parameters, not the live ones changed after the snapshot was taken.
+
+        Args:
+            loaded_session: The database session with data loaded.
+        """
+        from pandas import Timedelta
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        original_window_pre = event.parameters.window_pre
+
+        # Take a snapshot that captures the original window_pre
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        # Shrink window_pre in the live DB after the snapshot was taken
+        event.parameters.window_pre = original_window_pre - Timedelta(seconds=1)
+        loaded_session.add(event.parameters)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+        assert event.parameters.window_pre != original_window_pre
+
+        # Build ICCS from snapshot — must use the original value, not the live one
+        bound = build_iccs_from_snapshot(loaded_session, snapshot.id)
+        assert bound.iccs.window_pre == original_window_pre
+
+    def test_uses_snapshot_seismogram_parameters(self, loaded_session: Session) -> None:
+        """Verifies that the ICCS built from a snapshot uses the per-seismogram
+        parameters captured at snapshot time, not any changes made afterwards.
+
+        Args:
+            loaded_session: The database session with data loaded.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        seis = event.seismograms[0]
+        original_select = seis.parameters.select
+
+        # Take a snapshot that captures the original select flag
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        # Toggle select in the live DB after the snapshot was taken
+        seis.parameters.select = not original_select
+        loaded_session.add(seis.parameters)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+
+        # Build ICCS from snapshot — must use the original select flag
+        bound = build_iccs_from_snapshot(loaded_session, snapshot.id)
+        snapshot_seis = next(
+            s for s in bound.iccs.seismograms if s.extra["id"] == seis.id
+        )
+        assert snapshot_seis.select == original_select

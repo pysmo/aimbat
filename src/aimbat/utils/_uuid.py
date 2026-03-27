@@ -97,7 +97,7 @@ def uuid_shortener[T: AimbatTypes](
         candidate = target_full[:current_length]
         if candidate.endswith("-"):
             current_length += 1
-            candidate = target_full[:current_length]
+            continue
 
         matches = [u for u in relevant_pool if u.startswith(candidate)]
         if len(matches) == 1:

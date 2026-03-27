@@ -16,10 +16,12 @@ ICCS status:
 
 - **● ICCS ready** — the event's seismograms are loaded in memory and
   alignment can run. This is the normal working state.
-- **○ no ICCS** — the ICCS instance could not be built. Usually this means
-  a parameter combination is invalid (e.g. the time window is too wide)
-  or a waveform file is missing. Fix the problem and the status updates
-  automatically.
+- **○ no ICCS** — ICCS is built automatically in the background when you
+  select an event. If this status persists, the ICCS instance could not be
+  built — usually because a parameter combination is invalid or a waveform
+  file is missing. Press `p` to check the event parameters; the most common
+  cause is a time window longer than the available waveform data. Fix the
+  problem and the status updates automatically.
 
 ### Events table (top)
 

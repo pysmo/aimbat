@@ -509,7 +509,9 @@ class AimbatSeismogramRead(BaseModel):
     def from_seismogram(
         cls, seismogram: AimbatSeismogram, session: Session | None = None
     ) -> Self:
-        name = (f"{seismogram.station.network}." or "") + seismogram.station.name
+        name = (
+            f"{seismogram.station.network}." if seismogram.station.network else ""
+        ) + seismogram.station.name
 
         short_id = None
         short_event_id = None

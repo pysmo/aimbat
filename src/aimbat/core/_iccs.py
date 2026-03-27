@@ -209,7 +209,9 @@ def _write_mccc_quality(
 
     Upserts the event-level RMSE, clears MCCC fields for all seismograms in
     the ICCS instance, then writes the per-seismogram metrics for the seismograms
-    that were actually used in the inversion.
+    that were actually used in the inversion. The `iccs_cc` field is preserved
+    when an existing quality row is found; seismograms with no prior quality row
+    will have `iccs_cc = NULL` until ICCS stats are written separately.
 
     Uses its own short-lived session.
 
@@ -343,6 +345,7 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
             .selectinload(rel(AimbatEvent.seismograms))
             .selectinload(rel(AimbatSeismogram.parameters)),
             selectinload(rel(AimbatSnapshot.event_parameters_snapshot)),
+            selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)),
         )
     )
     snapshot = session.exec(statement).one_or_none()
@@ -420,6 +423,9 @@ def validate_iccs_construction(
 def _write_back_seismograms(session: Session, iccs: ICCS) -> None:
     """Write t1, flip, and select from ICCS seismograms back to the database.
 
+    Calls `session.commit()` after writing; any other pending changes on
+    `session` are also committed.
+
     Args:
         session: Database session.
         iccs: ICCS instance whose seismograms carry UUIDs in their extra dict.
@@ -484,7 +490,7 @@ def run_iccs(
         IccsResult from the algorithm run.
     """
 
-    logger.info(f"Running ICCS with {autoflip=}, {autoselect=}.")
+    logger.info(f"Running ICCS (autoflip={autoflip}, autoselect={autoselect}).")
 
     result = iccs(autoflip=autoflip, autoselect=autoselect)
     n_iter = len(result.convergence)
@@ -510,7 +516,9 @@ def run_mccc(
         McccResult from the algorithm run.
     """
 
-    logger.info(f"Running MCCC for event {event.id} with {all_seismograms=}.")
+    logger.info(
+        f"Running MCCC for event {event.id} (all_seismograms={all_seismograms})."
+    )
 
     result = iccs.run_mccc(
         all_seismograms=all_seismograms,

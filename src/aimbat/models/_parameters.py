@@ -125,7 +125,12 @@ class AimbatEventParametersBase(SQLModel):
 
 
 class AimbatSeismogramParametersBase(SQLModel):
-    """Base class defining seismogram-level processing parameters for AIMBAT."""
+    """Base class defining seismogram-level processing parameters for AIMBAT.
+
+    This class serves as a base that is inherited by the actual classes that
+    create the database tables. The attributes correspond exactly to the AIMBAT
+    per-seismogram parameters.
+    """
 
     flip: bool = Field(
         default=False,

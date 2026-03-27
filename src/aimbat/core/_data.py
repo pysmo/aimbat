@@ -81,6 +81,15 @@ def _create_event(
         logger.debug(
             f"Using existing event {aimbat_event.time} instead of adding new one."
         )
+        if (
+            new_aimbat_event.latitude != aimbat_event.latitude
+            or new_aimbat_event.longitude != aimbat_event.longitude
+            or new_aimbat_event.depth != aimbat_event.depth
+        ):
+            logger.warning(
+                f"Event at {aimbat_event.time} matched by time but has different "
+                f"location metadata in {datasource}. The existing record will be used."
+            )
     return aimbat_event
 
 
@@ -136,7 +145,9 @@ def _process_datasource(
     # Resolve event — use the provided UUID, extract from the source, or skip
     if event_id is not None:
         aimbat_event: AimbatEvent | None = session.get(AimbatEvent, event_id)
-        logger.debug(f"Using event {aimbat_event.time} (ID={event_id}).")  # type: ignore[union-attr]
+        if aimbat_event is None:
+            raise ValueError(f"No event found with ID={event_id}.")
+        logger.debug(f"Using event {aimbat_event.time} (ID={event_id}).")
     elif supports_event_creation(datatype):
         aimbat_event = _create_event(session, datasource, datatype)
     else:
@@ -148,12 +159,12 @@ def _process_datasource(
 
     # Seismogram creation requires both a station and an event to link to
     if aimbat_station is None:
-        raise NotImplementedError(
+        raise ValueError(
             f"{datatype} does not support station creation. "
             "Provide a station UUID via --use-station."
         )
     if aimbat_event is None:
-        raise NotImplementedError(
+        raise ValueError(
             f"{datatype} does not support event creation. "
             "Provide an event UUID via --use-event."
         )

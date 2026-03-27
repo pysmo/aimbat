@@ -35,8 +35,8 @@ needed. Each snapshot has its own note, which persists in the database.
 
 ## What a snapshot captures
 
-- **Event parameters** — time window (`t0`/`t1` window bounds), bandpass
-  filter settings, and Min CC threshold
+- **Event parameters** — time window (pre- and post-pick window lengths),
+  bandpass filter settings, and Min CC threshold
 - **Per-seismogram parameters** — the `t1` pick, `select` flag, and `flip`
   flag for every seismogram
 - **Quality metrics** — ICCS correlation coefficients per seismogram (always captured);
