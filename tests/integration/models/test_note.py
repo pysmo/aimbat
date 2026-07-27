@@ -40,13 +40,13 @@ def _make_event(session: Session) -> AimbatEvent:
     return ev
 
 
-class TestAimbatNoteAtMostOneParent:
-    """AimbatNote must have at most one FK set."""
+class TestAimbatNoteExactlyOneParent:
+    """AimbatNote must have exactly one FK set."""
 
-    def test_note_with_no_parent_is_valid(self, patched_session: Session) -> None:
-        note = AimbatNote.model_validate({"content": "orphan note"})
-        patched_session.add(note)
-        patched_session.commit()
+    def test_model_validator_rejects_no_parent(self) -> None:
+        """Pydantic model_validator raises when no FK field is set."""
+        with pytest.raises(ValidationError, match="Exactly one"):
+            AimbatNote.model_validate({"content": "orphan note"})
 
     def test_note_with_event_parent_is_valid(self, patched_session: Session) -> None:
         ev = _make_event(patched_session)
@@ -65,7 +65,7 @@ class TestAimbatNoteAtMostOneParent:
     def test_model_validator_rejects_two_parents(self) -> None:
         """Pydantic model_validator raises when two FK fields are set."""
 
-        with pytest.raises(ValidationError, match="At most one"):
+        with pytest.raises(ValidationError, match="Exactly one"):
             AimbatNote.model_validate(
                 {
                     "content": "bad note",
@@ -84,6 +84,17 @@ class TestAimbatNoteAtMostOneParent:
         # Pydantic validation on __init__ for table models) to confirm the DB
         # constraint fires independently.
         note = AimbatNote(content="bypass note", event_id=ev_id, station_id=sta_id)
+        patched_session.add(note)
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_db_constraint_rejects_no_parent(self, patched_session: Session) -> None:
+        """DB check constraint rejects a row with no FK fields set."""
+
+        # Bypass the model_validator by constructing via __init__ (SQLModel skips
+        # Pydantic validation on __init__ for table models) to confirm the DB
+        # constraint fires independently.
+        note = AimbatNote(content="orphan note")
         patched_session.add(note)
         with pytest.raises(IntegrityError):
             patched_session.flush()

@@ -263,6 +263,31 @@ def loaded_engine(patched_engine: Engine, multi_event_data: Sequence[Path]) -> E
 
 
 @pytest.fixture()
+def loaded_engine_from_file(
+    engine_from_file: Engine, multi_event_data: Sequence[Path]
+) -> Engine:
+    """A file-backed engine pre-populated with multi-event data.
+
+    Use instead of `loaded_engine` when a test exercises code that opens its own
+    `Session(engine)` from a background thread (e.g. Textual's `@work(thread=True)`
+    workers). SQLAlchemy's default pool for `sqlite:///:memory:` hands each thread
+    an independent, empty database, so `loaded_engine` cannot be used there; a real
+    file is shared correctly across threads.
+
+    Args:
+        engine_from_file: The monkeypatched, file-backed SQLAlchemy Engine.
+        multi_event_data: Paths to temporary copies of multi-event SAC files.
+
+    Returns:
+        The monkeypatched SQLAlchemy Engine with a project and data loaded.
+    """
+    create_project(engine_from_file)
+    with Session(engine_from_file) as session:
+        add_data_to_project(session, multi_event_data, DataType.SAC)
+    return engine_from_file
+
+
+@pytest.fixture()
 def patched_session(patched_engine: Engine) -> Generator[Session, None, None]:
     """A session bound to the patched engine for CLI tests.
 

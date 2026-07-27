@@ -2,7 +2,7 @@ import math
 from collections.abc import Callable
 from typing import Any
 
-from pandas import NaT, Timedelta, to_datetime
+from pandas import NaT, to_datetime
 
 __all__ = [
     "Formatter",
@@ -10,7 +10,6 @@ __all__ = [
     "fmt_depth_km",
     "fmt_flip",
     "fmt_float",
-    "fmt_timedelta",
     "fmt_timestamp",
 ]
 
@@ -51,15 +50,6 @@ def fmt_timestamp(val: Any) -> str:
         return _MISSING_MARKER
     if hasattr(val, "strftime"):
         return val.strftime("%Y-%m-%d %H:%M:%S")
-    return str(val)
-
-
-def fmt_timedelta(val: Timedelta | object) -> str:
-    """Format a Timedelta as total seconds to 5 decimal places, or ` — ` for None."""
-    if val is None:
-        return _MISSING_MARKER
-    if isinstance(val, Timedelta):
-        return f"{val.total_seconds():.5f} s"
     return str(val)
 
 

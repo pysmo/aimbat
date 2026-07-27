@@ -1,7 +1,7 @@
 from typing import Annotated, Any, Callable, ClassVar, cast
 
 from pandas import Timedelta, Timestamp
-from pydantic import AfterValidator, PlainSerializer
+from pydantic import AfterValidator, Field, PlainSerializer
 from pydantic_core.core_schema import CoreSchema, no_info_plain_validator_function
 
 __all__ = [
@@ -9,6 +9,7 @@ __all__ = [
     "PydanticTimedelta",
     "PydanticNegativeTimedelta",
     "PydanticPositiveTimedelta",
+    "PydanticNonNegativeFloat",
 ]
 
 
@@ -46,7 +47,7 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
             if value is None:
                 raise ValueError(f"{cls.target_type.__name__} value cannot be None")
             if isinstance(value, cls.target_type):
-                return value
+                return cast(T, value)
             try:
                 # Interpret bare numeric strings as seconds for Timedelta
                 if cls.target_type is Timedelta and isinstance(value, str):
@@ -82,3 +83,4 @@ type PydanticNegativeTimedelta = Annotated[
 type PydanticPositiveTimedelta = Annotated[
     PydanticTimedelta, AfterValidator(_must_be_positive_pd_timedelta)
 ]
+type PydanticNonNegativeFloat = Annotated[float, Field(ge=0.0)]

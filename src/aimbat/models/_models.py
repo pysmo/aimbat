@@ -749,7 +749,7 @@ AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assig
 class AimbatNote(SQLModel, table=True):
     """Free-text Markdown note attached to an event, station, seismogram, or snapshot.
 
-    At most one of the four FK fields is set per row. Deletion of the parent
+    Exactly one of the four FK fields is set per row. Deletion of the parent
     record cascades to delete the note via the DB-level foreign key constraint.
     """
 
@@ -763,8 +763,8 @@ class AimbatNote(SQLModel, table=True):
             "(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END"
             " + CASE WHEN station_id IS NOT NULL THEN 1 ELSE 0 END"
             " + CASE WHEN seismogram_id IS NOT NULL THEN 1 ELSE 0 END"
-            " + CASE WHEN snapshot_id IS NOT NULL THEN 1 ELSE 0 END) <= 1",
-            name="aimbat_note_at_most_one_parent",
+            " + CASE WHEN snapshot_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
+            name="aimbat_note_exactly_one_parent",
         ),
     )
 
@@ -803,7 +803,7 @@ class AimbatNote(SQLModel, table=True):
     )
 
     @model_validator(mode="after")
-    def _at_most_one_parent(self) -> "AimbatNote":
+    def _exactly_one_parent(self) -> "AimbatNote":
         set_count = sum(
             fk is not None
             for fk in (
@@ -813,10 +813,10 @@ class AimbatNote(SQLModel, table=True):
                 self.snapshot_id,
             )
         )
-        if set_count > 1:
+        if set_count != 1:
             raise ValueError(
-                "At most one of event_id, station_id, seismogram_id, snapshot_id"
-                " may be set on AimbatNote."
+                "Exactly one of event_id, station_id, seismogram_id, snapshot_id"
+                " must be set on AimbatNote."
             )
         return self
 

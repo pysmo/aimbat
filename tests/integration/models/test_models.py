@@ -350,6 +350,11 @@ class TestEventParametersValidation:
         with pytest.raises(ValidationError):
             AimbatEventParametersBase(window_post=Timedelta(seconds=-5))
 
+    def test_ramp_width_rejects_negative(self) -> None:
+        """Verifies that ramp_width rejects negative values."""
+        with pytest.raises(ValidationError):
+            AimbatEventParametersBase(ramp_width=-0.1)
+
     def test_bandpass_fmax_must_exceed_fmin(self) -> None:
         """The bandpass validator mixin is on AimbatEventParameters (table model),
         so we must use model_validate to trigger it."""

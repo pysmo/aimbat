@@ -47,7 +47,7 @@ def _add_scroll_pan(ax: plt.Axes) -> None:
             ax.set_ylim(new_ymin, new_ymax)
         ax.figure.canvas.draw_idle()
 
-    ax.figure.canvas.mpl_connect("scroll_event", on_scroll)  # type: ignore[arg-type]
+    ax.figure.canvas.mpl_connect("scroll_event", on_scroll)
 
 
 @singledispatch

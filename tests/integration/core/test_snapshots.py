@@ -1074,7 +1074,7 @@ class TestDumpSnapshotResults:
             "event_time",
             "event_latitude",
             "event_longitude",
-            "event_depth_km",
+            "event_depth",
             "mccc_rmse",
             "seismograms",
         ):

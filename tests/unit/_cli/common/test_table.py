@@ -3,7 +3,7 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from pandas import Timedelta, Timestamp
+from pandas import Timedelta
 from pydantic import BaseModel, Field
 
 from aimbat._cli.common._table import json_to_table
@@ -135,23 +135,33 @@ class TestJsonToTable:
         mock_console.print.assert_called_once()
 
     def test_formatting_logic(self, mock_console_cls: MagicMock) -> None:
-        """Verifies various type-based formatters are used."""
+        """Verifies per-type formatters produce the expected cell text.
+
+        `data` mirrors what real callers pass: they all build it via
+        `model_dump(mode="json")` first, which serialises `Timedelta`/
+        `Timestamp` to plain `float`/`str` before `json_to_table` ever sees
+        them — `_fmt_val` has no special case for raw pandas objects.
+        """
         mock_console = mock_console_cls.return_value
         data = {
             "id": 1,
             "active": True,
             "value": 1.23456,
-            "duration": Timedelta(seconds=1.5),
-            "timestamp": Timestamp("2023-01-01 12:00:00"),
+            "duration": 1.5,
+            "timestamp": "2023-01-01T12:00:00",
         }
 
         json_to_table(data, MockModel)
 
-        # We can't easily check the formatted strings inside the Table rows
-        # without mocking the _fmt_val or similar, but we can trust the logic
-        # if the code runs. For deeper testing we'd need to inspect table._rows
-        # which is list[Renderables].
         mock_console.print.assert_called_once()
+        table = mock_console.print.call_args[0][0]
+        properties, values = table.columns
+        rendered = dict(zip(properties.cells, values.cells, strict=True))
+        assert rendered["ID"] == "1"
+        assert rendered["Is Active"] == "✓"
+        assert rendered["Value"] == "1.235"
+        assert rendered["Duration"] == "1.500"
+        assert rendered["Time"] == "2023-01-01 12:00:00"
 
     def test_justify_inference(self, mock_console_cls: MagicMock) -> None:
         """Verifies that justification is inferred from type hints."""

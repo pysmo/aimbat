@@ -1,5 +1,4 @@
 import types
-from datetime import datetime
 from typing import (
     Annotated,
     Any,
@@ -9,13 +8,13 @@ from typing import (
     get_origin,
 )
 
-from pandas import NaT, Timedelta, Timestamp, to_datetime
+from pandas import NaT, Timedelta, to_datetime
 from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
 from aimbat.models import RichColSpec
-from aimbat.utils.formatters import fmt_bool, fmt_float, fmt_timedelta, fmt_timestamp
+from aimbat.utils.formatters import fmt_bool, fmt_float, fmt_timestamp
 
 __all__ = ["json_to_table"]
 
@@ -130,10 +129,6 @@ def json_to_table(
             return fmt_bool(val)
         if isinstance(val, float):
             return fmt_float(val)
-        if isinstance(val, Timedelta):
-            return fmt_timedelta(val)
-        if isinstance(val, (Timestamp, datetime)):
-            return fmt_timestamp(val)
         low_key = name.lower()
         if (
             isinstance(val, str)

@@ -69,8 +69,15 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
-    """Modal screen for selecting a seismic event to process."""
+class EventSwitcherModal(ModalScreen[tuple[uuid.UUID | None, bool]]):
+    """Modal screen for selecting a seismic event to process.
+
+    Dismisses with `(selected_event_id, deleted_current_event)`: the UUID of
+    the event the user switched to (`None` if the modal was just cancelled),
+    and whether the previously-active event was deleted during this modal's
+    lifetime — both are carried in the dismiss result so callers don't need
+    to inspect the screen instance after the fact.
+    """
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=False),
@@ -88,6 +95,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
         super().__init__()
         self._current_event_id = current_event_id
         self._selected_event_id: str | None = None
+        self._deleted_current_event: bool = False
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Disable destructive actions when no row is highlighted."""
@@ -129,7 +137,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
                 table.add_row(marker, *cells, key=row_id)
         except RuntimeError as exc:
             self.notify(str(exc), severity="error")
-            self.dismiss(None)
+            self.dismiss((None, self._deleted_current_event))
 
     def _refresh_table(self) -> None:
         """Clear and repopulate the event table, preserving cursor position."""
@@ -150,7 +158,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
         row_key = event.row_key.value
         if not row_key:
             return
-        self.dismiss(uuid.UUID(row_key))
+        self.dismiss((uuid.UUID(row_key), self._deleted_current_event))
 
     def action_toggle_completed(self) -> None:
         event_id = self._selected_event_id
@@ -180,6 +188,11 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
                 with Session(engine) as session:
                     delete_event(session, uuid.UUID(event_id))
                 self._selected_event_id = None
+                if (
+                    self._current_event_id is not None
+                    and uuid.UUID(event_id) == self._current_event_id
+                ):
+                    self._deleted_current_event = True
                 self._refresh_table()
                 self.notify("Event deleted", timeout=2)
             except Exception as exc:
@@ -193,7 +206,7 @@ class EventSwitcherModal(ModalScreen[uuid.UUID | None]):
         self.query_one(DataTable).action_select_cursor()
 
     def action_cancel(self) -> None:
-        self.dismiss(None)
+        self.dismiss((None, self._deleted_current_event))
 
 
 # ---------------------------------------------------------------------------
