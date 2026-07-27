@@ -87,7 +87,9 @@ class TestMeanAndSemTimedelta:
         mean, sem = mean_and_sem_timedelta(values)
 
         assert mean == pd.Timedelta(seconds=3.0)
-        assert sem == pytest.approx(pd.Timedelta(seconds=0.7071067811865476))
+        assert sem == pytest.approx(
+            pd.Timedelta(seconds=0.7071067811865476), abs=pd.Timedelta(microseconds=1)
+        )
 
     def test_empty_list(self) -> None:
         """Verifies that an empty list returns (None, None)."""

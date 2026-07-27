@@ -156,6 +156,7 @@ class NoteWidget(Widget):
             target_type: One of `event`, `station`, `seismogram`, `snapshot`.
             target_id: UUID of the target entity.
         """
+        self._auto_save()  # Flush any unsaved edit to the outgoing entity first
         self._target_type = target_type
         self._target_id = target_id
         with Session(engine) as session:
@@ -169,6 +170,7 @@ class NoteWidget(Widget):
 
     def clear(self) -> None:
         """Clear the note display — call when no entity is selected."""
+        self._auto_save()  # Flush any unsaved edit before clearing
         self._target_type = None
         self._target_id = None
         self._saved_content = ""

@@ -12,7 +12,7 @@ from rich.text import Text
 
 from aimbat.models import SeismogramQualityStats
 from aimbat.models._format import TuiColSpec
-from aimbat.utils.formatters import fmt_bool, fmt_float
+from aimbat.utils.formatters import fmt_bool, fmt_float, fmt_timestamp
 
 __all__ = [
     "fmt_float_sem",
@@ -37,15 +37,15 @@ def format_quality_panel(
     def _fmt_td(td: Timedelta | None) -> str:
         if td is None:
             return "[dim]—[/dim]"
-        return f"{td.total_seconds() * 1000:.3f} ms"
+        return f"{td.total_seconds():.4f} s"
 
     def _fmt_td_sem(mean: Timedelta | None, sem: Timedelta | None) -> str:
         if mean is None:
             return "[dim]—[/dim]"
-        ms = mean.total_seconds() * 1000
+        s = mean.total_seconds()
         if sem is not None:
-            return f"{ms:.3f} ± {sem.total_seconds() * 1000:.3f} ms"
-        return f"{ms:.3f} ms"
+            return f"{s:.4f} ± {sem.total_seconds():.4f} s"
+        return f"{s:.4f} s"
 
     iccs_body = f"CC   {fmt_float_sem(stats.cc_mean, stats.cc_mean_sem)}"
     panels: list[Panel] = [
@@ -148,5 +148,5 @@ def tui_fmt(val: object) -> str:
     if isinstance(val, int):
         return str(val)
     if isinstance(val, str) and "T" in val and len(val) >= 19:
-        return val[:19]
+        return fmt_timestamp(val)
     return str(val)

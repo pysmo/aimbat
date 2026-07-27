@@ -57,7 +57,7 @@ information, and a `seismograms` list with one entry per station.
   "event_time": "2024-11-15T08:43:12Z",
   "event_latitude": 37.2,
   "event_longitude": 141.8,
-  "event_depth_km": 35.0,
+  "event_depth": 35000.0,
   "mccc_rmse": 0.021,
   "seismograms": [
     {
@@ -90,7 +90,7 @@ repeated on every seismogram row.
 | `event_time` | ISO 8601 | Yes | Seismic event origin time |
 | `event_latitude` | float | Yes | Event latitude (degrees) |
 | `event_longitude` | float | Yes | Event longitude (degrees) |
-| `event_depth_km` | float \| null | Yes | Event depth in km; null if not recorded |
+| `event_depth` | float \| null | Yes | Event depth in metres; null if not recorded |
 | `mccc_rmse` | float \| null | Yes | Global MCCC RMSE (seconds); null if MCCC not run |
 | `seismograms` | array | Yes | Per-seismogram entries (see below) |
 

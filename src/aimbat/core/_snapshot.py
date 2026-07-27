@@ -770,7 +770,7 @@ def dump_snapshot_results(
         event_time=event.time,
         event_latitude=event.latitude,
         event_longitude=event.longitude,
-        event_depth_km=event.depth / 1000 if event.depth is not None else None,
+        event_depth=event.depth,
         mccc_rmse=mccc_rmse,
         seismograms=seismograms,
     )

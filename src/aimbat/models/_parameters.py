@@ -3,11 +3,13 @@
 from typing import Self
 
 from pydantic import ValidationInfo, model_validator
+from sqlalchemy import Float
 from sqlmodel import Field, SQLModel
 
 from aimbat import settings
 from aimbat._types import (
     PydanticNegativeTimedelta,
+    PydanticNonNegativeFloat,
     PydanticPositiveTimedelta,
     PydanticTimestamp,
     SAPandasTimedelta,
@@ -34,10 +36,11 @@ class AimbatEventParametersBase(SQLModel):
         description="Mark an event as completed.",
     )
 
-    ramp_width: float = Field(
+    ramp_width: PydanticNonNegativeFloat = Field(
         default_factory=lambda: settings.ramp_width,
+        sa_type=Float,
         title="Ramp width",
-        description="Width of taper ramp up and down as a fraction of the window length.",
+        description="Width of taper ramp as a multiple of the window length. Values greater than 1 are valid; the ramp extends outside the window.",
     )
 
     window_pre: PydanticNegativeTimedelta = Field(

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import statistics
 import uuid
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
-from pandas import Timedelta, Timestamp
+from pandas import Timestamp
 from rich.console import Console
 from rich.panel import Panel
 from sqlalchemy.exc import NoResultFound, SQLAlchemyError
@@ -80,6 +80,7 @@ from aimbat.io import DATATYPE_SUFFIXES, DataType
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
+    AimbatEventParametersBase,
     AimbatEventRead,
     AimbatSeismogram,
     AimbatSeismogramRead,
@@ -88,9 +89,6 @@ from aimbat.models import (
     AimbatStation,
     AimbatStationRead,
 )
-from aimbat.models._parameters import (
-    AimbatEventParametersBase,
-)  # used in _show_snapshot_details
 from aimbat.plot import (
     plot_matrix_image,
     plot_seismograms,
@@ -100,6 +98,7 @@ from aimbat.plot import (
     update_pick,
     update_timewindow,
 )
+from aimbat.utils.formatters import fmt_timestamp
 
 from ._format import fmt_float_sem, format_quality_panel, tui_cell, tui_display_title
 
@@ -301,6 +300,7 @@ class AimbatTUI(App[None]):
         self._bound_iccs: BoundICCS | None = None
         self._iccs_creating: bool = False
         self._iccs_last_modified_seen: Timestamp | None = None
+        self._iccs_retry_pending: bool = False
         self._current_event_id: uuid.UUID | None = None
         self._active_tab: str = "tab-project"
         self._highlighted_event_id: str | None = None
@@ -310,6 +310,7 @@ class AimbatTUI(App[None]):
         self._quality_source: Literal["event", "station"] = "event"
         self._project_refreshing: bool = False
         self._seismogram_refreshing: bool = False
+        self._snapshot_refreshing: bool = False
 
         self.theme = _DEFAULT_THEME
 
@@ -422,11 +423,16 @@ class AimbatTUI(App[None]):
     # ICCS lifecycle
     # ------------------------------------------------------------------
 
-    def _create_iccs(self) -> None:
+    def _create_iccs(self, *, is_retry: bool = False) -> None:
         """Discard the existing ICCS instance and create a new one in a background worker.
 
         ICCS construction reads waveform data, so it must not block the asyncio event loop.
         Concurrent calls are ignored — only one worker runs at a time.
+
+        `is_retry` marks a call made in response to `_iccs_retry_pending` (i.e. the
+        one-shot retry after a previous failure). It is not itself allowed to
+        re-arm `_iccs_retry_pending` on failure, so a persistently failing event
+        gets exactly one automatic retry rather than retrying forever.
         """
         if self._iccs_creating:
             logger.debug(
@@ -435,10 +441,11 @@ class AimbatTUI(App[None]):
             return
         self._iccs_creating = True
         self._bound_iccs = None
-        self._worker_create_iccs()
+        self._iccs_retry_pending = False
+        self._worker_create_iccs(is_retry)
 
     @work(thread=True)
-    def _worker_create_iccs(self) -> None:
+    def _worker_create_iccs(self, is_retry: bool = False) -> None:
         """Background worker: create ICCS instance without blocking the UI."""
         try:
             with Session(engine) as session:
@@ -454,6 +461,9 @@ class AimbatTUI(App[None]):
                 self.notify, f"ICCS init failed: {exc}", severity="error"
             )
             self.call_from_thread(setattr, self, "_iccs_creating", False)
+            if not is_retry:
+                # Give the staleness poller one retry attempt on the next tick.
+                self.call_from_thread(setattr, self, "_iccs_retry_pending", True)
             return
         logger.debug("ICCS worker: instance created successfully.")
         self.call_from_thread(self._assign_iccs, bound_iccs)
@@ -574,34 +584,72 @@ class AimbatTUI(App[None]):
                 cells = [tui_cell(AimbatStationRead, k, v) for k, v in row.items()]
                 st.add_row(*cells, key=row_id)
 
-        self._project_refreshing = True
-        if et.row_count > 0:
-            et.move_cursor(row=min(et_saved, et.row_count - 1))
-        if st.row_count > 0:
-            st.move_cursor(row=min(st_saved, st.row_count - 1))
-        self.call_after_refresh(self._end_project_refresh)
+        self._settle_after_move(
+            [(et, et_saved), (st, st_saved)],
+            "_project_refreshing",
+            self._on_project_settled,
+        )
 
-    def _end_project_refresh(self) -> None:
-        """Runs after pending RowHighlighted events from move_cursor have been processed."""
-        self._project_refreshing = False
+    def _settle_after_move(
+        self,
+        tables: Sequence[tuple[DataTable, int]],
+        flag_attr: str,
+        on_settled: Callable[[], None],
+        *,
+        highlighted_id_attr: str | None = None,
+    ) -> None:
+        """Restore cursor position on `tables`, deferring `on_settled` until any
+        RowHighlighted events the moves trigger have been processed.
+
+        `flag_attr` names a `bool` instance attribute that guards each table's
+        RowHighlighted handler from reacting to those intermediate events while
+        a move is in flight. If none of `tables` has any rows, no cursor move
+        happens; `highlighted_id_attr` (if given) is reset to `None` and
+        `on_settled` runs immediately instead of being deferred.
+        """
+        setattr(self, flag_attr, True)
+        moved = False
+        for table, saved_row in tables:
+            if table.row_count > 0:
+                table.move_cursor(row=min(saved_row, table.row_count - 1))
+                moved = True
+        if moved:
+
+            def _end() -> None:
+                setattr(self, flag_attr, False)
+                on_settled()
+
+            self.call_after_refresh(_end)
+        else:
+            if highlighted_id_attr is not None:
+                setattr(self, highlighted_id_attr, None)
+            setattr(self, flag_attr, False)
+            on_settled()
+
+    def _on_project_settled(self) -> None:
         if self._quality_source == "station":
             self._update_station_quality(self._highlighted_station_id)
         else:
             self._update_event_quality(self._highlighted_event_id)
 
-    def _end_seismogram_refresh(self) -> None:
-        """Runs after pending RowHighlighted events from move_cursor have been processed."""
-        self._seismogram_refreshing = False
+    def _on_seismogram_settled(self) -> None:
         self._update_seismogram_note(self._highlighted_seismogram_id)
         self._update_seismogram_plot(self._highlighted_seismogram_id)
+
+    def _on_snapshot_settled(self) -> None:
+        self._update_snapshot_quality(self._highlighted_snapshot_id)
 
     def _check_iccs_staleness(self) -> None:
         """Trigger ICCS recreation if the current event has been modified externally.
 
         When ICCS creation previously failed (e.g. due to an invalid parameter set via
-        the CLI), retries whenever `event.last_modified` changes. On any detected
+        the CLI), retries once via `_iccs_retry_pending`, then waits for
+        `event.last_modified` to change again before retrying further — this avoids
+        retrying forever against a persistently failing event. On any detected
         change the full UI is refreshed so panels reflect the new DB state immediately.
         """
+        if self._current_event_id is None:
+            return
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
@@ -620,6 +668,10 @@ class AimbatTUI(App[None]):
             self._iccs_last_modified_seen = last_modified
             self._create_iccs()
             self.refresh_all()
+        elif self._iccs_retry_pending:
+            logger.debug("Retrying ICCS creation after a previous failure.")
+            self._create_iccs(is_retry=True)
+            self.refresh_all()
 
     def _refresh_event_bar(self) -> None:
         bar = self.query_one("#event-bar", Static)
@@ -629,11 +681,11 @@ class AimbatTUI(App[None]):
                 iccs_status = (
                     " ● ICCS ready" if self._bound_iccs is not None else " ○ no ICCS"
                 )
-                time_str = str(event.time)[:19] if event.time else "unknown"
+                time_str = fmt_timestamp(event.time) if event.time else "unknown"
                 lat = f"{event.latitude:.3f}°" if event.latitude is not None else "?"
                 lon = f"{event.longitude:.3f}°" if event.longitude is not None else "?"
                 modified = (
-                    f"  modified: {str(event.last_modified)[:19]}"
+                    f"  modified: {fmt_timestamp(event.last_modified)}"
                     if event.last_modified is not None
                     else ""
                 )
@@ -714,15 +766,12 @@ class AimbatTUI(App[None]):
         else:
             table.border_title = "Seismograms"
 
-        self._seismogram_refreshing = True
-        if table.row_count > 0:
-            table.move_cursor(row=min(saved_row, table.row_count - 1))
-            self.call_after_refresh(self._end_seismogram_refresh)
-        else:
-            self._highlighted_seismogram_id = None
-            self._seismogram_refreshing = False
-            self._update_seismogram_note(None)
-            self._update_seismogram_plot(None)
+        self._settle_after_move(
+            [(table, saved_row)],
+            "_seismogram_refreshing",
+            self._on_seismogram_settled,
+            highlighted_id_attr="_highlighted_seismogram_id",
+        )
 
     def _refresh_snapshots(self) -> None:
         table = self.query_one("#snapshot-table", DataTable)
@@ -742,12 +791,11 @@ class AimbatTUI(App[None]):
                 row_id = str(row.pop("ID"))
                 cells = [tui_cell(AimbatSnapshotRead, k, v) for k, v in row.items()]
                 table.add_row(*cells, key=row_id)
-        if table.row_count > 0:
-            table.move_cursor(row=min(saved_row, table.row_count - 1))
-        else:
-            self._highlighted_snapshot_id = None
-        self.call_after_refresh(
-            lambda: self._update_snapshot_quality(self._highlighted_snapshot_id)
+        self._settle_after_move(
+            [(table, saved_row)],
+            "_snapshot_refreshing",
+            self._on_snapshot_settled,
+            highlighted_id_attr="_highlighted_snapshot_id",
         )
 
     # ------------------------------------------------------------------
@@ -838,7 +886,8 @@ class AimbatTUI(App[None]):
     @on(DataTable.RowHighlighted, "#snapshot-table")
     def snapshot_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         self._highlighted_snapshot_id = event.row_key.value if event.row_key else None
-        self._update_snapshot_quality(self._highlighted_snapshot_id)
+        if not self._snapshot_refreshing:
+            self._update_snapshot_quality(self._highlighted_snapshot_id)
 
     # ------------------------------------------------------------------
     # Quality panel updates
@@ -1131,18 +1180,12 @@ class AimbatTUI(App[None]):
                 snap = session.get(AimbatSnapshot, uuid.UUID(snap_id))
                 if snap is None:
                     return
-                p = snap.event_parameters_snapshot
-                rows: list[tuple[str, str]] = []
-                for attr, field_info in AimbatEventParametersBase.model_fields.items():
-                    value = getattr(p, attr)
-                    if isinstance(value, bool):
-                        display = "✓" if value else "✗"
-                    elif isinstance(value, Timedelta):
-                        display = f"{value.total_seconds():.2f}"
-                    else:
-                        display = f"{value}"
-                    label = field_info.title or attr
-                    rows.append((label, display))
+                data = snap.event_parameters_snapshot.model_dump(mode="json")
+            rows: list[tuple[str, str]] = []
+            for attr in AimbatEventParametersBase.model_fields:
+                title = tui_display_title(AimbatEventParametersBase, attr)
+                display = str(tui_cell(AimbatEventParametersBase, title, data[attr]))
+                rows.append((title, display))
             self.push_screen(SnapshotDetailsModal(f"Snapshot  {snap_id[:8]}", rows))
         except Exception as exc:
             self.notify(str(exc), severity="error")
@@ -1227,11 +1270,15 @@ class AimbatTUI(App[None]):
         self.push_screen(ParametersModal(event_id), on_close)
 
     def action_switch_event(self) -> None:
-        def on_result(result: uuid.UUID | None) -> None:
-            if result is not None:
-                logger.debug(f"User switched to event {str(result)[:8]}.")
-                self._current_event_id = result
+        def on_result(result: tuple[uuid.UUID | None, bool] | None) -> None:
+            selected_event_id, deleted_current_event = result or (None, False)
+            if selected_event_id is not None:
+                logger.debug(f"User switched to event {str(selected_event_id)[:8]}.")
+                self._current_event_id = selected_event_id
                 self._create_iccs()
+            elif deleted_current_event:
+                self._current_event_id = None
+                self._bound_iccs = None
             self.refresh_all()
 
         self.push_screen(EventSwitcherModal(self._current_event_id), on_result)
@@ -1325,6 +1372,8 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
             return
 
+        # suspend() is synchronous, so the staleness poller cannot fire
+        # between the session commit and this assignment.
         self._bound_iccs.created_at = Timestamp.now("UTC")
         self._refresh_seismograms()
         self._refresh_event_bar()
@@ -1372,15 +1421,15 @@ class AimbatTUI(App[None]):
             logger.exception(f"Alignment worker error ({algorithm}): {exc}")
             self.call_from_thread(self.notify, str(exc), severity="error")
             return
+        # Stamp created_at here, before posting to the event loop, so the
+        # staleness poller cannot observe last_modified > created_at between
+        # this call_from_thread and _post_align_complete actually running.
+        bound.created_at = Timestamp.now("UTC")
         self.call_from_thread(self._post_align_complete, notify_msg, notify_severity)
 
     def _post_align_complete(
         self, msg: str, severity: Literal["information", "warning", "error"]
     ) -> None:
-        # Acknowledge our own writes (t1/flip/select written back by ICCS/MCCC)
-        # so the staleness check doesn't recreate an ICCS we just ran.
-        if self._bound_iccs is not None:
-            self._bound_iccs.created_at = Timestamp.now("UTC")
         self.refresh_all()
         self.notify(msg, severity=severity, timeout=4)
 

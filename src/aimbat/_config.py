@@ -11,7 +11,11 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from aimbat._types import PydanticNegativeTimedelta, PydanticPositiveTimedelta
+from aimbat._types import (
+    PydanticNegativeTimedelta,
+    PydanticNonNegativeFloat,
+    PydanticPositiveTimedelta,
+)
 
 
 class Settings(BaseSettings):
@@ -99,9 +103,9 @@ class Settings(BaseSettings):
         description="URL where sample data is downloaded from.",
     )
 
-    ramp_width: float = Field(
+    ramp_width: PydanticNonNegativeFloat = Field(
         default=0.1,
-        description="Width of taper ramp up and down as a fraction of the window length.",
+        description="Width of taper ramp as a multiple of the window length. Values greater than 1 are valid; the ramp extends outside the window.",
     )
 
     window_post: PydanticPositiveTimedelta = Field(

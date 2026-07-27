@@ -23,6 +23,8 @@ import aimbat._tui.app
 import aimbat._tui.modals
 import aimbat.db
 from aimbat._tui.app import AimbatTUI
+from aimbat.core import BoundICCS
+from aimbat.core import create_iccs_instance as _real_create_iccs_instance
 from aimbat.models import AimbatEvent
 
 _TUI_SIZE = (120, 40)
@@ -39,6 +41,17 @@ def _patch_engine(monkeypatch: pytest.MonkeyPatch, engine: Engine) -> None:
     monkeypatch.setattr(aimbat._tui.app, "engine", engine)
     monkeypatch.setattr(aimbat._tui.modals, "engine", engine)
     monkeypatch.setattr(aimbat._tui._widgets, "engine", engine)
+
+
+async def _wait_for_iccs_worker(app: AimbatTUI) -> None:
+    """Wait for the background ICCS-creation worker to actually finish.
+
+    A fixed `pilot.pause(delay=...)` races against the worker thread, which
+    on a successful retry does real seismogram I/O and can outlast a short
+    sleep on slower CI runners (observed flaking on Windows). Waiting on the
+    worker itself is deterministic regardless of how long it takes.
+    """
+    await app.workers.wait_for_complete()
 
 
 # ===========================================================================
@@ -240,5 +253,108 @@ class TestTUITabNavigation:
                 assert len(set(visited)) == 3, (
                     f"Expected 3 distinct tabs, got {visited}"
                 )
+
+        asyncio.run(_run())
+
+
+# ===========================================================================
+# ICCS staleness — one-shot retry after a failed creation
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestICCSStalenessRetry:
+    """A failed ICCS creation gets exactly one automatic retry, not a retry storm.
+
+    See `AimbatTUI._check_iccs_staleness` / `_create_iccs`: a fresh (non-retry)
+    failure sets `_iccs_retry_pending`, which the staleness poller consumes at
+    most once before falling silent again until `event.last_modified` changes.
+    """
+
+    def test_retries_once_then_stops_on_persistent_failure(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Repeated polls after a persistent failure do not retry forever."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        call_count = 0
+
+        def _always_fails(session: Session, event: AimbatEvent) -> BoundICCS:
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("simulated persistent failure")
+
+        monkeypatch.setattr(aimbat._tui.app, "create_iccs_instance", _always_fails)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event.id
+                # Mirror what `_check_iccs_staleness` records before a fresh
+                # attempt, so later polls see an unchanged `last_modified`.
+                app._iccs_last_modified_seen = event.last_modified
+
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                assert call_count == 1
+                assert app._iccs_retry_pending is True
+                assert app._bound_iccs is None
+
+                # The poller consumes the pending retry exactly once.
+                app._check_iccs_staleness()
+                await _wait_for_iccs_worker(app)
+                assert call_count == 2
+                assert app._iccs_retry_pending is False
+                assert app._bound_iccs is None
+
+                # Further polls must not retry again — no infinite loop.
+                app._check_iccs_staleness()
+                await pilot.pause(delay=0.5)
+                assert call_count == 2
+
+        asyncio.run(_run())
+
+    def test_retry_can_succeed_after_one_failure(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The one-shot retry can recover and bind a working ICCS instance."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        attempts = 0
+
+        def _fail_once_then_succeed(session: Session, event: AimbatEvent) -> BoundICCS:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise ValueError("simulated transient failure")
+            return _real_create_iccs_instance(session, event)
+
+        monkeypatch.setattr(
+            aimbat._tui.app, "create_iccs_instance", _fail_once_then_succeed
+        )
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event.id
+                app._iccs_last_modified_seen = event.last_modified
+
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                assert attempts == 1
+                assert app._iccs_retry_pending is True
+                assert app._bound_iccs is None
+
+                app._check_iccs_staleness()
+                await _wait_for_iccs_worker(app)
+                assert attempts == 2
+                assert app._iccs_retry_pending is False
+                assert app._bound_iccs is not None
 
         asyncio.run(_run())

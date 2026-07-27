@@ -9,7 +9,7 @@ from pydantic.alias_generators import to_camel
 from aimbat._types import PydanticTimedelta, PydanticTimestamp
 from aimbat.logger import logger
 from aimbat.utils import mean_and_sem, mean_and_sem_timedelta
-from aimbat.utils.formatters import fmt_depth_km, fmt_flip
+from aimbat.utils.formatters import fmt_depth_km, fmt_flip, fmt_timestamp
 
 from ._format import RichColSpec, TuiColSpec
 
@@ -77,11 +77,11 @@ class SeismogramQualityStats(BaseModel):
     mccc_cc_mean_sem: float | None = Field(default=None, title="MCCC CC mean SEM")
     mccc_cc_std: float | None = Field(default=None, title="MCCC CC std")
     mccc_cc_std_sem: float | None = Field(default=None, title="MCCC CC std SEM")
-    mccc_error: PydanticTimedelta | None = Field(default=None, title="MCCC error")
+    mccc_error: PydanticTimedelta | None = Field(default=None, title="MCCC err Δt (s)")
     mccc_error_sem: PydanticTimedelta | None = Field(
-        default=None, title="MCCC error SEM"
+        default=None, title="MCCC err Δt SEM (s)"
     )
-    mccc_rmse: PydanticTimedelta | None = Field(default=None, title="MCCC RMSE")
+    mccc_rmse: PydanticTimedelta | None = Field(default=None, title="MCCC RMSE (s)")
 
     @classmethod
     def from_event(cls, event: AimbatEvent) -> Self:
@@ -267,6 +267,10 @@ class AimbatEventRead(BaseModel):
     time: PydanticTimestamp = Field(
         title="Event time",
         description="Origin time of the event",
+        json_schema_extra={
+            "tui": TuiColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
+            "rich": RichColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
+        },
     )
     latitude: float = Field(
         title="Latitude",
@@ -302,6 +306,10 @@ class AimbatEventRead(BaseModel):
         default=None,
         title="Last modified",
         description="Timestamp of the last modification of this event's parameters",
+        json_schema_extra={
+            "tui": TuiColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
+            "rich": RichColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
+        },
     )
 
     @classmethod
@@ -360,7 +368,10 @@ class AimbatStationRead(BaseModel):
         default=None,
         title="Elevation",
         description="Station elevation",
-        json_schema_extra={"tui": TuiColSpec(formatter=lambda x: str(int(x)))},  # type: ignore[dict-item]
+        json_schema_extra={
+            "tui": TuiColSpec(formatter=lambda x: str(int(x))),  # type: ignore[dict-item]
+            "rich": RichColSpec(formatter=lambda x: str(int(x))),  # type: ignore[dict-item]
+        },
     )
 
     cc_mean: float | None = Field(
@@ -571,7 +582,12 @@ class AimbatSnapshotRead(BaseModel):
         },
     )
     time: PydanticTimestamp = Field(
-        title="Time", description="Timestamp of the snapshot"
+        title="Time",
+        description="Timestamp of the snapshot",
+        json_schema_extra={
+            "tui": TuiColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
+            "rich": RichColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
+        },
     )
     comment: str | None = Field(
         title="Comment", description="Optional comment for the snapshot"
@@ -767,6 +783,8 @@ class SnapshotResults(BaseModel):
     per-seismogram result records. All repeated scalars (UUIDs, event
     details, MCCC RMSE) appear once in the envelope rather than being
     duplicated across every row.
+
+    Depth is exposed in metres, matching the database column.
     """
 
     model_config = ConfigDict(
@@ -782,11 +800,15 @@ class SnapshotResults(BaseModel):
     event_time: PydanticTimestamp = Field(title="Event time")
     event_latitude: float = Field(title="Event latitude")
     event_longitude: float = Field(title="Event longitude")
-    event_depth_km: float | None = Field(default=None, title="Event depth (km)")
+    event_depth: float | None = Field(
+        default=None,
+        title="Event depth (m)",
+        description="Event depth in metres.",
+    )
     mccc_rmse: PydanticTimedelta | None = Field(
         default=None,
-        title="MCCC RMSE",
-        description="Global MCCC root-mean-square error for the event (seconds).",
+        title="MCCC RMSE (s)",
+        description="Global MCCC root-mean-square error for the event.",
     )
     seismograms: list[SnapshotSeismogramResult] = Field(
         title="Seismograms",
