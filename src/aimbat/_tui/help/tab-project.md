@@ -5,6 +5,11 @@ everything in the database: the seismic events and the recording stations.
 **Most processing in AIMBAT is per-event** — you need to select an event
 here before the Live data and Snapshots tabs show anything useful.
 
+**Changes are written to the database immediately** — there is no save step
+and no undo. Press `n` to create a snapshot of the current parameter state
+that you can roll back to later; taking one right after importing data is
+good practice, since it gives you a baseline to restore to.
+
 ---
 
 ## What you see

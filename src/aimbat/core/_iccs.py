@@ -25,11 +25,13 @@ from aimbat.models._parameters import (
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
 )
-from aimbat.utils import rel
+from aimbat.utils import mean_and_sem, rel
 
 __all__ = [
     "BoundICCS",
+    "CcStats",
     "build_iccs_from_snapshot",
+    "cc_stats",
     "clear_iccs_cache",
     "clear_mccc_quality",
     "create_iccs_instance",
@@ -63,6 +65,50 @@ class BoundICCS:
         if event.last_modified is None:
             return False
         return event.last_modified > self.created_at
+
+
+@dataclass(frozen=True)
+class CcStats:
+    """Live CC summary statistics for an ICCS instance.
+
+    `mean_selected`/`sem_selected` are computed from seismograms with
+    `select=True` only; `mean_all`/`sem_all` from every seismogram. SEM
+    fields are `None` when fewer than two values are available.
+    """
+
+    n_all: int
+    mean_all: float | None
+    sem_all: float | None
+    n_selected: int
+    mean_selected: float | None
+    sem_selected: float | None
+
+
+def cc_stats(iccs: ICCS) -> CcStats:
+    """Summarise live CC values (mean ± SEM) across all and selected seismograms.
+
+    Uses `ICCS.ccs`, which correlates each seismogram against the current
+    stack, so results are always up to date without requiring `iccs()` to
+    have been called first.
+
+    Args:
+        iccs: ICCS instance.
+
+    Returns:
+        CcStats summarising the live CC values.
+    """
+    ccs = [float(cc) for cc in iccs.ccs]
+    selected_ccs = [cc for cc, seis in zip(ccs, iccs.seismograms) if seis.select]
+    mean_all, sem_all = mean_and_sem(ccs)
+    mean_selected, sem_selected = mean_and_sem(selected_ccs)
+    return CcStats(
+        n_all=len(ccs),
+        mean_all=mean_all,
+        sem_all=sem_all,
+        n_selected=len(selected_ccs),
+        mean_selected=mean_selected,
+        sem_selected=sem_selected,
+    )
 
 
 # Process-level ICCS cache. In normal CLI use this is always cold (one command
@@ -415,7 +461,7 @@ def validate_iccs_construction(
             event parameters (useful for validation).
 
     Raises:
-        Any exception raised by ICCS construction (e.g. invalid parameter values).
+        Exception: Any exception raised by ICCS construction (e.g. invalid parameter values).
     """
     _build_iccs(event, parameters=parameters)
 

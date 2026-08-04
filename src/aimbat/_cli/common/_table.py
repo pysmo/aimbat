@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 
-from aimbat.models import RichColSpec
+from aimbat.models._format import RichColSpec
 from aimbat.utils.formatters import fmt_bool, fmt_float, fmt_timestamp
 
 __all__ = ["json_to_table"]

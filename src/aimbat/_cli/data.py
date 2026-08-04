@@ -160,33 +160,47 @@ def cli_data_add(
     Use `--dry-run` to preview what would be added without touching the
     database.
     """
+    from rich.progress import Progress
+
     from aimbat.core import add_data_to_project
     from aimbat.db import engine
 
-    disable_progress_bar = not show_progress_bar
-
     with Session(engine) as session:
-        if dry_run:
-            results = add_data_to_project(
-                session,
-                data_sources,
-                data_type,
-                station_id=station_id,
-                event_id=event_id,
-                dry_run=True,
-                disable_progress_bar=disable_progress_bar,
-            )
+        results: (
+            tuple[
+                list[AimbatDataSource], set[uuid.UUID], set[uuid.UUID], set[uuid.UUID]
+            ]
+            | None
+        ) = None
+        with Progress(disable=not show_progress_bar) as progress:
+            task = progress.add_task("Adding data ...", total=len(data_sources))
+
+            def on_progress(done: int, _total: int) -> None:
+                progress.update(task, completed=done)
+
+            if dry_run:
+                results = add_data_to_project(
+                    session,
+                    data_sources,
+                    data_type,
+                    station_id=station_id,
+                    event_id=event_id,
+                    dry_run=True,
+                    on_progress=on_progress,
+                )
+            else:
+                add_data_to_project(
+                    session,
+                    data_sources,
+                    data_type,
+                    station_id=station_id,
+                    event_id=event_id,
+                    dry_run=False,
+                    on_progress=on_progress,
+                )
+
+        if results is not None:
             _print_dry_run_results(*results)
-        else:
-            add_data_to_project(
-                session,
-                data_sources,
-                data_type,
-                station_id=station_id,
-                event_id=event_id,
-                dry_run=False,
-                disable_progress_bar=disable_progress_bar,
-            )
 
 
 @app.command(name="dump")
@@ -219,7 +233,8 @@ def cli_data_list(
     from aimbat.core import dump_data_table, resolve_event
     from aimbat.db import engine
     from aimbat.logger import logger
-    from aimbat.models import AimbatDataSource, AimbatSeismogram, RichColSpec
+    from aimbat.models import AimbatDataSource, AimbatSeismogram
+    from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
 
     from .common import json_to_table

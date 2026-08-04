@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 
 from aimbat.core import (
     build_iccs_from_snapshot,
+    cc_stats,
     create_iccs_instance,
     create_snapshot,
     run_iccs,
@@ -157,6 +158,48 @@ class TestIccsMcccInterplay:
             if s.id in initial_ccs:
                 assert s.quality is not None
                 assert s.quality.iccs_cc is None
+
+
+class TestCcStats:
+    """Tests for `core.cc_stats`."""
+
+    def test_counts_and_selection(self, loaded_session: Session) -> None:
+        """Verifies n_all/n_selected track the ICCS instance's seismograms
+        and that deselecting one drops it from the selected stats only."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs = iccs_bound.iccs
+
+        stats = cc_stats(iccs)
+        assert stats.n_all == len(iccs.seismograms)
+        assert stats.n_selected == sum(1 for s in iccs.seismograms if s.select)
+        assert stats.mean_all is not None
+        assert -1.0 <= stats.mean_all <= 1.0
+        assert stats.n_selected > 1
+
+        iccs.seismograms[0].select = False
+        iccs.clear_cache()
+        new_stats = cc_stats(iccs)
+        assert new_stats.n_all == stats.n_all
+        assert new_stats.n_selected == stats.n_selected - 1
+
+    def test_sem_is_none_for_single_value(self, loaded_session: Session) -> None:
+        """Verifies SEM is None when fewer than two values are available."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs = iccs_bound.iccs
+        for i, seis in enumerate(iccs.seismograms):
+            seis.select = i == 0
+        iccs.clear_cache()
+
+        stats = cc_stats(iccs)
+        assert stats.n_selected == 1
+        assert stats.mean_selected is not None
+        assert stats.sem_selected is None
 
 
 class TestBuildIccsFromSnapshot:

@@ -6,11 +6,13 @@ monkeypatched to the test fixture's database:
 
 - ``aimbat.db.engine`` — the canonical engine attribute
 - ``aimbat._tui.app.engine`` — top-level import in the app module
+- ``aimbat._tui._panels.engine`` — top-level import in the panels module
 - ``aimbat._tui.modals.engine`` — top-level import in the modals module
 - ``aimbat._tui._widgets.engine`` — top-level import in the widgets module
 """
 
 import asyncio
+import uuid
 from typing import cast
 
 import pytest
@@ -18,14 +20,16 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 from textual.widgets import DataTable, Static, TabbedContent, TabPane
 
+import aimbat._tui._panels
 import aimbat._tui._widgets
 import aimbat._tui.app
 import aimbat._tui.modals
 import aimbat.db
 from aimbat._tui.app import AimbatTUI
-from aimbat.core import BoundICCS
+from aimbat._tui.modals import SnapshotDetailsModal
+from aimbat.core import BoundICCS, create_snapshot
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
-from aimbat.models import AimbatEvent
+from aimbat.models import AimbatEvent, AimbatSeismogram
 
 _TUI_SIZE = (120, 40)
 
@@ -39,6 +43,7 @@ def _patch_engine(monkeypatch: pytest.MonkeyPatch, engine: Engine) -> None:
     """Patch the engine in all TUI modules that import it at module level."""
     monkeypatch.setattr(aimbat.db, "engine", engine)
     monkeypatch.setattr(aimbat._tui.app, "engine", engine)
+    monkeypatch.setattr(aimbat._tui._panels, "engine", engine)
     monkeypatch.setattr(aimbat._tui.modals, "engine", engine)
     monkeypatch.setattr(aimbat._tui._widgets, "engine", engine)
 
@@ -356,5 +361,122 @@ class TestICCSStalenessRetry:
                 assert attempts == 2
                 assert app._iccs_retry_pending is False
                 assert app._bound_iccs is not None
+
+        asyncio.run(_run())
+
+
+# ===========================================================================
+# Row-action menu wiring — panel -> app message bubbling
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestRowActionMenuWiring:
+    """The row-select -> action-menu -> message -> handler path for each panel.
+
+    `ProjectPanel`, `SeismogramPanel`, and `SnapshotPanel` each post a message
+    (`RowActionChosen`/`ActionChosen`) that `AimbatTUI` handles via `@on`
+    (see `_panels.py` and `app.py`). These tests drive real key presses
+    through the actual `ActionMenuModal`/`SnapshotActionMenuModal` rather than
+    constructing the messages directly, so a wrong message class, tab
+    argument, or handler mismatch would actually fail here.
+    """
+
+    def test_project_event_action_toggles_completed(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Choosing 'Toggle completed' from an event's action menu flips its flag."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        async def _run() -> uuid.UUID:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                table = pilot.app.query_one("#project-event-table", DataTable)
+                table.focus()
+                await pilot.pause()
+                row_id = table.ordered_rows[0].key.value
+                assert row_id is not None
+                await pilot.press("enter")  # open the row's action menu
+                await pilot.pause()
+                await pilot.press("j")  # "Select event" -> "Toggle completed"
+                await pilot.press("enter")
+                await pilot.pause(delay=0.3)
+                return uuid.UUID(row_id)
+
+        event_id = asyncio.run(_run())
+
+        with Session(loaded_engine) as session:
+            event = session.get(AimbatEvent, event_id)
+            assert event is not None
+            assert event.parameters.completed is True
+
+    def test_seismogram_action_toggles_select(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Choosing 'Toggle select' from a seismogram's action menu flips its flag."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> uuid.UUID:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                await pilot.press("L")  # Project -> Live data
+                await pilot.pause()
+                table = pilot.app.query_one("#seismogram-table", DataTable)
+                table.focus()
+                await pilot.pause()
+                row_id = table.ordered_rows[0].key.value
+                assert row_id is not None
+                await pilot.press("enter")  # open the row's action menu
+                await pilot.pause()
+                await pilot.press("enter")  # first action: "Toggle select"
+                await pilot.pause(delay=0.3)
+                return uuid.UUID(row_id)
+
+        seismogram_id = asyncio.run(_run())
+
+        with Session(loaded_engine) as session:
+            seismogram = session.get(AimbatSeismogram, seismogram_id)
+            assert seismogram is not None
+            assert seismogram.parameters.select is False
+
+    def test_snapshot_action_shows_details(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Choosing 'Show details' from a snapshot's action menu opens the details modal."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+            create_snapshot(session, event, "wiring test snapshot")
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                await pilot.press("L")  # Project -> Live data
+                await pilot.press("L")  # Live data -> Snapshots
+                await pilot.pause()
+                table = pilot.app.query_one("#snapshot-table", DataTable)
+                table.focus()
+                await pilot.pause()
+                await pilot.press("enter")  # open the row's action menu
+                await pilot.pause()
+                await pilot.press("enter")  # first action: "Show details"
+                await pilot.pause(delay=0.3)
+                assert isinstance(pilot.app.screen, SnapshotDetailsModal)
 
         asyncio.run(_run())

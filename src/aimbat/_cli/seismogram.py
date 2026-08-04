@@ -293,7 +293,8 @@ def cli_seismogram_parameter_list(
 
     from aimbat.core import dump_seismogram_parameter_table, resolve_event
     from aimbat.db import engine
-    from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters, RichColSpec
+    from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
+    from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
     from aimbat.utils.formatters import fmt_flip
 

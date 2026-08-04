@@ -5,6 +5,13 @@ stored separately in a database. Once imported, data sources (e.g. SAC files)
 are only read for waveform data — all metadata (event and station information)
 is stored in the database.
 
+!!! tip "There is no save button"
+    Changes to parameters (e.g. picks, filter settings, select/deselect flags)
+    are written to the database immediately — in both the CLI and the TUI.
+    There is no separate save step, and no undo. Use [snapshots](#snapshots)
+    to capture a point-in-time copy of the parameter state that you can roll
+    back to later.
+
 ## Data hierarchy
 
 A seismogram in AIMBAT is a database object that links a data source, a

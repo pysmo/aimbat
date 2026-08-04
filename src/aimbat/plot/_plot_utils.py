@@ -18,9 +18,9 @@ _RESAMPLE_DELTA = pd.Timedelta(0.1, unit="s")
 
 
 def clean_timedelta(x: float, _: int | None) -> str:
-    total_seconds = x / 1e9
-    sign = "-" if total_seconds < 0 else ""
-    total_seconds = abs(int(total_seconds))
+    """Format elapsed seconds as `[-]MM:SS` for a matplotlib tick formatter."""
+    sign = "-" if x < 0 else ""
+    total_seconds = abs(int(x))
     minutes, seconds = divmod(total_seconds, 60)
     return f"{sign}{minutes:02d}:{seconds:02d}"
 

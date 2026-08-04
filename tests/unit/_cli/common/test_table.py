@@ -7,7 +7,7 @@ from pandas import Timedelta
 from pydantic import BaseModel, Field
 
 from aimbat._cli.common._table import json_to_table
-from aimbat.models import RichColSpec
+from aimbat.models._format import RichColSpec
 
 
 class MockModel(BaseModel):

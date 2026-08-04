@@ -230,7 +230,8 @@ def cli_station_quality_list(
 
     from aimbat.core import dump_station_quality_table
     from aimbat.db import engine
-    from aimbat.models import RichColSpec, SeismogramQualityStats
+    from aimbat.models import SeismogramQualityStats
+    from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
 
     from .common import json_to_table

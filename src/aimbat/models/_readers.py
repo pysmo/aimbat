@@ -9,7 +9,14 @@ from pydantic.alias_generators import to_camel
 from aimbat._types import PydanticTimedelta, PydanticTimestamp
 from aimbat.logger import logger
 from aimbat.utils import mean_and_sem, mean_and_sem_timedelta
-from aimbat.utils.formatters import fmt_depth_km, fmt_flip, fmt_timestamp
+from aimbat.utils.formatters import (
+    fmt_depth_km,
+    fmt_flip,
+    fmt_float_sem,
+    fmt_timedelta,
+    fmt_timedelta_sem,
+    fmt_timestamp,
+)
 
 from ._format import RichColSpec, TuiColSpec
 
@@ -82,6 +89,31 @@ class SeismogramQualityStats(BaseModel):
         default=None, title="MCCC err Δt SEM (s)"
     )
     mccc_rmse: PydanticTimedelta | None = Field(default=None, title="MCCC RMSE (s)")
+
+    @property
+    def cc_display(self) -> str:
+        """ICCS CC mean ± SEM, formatted for display."""
+        return fmt_float_sem(self.cc_mean, self.cc_mean_sem)
+
+    @property
+    def mccc_cc_mean_display(self) -> str:
+        """MCCC CC mean ± SEM, formatted for display."""
+        return fmt_float_sem(self.mccc_cc_mean, self.mccc_cc_mean_sem)
+
+    @property
+    def mccc_cc_std_display(self) -> str:
+        """MCCC CC std ± SEM, formatted for display."""
+        return fmt_float_sem(self.mccc_cc_std, self.mccc_cc_std_sem)
+
+    @property
+    def mccc_error_display(self) -> str:
+        """MCCC arrival-time error mean ± SEM in seconds, formatted for display."""
+        return fmt_timedelta_sem(self.mccc_error, self.mccc_error_sem)
+
+    @property
+    def mccc_rmse_display(self) -> str:
+        """MCCC RMSE in seconds, formatted for display."""
+        return fmt_timedelta(self.mccc_rmse)
 
     @classmethod
     def from_event(cls, event: AimbatEvent) -> Self:

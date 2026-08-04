@@ -386,7 +386,8 @@ def cli_snapshot_quality_list(
 
     from aimbat.core import dump_snapshot_quality_table, resolve_event
     from aimbat.db import engine
-    from aimbat.models import AimbatEvent, RichColSpec, SeismogramQualityStats
+    from aimbat.models import AimbatEvent, SeismogramQualityStats
+    from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
 
     from .common import json_to_table

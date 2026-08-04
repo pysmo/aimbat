@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pandas import Timedelta
 from pydantic import BaseModel
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -15,7 +14,6 @@ from aimbat.models._format import TuiColSpec
 from aimbat.utils.formatters import fmt_bool, fmt_float, fmt_timestamp
 
 __all__ = [
-    "fmt_float_sem",
     "format_quality_panel",
     "tui_cell",
     "tui_display_title",
@@ -34,20 +32,7 @@ def format_quality_panel(
     if stats is None:
         return "[dim]No row selected[/dim]", ""
 
-    def _fmt_td(td: Timedelta | None) -> str:
-        if td is None:
-            return "[dim]—[/dim]"
-        return f"{td.total_seconds():.4f} s"
-
-    def _fmt_td_sem(mean: Timedelta | None, sem: Timedelta | None) -> str:
-        if mean is None:
-            return "[dim]—[/dim]"
-        s = mean.total_seconds()
-        if sem is not None:
-            return f"{s:.4f} ± {sem.total_seconds():.4f} s"
-        return f"{s:.4f} s"
-
-    iccs_body = f"CC   {fmt_float_sem(stats.cc_mean, stats.cc_mean_sem)}"
+    iccs_body = f"CC   {stats.cc_display}"
     panels: list[Panel] = [
         Panel(iccs_body, title="ICCS", title_align="left", padding=(0, 1))
     ]
@@ -57,12 +42,12 @@ def format_quality_panel(
     )
     if has_mccc:
         mccc_lines = [
-            f"CC       {fmt_float_sem(stats.mccc_cc_mean, stats.mccc_cc_mean_sem)}",
-            f"CC std   {fmt_float_sem(stats.mccc_cc_std, stats.mccc_cc_std_sem)}",
-            f"Error    {_fmt_td_sem(stats.mccc_error, stats.mccc_error_sem)}",
+            f"CC       {stats.mccc_cc_mean_display}",
+            f"CC std   {stats.mccc_cc_std_display}",
+            f"Error    {stats.mccc_error_display}",
         ]
         if stats.mccc_rmse is not None:
-            mccc_lines.append(f"RMSE     {_fmt_td(stats.mccc_rmse)}")
+            mccc_lines.append(f"RMSE     {stats.mccc_rmse_display}")
         panels.append(
             Panel(
                 "\n".join(mccc_lines), title="MCCC", title_align="left", padding=(0, 1)
@@ -87,15 +72,6 @@ def tui_display_title(model: type[BaseModel], field_name: str) -> str:
         if isinstance(col_spec, TuiColSpec) and col_spec.display_title is not None:
             return col_spec.display_title
     return info.title or field_name.replace("_", " ")
-
-
-def fmt_float_sem(v: float | None, sem: float | None, decimals: int = 4) -> str:
-    """Format a float with an optional SEM as `value ± sem`, or `—` if None."""
-    if v is None:
-        return "—"
-    if sem is not None:
-        return f"{v:.{decimals}f} ± {sem:.{decimals}f}"
-    return f"{v:.{decimals}f}"
 
 
 @lru_cache(maxsize=None)
