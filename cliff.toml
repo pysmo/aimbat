@@ -46,6 +46,7 @@ commit_parsers = [
     { message = "^Merge", skip = true },
     { message = "Signed-off-by: dependabot\\[bot\\]", skip = true },
     { message = "Potential fix for code scanning alert", skip = true },
+    { message = "^docs: update CHANGELOG.md", skip = true },
     { message = "^feat", group = "🚀 New Features" },
     { message = "^fix", group = "🐛 Bug Fixes" },
     { message = "^perf", group = "⚡ Performance Improvements" },

@@ -151,7 +151,7 @@ def print_settings_table(pretty: bool) -> None:
     from pydantic import BaseModel
 
     from aimbat._cli.common import json_to_table
-    from aimbat.models import RichColSpec
+    from aimbat.models._format import RichColSpec
 
     class _SettingsRow(BaseModel):
         name: str = Field(
@@ -250,7 +250,3 @@ def generate_settings_table_markdown() -> str:
         lines.append(f"| {env_var} | {formatted} | {description} |")
 
     return "\n".join(lines) + "\n"
-
-
-if __name__ == "__main__":
-    print(generate_settings_table_markdown(), end="")

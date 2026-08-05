@@ -16,7 +16,7 @@ build:
       - asdf global uv latest
       - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --locked --no-dev --group docs
     post_build:
-      - uv run python -m aimbat._config > docs/usage/defaults-table.md
+      - uv run python -c "import sys; from aimbat._config import generate_settings_table_markdown as g; sys.stdout.write(g())" > docs/usage/defaults-table.md
       - uv run zensical build --clean
       - mkdir -p $READTHEDOCS_OUTPUT/html/
       - cp -r site/* $READTHEDOCS_OUTPUT/html/

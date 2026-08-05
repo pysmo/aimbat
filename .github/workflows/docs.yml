@@ -28,7 +28,7 @@ jobs:
         run: |
           uv sync --locked --no-dev --group docs
       - name: Generate defaults table
-        run: uv run python -m aimbat._config > docs/usage/defaults-table.md
+        run: uv run python -c "import sys; from aimbat._config import generate_settings_table_markdown as g; sys.stdout.write(g())" > docs/usage/defaults-table.md
       - name: Build site
         run: uv run zensical build --clean
       - name: Upload artifact

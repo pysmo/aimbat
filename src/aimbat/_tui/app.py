@@ -2,23 +2,20 @@
 
 from __future__ import annotations
 
-import statistics
 import uuid
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Literal
 
-import numpy as np
 from pandas import Timestamp
 from rich.console import Console
 from rich.panel import Panel
-from sqlalchemy.exc import NoResultFound, SQLAlchemyError
+from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import (
@@ -35,7 +32,7 @@ from textual_fspicker import FileOpen, FileSave, Filters
 from pysmo.tools.iccs import ICCS
 
 from aimbat import settings
-from aimbat._tui._widgets import NoteWidget, SeismogramPlotWidget, VimDataTable
+from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
 from aimbat._tui.modals import (
     ActionMenuModal,
     AlignModal,
@@ -45,7 +42,6 @@ from aimbat._tui.modals import (
     InteractiveToolsModal,
     NoProjectModal,
     ParametersModal,
-    SnapshotActionMenuModal,
     SnapshotCommentModal,
     SnapshotDetailsModal,
 )
@@ -61,18 +57,12 @@ from aimbat.core import (
     delete_seismogram,
     delete_snapshot,
     delete_station,
-    dump_event_table,
-    dump_seismogram_table,
     dump_snapshot_results,
-    dump_snapshot_table,
-    dump_station_table,
-    get_event_quality,
-    get_snapshot_quality,
-    get_station_quality,
     reset_seismogram_parameters,
     rollback_to_snapshot,
     run_iccs,
     run_mccc,
+    set_seismogram_parameter,
 )
 from aimbat.core._project import _project_exists
 from aimbat.db import engine
@@ -81,13 +71,9 @@ from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
     AimbatEventParametersBase,
-    AimbatEventRead,
     AimbatSeismogram,
-    AimbatSeismogramRead,
     AimbatSnapshot,
-    AimbatSnapshotRead,
     AimbatStation,
-    AimbatStationRead,
 )
 from aimbat.plot import (
     plot_matrix_image,
@@ -100,38 +86,12 @@ from aimbat.plot import (
 )
 from aimbat.utils.formatters import fmt_timestamp
 
-from ._format import fmt_float_sem, format_quality_panel, tui_cell, tui_display_title
+from ._format import tui_cell, tui_display_title
 
 _DEFAULT_THEME = settings.tui_dark_theme
 _LIGHT_THEME = settings.tui_light_theme
 
 _MAIN_TABS = {"tab-project", "tab-seismograms", "tab-snapshots"}
-
-
-# Extend this dict to add new per-row actions to any tab.
-_TAB_ROW_ACTIONS: dict[str, list[tuple[str, str]]] = {
-    "project-events": [
-        ("select", "Select event"),
-        ("toggle_completed", "Toggle completed"),
-        ("view_seismograms", "View seismograms"),
-        ("delete", "Delete event"),
-    ],
-    "project-stations": [
-        ("view_seismograms", "View seismograms"),
-        ("delete", "Delete station"),
-    ],
-    "tab-seismograms": [
-        ("toggle_select", "Toggle select"),
-        ("toggle_flip", "Toggle flip"),
-        ("reset", "Reset parameters"),
-        ("delete", "Delete seismogram"),
-    ],
-}
-
-_EVENT_TABLE_EXCLUDE: set[str] = set()
-_STATION_TABLE_EXCLUDE: set[str] = {"event_count"}
-_SEISMOGRAM_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
-_SNAPSHOT_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
 
 
 # Extend _TOOL_REGISTRY to register new interactive tools.  Each entry maps a
@@ -271,29 +231,11 @@ class AimbatTUI(App[None]):
         yield Static(id="event-bar")
         with TabbedContent(initial="tab-project"):
             with TabPane("Project", id="tab-project"):
-                with Horizontal(id="project-layout"):
-                    with Vertical(id="project-tables"):
-                        yield VimDataTable(id="project-event-table")
-                        yield VimDataTable(id="project-station-table")
-                    with Vertical(id="project-right-panel"):
-                        yield Static(
-                            id="project-quality-panel", classes="quality-panel"
-                        )
-                        yield NoteWidget(id="project-note")
+                yield ProjectPanel()
             with TabPane("Live data", id="tab-seismograms"):
-                with Horizontal(id="seismogram-layout"):
-                    yield VimDataTable(id="seismogram-table")
-                    with Vertical(id="seismogram-right-panel"):
-                        yield SeismogramPlotWidget(id="seismogram-plot")
-                        yield NoteWidget(id="seismogram-note")
+                yield SeismogramPanel()
             with TabPane("Snapshots", id="tab-snapshots"):
-                with Horizontal(id="snapshot-layout"):
-                    yield VimDataTable(id="snapshot-table")
-                    with Vertical(id="snapshot-right-panel"):
-                        yield Static(
-                            id="snapshot-quality-panel", classes="quality-panel"
-                        )
-                        yield NoteWidget(id="snapshot-note")
+                yield SnapshotPanel()
         yield Footer()
 
     def on_mount(self) -> None:
@@ -303,20 +245,8 @@ class AimbatTUI(App[None]):
         self._iccs_retry_pending: bool = False
         self._current_event_id: uuid.UUID | None = None
         self._active_tab: str = "tab-project"
-        self._highlighted_event_id: str | None = None
-        self._highlighted_station_id: str | None = None
-        self._highlighted_seismogram_id: str | None = None
-        self._highlighted_snapshot_id: str | None = None
-        self._quality_source: Literal["event", "station"] = "event"
-        self._project_refreshing: bool = False
-        self._seismogram_refreshing: bool = False
-        self._snapshot_refreshing: bool = False
 
         self.theme = _DEFAULT_THEME
-
-        self._setup_project_tables()
-        self._setup_seismogram_table()
-        self._setup_snapshot_table()
 
         self.set_interval(5, self._check_iccs_staleness)
 
@@ -347,12 +277,9 @@ class AimbatTUI(App[None]):
             with suppress(NoMatches):
                 event.pane.query_one(DataTable).focus()
         if event.pane.id == "tab-seismograms":
-            if self.query_one("#seismogram-table", DataTable).row_count == 0:
-                self._update_seismogram_note(None)
-                self._update_seismogram_plot(None)
+            self.query_one(SeismogramPanel).clear_selection_if_empty()
         elif event.pane.id == "tab-snapshots":
-            if self.query_one("#snapshot-table", DataTable).row_count == 0:
-                self._update_snapshot_quality(None)
+            self.query_one(SnapshotPanel).clear_selection_if_empty()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action in {
@@ -474,53 +401,9 @@ class AimbatTUI(App[None]):
         self._bound_iccs = bound_iccs
         logger.info("ICCS instance ready and assigned.")
         self._refresh_event_bar()
-        self._refresh_seismograms()
-
-    # ------------------------------------------------------------------
-    # Table setup
-    # ------------------------------------------------------------------
-
-    def _setup_project_tables(self) -> None:
-        et_headers = [
-            tui_display_title(AimbatEventRead, f)
-            for f in AimbatEventRead.model_fields
-            if f not in _EVENT_TABLE_EXCLUDE | {"id"}
-        ]
-        et = self.query_one("#project-event-table", DataTable)
-        et.border_title = "Events"
-        et.cursor_type = "row"
-        et.add_columns(" ", *et_headers)
-        station_headers = [
-            tui_display_title(AimbatStationRead, f)
-            for f in AimbatStationRead.model_fields
-            if f not in _STATION_TABLE_EXCLUDE | {"id"}
-        ]
-        st = self.query_one("#project-station-table", DataTable)
-        st.border_title = "Stations"
-        st.cursor_type = "row"
-        st.add_columns(*station_headers)
-
-    def _setup_seismogram_table(self) -> None:
-        seis_headers = [
-            tui_display_title(AimbatSeismogramRead, f)
-            for f in AimbatSeismogramRead.model_fields
-            if f not in _SEISMOGRAM_TABLE_EXCLUDE | {"id"}
-        ]
-        t = self.query_one("#seismogram-table", DataTable)
-        t.border_title = "Seismograms"
-        t.cursor_type = "row"
-        t.add_columns(*seis_headers)
-
-    def _setup_snapshot_table(self) -> None:
-        snap_headers = [
-            tui_display_title(AimbatSnapshotRead, f)
-            for f in AimbatSnapshotRead.model_fields
-            if f not in _SNAPSHOT_TABLE_EXCLUDE | {"id"}
-        ]
-        t = self.query_one("#snapshot-table", DataTable)
-        t.border_title = "Snapshots"
-        t.cursor_type = "row"
-        t.add_columns(*snap_headers)
+        self.query_one(SeismogramPanel).refresh_data(
+            self._current_event_id, self._bound_iccs
+        )
 
     # ------------------------------------------------------------------
     # Data refresh
@@ -529,115 +412,11 @@ class AimbatTUI(App[None]):
     def refresh_all(self) -> None:
         self.refresh_bindings()
         self._refresh_event_bar()
-        self._refresh_project()
-        self._refresh_seismograms()
-        self._refresh_snapshots()
-
-    def _refresh_project(self) -> None:
-        et = self.query_one("#project-event-table", DataTable)
-        st = self.query_one("#project-station-table", DataTable)
-        et_saved, st_saved = et.cursor_row, st.cursor_row
-        et.clear()
-        st.clear()
-        with suppress(NoResultFound, RuntimeError):
-            with Session(engine) as session:
-                event_rows = dump_event_table(
-                    session,
-                    from_read_model=True,
-                    by_title=True,
-                    exclude=_EVENT_TABLE_EXCLUDE,
-                )
-                station_rows = dump_station_table(
-                    session,
-                    from_read_model=True,
-                    by_title=True,
-                    exclude=_STATION_TABLE_EXCLUDE,
-                )
-
-            total = len(event_rows)
-            completed = sum(1 for r in event_rows if r.get("Completed"))
-            et.border_title = (
-                f"Events  [dim]{total} total · {completed} completed[/dim]"
-            )
-
-            if self._current_event_id is not None:
-                active = next(
-                    (
-                        r
-                        for r in event_rows
-                        if r.get("ID") == str(self._current_event_id)
-                    ),
-                    None,
-                )
-                if active is not None:
-                    _sc_key = tui_display_title(AimbatEventRead, "station_count")
-                    st.border_title = f"Stations  [dim]{active.get(_sc_key, '?')} in active event[/dim]"
-
-            for row in event_rows:
-                row_id = str(row.pop("ID"))
-                marker = "▶" if row_id == str(self._current_event_id) else " "
-                cells = [tui_cell(AimbatEventRead, k, v) for k, v in row.items()]
-                et.add_row(marker, *cells, key=row_id)
-
-            for row in station_rows:
-                row_id = str(row.pop("ID"))
-                cells = [tui_cell(AimbatStationRead, k, v) for k, v in row.items()]
-                st.add_row(*cells, key=row_id)
-
-        self._settle_after_move(
-            [(et, et_saved), (st, st_saved)],
-            "_project_refreshing",
-            self._on_project_settled,
+        self.query_one(ProjectPanel).refresh_data(self._current_event_id)
+        self.query_one(SeismogramPanel).refresh_data(
+            self._current_event_id, self._bound_iccs
         )
-
-    def _settle_after_move(
-        self,
-        tables: Sequence[tuple[DataTable, int]],
-        flag_attr: str,
-        on_settled: Callable[[], None],
-        *,
-        highlighted_id_attr: str | None = None,
-    ) -> None:
-        """Restore cursor position on `tables`, deferring `on_settled` until any
-        RowHighlighted events the moves trigger have been processed.
-
-        `flag_attr` names a `bool` instance attribute that guards each table's
-        RowHighlighted handler from reacting to those intermediate events while
-        a move is in flight. If none of `tables` has any rows, no cursor move
-        happens; `highlighted_id_attr` (if given) is reset to `None` and
-        `on_settled` runs immediately instead of being deferred.
-        """
-        setattr(self, flag_attr, True)
-        moved = False
-        for table, saved_row in tables:
-            if table.row_count > 0:
-                table.move_cursor(row=min(saved_row, table.row_count - 1))
-                moved = True
-        if moved:
-
-            def _end() -> None:
-                setattr(self, flag_attr, False)
-                on_settled()
-
-            self.call_after_refresh(_end)
-        else:
-            if highlighted_id_attr is not None:
-                setattr(self, highlighted_id_attr, None)
-            setattr(self, flag_attr, False)
-            on_settled()
-
-    def _on_project_settled(self) -> None:
-        if self._quality_source == "station":
-            self._update_station_quality(self._highlighted_station_id)
-        else:
-            self._update_event_quality(self._highlighted_event_id)
-
-    def _on_seismogram_settled(self) -> None:
-        self._update_seismogram_note(self._highlighted_seismogram_id)
-        self._update_seismogram_plot(self._highlighted_seismogram_id)
-
-    def _on_snapshot_settled(self) -> None:
-        self._update_snapshot_quality(self._highlighted_snapshot_id)
+        self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
 
     def _check_iccs_staleness(self) -> None:
         """Trigger ICCS recreation if the current event has been modified externally.
@@ -703,332 +482,38 @@ class AimbatTUI(App[None]):
         except RuntimeError as exc:
             bar.update(f"[red]{exc}[/red]")
 
-    def _refresh_seismograms(self) -> None:
-        table = self.query_one("#seismogram-table", DataTable)
-        saved_row = table.cursor_row
-        table.clear()
-
-        live_cc_map: dict[str, float] = {}
-        if self._bound_iccs is not None:
-            with suppress(AttributeError, ValueError):
-                for iccs_seis, cc in zip(
-                    self._bound_iccs.iccs.seismograms, self._bound_iccs.iccs.ccs
-                ):
-                    live_cc_map[str(iccs_seis.extra["id"])] = float(cc)
-
-        all_ccs: list[float] = []
-        selected_ccs: list[float] = []
-
-        with suppress(NoResultFound, RuntimeError):
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                rows = dump_seismogram_table(
-                    session,
-                    from_read_model=True,
-                    by_title=True,
-                    exclude=_SEISMOGRAM_TABLE_EXCLUDE,
-                    event_id=event.id,
-                )
-
-            for row in rows:
-                seis_id = str(row["ID"])
-                if seis_id in live_cc_map:
-                    row["Stack CC"] = live_cc_map[seis_id]
-
-            rows.sort(
-                key=lambda r: r["Stack CC"] if r.get("Stack CC") is not None else -2.0,
-                reverse=True,
-            )
-
-            for row in rows:
-                cc_val = row.get("Stack CC")
-                if cc_val is not None:
-                    all_ccs.append(float(cc_val))
-                    if row.get("Select"):
-                        selected_ccs.append(float(cc_val))
-                row_id = str(row.pop("ID"))
-                cells = [tui_cell(AimbatSeismogramRead, k, v) for k, v in row.items()]
-                table.add_row(*cells, key=row_id)
-
-        if all_ccs:
-            n_all = len(all_ccs)
-            mean_all = statistics.mean(all_ccs)
-            sem_all = statistics.stdev(all_ccs) / n_all**0.5 if n_all >= 2 else None
-            n_sel = len(selected_ccs)
-            mean_sel = statistics.mean(selected_ccs) if selected_ccs else None
-            sem_sel = (
-                statistics.stdev(selected_ccs) / n_sel**0.5 if n_sel >= 2 else None
-            )
-            table.border_title = (
-                f"Seismograms  [dim]CC: selected {fmt_float_sem(mean_sel, sem_sel)}"
-                f" · all {fmt_float_sem(mean_all, sem_all)}[/dim]"
-            )
-        else:
-            table.border_title = "Seismograms"
-
-        self._settle_after_move(
-            [(table, saved_row)],
-            "_seismogram_refreshing",
-            self._on_seismogram_settled,
-            highlighted_id_attr="_highlighted_seismogram_id",
-        )
-
-    def _refresh_snapshots(self) -> None:
-        table = self.query_one("#snapshot-table", DataTable)
-        saved_row = table.cursor_row
-        table.clear()
-        with suppress(NoResultFound, RuntimeError):
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                snapshots = dump_snapshot_table(
-                    session,
-                    from_read_model=True,
-                    by_title=True,
-                    exclude=_SNAPSHOT_TABLE_EXCLUDE,
-                    event_id=event.id,
-                )
-            for row in snapshots:
-                row_id = str(row.pop("ID"))
-                cells = [tui_cell(AimbatSnapshotRead, k, v) for k, v in row.items()]
-                table.add_row(*cells, key=row_id)
-        self._settle_after_move(
-            [(table, saved_row)],
-            "_snapshot_refreshing",
-            self._on_snapshot_settled,
-            highlighted_id_attr="_highlighted_snapshot_id",
-        )
-
     # ------------------------------------------------------------------
     # Row event handlers
     # ------------------------------------------------------------------
 
-    @on(DataTable.RowSelected, "#project-event-table")
-    def project_event_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.row_key.value:
-            self._open_row_action_menu(
-                "project-events",
-                event.row_key.value,
-                f"Event  {event.row_key.value[:8]}",
+    @on(ProjectPanel.RowActionChosen)
+    def _project_row_action_chosen(self, message: ProjectPanel.RowActionChosen) -> None:
+        self._handle_row_action(message.tab, message.item_id, message.action)
+
+    @on(SeismogramPanel.RowActionChosen)
+    def _seismogram_row_action_chosen(
+        self, message: SeismogramPanel.RowActionChosen
+    ) -> None:
+        self._handle_row_action("tab-seismograms", message.item_id, message.action)
+
+    @on(SnapshotPanel.ActionChosen)
+    def _snapshot_action_chosen(self, message: SnapshotPanel.ActionChosen) -> None:
+        if message.action == "preview_stack":
+            self._preview_snapshot_plot(
+                message.item_id, "stack", message.context, message.all_seismograms
             )
-
-    @on(DataTable.RowSelected, "#project-station-table")
-    def project_station_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.row_key.value:
-            self._open_row_action_menu(
-                "project-stations",
-                event.row_key.value,
-                f"Station  {event.row_key.value[:8]}",
+        elif message.action == "preview_image":
+            self._preview_snapshot_plot(
+                message.item_id, "image", message.context, message.all_seismograms
             )
-
-    @on(DataTable.RowSelected, "#seismogram-table")
-    def seismogram_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.row_key.value:
-            self._open_row_action_menu(
-                "tab-seismograms",
-                event.row_key.value,
-                f"Seismogram  {event.row_key.value[:8]}",
-            )
-
-    @on(DataTable.RowSelected, "#snapshot-table")
-    def snapshot_row_selected(self, event: DataTable.RowSelected) -> None:
-        snap_id = event.row_key.value
-        if not snap_id:
-            return
-
-        def on_action(result: tuple[str, bool, bool] | None) -> None:
-            if result is None:
-                return
-            action, context, all_seis = result
-            if action == "preview_stack":
-                self._preview_snapshot_plot(snap_id, "stack", context, all_seis)
-            elif action == "preview_image":
-                self._preview_snapshot_plot(snap_id, "image", context, all_seis)
-            elif action == "save_results":
-                self._save_snapshot_results(snap_id)
-            else:
-                self._handle_row_action("tab-snapshots", snap_id, action)
-
-        self.push_screen(SnapshotActionMenuModal(f"Snapshot  {snap_id[:8]}"), on_action)
-
-    @on(DataTable.RowHighlighted, "#project-event-table")
-    def project_event_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        self._highlighted_event_id = event.row_key.value if event.row_key else None
-        if not self._project_refreshing:
-            self._quality_source = "event"
-            self._update_event_quality(self._highlighted_event_id)
-
-    @on(DataTable.RowHighlighted, "#project-station-table")
-    def project_station_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        self._highlighted_station_id = event.row_key.value if event.row_key else None
-        if not self._project_refreshing:
-            self._quality_source = "station"
-            self._update_station_quality(self._highlighted_station_id)
-
-    @on(VimDataTable.Focused, "#project-event-table")
-    def _project_event_table_focused(self) -> None:
-        if not self._project_refreshing:
-            self._quality_source = "event"
-            self._update_event_quality(self._highlighted_event_id)
-
-    @on(VimDataTable.Focused, "#project-station-table")
-    def _project_station_table_focused(self) -> None:
-        if not self._project_refreshing:
-            self._quality_source = "station"
-            self._update_station_quality(self._highlighted_station_id)
-
-    @on(DataTable.RowHighlighted, "#seismogram-table")
-    def seismogram_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        self._highlighted_seismogram_id = event.row_key.value if event.row_key else None
-        if not self._seismogram_refreshing:
-            self._update_seismogram_note(self._highlighted_seismogram_id)
-            self._update_seismogram_plot(self._highlighted_seismogram_id)
-
-    @on(DataTable.RowHighlighted, "#snapshot-table")
-    def snapshot_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        self._highlighted_snapshot_id = event.row_key.value if event.row_key else None
-        if not self._snapshot_refreshing:
-            self._update_snapshot_quality(self._highlighted_snapshot_id)
-
-    # ------------------------------------------------------------------
-    # Quality panel updates
-    # ------------------------------------------------------------------
-
-    def _update_event_quality(self, item_id: str | None) -> None:
-        panel = self.query_one("#project-quality-panel", Static)
-        panel.border_title = "Live event statistics"
-        stats = None
-        if item_id is not None:
-            try:
-                with Session(engine) as session:
-                    stats = get_event_quality(session, uuid.UUID(item_id))
-            except (ValueError, SQLAlchemyError):
-                pass
-        body, subtitle = format_quality_panel(stats)
-        panel.update(body)
-        panel.border_subtitle = subtitle
-        note_widget = self.query_one("#project-note", NoteWidget)
-        if item_id is None:
-            note_widget.clear()
+        elif message.action == "save_results":
+            self._save_snapshot_results(message.item_id)
         else:
-            with suppress(ValueError):
-                note_widget.set_entity("event", uuid.UUID(item_id))
-
-    def _update_station_quality(self, item_id: str | None) -> None:
-        panel = self.query_one("#project-quality-panel", Static)
-        panel.border_title = "Live station statistics"
-        stats = None
-        if item_id is not None:
-            try:
-                with Session(engine) as session:
-                    stats = get_station_quality(session, uuid.UUID(item_id))
-            except (ValueError, SQLAlchemyError):
-                pass
-        body, subtitle = format_quality_panel(stats)
-        panel.update(body)
-        panel.border_subtitle = subtitle
-        note_widget = self.query_one("#project-note", NoteWidget)
-        if item_id is None:
-            note_widget.clear()
-        else:
-            with suppress(ValueError):
-                note_widget.set_entity("station", uuid.UUID(item_id))
-
-    def _update_seismogram_note(self, item_id: str | None) -> None:
-        note_widget = self.query_one("#seismogram-note", NoteWidget)
-        if item_id is None:
-            note_widget.clear()
-        else:
-            with suppress(ValueError):
-                note_widget.set_entity("seismogram", uuid.UUID(item_id))
-
-    def _update_seismogram_plot(self, item_id: str | None) -> None:
-        try:
-            plot_widget = self.query_one("#seismogram-plot", SeismogramPlotWidget)
-        except NoMatches:
-            return
-        if item_id is None or self._bound_iccs is None:
-            plot_widget.clear()
-            return
-        seis_uuid = uuid.UUID(item_id)
-        iccs = self._bound_iccs.iccs
-        idx = next(
-            (
-                i
-                for i, s in enumerate(iccs.seismograms)
-                if s.extra.get("id") == seis_uuid
-            ),
-            None,
-        )
-        if idx is None:
-            plot_widget.clear()
-            return
-        parent = iccs.seismograms[idx]
-        pick = parent.t1 if parent.t1 is not None else parent.t0
-        try:
-            cc_seis = iccs.cc_seismograms[idx]
-            ctx_seis = iccs.context_seismograms[idx]
-        except Exception:
-            plot_widget.clear()
-            return
-        pick_ns: int = pick.value
-        cc_n = len(cc_seis.data)
-        cc_times = (
-            (
-                cc_seis.begin_time.value
-                + np.arange(cc_n, dtype=np.int64) * cc_seis.delta.value
-                - pick_ns
-            )
-            / 1e9
-        ).tolist()
-        ctx_n = len(ctx_seis.data)
-        ctx_times = (
-            (
-                ctx_seis.begin_time.value
-                + np.arange(ctx_n, dtype=np.int64) * ctx_seis.delta.value
-                - pick_ns
-            )
-            / 1e9
-        ).tolist()
-        plot_widget.update_plots(
-            cc_times,
-            cc_seis.data.tolist(),
-            ctx_times,
-            ctx_seis.data.tolist(),
-        )
-
-    def _update_snapshot_quality(self, item_id: str | None) -> None:
-        panel = self.query_one("#snapshot-quality-panel", Static)
-        panel.border_title = "Snapshot statistics"
-        stats = None
-        if item_id is not None:
-            try:
-                with Session(engine) as session:
-                    stats = get_snapshot_quality(session, uuid.UUID(item_id))
-            except (ValueError, SQLAlchemyError):
-                pass
-        body, subtitle = format_quality_panel(stats)
-        panel.update(body)
-        panel.border_subtitle = subtitle
-        note_widget = self.query_one("#snapshot-note", NoteWidget)
-        if item_id is None:
-            note_widget.clear()
-        else:
-            with suppress(ValueError):
-                note_widget.set_entity("snapshot", uuid.UUID(item_id))
+            self._handle_row_action("tab-snapshots", message.item_id, message.action)
 
     # ------------------------------------------------------------------
     # Row-action menu helpers
     # ------------------------------------------------------------------
-
-    def _open_row_action_menu(self, tab: str, item_id: str, title: str) -> None:
-        actions = _TAB_ROW_ACTIONS.get(tab, [])
-        if not actions:
-            return
-
-        def on_action(action: str | None) -> None:
-            self._handle_row_action(tab, item_id, action)
-
-        self.push_screen(ActionMenuModal(title, actions), on_action)
 
     def _handle_row_action(self, tab: str, item_id: str, action: str | None) -> None:
         if action == "delete":
@@ -1067,7 +552,7 @@ class AimbatTUI(App[None]):
                 event.parameters.completed = not event.parameters.completed
                 session.add(event)
                 session.commit()
-            self._refresh_project()
+            self.query_one(ProjectPanel).refresh_data(self._current_event_id)
             self.notify("Completed flag toggled", timeout=2)
         except Exception as exc:
             self.notify(str(exc), severity="error")
@@ -1099,9 +584,7 @@ class AimbatTUI(App[None]):
                 if seis is None:
                     raise ValueError(f"Seismogram {item_id} not found")
                 new_value = not getattr(seis.parameters, param)
-                setattr(seis.parameters, param, new_value)
-                session.add(seis)
-                session.commit()
+                set_seismogram_parameter(session, seis_uuid, param, new_value)
             if self._bound_iccs is not None:
                 for iccs_seis in self._bound_iccs.iccs.seismograms:
                     if iccs_seis.extra.get("id") == seis_uuid:
@@ -1109,7 +592,9 @@ class AimbatTUI(App[None]):
                         self._bound_iccs.iccs.clear_cache()
                         self._bound_iccs.created_at = Timestamp.now("UTC")
                         break
-            self._refresh_seismograms()
+            self.query_one(SeismogramPanel).refresh_data(
+                self._current_event_id, self._bound_iccs
+            )
             self.notify(f"{param} toggled", timeout=2)
         except Exception as exc:
             self.notify(str(exc), severity="error")
@@ -1166,7 +651,7 @@ class AimbatTUI(App[None]):
                     logger.info(f"User confirmed deletion of snapshot {item_id[:8]}.")
                     with Session(engine) as session:
                         delete_snapshot(session, uuid.UUID(item_id))
-                    self._refresh_snapshots()
+                    self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
                     self.notify("Snapshot deleted", timeout=2)
             except Exception as exc:
                 logger.exception(f"Deletion failed: {exc}")
@@ -1298,9 +783,7 @@ class AimbatTUI(App[None]):
                     return
                 try:
                     with Session(engine) as session:
-                        add_data_to_project(
-                            session, [path], data_type, disable_progress_bar=True
-                        )
+                        add_data_to_project(session, [path], data_type)
                         session.commit()
                     logger.info(f"User added data file: {path}.")
                     self.notify(f"Added: {path.name}", severity="information")
@@ -1375,7 +858,9 @@ class AimbatTUI(App[None]):
         # suspend() is synchronous, so the staleness poller cannot fire
         # between the session commit and this assignment.
         self._bound_iccs.created_at = Timestamp.now("UTC")
-        self._refresh_seismograms()
+        self.query_one(SeismogramPanel).refresh_data(
+            self._current_event_id, self._bound_iccs
+        )
         self._refresh_event_bar()
         self.notify("Done", timeout=2)
 
@@ -1442,7 +927,7 @@ class AimbatTUI(App[None]):
                 with Session(engine) as session:
                     event = self._get_current_event(session)
                     create_snapshot(session, event, comment or None)
-                self._refresh_snapshots()
+                self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
                 self.notify("Snapshot created", timeout=2)
             except Exception as exc:
                 logger.exception(f"Snapshot creation failed: {exc}")

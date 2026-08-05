@@ -9,7 +9,7 @@ from matplotlib import ticker
 from matplotlib.backend_bases import MouseEvent
 from sqlmodel import Session
 
-from pysmo.tools.plotutils import time_array
+from pysmo.tools.plotutils import relative_time_array, time_array
 
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent, AimbatStation
@@ -121,12 +121,8 @@ def _(station: AimbatStation, session: Session) -> tuple[plt.Figure, plt.Axes]:
 
     for i, (seismogram, event, pick, id) in enumerate(seismograms):
         data = seismogram.data * 0.4 + i
-        start = seismogram.begin_time - pick
-        end = seismogram.end_time - pick
-        td_index = pd.timedelta_range(start=start, end=end, periods=len(data))
-        pd.Series(data, index=td_index).plot(
-            ax=ax, scalex=True, scaley=True, label=f"Seismogram: {id}"
-        )
+        rel_times = relative_time_array(seismogram, pick)
+        ax.plot(rel_times, data, label=f"Seismogram: {id}")
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
 

@@ -37,6 +37,12 @@ TabbedContent {
     height: 1fr;
 }
 
+ProjectPanel,
+SeismogramPanel,
+SnapshotPanel {
+    height: 1fr;
+}
+
 #project-tables,
 #snapshot-table {
     width: 3fr;

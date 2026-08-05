@@ -1,10 +1,9 @@
 import os
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, Literal, overload
 from uuid import UUID
 
 from pydantic import TypeAdapter
-from rich.progress import track
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
@@ -206,7 +205,7 @@ def add_data_to_project(
     station_id: UUID | None = ...,
     event_id: UUID | None = ...,
     dry_run: Literal[False] = ...,
-    disable_progress_bar: bool = ...,
+    on_progress: Callable[[int, int], None] | None = ...,
 ) -> None: ...
 
 
@@ -219,7 +218,7 @@ def add_data_to_project(
     event_id: UUID | None = ...,
     *,
     dry_run: Literal[True],
-    disable_progress_bar: bool = ...,
+    on_progress: Callable[[int, int], None] | None = ...,
 ) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]]: ...
 
 
@@ -230,7 +229,7 @@ def add_data_to_project(
     station_id: UUID | None = None,
     event_id: UUID | None = None,
     dry_run: bool = False,
-    disable_progress_bar: bool = True,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]] | None:
     """Add data sources to the AIMBAT database.
 
@@ -254,7 +253,9 @@ def add_data_to_project(
         event_id: UUID of an existing event to use instead of extracting one
             from each data source.
         dry_run: If True, do not commit changes to the database.
-        disable_progress_bar: Do not display progress bar.
+        on_progress: Optional callback invoked as `on_progress(done, total)`
+            after each data source is processed, for callers that want to
+            display progress.
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
@@ -273,17 +274,16 @@ def add_data_to_project(
 
     try:
         added_datasources: list[AimbatDataSource] = []
+        total = len(data_sources)
         with session.begin_nested() as nested:
-            for datasource in track(
-                sequence=data_sources,
-                description="Adding data ...",
-                disable=disable_progress_bar,
-            ):
+            for done, datasource in enumerate(data_sources, start=1):
                 result = _process_datasource(
                     session, datasource, data_type, station_id, event_id
                 )
                 if result is not None:
                     added_datasources.append(result)
+                if on_progress is not None:
+                    on_progress(done, total)
 
             if dry_run:
                 logger.info("Dry run: displaying data that would be added.")

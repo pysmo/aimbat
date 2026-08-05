@@ -250,7 +250,8 @@ def cli_event_parameter_list(
 
     from aimbat.core import dump_event_parameter_table, resolve_event
     from aimbat.db import engine
-    from aimbat.models import AimbatEventParameters, RichColSpec
+    from aimbat.models import AimbatEventParameters
+    from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
 
     from .common import json_to_table
@@ -324,7 +325,8 @@ def cli_event_quality_list(
     """
     from aimbat.core import dump_event_quality_table
     from aimbat.db import engine
-    from aimbat.models import RichColSpec, SeismogramQualityStats
+    from aimbat.models import SeismogramQualityStats
+    from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
 
     from .common import json_to_table
