@@ -15,6 +15,8 @@ All functions take a SQLModel `Session` and work with the models in
   (`create_snapshot`, `rollback_to_snapshot`).
 - **Project** — create and delete the project database (`create_project`,
   `delete_project`).
+- **Migrations** — bring an existing project database up to date with the
+  current schema via Alembic (`upgrade_project`, `get_current_revision`).
 """
 
 from .._utils import export_module_names
@@ -24,6 +26,7 @@ _internal_names = set(dir())
 from ._data import *
 from ._event import *
 from ._iccs import *
+from ._migrations import *
 from ._note import *
 from ._project import *
 from ._seismogram import *

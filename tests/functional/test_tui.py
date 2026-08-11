@@ -142,6 +142,59 @@ class TestTUIEmptyDatabase:
 
 
 # ===========================================================================
+# Startup — stale schema
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestTUISchemaStalenessToast:
+    """Tests for the startup toast warning about an out-of-date schema.
+
+    `first_connect`-based `SchemaStaleWarning` (see `aimbat.db`) prints to
+    stderr, which is invisible once Textual owns the terminal - this is the
+    TUI-native equivalent, checked separately from the CLI-facing warning.
+    """
+
+    def test_toast_shown_for_legacy_unstamped_database(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A pre-Alembic database (no `alembic_version` table) triggers a toast.
+
+        Toast widgets aren't mounted as queryable DOM nodes in headless test
+        mode, so `app._notifications` (the underlying collection `notify()`
+        populates) is checked directly rather than querying `Toast` widgets.
+        """
+        _patch_engine(monkeypatch, patched_engine)
+        with patched_engine.begin() as connection:
+            connection.exec_driver_sql("DROP TABLE alembic_version")
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                notifications = list(pilot.app._notifications)
+                assert any(
+                    "predates AIMBAT's schema versioning" in n.message
+                    for n in notifications
+                )
+                assert all(n.severity == "warning" for n in notifications)
+
+        asyncio.run(_run())
+
+    def test_no_toast_when_up_to_date(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A freshly created (and therefore immediately-stamped) project shows no toast."""
+        _patch_engine(monkeypatch, patched_engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                assert list(pilot.app._notifications) == []
+
+        asyncio.run(_run())
+
+
+# ===========================================================================
 # Startup — loaded database
 # ===========================================================================
 
