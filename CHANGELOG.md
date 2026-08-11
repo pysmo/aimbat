@@ -132,6 +132,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Implement interactive shell and major documentation update for v2
 - Store ICCS/MCCC quality metrics in database
 - Add JSON export functionality for snapshot results
+- Add Alembic-based schema migrations
 
 ### 🧪 Testing
 
