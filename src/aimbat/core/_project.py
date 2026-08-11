@@ -302,6 +302,14 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
+    # Mark the new database as being at the latest Alembic revision so that
+    # `aimbat db upgrade` treats it consistently with a database that was
+    # brought up to date via a real migration, rather than as an
+    # unversioned legacy database.
+    from aimbat.core._migrations import stamp_head
+
+    stamp_head(engine)
+
 
 def delete_project(engine: Engine) -> None:
     """Delete the AIMBAT project.

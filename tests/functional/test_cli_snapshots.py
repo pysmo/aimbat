@@ -337,7 +337,7 @@ class TestSnapshotDelete:
             capsys: The pytest capsys fixture.
             monkeypatch: The pytest monkeypatch fixture.
         """
-        # Set log level to INFO so simple_exception catches and exits
+        # Set log level to INFO so handle_issues catches and exits
         monkeypatch.setattr(settings, "log_level", "INFO")
         with pytest.raises(SystemExit) as exc_info:
             cli("snapshot delete 00000000-0000-0000-0000-000000000000")

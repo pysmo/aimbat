@@ -14,9 +14,9 @@ from .common import (
     TableParameters,
     event_parameter_is_all,
     event_parameter_with_all,
+    handle_issues,
     id_parameter,
     open_in_editor,
-    simple_exception,
 )
 
 app = App(name="seismogram", help=__doc__, help_format="markdown")
@@ -29,7 +29,7 @@ app.command(parameter)
 
 
 @_note.command(name="read")
-@simple_exception
+@handle_issues
 def cli_seismogram_note_read(
     seismogram_id: Annotated[
         UUID,
@@ -53,7 +53,7 @@ def cli_seismogram_note_read(
 
 
 @_note.command(name="edit")
-@simple_exception
+@handle_issues
 def cli_seismogram_note_edit(
     seismogram_id: Annotated[
         UUID,
@@ -79,7 +79,7 @@ def cli_seismogram_note_edit(
 
 
 @app.command(name="delete")
-@simple_exception
+@handle_issues
 def cli_seismogram_delete(
     seismogram_id: Annotated[
         UUID,
@@ -101,7 +101,7 @@ def cli_seismogram_delete(
 
 
 @app.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_seismogram_dump(
     *,
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
@@ -123,7 +123,7 @@ def cli_seismogram_dump(
 
 
 @app.command(name="list")
-@simple_exception
+@handle_issues
 def cli_seismogram_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
@@ -172,7 +172,7 @@ if __name__ == "__main__":
 
 
 @parameter.command(name="get")
-@simple_exception
+@handle_issues
 def cli_seismogram_parameter_get(
     name: SeismogramParameter,
     *,
@@ -204,7 +204,7 @@ def cli_seismogram_parameter_get(
 
 
 @parameter.command(name="set")
-@simple_exception
+@handle_issues
 def cli_seismogram_parameter_set(
     name: SeismogramParameter,
     value: str,
@@ -233,7 +233,7 @@ def cli_seismogram_parameter_set(
 
 
 @parameter.command(name="reset")
-@simple_exception
+@handle_issues
 def cli_seismogram_parameter_reset(
     seismogram_id: Annotated[
         UUID,
@@ -256,7 +256,7 @@ def cli_seismogram_parameter_reset(
 
 
 @parameter.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_seismogram_parameter_dump(
     *,
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
@@ -277,7 +277,7 @@ def cli_seismogram_parameter_dump(
 
 
 @parameter.command(name="list")
-@simple_exception
+@handle_issues
 def cli_seismogram_parameter_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,

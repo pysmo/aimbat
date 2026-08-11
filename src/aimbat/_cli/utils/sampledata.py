@@ -12,7 +12,7 @@ from typing import Annotated
 
 from cyclopts import App, Parameter
 
-from aimbat._cli.common import DebugParameter, simple_exception
+from aimbat._cli.common import DebugParameter, handle_issues
 
 __all__ = ["sampledata_cli_download", "sampledata_cli_delete"]
 
@@ -20,7 +20,7 @@ app = App(name="sampledata", help=__doc__, help_format="markdown")
 
 
 @app.command(name="download")
-@simple_exception
+@handle_issues
 def sampledata_cli_download(
     *,
     force: Annotated[
@@ -39,7 +39,7 @@ def sampledata_cli_download(
 
 
 @app.command(name="delete")
-@simple_exception
+@handle_issues
 def sampledata_cli_delete(*, _: DebugParameter = DebugParameter()) -> None:
     """Recursively delete sample data directory."""
     from aimbat.utils import delete_sampledata

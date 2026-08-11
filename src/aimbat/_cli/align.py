@@ -13,7 +13,7 @@ from cyclopts import App, Parameter
 from .common import (
     DebugParameter,
     event_parameter,
-    simple_exception,
+    handle_issues,
 )
 
 __all__ = ["cli_iccs_run", "cli_mccc_run"]
@@ -22,7 +22,7 @@ app = App(name="align", help=__doc__, help_format="markdown")
 
 
 @app.command(name="iccs")
-@simple_exception
+@handle_issues
 def cli_iccs_run(
     event_id: Annotated[UUID, event_parameter()],
     *,
@@ -63,7 +63,7 @@ def cli_iccs_run(
 
 
 @app.command(name="mccc")
-@simple_exception
+@handle_issues
 def cli_mccc_run(
     event_id: Annotated[UUID, event_parameter()],
     *,

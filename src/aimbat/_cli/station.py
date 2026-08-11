@@ -13,9 +13,9 @@ from .common import (
     TableParameters,
     event_parameter_is_all,
     event_parameter_with_all,
+    handle_issues,
     id_parameter,
     open_in_editor,
-    simple_exception,
     station_parameter_is_all,
     station_parameter_with_all,
 )
@@ -30,7 +30,7 @@ app.command(_quality)
 
 
 @_note.command(name="read")
-@simple_exception
+@handle_issues
 def cli_station_note_read(
     station_id: Annotated[
         UUID,
@@ -54,7 +54,7 @@ def cli_station_note_read(
 
 
 @_note.command(name="edit")
-@simple_exception
+@handle_issues
 def cli_station_note_edit(
     station_id: Annotated[
         UUID,
@@ -80,7 +80,7 @@ def cli_station_note_edit(
 
 
 @app.command(name="delete")
-@simple_exception
+@handle_issues
 def cli_station_delete(
     station_id: Annotated[
         UUID,
@@ -103,7 +103,7 @@ def cli_station_delete(
 
 
 @app.command(name="plotseis")
-@simple_exception
+@handle_issues
 def cli_station_seismograms_plot(
     station_id: Annotated[
         UUID,
@@ -130,7 +130,7 @@ def cli_station_seismograms_plot(
 
 
 @app.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_station_dump(
     *, dump_parameters: JsonDumpParameters = JsonDumpParameters()
 ) -> None:
@@ -150,7 +150,7 @@ def cli_station_dump(
 
 
 @app.command(name="list")
-@simple_exception
+@handle_issues
 def cli_station_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     table_parameters: TableParameters = TableParameters(),
@@ -194,7 +194,7 @@ def cli_station_list(
 
 
 @_quality.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_station_quality_dump(
     *, dump_parameters: JsonDumpParameters = JsonDumpParameters()
 ) -> None:
@@ -215,7 +215,7 @@ def cli_station_quality_dump(
 
 
 @_quality.command(name="list")
-@simple_exception
+@handle_issues
 def cli_station_quality_list(
     station_id: Annotated[UUID | Literal["all"], station_parameter_with_all()],
     *,

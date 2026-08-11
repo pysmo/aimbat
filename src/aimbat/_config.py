@@ -103,6 +103,17 @@ class Settings(BaseSettings):
         description="URL where sample data is downloaded from.",
     )
 
+    strict_schema_check: bool = Field(
+        default=False,
+        description=(
+            "Raise an error instead of a non-blocking warning when the project "
+            "database schema is out of date. Intended for scripting: setting "
+            "PYTHONWARNINGS/-W directly does not reliably work for third-party "
+            "warning categories, since Python resolves them very early during "
+            "interpreter startup, before the AIMBAT package is reliably importable."
+        ),
+    )
+
     ramp_width: PydanticNonNegativeFloat = Field(
         default=0.1,
         description="Width of taper ramp as a multiple of the window length. Values greater than 1 are valid; the ramp extends outside the window.",

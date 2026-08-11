@@ -22,9 +22,9 @@ from .common import (
     event_parameter,
     event_parameter_is_all,
     event_parameter_with_all,
+    handle_issues,
     id_parameter,
     open_in_editor,
-    simple_exception,
 )
 
 app = App(name="snapshot", help=__doc__, help_format="markdown")
@@ -37,7 +37,7 @@ app.command(_quality)
 
 
 @_note.command(name="read")
-@simple_exception
+@handle_issues
 def cli_snapshot_note_read(
     snapshot_id: Annotated[
         UUID,
@@ -61,7 +61,7 @@ def cli_snapshot_note_read(
 
 
 @_note.command(name="edit")
-@simple_exception
+@handle_issues
 def cli_snapshot_note_edit(
     snapshot_id: Annotated[
         UUID,
@@ -87,7 +87,7 @@ def cli_snapshot_note_edit(
 
 
 @app.command(name="create")
-@simple_exception
+@handle_issues
 def cli_snapshot_create(
     event_id: Annotated[UUID, event_parameter()],
     comment: str | None = None,
@@ -113,7 +113,7 @@ def cli_snapshot_create(
 
 
 @app.command(name="rollback")
-@simple_exception
+@handle_issues
 def cli_snapshot_rollback(
     snapshot_id: Annotated[
         UUID,
@@ -146,7 +146,7 @@ def cli_snapshot_rollback(
 
 
 @app.command(name="delete")
-@simple_exception
+@handle_issues
 def cli_snapshot_delete(
     snapshot_id: Annotated[
         UUID,
@@ -169,7 +169,7 @@ def cli_snapshot_delete(
 
 
 @app.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_snapshot_dump(
     *,
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
@@ -209,7 +209,7 @@ def cli_snapshot_dump(
 
 
 @app.command(name="list")
-@simple_exception
+@handle_issues
 def cli_snapshot_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
@@ -262,7 +262,7 @@ def cli_snapshot_list(
 
 
 @app.command(name="preview")
-@simple_exception
+@handle_issues
 def cli_snapshot_preview(
     snapshot_id: Annotated[
         UUID,
@@ -301,7 +301,7 @@ def cli_snapshot_preview(
 
 
 @app.command(name="details")
-@simple_exception
+@handle_issues
 def cli_snapshot_details(
     snapshot_id: Annotated[
         UUID,
@@ -350,7 +350,7 @@ def cli_snapshot_details(
 
 
 @_quality.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_snapshot_quality_dump(
     *, dump_parameters: JsonDumpParameters = JsonDumpParameters()
 ) -> None:
@@ -371,7 +371,7 @@ def cli_snapshot_quality_dump(
 
 
 @_quality.command(name="list")
-@simple_exception
+@handle_issues
 def cli_snapshot_quality_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
@@ -431,7 +431,7 @@ def cli_snapshot_quality_list(
 
 
 @app.command(name="results")
-@simple_exception
+@handle_issues
 def cli_snapshot_results(
     snapshot_id: Annotated[
         UUID,

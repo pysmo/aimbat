@@ -57,6 +57,14 @@ useful for inspecting the raw data when debugging unexpected behaviour.
 
 ![DB Browser](../images/sqlbrowser.png){ loading=lazy }
 
+!!! tip "Keeping the schema up to date"
+    AIMBAT occasionally changes the project database schema between
+    releases. If an existing project's schema is out of date, commands
+    print a warning (and the TUI shows a toast) suggesting
+    `#!bash aimbat db upgrade` — run it once to bring the project up to
+    date. This never happens automatically, and existing data is never
+    lost.
+
 ## Parameters
 
 Parameters are organised in three tiers:

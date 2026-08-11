@@ -58,12 +58,14 @@ from aimbat.core import (
     delete_snapshot,
     delete_station,
     dump_snapshot_results,
+    get_current_revision,
     reset_seismogram_parameters,
     rollback_to_snapshot,
     run_iccs,
     run_mccc,
     set_seismogram_parameter,
 )
+from aimbat.core._migrations import _build_staleness_warning
 from aimbat.core._project import _project_exists
 from aimbat.db import engine
 from aimbat.io import DATATYPE_SUFFIXES, DataType
@@ -254,8 +256,23 @@ class AimbatTUI(App[None]):
         if not _project_exists(engine):
             self.push_screen(NoProjectModal(), self._on_no_project_modal)
         else:
+            self._warn_if_schema_stale()
             self._create_iccs()
             self.refresh_all()
+
+    def _warn_if_schema_stale(self) -> None:
+        """Show a toast if the project's database schema is out of date.
+
+        Duplicates the *check* `aimbat.db`'s `first_connect` listener already
+        performs, since that one raises `SchemaStaleWarning` which prints to
+        stderr - invisible once Textual has switched the terminal to its own
+        screen. This is the TUI-native equivalent for the same condition.
+        The message itself comes from `_build_staleness_warning`, shared with
+        `db.py`, so the two can't drift apart.
+        """
+        warning = _build_staleness_warning(get_current_revision(engine))
+        if warning is not None:
+            self.notify(str(warning), severity="warning")
 
     def _on_no_project_modal(self, create: bool | None) -> None:
         if create:
@@ -956,8 +973,27 @@ class AimbatTUI(App[None]):
 
 
 def main() -> None:
-    """Entry point for the AIMBAT TUI."""
-    AimbatTUI().run()
+    """Entry point for the AIMBAT TUI.
+
+    Raises:
+        RuntimeError: If the TUI exited due to an unhandled exception (e.g.
+            a `SchemaStaleWarning` promoted to an error by
+            `AIMBAT_STRICT_SCHEMA_CHECK`). Textual catches exceptions raised
+            inside its own message loop and shows its own crash screen
+            rather than letting them propagate - `App.run()` then returns
+            normally, which would otherwise report a successful (exit 0)
+            process despite the crash. Checking `return_code` (Textual's own
+            documented mechanism for this - see `App.return_code`) and
+            re-raising here restores the same hard-failure contract every
+            other AIMBAT command already has via `handle_issues`.
+    """
+    app = AimbatTUI()
+    app.run()
+    if app.return_code:
+        raise RuntimeError(
+            "AIMBAT TUI exited after an unhandled error - see the crash "
+            "report above for details."
+        )
 
 
 if __name__ == "__main__":

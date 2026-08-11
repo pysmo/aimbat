@@ -45,7 +45,7 @@ from .common import (
     TableParameters,
     event_parameter_is_all,
     event_parameter_with_all,
-    simple_exception,
+    handle_issues,
     use_event_parameter,
     use_station_parameter,
 )
@@ -108,7 +108,7 @@ def _print_dry_run_results(
 
 
 @app.command(name="add")
-@simple_exception
+@handle_issues
 def cli_data_add(
     data_sources: Annotated[
         list[Path],
@@ -204,7 +204,7 @@ def cli_data_add(
 
 
 @app.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_data_dump(
     *,
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
@@ -223,7 +223,7 @@ def cli_data_dump(
 
 
 @app.command(name="list")
-@simple_exception
+@handle_issues
 def cli_data_list(
     event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()],
     *,

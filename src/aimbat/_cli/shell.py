@@ -15,8 +15,8 @@ from cyclopts import App
 from .common import (
     DebugParameter,
     event_parameter,
+    handle_issues,
     print_error_panel,
-    simple_exception,
 )
 
 if TYPE_CHECKING:
@@ -130,7 +130,7 @@ def _check_iccs(
 
 
 @app.default
-@simple_exception
+@handle_issues
 def cli_shell(
     event_id: Annotated[
         uuid.UUID | None,

@@ -19,14 +19,14 @@ from .common import (
     DebugParameter,
     IccsPlotParameters,
     event_parameter,
-    simple_exception,
+    handle_issues,
 )
 
 app = App(name="plot", help=__doc__, help_format="markdown")
 
 
 @app.command(name="seismograms")
-@simple_exception
+@handle_issues
 def cli_seismogram_plot(
     event_id: Annotated[UUID, event_parameter()],
     *,
@@ -45,7 +45,7 @@ def cli_seismogram_plot(
 
 
 @app.command(name="stack")
-@simple_exception
+@handle_issues
 def cli_plot_stack(
     event_id: Annotated[UUID, event_parameter()],
     *,
@@ -71,7 +71,7 @@ def cli_plot_stack(
 
 
 @app.command(name="matrix")
-@simple_exception
+@handle_issues
 def cli_plot_matrix_image(
     event_id: Annotated[UUID, event_parameter()],
     *,

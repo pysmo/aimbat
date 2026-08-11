@@ -15,7 +15,7 @@ from .common import (
     DebugParameter,
     IccsPlotParameters,
     event_parameter,
-    simple_exception,
+    handle_issues,
     use_matrix_image,
 )
 
@@ -23,7 +23,7 @@ app = App(name="tool", help=__doc__, help_format="markdown")
 
 
 @app.command(name="bandpass")
-@simple_exception
+@handle_issues
 def cli_update_bandpass(
     event_id: Annotated[UUID, event_parameter()],
     *,
@@ -58,7 +58,7 @@ def cli_update_bandpass(
 
 
 @app.command(name="phase")
-@simple_exception
+@handle_issues
 def cli_update_phase_pick(
     event_id: Annotated[UUID, event_parameter()],
     *,
@@ -91,7 +91,7 @@ def cli_update_phase_pick(
 
 
 @app.command(name="window")
-@simple_exception
+@handle_issues
 def cli_pick_timewindow(
     event_id: Annotated[UUID, event_parameter()],
     *,
@@ -126,7 +126,7 @@ def cli_pick_timewindow(
 
 
 @app.command(name="cc")
-@simple_exception
+@handle_issues
 def cli_pick_min_cc(
     event_id: Annotated[UUID, event_parameter()],
     *,

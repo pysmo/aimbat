@@ -1,5 +1,6 @@
 from .align import app as align
 from .data import app as data
+from .db import app as db
 from .event import app as event
 from .plot import app as plot
 from .project import app as project
@@ -15,6 +16,7 @@ __all__ = [
     "utils",
     "align",
     "data",
+    "db",
     "event",
     "tool",
     "plot",

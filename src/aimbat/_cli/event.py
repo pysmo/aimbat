@@ -17,8 +17,8 @@ from .common import (
     event_parameter,
     event_parameter_is_all,
     event_parameter_with_all,
+    handle_issues,
     open_in_editor,
-    simple_exception,
 )
 
 __all__ = [
@@ -49,7 +49,7 @@ app.command(_quality)
 
 
 @app.command(name="delete")
-@simple_exception
+@handle_issues
 def cli_event_delete(
     event_id: Annotated[uuid.UUID, event_parameter()],
     *,
@@ -65,7 +65,7 @@ def cli_event_delete(
 
 
 @app.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_event_dump(
     *, dump_parameters: JsonDumpParameters = JsonDumpParameters()
 ) -> None:
@@ -83,7 +83,7 @@ def cli_event_dump(
 
 
 @app.command(name="list")
-@simple_exception
+@handle_issues
 def cli_event_list(
     *,
     table_parameters: TableParameters = TableParameters(),
@@ -116,7 +116,7 @@ def cli_event_list(
 
 
 @_note.command(name="read")
-@simple_exception
+@handle_issues
 def cli_event_note_read(
     event_id: Annotated[uuid.UUID, event_parameter()],
     *,
@@ -137,7 +137,7 @@ def cli_event_note_read(
 
 
 @_note.command(name="edit")
-@simple_exception
+@handle_issues
 def cli_event_note_edit(
     event_id: Annotated[uuid.UUID, event_parameter()],
     *,
@@ -170,7 +170,7 @@ def cli_event_note_edit(
 
 
 @_parameter.command(name="get")
-@simple_exception
+@handle_issues
 def cli_event_parameter_get(
     name: EventParameter, *, event_debug_parameters: EventDebugParameters
 ) -> None:
@@ -194,7 +194,7 @@ def cli_event_parameter_get(
 
 
 @_parameter.command(name="set")
-@simple_exception
+@handle_issues
 def cli_event_parameter_set(
     name: EventParameter, value: str, *, event_debug_parameters: EventDebugParameters
 ) -> None:
@@ -217,7 +217,7 @@ def cli_event_parameter_set(
 
 
 @_parameter.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_event_parameter_dump(
     *,
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
@@ -236,7 +236,7 @@ def cli_event_parameter_dump(
 
 
 @_parameter.command(name="list")
-@simple_exception
+@handle_issues
 def cli_event_parameter_list(
     event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()],
     *,
@@ -292,7 +292,7 @@ def cli_event_parameter_list(
 
 
 @_quality.command(name="dump")
-@simple_exception
+@handle_issues
 def cli_event_quality_dump(
     *, dump_parameters: JsonDumpParameters = JsonDumpParameters()
 ) -> None:
@@ -312,7 +312,7 @@ def cli_event_quality_dump(
 
 
 @_quality.command(name="list")
-@simple_exception
+@handle_issues
 def cli_event_quality_list(
     event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()],
     *,

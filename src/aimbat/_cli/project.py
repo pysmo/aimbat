@@ -17,14 +17,14 @@ from cyclopts import App
 from .common import (
     DebugParameter,
     event_parameter,
-    simple_exception,
+    handle_issues,
 )
 
 app = App(name="project", help=__doc__, help_format="markdown")
 
 
 @app.command(name="create")
-@simple_exception
+@handle_issues
 def cli_project_create(*, _: DebugParameter = DebugParameter()) -> None:
     """Create a new AIMBAT project in the current directory.
 
@@ -38,7 +38,7 @@ def cli_project_create(*, _: DebugParameter = DebugParameter()) -> None:
 
 
 @app.command(name="delete")
-@simple_exception
+@handle_issues
 def cli_project_delete(*, _: DebugParameter = DebugParameter()) -> None:
     """Delete project (note: this does *not* delete seismogram files)."""
     from aimbat.core import delete_project
@@ -48,7 +48,7 @@ def cli_project_delete(*, _: DebugParameter = DebugParameter()) -> None:
 
 
 @app.command(name="info")
-@simple_exception
+@handle_issues
 def cli_project_info(
     event_id: Annotated[UUID | None, event_parameter()] = None,
     *,
