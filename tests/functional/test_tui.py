@@ -346,10 +346,17 @@ class TestICCSStalenessRetry:
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                # `on_mount` already kicked off its own `_create_iccs()` for
+                # this event-bearing fixture, with no event selected yet. Drain
+                # it first: otherwise it can still be in flight below, and the
+                # `_iccs_creating` guard silently skips the call this test
+                # actually wants to observe.
+                await _wait_for_iccs_worker(app)
+
                 with Session(loaded_engine_from_file) as session:
                     event = session.exec(select(AimbatEvent)).first()
                 assert event is not None
-                app = cast(AimbatTUI, pilot.app)
                 app._current_event_id = event.id
                 # Mirror what `_check_iccs_staleness` records before a fresh
                 # attempt, so later polls see an unchanged `last_modified`.
@@ -396,10 +403,17 @@ class TestICCSStalenessRetry:
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                # See the equivalent comment in
+                # test_retries_once_then_stops_on_persistent_failure: drain
+                # `on_mount`'s own startup `_create_iccs()` call first, or it
+                # can still be in flight and make the call below a silent
+                # no-op via the `_iccs_creating` guard.
+                await _wait_for_iccs_worker(app)
+
                 with Session(loaded_engine_from_file) as session:
                     event = session.exec(select(AimbatEvent)).first()
                 assert event is not None
-                app = cast(AimbatTUI, pilot.app)
                 app._current_event_id = event.id
                 app._iccs_last_modified_seen = event.last_modified
 
