@@ -15,8 +15,6 @@ permissions:
 
 jobs:
   pull-request-links:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: readthedocs/actions/preview@v1
-        with:
-          project-slug: "aimbat"
+    uses: pysmo/.github/.github/workflows/pull-request-links.yml@main
+    with:
+      project-slug: "aimbat"

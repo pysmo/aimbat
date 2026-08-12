@@ -1,0 +1,21 @@
+name: release-prep
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to create (e.g. v1.2.3, v1.2.3rc1, v1.2.3.dev0)"
+        required: true
+        type: string
+
+concurrency:
+  group: release-prep
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    uses: pysmo/.github/.github/workflows/release-prep.yml@main
+    with:
+      version: ${{ inputs.version }}
+      changelog-range: "v1.0.7.."
+    secrets: inherit
