@@ -14,6 +14,8 @@ concurrency:
 
 jobs:
   prepare:
+    permissions:
+      contents: write
     uses: pysmo/.github/.github/workflows/release-prep.yml@main
     with:
       version: ${{ inputs.version }}

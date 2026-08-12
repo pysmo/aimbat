@@ -12,4 +12,6 @@ on:
 jobs:
   build:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
     uses: pysmo/.github/.github/workflows/build.yml@main
