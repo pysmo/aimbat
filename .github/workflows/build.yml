@@ -12,24 +12,4 @@ on:
 jobs:
   build:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version:
-          - "3.12"
-          - "3.13"
-          - "3.14"
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          python-version: ${{ matrix.python-version }}
-      - name: Set up environment with uv
-        run: |
-          uv sync --locked --all-extras  --no-group docs
-      - name: Build sdist and wheel
-        run: |
-          uv build
+    uses: pysmo/.github/.github/workflows/build.yml@main

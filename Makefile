@@ -1,6 +1,6 @@
 .PHONY: help check-uv \
-	build changelog clean docs format format-check lint live-docs mypy \
-	publish python sync test-figs tests tests-full upgrade
+	build clean docs format format-check lint live-docs mypy \
+	python sync test-figs tests tests-full upgrade
 
 ifeq ($(OS),Windows_NT)
   UV_VERSION := $(shell uv --version 2> NUL)
@@ -26,13 +26,10 @@ endif
 build: clean check-uv sync ## Build distribution.
 	uv build
 
-changelog: check-uv sync ## Generate CHANGELOG.md
-	uv run git-cliff v1.0.7..HEAD --config cliff.toml --output CHANGELOG.md
-
 clean: ## Remove existing builds.
 	rm -rf build dist .egg aimbat.egg-info docs/build site
 
-docs: check-uv sync changelog ## Build html docs.
+docs: check-uv sync ## Build html docs.
 	uv run python -c "import sys; from aimbat._config import generate_settings_table_markdown as g; sys.stdout.write(g())" > docs/usage/defaults-table.md
 	uv run zensical build --clean
 

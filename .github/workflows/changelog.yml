@@ -20,6 +20,7 @@ jobs:
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
+          args: v1.0.7..
         env:
           OUTPUT: CHANGELOG.md
       - name: Commit CHANGELOG.md
