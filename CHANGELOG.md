@@ -4,6 +4,12 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes
+
+- Set explicit permissions on workflow-calling jobs
+
+## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
+
 ### ⚙️ DevOps & Infrastructure
 
 - Artifact@v4
