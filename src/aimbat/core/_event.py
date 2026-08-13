@@ -356,6 +356,7 @@ def set_event_parameter(
     parameters_hash = compute_parameters_hash(event)
     if not sync_from_matching_hash(session, parameters_hash):
         clear_mccc_quality(session, event)
+    session.commit()
 
 
 def dump_event_parameter_table(

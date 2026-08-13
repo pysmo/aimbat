@@ -875,10 +875,7 @@ class AimbatTUI(App[None]):
         # suspend() is synchronous, so the staleness poller cannot fire
         # between the session commit and this assignment.
         self._bound_iccs.created_at = Timestamp.now("UTC")
-        self.query_one(SeismogramPanel).refresh_data(
-            self._current_event_id, self._bound_iccs
-        )
-        self._refresh_event_bar()
+        self.refresh_all()
         self.notify("Done", timeout=2)
 
     def action_open_align(self) -> None:

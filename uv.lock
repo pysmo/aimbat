@@ -2019,8 +2019,8 @@ wheels = [
 
 [[package]]
 name = "pysmo"
-version = "1.0.0.dev82+g53e5322ea"
-source = { git = "https://github.com/pysmo/pysmo?rev=master#53e5322ea31e4c5870b98a27f9268859055f4846" }
+version = "1.0.0.dev90+gfbb842968"
+source = { git = "https://github.com/pysmo/pysmo?rev=master#fbb8429684d9aa4587dfd3cfadc4de74f9f855c9" }
 dependencies = [
     { name = "annotated-types" },
     { name = "attrs" },

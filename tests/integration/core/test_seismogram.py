@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from matplotlib.figure import Figure
+from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
@@ -125,6 +126,35 @@ class TestSetSeismogramParameter:
                 loaded_session, uuid.uuid4(), SeismogramParameter.FLIP, True
             )
 
+    def test_set_parameter_persists_across_sessions(
+        self, loaded_engine: Engine
+    ) -> None:
+        """Verifies a change survives the session it was made in being closed.
+
+        Callers (TUI, CLI) always call `set_seismogram_parameter` inside a
+        `with Session(engine) as session:` block and never commit
+        themselves, so the write must be durable by the time that session
+        closes — whether via this function's own commit or one it triggers
+        indirectly (e.g. `clear_mccc_quality`). Guards against the change
+        being silently rolled back on session close.
+        """
+        with Session(loaded_engine) as session:
+            seismogram = session.exec(select(AimbatSeismogram)).first()
+            assert seismogram is not None
+            seismogram_id = seismogram.id
+            original = getattr(seismogram.parameters, SeismogramParameter.SELECT)
+            set_seismogram_parameter(
+                session, seismogram_id, SeismogramParameter.SELECT, not original
+            )
+
+        with Session(loaded_engine) as session:
+            seismogram = session.get(AimbatSeismogram, seismogram_id)
+            assert seismogram is not None
+            assert (
+                getattr(seismogram.parameters, SeismogramParameter.SELECT)
+                is not original
+            )
+
 
 class TestResetSeismogramParameters:
     """Tests for resetting seismogram parameters to their defaults."""
@@ -162,6 +192,36 @@ class TestResetSeismogramParameters:
         """
         with pytest.raises(NoResultFound):
             reset_seismogram_parameters(loaded_session, uuid.uuid4())
+
+    def test_reset_parameters_persists_across_sessions(
+        self, loaded_engine: Engine
+    ) -> None:
+        """Verifies a reset survives the session it was made in being closed.
+
+        Callers always call `reset_seismogram_parameters` inside a
+        `with Session(engine) as session:` block and never commit
+        themselves, so the write must be durable by the time that session
+        closes — whether via this function's own commit or one it triggers
+        indirectly (e.g. `clear_mccc_quality`). Guards against the reset
+        being silently rolled back on session close.
+        """
+        with Session(loaded_engine) as session:
+            seismogram = session.exec(select(AimbatSeismogram)).first()
+            assert seismogram is not None
+            seismogram_id = seismogram.id
+            set_seismogram_parameter(
+                session, seismogram_id, SeismogramParameter.FLIP, True
+            )
+            reset_seismogram_parameters(session, seismogram_id)
+
+        with Session(loaded_engine) as session:
+            seismogram = session.get(AimbatSeismogram, seismogram_id)
+            assert seismogram is not None
+            defaults = AimbatSeismogramParametersBase()
+            assert (
+                getattr(seismogram.parameters, SeismogramParameter.FLIP)
+                == defaults.flip
+            )
 
 
 class TestGetSelectedSeismograms:

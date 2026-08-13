@@ -171,6 +171,7 @@ def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
     parameters_hash = compute_parameters_hash(seismogram.event)
     if not sync_from_matching_hash(session, parameters_hash):
         clear_mccc_quality(session, seismogram.event)
+    session.commit()
 
 
 @overload
@@ -246,6 +247,7 @@ def set_seismogram_parameter(
     parameters_hash = compute_parameters_hash(seismogram.event)
     if not sync_from_matching_hash(session, parameters_hash):
         clear_mccc_quality(session, seismogram.event)
+    session.commit()
 
 
 def get_selected_seismograms(

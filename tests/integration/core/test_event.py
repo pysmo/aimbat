@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from pandas import Timedelta
+from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
@@ -200,6 +201,35 @@ class TestSetEventParameter:
                 Timedelta(seconds=10000),
                 validate_iccs=True,
             )
+
+    def test_set_parameter_persists_across_sessions(
+        self, loaded_engine: Engine
+    ) -> None:
+        """Verifies a change survives the session it was made in being closed.
+
+        Callers (TUI, CLI) always call `set_event_parameter` inside a
+        `with Session(engine) as session:` block and never commit
+        themselves, so the write must be durable by the time that session
+        closes — whether via this function's own commit or one it triggers
+        indirectly (e.g. `clear_mccc_quality`). Guards against the change
+        (and the `last_modified` DB trigger it fires) being silently rolled
+        back on session close.
+        """
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+            assert event.last_modified is None
+            new_value = Timedelta(seconds=20)
+            set_event_parameter(
+                session, event_id, EventParameter.WINDOW_POST, new_value
+            )
+
+        with Session(loaded_engine) as session:
+            event = session.get(AimbatEvent, event_id)
+            assert event is not None
+            assert event.parameters.window_post == new_value
+            assert event.last_modified is not None
 
 
 # ===================================================================
