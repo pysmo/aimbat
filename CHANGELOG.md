@@ -9,6 +9,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Set explicit permissions on workflow-calling jobs
 - Drain startup ICCS worker before TestICCSStalenessRetry asserts
 - Refresh project table after Tools-menu parameter changes
+- Refresh all TUI panels after mutations, not just the active one
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
