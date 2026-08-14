@@ -417,16 +417,23 @@ class AimbatTUI(App[None]):
         self._iccs_creating = False
         self._bound_iccs = bound_iccs
         logger.info("ICCS instance ready and assigned.")
-        self._refresh_event_bar()
-        self.query_one(SeismogramPanel).refresh_data(
-            self._current_event_id, self._bound_iccs
-        )
+        # Rebuilding ICCS re-upserts iccs_cc per seismogram, which also feeds
+        # ProjectPanel's quality panel and station cc_mean/cc_sem column.
+        self.refresh_all()
 
     # ------------------------------------------------------------------
     # Data refresh
     # ------------------------------------------------------------------
 
     def refresh_all(self) -> None:
+        """Refresh every panel.
+
+        Call this after any mutation by default. Only use a targeted
+        `<Panel>.refresh_data(...)` call when you can name the specific
+        reason no other panel's displayed data (including `column_property`
+        counts and the live quality getters) is affected, and record that
+        reasoning as a comment at the call site.
+        """
         self.refresh_bindings()
         self._refresh_event_bar()
         self.query_one(ProjectPanel).refresh_data(self._current_event_id)
@@ -569,7 +576,7 @@ class AimbatTUI(App[None]):
                 event.parameters.completed = not event.parameters.completed
                 session.add(event)
                 session.commit()
-            self.query_one(ProjectPanel).refresh_data(self._current_event_id)
+            self.refresh_all()
             self.notify("Completed flag toggled", timeout=2)
         except Exception as exc:
             self.notify(str(exc), severity="error")
@@ -609,6 +616,11 @@ class AimbatTUI(App[None]):
                         self._bound_iccs.iccs.clear_cache()
                         self._bound_iccs.created_at = Timestamp.now("UTC")
                         break
+            # Deliberately scoped: this only mutates the in-memory ICCS instance
+            # and clears its cache, without re-upserting iccs_cc, so no other
+            # panel's displayed data (quality panels, station cc_mean/cc_sem)
+            # changes here. Also repeated once per seismogram during QC review,
+            # so avoid the extra DB round trips a full refresh_all() would add.
             self.query_one(SeismogramPanel).refresh_data(
                 self._current_event_id, self._bound_iccs
             )
@@ -668,7 +680,7 @@ class AimbatTUI(App[None]):
                     logger.info(f"User confirmed deletion of snapshot {item_id[:8]}.")
                     with Session(engine) as session:
                         delete_snapshot(session, uuid.UUID(item_id))
-                    self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
+                    self.refresh_all()
                     self.notify("Snapshot deleted", timeout=2)
             except Exception as exc:
                 logger.exception(f"Deletion failed: {exc}")
@@ -941,7 +953,7 @@ class AimbatTUI(App[None]):
                 with Session(engine) as session:
                     event = self._get_current_event(session)
                     create_snapshot(session, event, comment or None)
-                self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
+                self.refresh_all()
                 self.notify("Snapshot created", timeout=2)
             except Exception as exc:
                 logger.exception(f"Snapshot creation failed: {exc}")
