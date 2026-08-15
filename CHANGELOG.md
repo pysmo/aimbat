@@ -11,6 +11,10 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Refresh project table after Tools-menu parameter changes
 - Refresh all TUI panels after mutations, not just the active one
 
+### 🚀 New Features
+
+- Auto-create a snapshot per event when data add ingests new seismograms
+
 ### 🧪 Testing
 
 - Use testkit for shared pytest fixtures
