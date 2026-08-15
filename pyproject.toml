@@ -51,6 +51,7 @@ test = [
   "pytest-mypy>=1.0.1",
   "pytest-sugar>=1.1.1",
   "ruff>=0.13.0",
+  "testkit",
 ]
 dev = ["ruff>=0.15.5", "textual-dev>=1.8.0", "vulture>=2.15"]
 docs = [
@@ -65,6 +66,7 @@ default-groups = ["test", "dev", "docs"]
 
 [tool.uv.sources]
 pysmo = { git = "https://github.com/pysmo/pysmo", rev = "master" }
+testkit = { git = "https://github.com/pysmo/testkit", tag = "v0.2.0" }
 
 [tool.hatch.version]
 source = "vcs"
@@ -93,6 +95,10 @@ namespace_packages = true
 disallow_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = "testkit.*"
+ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["src"]
