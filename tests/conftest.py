@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import uuid
 from collections.abc import Callable, Generator, Sequence
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -15,8 +14,11 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import pytest
+from pandas import Timedelta
 from sqlalchemy import Engine, event
 from sqlmodel import Session, create_engine
+
+from pysmo.classes import SAC
 
 import aimbat.db
 from aimbat.app import app
@@ -30,31 +32,6 @@ from aimbat.logger import configure_logging
 
 _AIMBAT_LOGFILE = "aimbat_test.log"
 _AIMBAT_LOG_LEVEL: Literal["DEBUG"] = "DEBUG"
-
-
-# ---------------------------------------------------------------------------
-# Test data
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class TestData:
-    """Container for test data paths.
-
-    Attributes:
-        multi_event: A list of paths to multi-event SAC files.
-        sacfile_good: Path to a known good SAC file.
-    """
-
-    multi_event: list[Path] = field(
-        default_factory=lambda: sorted(
-            Path(__file__).parent.glob("assets/event_*/*.bhz")
-        )
-    )
-    sacfile_good: Path = Path(__file__).parent / "assets/goodfile.sac"
-
-
-TESTDATA = TestData()
 
 
 # ---------------------------------------------------------------------------
@@ -137,37 +114,61 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def sac_file_good(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def sac_file_good(
+    reference_event_assets: dict[str, Path],
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Path:
     """Provides a path to a temporary copy of a known good SAC file.
 
+    testkit's reference event file has no pick headers set, but aimbat tests
+    rely on t0/t1 being populated (e.g. to test pick-header selection), so
+    they are written onto the copy rather than onto the shared testkit asset.
+
     Args:
+        reference_event_assets: testkit fixture with paths to the reference event's files.
         tmp_path_factory: The pytest tmp_path_factory fixture.
 
     Returns:
         Path to the temporary SAC file.
     """
-    orgfile = TESTDATA.sacfile_good
+    orgfile = reference_event_assets["sac_bhz"]
     tmpdir = tmp_path_factory.mktemp("aimbat")
     testfile = tmpdir / "good.sac"
     shutil.copy(orgfile, testfile)
+
+    sac = SAC.from_file(testfile)
+    sac.timestamps.t0 = sac.seismogram.begin_time + Timedelta(seconds=30)
+    sac.timestamps.t1 = sac.seismogram.begin_time + Timedelta(seconds=30.2)
+    sac.write(testfile)
+
     return testfile
 
 
 @pytest.fixture
-def multi_event_data(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
+def multi_event_data(
+    iccs_events_assets: dict[str, dict[str, Path]],
+    tmp_path_factory: pytest.TempPathFactory,
+) -> list[Path]:
     """Provides a list of paths to temporary copies of multi-event SAC files.
 
+    Flattens testkit's per-event station files into a single directory, keyed
+    only by filename. Several stations recur across events (it's the same
+    Alaska array recording different teleseisms), so files from a later event
+    overwrite an earlier event's file of the same name — deliberately, since
+    this is what produces multiple distinct events sharing overlapping
+    station coverage in the ingested set.
+
     Args:
+        iccs_events_assets: testkit fixture with paths to the ICCS array's SAC files.
         tmp_path_factory: The pytest tmp_path_factory fixture.
 
     Returns:
         A list of paths to the temporary SAC files.
     """
-    orgfiles = TESTDATA.multi_event
     tmpdir = tmp_path_factory.mktemp("aimbat")
-    for orgfile in orgfiles:
-        testfile = tmpdir / orgfile.name
-        shutil.copy(orgfile, testfile)
+    for event_label in sorted(iccs_events_assets):
+        for orgfile in sorted(iccs_events_assets[event_label].values()):
+            shutil.copy(orgfile, tmpdir / orgfile.name)
     return sorted(tmpdir.glob("*.bhz", case_sensitive=False))
 
 
