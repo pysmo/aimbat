@@ -106,6 +106,7 @@ def create_snapshot(
     session: Session,
     event: AimbatEvent,
     comment: str | None = None,
+    automatic: bool = False,
 ) -> None:
     """Create a snapshot of the AIMBAT processing parameters and quality metrics.
 
@@ -118,6 +119,8 @@ def create_snapshot(
         session: Database session.
         event: AimbatEvent.
         comment: Optional comment.
+        automatic: Whether this snapshot was created automatically, e.g. by
+            `data add`, rather than explicitly by the user.
     """
 
     logger.info(
@@ -206,6 +209,7 @@ def create_snapshot(
         event_quality_snapshot=event_quality_snap,
         seismogram_quality_snapshots=seis_quality_snaps,
         comment=comment,
+        automatic=automatic,
         parameters_hash=compute_parameters_hash(event),
     )
     session.add(aimbat_snapshot)

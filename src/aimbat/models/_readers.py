@@ -602,6 +602,7 @@ class AimbatSnapshotRead(BaseModel):
             "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False),  # type: ignore[dict-item]
         },
     )
+
     short_id: str | None = Field(
         default=None,
         title="Short ID",
@@ -613,6 +614,11 @@ class AimbatSnapshotRead(BaseModel):
             ),  # type: ignore[dict-item]
         },
     )
+
+    automatic: bool = Field(
+        title="Auto", description="Whether this snapshot was created automatically"
+    )
+
     time: PydanticTimestamp = Field(
         title="Time",
         description="Timestamp of the snapshot",
@@ -621,17 +627,21 @@ class AimbatSnapshotRead(BaseModel):
             "rich": RichColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
         },
     )
+
     comment: str | None = Field(
         title="Comment", description="Optional comment for the snapshot"
     )
+
     seismogram_count: int = Field(
         title="Seismograms",
         description="Total number of seismograms in the snapshot",
     )
+
     selected_seismogram_count: int = Field(
         title="Selected",
         description="Number of selected seismograms in the snapshot",
     )
+
     flipped_seismogram_count: int = Field(
         title="Flipped",
         description="Number of flipped seismograms in the snapshot",
@@ -699,6 +709,7 @@ class AimbatSnapshotRead(BaseModel):
             short_id=short_id,
             time=snapshot.time,
             comment=snapshot.comment,
+            automatic=snapshot.automatic,
             seismogram_count=snapshot.seismogram_count,
             selected_seismogram_count=snapshot.selected_seismogram_count,
             flipped_seismogram_count=snapshot.flipped_seismogram_count,

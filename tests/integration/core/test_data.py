@@ -273,6 +273,70 @@ class TestAddDataToProject:
             ds.seismogram_id in existing_seismogram_ids for ds in added_datasources
         )
 
+    def test_real_run_all_new(
+        self,
+        multi_event_data: list[Path],
+        patched_session: Session,
+    ) -> None:
+        """Verifies the real-run (dry_run=False) return value when all data is new.
+
+        Args:
+            multi_event_data (list[Path]): List of paths to SAC files.
+            patched_session (Session): Database session.
+        """
+        (
+            added_datasources,
+            existing_station_ids,
+            existing_event_ids,
+            existing_seismogram_ids,
+        ) = add_data_to_project(
+            patched_session,
+            multi_event_data,
+            data_type=DataType.SAC,
+        )
+
+        n = len(multi_event_data)
+        assert len(added_datasources) == n
+        assert all(
+            ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
+        )
+
+        datasource = patched_session.exec(select(AimbatDataSource.sourcename)).all()
+        assert len(datasource) == n, "Expected data to actually be committed."
+
+    def test_real_run_idempotent_second_call(
+        self,
+        multi_event_data: list[Path],
+        patched_session: Session,
+    ) -> None:
+        """A second, idempotent real-run call reports all entries as already existing.
+
+        Args:
+            multi_event_data (list[Path]): List of paths to SAC files.
+            patched_session (Session): Database session.
+        """
+        add_data_to_project(
+            patched_session,
+            multi_event_data,
+            data_type=DataType.SAC,
+        )
+
+        (
+            added_datasources,
+            _existing_station_ids,
+            _existing_event_ids,
+            existing_seismogram_ids,
+        ) = add_data_to_project(
+            patched_session,
+            multi_event_data,
+            data_type=DataType.SAC,
+        )
+
+        assert len(added_datasources) == len(multi_event_data)
+        assert all(
+            ds.seismogram_id in existing_seismogram_ids for ds in added_datasources
+        )
+
 
 class TestGetDataSources:
     def test_get_data_sources_for_event(self, loaded_session: Session) -> None:

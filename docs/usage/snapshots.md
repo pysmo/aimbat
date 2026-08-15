@@ -14,6 +14,8 @@ event at a point in time. Specifically, it stores:
   - ICCS CC per seismogram (always present once the event has been opened)
   - MCCC metrics per seismogram and the global RMSE (present only if MCCC has
       been run)
+- Whether the snapshot was created automatically (by `aimbat data add`) or
+  explicitly (`snapshot create` / TUI / GUI)
 
 The seismogram waveform data itself is not copied — snapshots are lightweight.
 They capture where you are in the parameter space, not the data.
@@ -37,10 +39,14 @@ Snapshots are per-event. Each event maintains its own list.
 
 Take a snapshot before making changes you might want to undo:
 
-- After importing data, before any processing — a clean baseline to return to
 - After initial alignment looks good, before tightening parameters further
 - Before trying an experimental configuration (different window, filter, etc.)
 - Before running MCCC
+
+A clean post-import baseline is created for you automatically — `aimbat data
+add` snapshots each event that received new seismogram data, so there is no
+need to take one manually right after importing. See [Adding
+Data](data.md#automatic-snapshots) for details.
 
 Snapshots are cheap. Taking one costs almost nothing, and having a rollback
 point available is worth it.
@@ -93,8 +99,8 @@ The comment is optional but useful for identifying the snapshot later.
     snapshot list all   # across all events
     ```
 
-The table shows the snapshot ID, date and time, comment, and number of
-seismograms captured.
+The table shows the snapshot ID, date and time, comment, whether it was
+created automatically, and number of seismograms captured.
 
 === "TUI"
 
@@ -238,7 +244,7 @@ The output is a JSON object with five keys, all cross-referenced by
 
 | Key | Contents | Always present? |
 |-----|----------|----------------|
-| `snapshots` | Snapshot metadata (ID, time, comment, hash) | Yes |
+| `snapshots` | Snapshot metadata (ID, time, comment, `automatic` flag, hash) | Yes |
 | `event_parameters` | Event parameter snapshots | Yes |
 | `seismogram_parameters` | Per-seismogram parameter snapshots | Yes |
 | `event_quality` | Event quality snapshots (MCCC RMSE) | Only if MCCC has been run |

@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable, Sequence
-from typing import Any, Literal, overload
+from typing import Any
 from uuid import UUID
 
 from pydantic import TypeAdapter
@@ -197,31 +197,6 @@ def _process_datasource(
     return aimbat_data_source
 
 
-@overload
-def add_data_to_project(
-    session: Session,
-    data_sources: Sequence[os.PathLike | str],
-    data_type: DataType,
-    station_id: UUID | None = ...,
-    event_id: UUID | None = ...,
-    dry_run: Literal[False] = ...,
-    on_progress: Callable[[int, int], None] | None = ...,
-) -> None: ...
-
-
-@overload
-def add_data_to_project(
-    session: Session,
-    data_sources: Sequence[os.PathLike | str],
-    data_type: DataType,
-    station_id: UUID | None = ...,
-    event_id: UUID | None = ...,
-    *,
-    dry_run: Literal[True],
-    on_progress: Callable[[int, int], None] | None = ...,
-) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]]: ...
-
-
 def add_data_to_project(
     session: Session,
     data_sources: Sequence[os.PathLike | str],
@@ -230,7 +205,7 @@ def add_data_to_project(
     event_id: UUID | None = None,
     dry_run: bool = False,
     on_progress: Callable[[int, int], None] | None = None,
-) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]] | None:
+) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]]:
     """Add data sources to the AIMBAT database.
 
     What gets created depends on which capabilities `data_type` supports:
@@ -256,6 +231,15 @@ def add_data_to_project(
         on_progress: Optional callback invoked as `on_progress(done, total)`
             after each data source is processed, for callers that want to
             display progress.
+
+    Returns:
+        A 4-tuple of `(added_datasources, existing_station_ids,
+        existing_event_ids, existing_seismogram_ids)`. `added_datasources` is
+        every `AimbatDataSource` touched by this call, new or reused.
+        `existing_*_ids` are the sets of station/event/seismogram IDs that
+        already existed in the database *before* this call, so callers can
+        tell which entries in `added_datasources` are newly created versus
+        reused by comparing IDs against these sets.
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
@@ -266,11 +250,10 @@ def add_data_to_project(
         raise NoResultFound(f"No event found with ID {event_id}.")
 
     # Snapshot existing IDs before entering the savepoint so we can identify
-    # what would be new vs reused when running a dry run.
-    if dry_run:
-        existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
-        existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
-        existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
+    # what is new vs reused, for a dry run or otherwise.
+    existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
+    existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
+    existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
 
     try:
         added_datasources: list[AimbatDataSource] = []
@@ -300,7 +283,12 @@ def add_data_to_project(
 
         session.commit()
         logger.info("Data added successfully.")
-        return None
+        return (
+            added_datasources,
+            existing_station_ids,
+            existing_event_ids,
+            existing_seismogram_ids,
+        )
 
     except Exception as e:
         logger.error(f"Failed to add data. Rolling back changes. Error: {e}")
