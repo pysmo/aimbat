@@ -164,6 +164,32 @@ class TestCreateSnapshot:
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment is None
 
+    def test_snapshot_automatic_defaults_to_false(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies that `automatic` defaults to False when not provided.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+        assert snapshot.automatic is False
+
+    def test_snapshot_automatic_true(self, loaded_session: Session) -> None:
+        """Verifies that `automatic=True` is persisted on the snapshot.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event, automatic=True)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+        assert snapshot.automatic is True
+
     def test_snapshot_captures_seismogram_parameters(
         self, loaded_session: Session
     ) -> None:

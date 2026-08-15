@@ -4,6 +4,7 @@ All commands are invoked in-process via `app()` with `aimbat.db.engine`
 monkeypatched to the test fixture's in-memory database.
 """
 
+from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -91,6 +92,68 @@ class TestDataManagement:
         events = cli_json("event dump")
         assert len(events) > 0
 
+    def test_add_data_creates_automatic_snapshot_per_event(
+        self,
+        patched_engine: Engine,
+        multi_event_data: Sequence[Path],
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """A fresh `data add` creates one automatic snapshot per touched event.
+
+        Each snapshot's comment must reflect the count of newly added
+        seismograms *for that event specifically*, not the total across all
+        events touched in the same call.
+        """
+        files = " ".join(f.as_posix() for f in multi_event_data)
+        cli(f"data add {files} --no-progress")
+
+        seismograms = cli_json("seismogram dump")
+        assert isinstance(seismograms, list)
+        counts_by_event: Counter[str] = Counter(s["event_id"] for s in seismograms)
+
+        snapshot_data = cli_json("snapshot dump")
+        assert isinstance(snapshot_data, dict)
+        snapshots = snapshot_data["snapshots"]
+        assert len(snapshots) == len(counts_by_event)
+
+        for snap in snapshots:
+            assert snap["automatic"] is True
+            n = counts_by_event[snap["event_id"]]
+            expected_comment = f"Added {n} seismogram{'' if n == 1 else 's'}"
+            assert snap["comment"] == expected_comment
+
+    def test_add_data_singular_seismogram_comment(
+        self,
+        patched_engine: Engine,
+        sac_file_good: Path,
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """A single new seismogram produces singular wording, not "1 seismograms"."""
+        cli(f"data add {sac_file_good.as_posix()} --no-progress")
+
+        snapshot_data = cli_json("snapshot dump")
+        assert isinstance(snapshot_data, dict)
+        snapshots = snapshot_data["snapshots"]
+        assert len(snapshots) == 1
+        assert snapshots[0]["comment"] == "Added 1 seismogram"
+
+    def test_add_data_no_snapshot_flag(
+        self,
+        patched_engine: Engine,
+        multi_event_data: Sequence[Path],
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+    ) -> None:
+        """`--no-snapshot` suppresses automatic snapshot creation for this call."""
+        files = " ".join(f.as_posix() for f in multi_event_data)
+        cli(f"data add {files} --no-progress --no-snapshot")
+
+        snapshot_data = cli_json("snapshot dump")
+        assert isinstance(snapshot_data, dict)
+        assert snapshot_data["snapshots"] == []
+
     def test_add_data_idempotent(
         self,
         loaded_engine: Engine,
@@ -98,7 +161,7 @@ class TestDataManagement:
         cli: Callable[[str], None],
         cli_json: Callable[[str], list | dict],
     ) -> None:
-        """Adding the same files twice does not duplicate data."""
+        """Adding the same files twice does not duplicate data, nor snapshot."""
         events_before = cli_json("event dump")
 
         files = " ".join(f.as_posix() for f in multi_event_data)
@@ -106,6 +169,12 @@ class TestDataManagement:
 
         events_after = cli_json("event dump")
         assert len(events_after) == len(events_before)
+
+        snapshot_data = cli_json("snapshot dump")
+        assert isinstance(snapshot_data, dict)
+        assert snapshot_data["snapshots"] == [], (
+            "Re-adding unchanged data should not create an automatic snapshot."
+        )
 
     def test_data_list(self, loaded_engine: Engine, cli: Callable[[str], None]) -> None:
         """Verifies that data list command runs successfully."""
@@ -133,6 +202,12 @@ class TestDataManagement:
         cli(f"data add {files} --no-progress --dry-run")
         events = cli_json("event dump")
         assert len(events) == 0
+
+        snapshot_data = cli_json("snapshot dump")
+        assert isinstance(snapshot_data, dict)
+        assert snapshot_data["snapshots"] == [], (
+            "A dry run should never create a snapshot."
+        )
 
     def test_add_data_with_use_flags(
         self,

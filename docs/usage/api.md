@@ -98,6 +98,13 @@ with Session(engine) as session:
     add_data_to_project(session, paths, DataType.SAC)
 ```
 
+!!! note "No automatic snapshots at this level"
+    The `aimbat data add` CLI command snapshots each newly touched event
+    after importing (see [Adding Data](data.md#automatic-snapshots)), but
+    that behaviour lives in the CLI layer, not in `add_data_to_project`
+    itself. Calling it directly — as above — never creates a snapshot; call
+    [`create_snapshot`][aimbat.core.create_snapshot] yourself if you want one.
+
 The `DataType` enum controls what is read from each source:
 
 | `DataType`       | What is created                          |

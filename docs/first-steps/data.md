@@ -85,8 +85,9 @@ Parameters are organised in three tiers:
 Event and seismogram parameters can be captured in a snapshot at any point
 during processing. Snapshots are independent copies of the parameter state — rolling
 back to one restores parameters exactly without affecting other snapshots.
-Taking a snapshot immediately after importing data is recommended, as it
-provides a baseline to restore the original parameter state.
+Importing data automatically snapshots each event that received new
+seismograms, giving you a baseline to restore the original parameter state
+without any extra step.
 
 !!! warning "Adding data after a snapshot"
     Snapshots only capture the state of items that exist at the time they are

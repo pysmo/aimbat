@@ -380,6 +380,10 @@ class AimbatSnapshot(SQLModel, table=True):
     comment: str | None = Field(
         default=None, description="Optional comment for the snapshot."
     )
+    automatic: bool = Field(
+        default=False,
+        description="Whether this snapshot was created automatically, e.g. by `data add`.",
+    )
     parameters_hash: str | None = Field(
         default=None,
         title="Hash",

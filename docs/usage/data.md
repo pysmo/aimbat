@@ -74,6 +74,20 @@ Use `--dry-run` to see what would be added without touching the database:
 aimbat data add --dry-run *.sac
 ```
 
+### Automatic snapshots
+
+Each event that receives at least one newly imported seismogram is
+automatically snapshotted at the end of the command, giving you a baseline to
+roll back to before any processing begins. Re-running `data add` on files
+already in the project does not create a new snapshot, since nothing changed.
+Pass `--no-snapshot` to skip this for a single invocation:
+
+```bash
+aimbat data add --no-snapshot *.sac
+```
+
+See [Snapshots](snapshots.md) for more on working with snapshots generally.
+
 ### Initial picks
 
 SAC files carry named time markers (`t0`–`t9`). AIMBAT reads one of these as

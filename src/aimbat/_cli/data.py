@@ -20,11 +20,16 @@ data type supports it.
 aimbat project create
 aimbat data add *.sac
 aimbat event list          # list events created from SAC headers
-aimbat snapshot create "initial import" --event-id <ID>
 ```
 
 Re-adding a data source that is already in the project is safe — existing
 records are reused rather than duplicated.
+
+`data add` automatically creates a snapshot for each event that received new
+seismogram data, so there is no need to run `snapshot create` right after
+ingestion (pass `--no-snapshot` to opt out for a given invocation). Use
+`snapshot create` later for deliberate checkpoints, e.g. before trying an
+experimental parameter change.
 """
 
 from __future__ import annotations
@@ -107,6 +112,49 @@ def _print_dry_run_results(
     )
 
 
+def _create_snapshots_for_touched_events(
+    session: Session,
+    added_datasources: Sequence[AimbatDataSource],
+    existing_seismogram_ids: set[uuid.UUID],
+) -> None:
+    """Create one snapshot per event that received a newly created seismogram."""
+    from collections import Counter
+
+    from aimbat.core import create_snapshot
+    from aimbat.logger import logger
+    from aimbat.models import AimbatEvent
+
+    from .common._decorators import _print_warning
+
+    new_seismogram_counts: Counter[uuid.UUID] = Counter(
+        ds.seismogram.event_id
+        for ds in added_datasources
+        if ds.seismogram_id not in existing_seismogram_ids
+    )
+
+    for event_id, count in new_seismogram_counts.items():
+        event = session.get(AimbatEvent, event_id)
+        if event is None:
+            continue
+        comment = f"Added {count} seismogram{'' if count == 1 else 's'}"
+        try:
+            create_snapshot(session, event, comment=comment, automatic=True)
+        except Exception as e:
+            # By this point add_data_to_project has already committed the
+            # seismogram data, so a snapshot failure must not be reported as
+            # a `data add` failure - that would misleadingly suggest the data
+            # itself wasn't added. Warn and move on to the next event rather
+            # than raising, so one event's snapshot failure (e.g. an
+            # unexpected quality-data shape) can't suppress the baseline for
+            # an unrelated event touched in the same call.
+            logger.warning(
+                f"Failed to create automatic snapshot for event {event_id}: {e}"
+            )
+            _print_warning(
+                f"Could not create an automatic snapshot for event {event_id}: {e}"
+            )
+
+
 @app.command(name="add")
 @handle_issues
 def cli_data_add(
@@ -144,6 +192,14 @@ def cli_data_add(
             name="progress", help="Display a progress bar while ingesting sources."
         ),
     ] = True,
+    auto_snapshot: Annotated[
+        bool,
+        Parameter(
+            name="snapshot",
+            help="Automatically create a snapshot for each event that received "
+            "new seismogram data.",
+        ),
+    ] = True,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Add or update data sources in the AIMBAT project.
@@ -158,7 +214,8 @@ def cli_data_add(
     exists it is reused. Re-running `data add` on the same files is safe.
 
     Use `--dry-run` to preview what would be added without touching the
-    database.
+    database. Use `--no-snapshot` to skip the automatic post-ingestion
+    snapshot for this invocation.
     """
     from rich.progress import Progress
 
@@ -166,41 +223,38 @@ def cli_data_add(
     from aimbat.db import engine
 
     with Session(engine) as session:
-        results: (
-            tuple[
-                list[AimbatDataSource], set[uuid.UUID], set[uuid.UUID], set[uuid.UUID]
-            ]
-            | None
-        ) = None
         with Progress(disable=not show_progress_bar) as progress:
             task = progress.add_task("Adding data ...", total=len(data_sources))
 
             def on_progress(done: int, _total: int) -> None:
                 progress.update(task, completed=done)
 
-            if dry_run:
-                results = add_data_to_project(
-                    session,
-                    data_sources,
-                    data_type,
-                    station_id=station_id,
-                    event_id=event_id,
-                    dry_run=True,
-                    on_progress=on_progress,
-                )
-            else:
-                add_data_to_project(
-                    session,
-                    data_sources,
-                    data_type,
-                    station_id=station_id,
-                    event_id=event_id,
-                    dry_run=False,
-                    on_progress=on_progress,
-                )
+            (
+                added_datasources,
+                existing_station_ids,
+                existing_event_ids,
+                existing_seismogram_ids,
+            ) = add_data_to_project(
+                session,
+                data_sources,
+                data_type,
+                station_id=station_id,
+                event_id=event_id,
+                dry_run=dry_run,
+                on_progress=on_progress,
+            )
 
-        if results is not None:
-            _print_dry_run_results(*results)
+        if dry_run:
+            _print_dry_run_results(
+                added_datasources,
+                existing_station_ids,
+                existing_event_ids,
+                existing_seismogram_ids,
+            )
+        elif auto_snapshot:
+            _create_snapshots_for_touched_events(
+                session, added_datasources, existing_seismogram_ids
+            )
 
 
 @app.command(name="dump")

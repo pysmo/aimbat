@@ -49,9 +49,8 @@ in shell scripts:
 
 ```bash
 aimbat project create
-aimbat data add *.sac
+aimbat data add *.sac   # automatically snapshots each newly imported event
 export DEFAULT_EVENT_ID=$(aimbat event dump | jq -r '.[0].id')
-aimbat snapshot create "initial import"
 aimbat align iccs --autoflip --autoselect
 aimbat snapshot create "post-ICCS"
 aimbat snapshot results <SNAPSHOT_ID> --output results.json  # export ICCS picks
