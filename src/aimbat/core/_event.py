@@ -69,6 +69,7 @@ type EventParameterFloat = Literal[
     EventParameter.BANDPASS_FMAX,
     EventParameter.RAMP_WIDTH,
 ]
+type EventParameterInt = Literal[EventParameter.CORNERS]
 type EventParameterTimedelta = Literal[
     EventParameter.WINDOW_PRE, EventParameter.WINDOW_POST
 ]
@@ -290,6 +291,17 @@ def set_event_parameter(
 def set_event_parameter(
     session: Session,
     event_id: UUID,
+    name: EventParameterInt,
+    value: int,
+    *,
+    validate_iccs: bool = ...,
+) -> None: ...
+
+
+@overload
+def set_event_parameter(
+    session: Session,
+    event_id: UUID,
     name: EventParameterBool,
     value: bool | str,
     *,
@@ -302,7 +314,7 @@ def set_event_parameter(
     session: Session,
     event_id: UUID,
     name: EventParameter,
-    value: Timedelta | bool | float | str,
+    value: Timedelta | bool | float | int | str,
     *,
     validate_iccs: bool = ...,
 ) -> None: ...
@@ -312,7 +324,7 @@ def set_event_parameter(
     session: Session,
     event_id: UUID,
     name: EventParameter,
-    value: Timedelta | bool | float | str,
+    value: Timedelta | bool | float | int | str,
     *,
     validate_iccs: bool = False,
 ) -> None:

@@ -14,6 +14,7 @@ class EventParameter(StrEnum):
     BANDPASS_APPLY = auto()
     BANDPASS_FMIN = auto()
     BANDPASS_FMAX = auto()
+    CORNERS = auto()
     MCCC_DAMP = auto()
     MCCC_MIN_CC = auto()
 

@@ -71,10 +71,16 @@ class TestDbCommands:
 @pytest.mark.slow
 @pytest.mark.cli
 class TestSchemaStalenessWarning:
-    """Tests for the passive, non-blocking staleness warning printed on any
-    command (§15 of the Alembic plan). Each `aimbat_subprocess` call is a
-    fresh process, so the warning (fired once via `first_connect`) is
-    exercised independently by each command below."""
+    """Tests for the staleness check every CLI command performs. Unlike the
+    underlying `aimbat.db` warning (advisory by default - see its module
+    docstring), `handle_issues` unconditionally promotes it to a hard
+    failure for AIMBAT's own CLI, so every command either fully succeeds or
+    cleanly fails with the same attributable message - never silently
+    continues, and never crashes later with a raw, unrelated
+    `sqlalchemy.exc.OperationalError` from whatever query happens to first
+    touch a drifted column. Each `aimbat_subprocess` call is a fresh
+    process, so the check (fired once via `first_connect`) is exercised
+    independently by each command below."""
 
     def test_silent_when_up_to_date(
         self,
@@ -99,6 +105,7 @@ class TestSchemaStalenessWarning:
 
         result = aimbat_subprocess(["db", "current"])
 
+        assert result.returncode != 0
         assert "predates AIMBAT's schema versioning" in result.stderr
         assert "run `aimbat db upgrade`" in result.stderr
 
@@ -140,6 +147,7 @@ class TestSchemaStalenessWarning:
 
         result = aimbat_subprocess(["db", "current"])
 
+        assert result.returncode != 0
         assert "doesn't recognise" in result.stderr
         assert "not_a_real_revision" in result.stderr
         assert "run `aimbat db upgrade`" not in result.stderr
@@ -177,29 +185,18 @@ class TestSchemaStalenessWarning:
 @pytest.mark.slow
 @pytest.mark.cli
 class TestStrictSchemaCheck:
-    """Tests for `AIMBAT_STRICT_SCHEMA_CHECK`, the scripting-oriented opt-in
-    that promotes the staleness warning to a hard failure. Exists because
-    `PYTHONWARNINGS`/`-W` don't reliably work for third-party warning
-    categories (Python resolves them too early during interpreter startup),
-    so this setting sidesteps that by calling `warnings.simplefilter`
-    programmatically instead of relying on env-var-driven filter parsing."""
+    """Tests for `AIMBAT_STRICT_SCHEMA_CHECK`.
 
-    def test_fails_hard_when_strict_and_stale(
-        self,
-        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        db_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """A stale schema becomes a hard failure (non-zero exit) when strict."""
-        aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
-            connection.execute("DROP TABLE alembic_version")
-
-        monkeypatch.setenv("AIMBAT_STRICT_SCHEMA_CHECK", "true")
-        result = aimbat_subprocess(["db", "current"])
-
-        assert result.returncode != 0
-        assert "predates AIMBAT's schema versioning" in result.stderr
+    AIMBAT's own CLI (see `TestSchemaStalenessWarning` above) and TUI always
+    treat a stale schema as a hard failure now, regardless of this setting -
+    so it no longer has any observable effect on `aimbat` commands. Its
+    remaining, narrower purpose is third-party code using `aimbat.db.engine`
+    directly (bypassing AIMBAT's CLI/TUI entirely), which is what the tests
+    below exercise. Exists because `PYTHONWARNINGS`/`-W` don't reliably work
+    for third-party warning categories (Python resolves them too early
+    during interpreter startup), so this setting sidesteps that by calling
+    `warnings.simplefilter` programmatically instead of relying on
+    env-var-driven filter parsing."""
 
     def test_still_succeeds_when_strict_and_up_to_date(
         self,
@@ -263,26 +260,3 @@ class TestStrictSchemaCheck:
             f"expected exactly 1 raise across 3 new connections, "
             f"got stdout={result.stdout!r} stderr={result.stderr!r}"
         )
-
-    def test_tui_exits_nonzero_when_strict_and_stale(
-        self,
-        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        db_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Textual catches an unhandled exception raised inside its own
-        message loop (here, `SchemaStaleWarning` promoted to an error) and
-        shows its own crash screen rather than letting it propagate -
-        `App.run()` then returns normally, which would otherwise make the
-        whole process report success (exit 0) despite the crash, silently
-        defeating the entire point of strict mode for this one entry point."""
-        aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
-            connection.execute("DROP TABLE alembic_version")
-
-        monkeypatch.setenv("AIMBAT_STRICT_SCHEMA_CHECK", "true")
-        monkeypatch.setenv("TEXTUAL_HEADLESS", "1")
-        result = aimbat_subprocess(["tui"])
-
-        assert result.returncode != 0
-        assert "unhandled error" in result.stderr

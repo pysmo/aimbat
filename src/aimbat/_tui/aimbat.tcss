@@ -90,6 +90,11 @@ NoProjectModal {
     align: center middle;
 }
 
+/* ---- Schema-stale modal ---- */
+SchemaStaleModal {
+    align: center middle;
+}
+
 /* ---- Confirm modal ---- */
 ConfirmModal {
     align: center middle;

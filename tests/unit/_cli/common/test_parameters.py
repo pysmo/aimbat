@@ -139,11 +139,14 @@ class TestHandleIssues:
         captured = capsys.readouterr()
         assert "panel message" in captured.out or "panel message" in captured.err
 
-    def test_schema_stale_warning_is_displayed_not_swallowed(
+    def test_schema_stale_warning_always_exits_with_error_panel(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """A `SchemaStaleWarning` raised during the call is printed, and the
-        function's return value still comes through normally (non-blocking)."""
+        """A `SchemaStaleWarning` raised during the call always aborts the
+        command through the same red-panel/exit(1) path as any other
+        exception - unlike other warnings, it's unconditionally promoted to
+        an error rather than displayed and allowed to continue, so a stale
+        schema never lets a command silently proceed on drifted data."""
         settings.log_level = "INFO"
 
         @handle_issues
@@ -151,38 +154,27 @@ class TestHandleIssues:
             warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def"))
             return "done"
 
-        result = stale()
+        with pytest.raises(SystemExit) as exc_info:
+            stale()
 
-        assert result == "done"
+        assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "schema is stale" in captured.out or "schema is stale" in captured.err
 
-    def test_schema_stale_warning_prints_before_function_output(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """The warning is printed at the point it fires, not deferred until
-        after the wrapped function returns - so it happens before any output
-        the function itself produces afterwards, matching the order the
-        underlying conditions actually occurred in. `capsys` can't verify
-        this (stdout/stderr are captured into separate buffers with no
-        relative ordering between them), so this spies on `_print_warning`
-        directly instead."""
-        from aimbat._cli.common import _decorators
-
-        settings.log_level = "INFO"
-        order: list[str] = []
-        monkeypatch.setattr(
-            _decorators, "_print_warning", lambda message: order.append("warning")
-        )
+    def test_schema_stale_warning_promoted_even_in_debug_mode(self) -> None:
+        """Unlike every other exception (which propagates untouched in
+        DEBUG/TRACE mode - see `test_reraises_in_debug_mode`), a stale
+        schema must still be promoted to an error even then: the promoting
+        filter is installed unconditionally, only the try/except that turns
+        it into a styled panel is skipped in debugging mode."""
+        settings.log_level = "DEBUG"
 
         @handle_issues
         def stale() -> None:
             warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def"))
-            order.append("function output")
 
-        stale()
-
-        assert order == ["warning", "function output"]
+        with pytest.raises(SchemaStaleWarning):
+            stale()
 
     def test_unrelated_warning_passes_through(
         self, recwarn: pytest.WarningsRecorder
