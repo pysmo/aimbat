@@ -14,20 +14,24 @@ new connection to enforce referential integrity. If the project's schema is
 out of date, a one-time `aimbat.core.SchemaStaleWarning` is raised suggesting
 `aimbat db upgrade`; nothing is changed automatically. The same message is
 also logged at `WARNING` level (see `aimbat.logger`), so it's still visible
-in `aimbat.log` even if the on-screen warning/toast is missed or scrolls
-past. Being a real Python warning rather than a plain print, library users
-can turn it into a hard error themselves
+in `aimbat.log` even if the on-screen message is missed or scrolls past.
+Being a real Python warning rather than a plain print, third-party
+code using this module's `engine` directly can turn it into a hard error
 (`warnings.simplefilter("error", SchemaStaleWarning)`, or set
 `AIMBAT_STRICT_SCHEMA_CHECK=true`) without AIMBAT having to decide that
 policy for them. Note that `PYTHONWARNINGS`/`-W` do *not* reliably work for
 this — Python resolves dotted warning categories very early during
 interpreter startup, before the `aimbat` package is reliably importable;
-`AIMBAT_STRICT_SCHEMA_CHECK` exists specifically to sidestep that. Styled
-display for CLI users (and suppressing this warning specifically for
-`aimbat db upgrade`, since telling a user to run the exact command already
-running is unhelpful) both live in `aimbat._cli.common.handle_issues`,
-scoped there via `warnings.catch_warnings()` rather than here - this module
-never touches `warnings.showwarning` globally.
+`AIMBAT_STRICT_SCHEMA_CHECK` exists specifically to sidestep that.
+
+AIMBAT's own CLI and TUI don't rely on this advisory default at all: both
+unconditionally promote `SchemaStaleWarning` to a hard failure regardless of
+`AIMBAT_STRICT_SCHEMA_CHECK` - `aimbat._cli.common.handle_issues` for the
+CLI (reported through the same red-panel error path as any other failure),
+and `aimbat._tui.app.AimbatTUI.on_mount` for the TUI (a blocking modal
+instead of the main UI). `AIMBAT_STRICT_SCHEMA_CHECK` is only meaningful for
+third-party code that imports `engine` from this module directly and never
+goes through AIMBAT's own entry points.
 """
 
 import sqlite3

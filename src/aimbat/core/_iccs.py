@@ -158,6 +158,7 @@ def _build_iccs(
         bandpass_apply=p.bandpass_apply,
         bandpass_fmin=p.bandpass_fmin,
         bandpass_fmax=p.bandpass_fmax,
+        corners=p.corners,
         min_cc=p.min_cc,
         context_width=settings.context_width,
     )
@@ -437,6 +438,7 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
         bandpass_apply=snap_params.bandpass_apply,
         bandpass_fmin=snap_params.bandpass_fmin,
         bandpass_fmax=snap_params.bandpass_fmax,
+        corners=snap_params.corners,
         min_cc=snap_params.min_cc,
         context_width=settings.context_width,
     )

@@ -126,7 +126,8 @@ def update_bandpass(
     if not return_fig:
         logger.debug(
             f"Saving new bandpass filter parameters for event {event.id}: "
-            f"apply={iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, fmax={iccs.bandpass_fmax}"
+            f"apply={iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, "
+            f"fmax={iccs.bandpass_fmax}, corners={iccs.corners}"
         )
         set_event_parameter(
             session, event.id, EventParameter.BANDPASS_APPLY, iccs.bandpass_apply
@@ -137,6 +138,7 @@ def update_bandpass(
         set_event_parameter(
             session, event.id, EventParameter.BANDPASS_FMAX, iccs.bandpass_fmax
         )
+        set_event_parameter(session, event.id, EventParameter.CORNERS, iccs.corners)
         return None
 
     logger.warning(_RETURN_FIG_WARNING)
@@ -149,6 +151,7 @@ def update_pick(
     context: bool,
     all_seismograms: bool,
     use_matrix_image: bool,
+    causal: bool,
     return_fig: bool,
 ) -> tuple["Figure", "Axes", Any] | None:
     """Update the phase pick (t1) for an event.
@@ -159,6 +162,7 @@ def update_pick(
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
         use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
+        causal: If True, use causal (single-pass) instead of zero-phase filtering.
         return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
 
     Returns:
@@ -168,7 +172,7 @@ def update_pick(
     logger.info("Updating phase pick.")
 
     result = _update_pick(  # type: ignore[call-overload]
-        iccs, context, all_seismograms, use_matrix_image, return_fig=return_fig
+        iccs, context, all_seismograms, use_matrix_image, causal, return_fig=return_fig
     )
 
     if not return_fig:
@@ -186,6 +190,7 @@ def update_timewindow(
     context: bool,
     all_seismograms: bool,
     use_matrix_image: bool,
+    causal: bool,
     return_fig: bool,
 ) -> tuple["Figure", "Axes", Any] | None:
     """Update the cross-correlation time window for the given event.
@@ -197,6 +202,7 @@ def update_timewindow(
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
         use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
+        causal: If True, use causal (single-pass) instead of zero-phase filtering.
         return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
 
     Returns:
@@ -206,7 +212,7 @@ def update_timewindow(
     logger.info(f"Updating time window for event {event.id}.")
 
     result = _update_timewindow(  # type: ignore[call-overload]
-        iccs, context, all_seismograms, use_matrix_image, return_fig=return_fig
+        iccs, context, all_seismograms, use_matrix_image, causal, return_fig=return_fig
     )
 
     if not return_fig:
@@ -232,6 +238,7 @@ def update_min_cc(
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
+    causal: bool,
     return_fig: bool,
 ) -> tuple["Figure", "Axes", Any] | None:
     """Update the minimum cross-correlation threshold for the given event.
@@ -242,6 +249,7 @@ def update_min_cc(
         iccs: ICCS instance.
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
+        causal: If True, use causal (single-pass) instead of zero-phase filtering.
         return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
 
     Returns:
@@ -250,7 +258,9 @@ def update_min_cc(
 
     logger.info(f"Updating minimum cross-correlation threshold for event {event.id}.")
 
-    result = _update_min_cc(iccs, context, all_seismograms, return_fig=return_fig)  # type: ignore[call-overload]
+    result = _update_min_cc(  # type: ignore[call-overload]
+        iccs, context, all_seismograms, causal, return_fig=return_fig
+    )
 
     if not return_fig:
         logger.debug(

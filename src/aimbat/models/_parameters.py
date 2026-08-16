@@ -77,6 +77,13 @@ class AimbatEventParametersBase(SQLModel):
         description="Maximum frequency for bandpass filter in Hz (ignored if `bandpass_apply` is False).",
     )
 
+    corners: int = Field(
+        default_factory=lambda: settings.corners,
+        gt=0,
+        title="Corners",
+        description="Number of corners (poles) for the bandpass filter (ignored if `bandpass_apply` is False).",
+    )
+
     min_cc: float = Field(
         ge=0.0,
         le=1.0,

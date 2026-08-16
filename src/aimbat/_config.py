@@ -44,6 +44,12 @@ class Settings(BaseSettings):
         description="Context padding to apply before and after the time window.",
     )
 
+    corners: int = Field(
+        default=2,
+        gt=0,
+        description="Number of corners (poles) for the bandpass filter (ignored if `bandpass_apply` is False).",
+    )
+
     db_url: str = Field(
         default="",
         description="AIMBAT database url (default value is derived from `project`).",
@@ -107,10 +113,13 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "Raise an error instead of a non-blocking warning when the project "
-            "database schema is out of date. Intended for scripting: setting "
-            "PYTHONWARNINGS/-W directly does not reliably work for third-party "
-            "warning categories, since Python resolves them very early during "
-            "interpreter startup, before the AIMBAT package is reliably importable."
+            "database schema is out of date. Only affects third-party code using "
+            "aimbat.db.engine directly - AIMBAT's own CLI and TUI always treat a "
+            "stale schema as a hard failure regardless of this setting. Intended "
+            "for scripting: setting PYTHONWARNINGS/-W directly does not reliably "
+            "work for third-party warning categories, since Python resolves them "
+            "very early during interpreter startup, before the AIMBAT package is "
+            "reliably importable."
         ),
     )
 

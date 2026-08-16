@@ -295,6 +295,55 @@ class NoProjectModal(ModalScreen[bool]):
 
 
 # ---------------------------------------------------------------------------
+# Schema-stale modal
+# ---------------------------------------------------------------------------
+
+
+class SchemaStaleModal(ModalScreen[bool]):
+    """Shown on startup when the project's database schema is out of date.
+
+    Blocks entry to the main UI entirely, mirroring `NoProjectModal` -
+    proceeding into panels that query columns the live schema doesn't have
+    would crash with a raw `sqlalchemy.exc.OperationalError` from whichever
+    panel happens to touch the drifted table first, rather than a clean,
+    attributable message. Dismisses True if the user chose to upgrade now,
+    False to quit.
+    """
+
+    BINDINGS = [
+        Binding("u", "upgrade", show=False),
+        Binding("enter", "upgrade", show=False),
+        Binding("q", "quit_app", show=False),
+        Binding("escape", "quit_app", show=False),
+    ]
+
+    def __init__(self, message: str) -> None:
+        """Initialise the modal.
+
+        Args:
+            message: The staleness message from `_build_staleness_warning`.
+        """
+        super().__init__()
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Container(id="confirm-dialog"):
+            yield Label(self._message, classes=_CSS.TITLE)
+            yield Label(
+                "[@click='screen.upgrade'][bold]u[/bold] / ⏎ upgrade now[/]"
+                "   "
+                "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]",
+                classes=_CSS.HINT,
+            )
+
+    def action_upgrade(self) -> None:
+        self.dismiss(True)
+
+    def action_quit_app(self) -> None:
+        self.dismiss(False)
+
+
+# ---------------------------------------------------------------------------
 # Confirm modal
 # ---------------------------------------------------------------------------
 

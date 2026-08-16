@@ -98,6 +98,7 @@ def create_project(engine: Engine) -> None:
                   OR (NEW.bandpass_apply IS NOT OLD.bandpass_apply)
                   OR (NEW.bandpass_fmin IS NOT OLD.bandpass_fmin)
                   OR (NEW.bandpass_fmax IS NOT OLD.bandpass_fmax)
+                  OR (NEW.corners IS NOT OLD.corners)
                 BEGIN
                     UPDATE aimbateventquality
                     SET mccc_rmse = NULL

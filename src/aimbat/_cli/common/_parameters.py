@@ -25,6 +25,7 @@ __all__ = [
     "use_station_parameter",
     "use_event_parameter",
     "use_matrix_image",
+    "causal",
     "open_in_editor",
     "DebugParameter",
     "EventDebugParameters",
@@ -192,6 +193,15 @@ def use_matrix_image() -> Parameter:
     return Parameter(
         name="matrix",
         help="Use matrix image instead of stack plot.",
+    )
+
+
+def causal() -> Parameter:
+    """Return a cyclopts `Parameter` for switching between causal and zero-phase filtering."""
+    return Parameter(
+        name="causal",
+        help="Use causal (single-pass) instead of zero-phase filtering.",
+        negative="--zero-phase",
     )
 
 

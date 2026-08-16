@@ -14,6 +14,7 @@ from cyclopts import App
 from .common import (
     DebugParameter,
     IccsPlotParameters,
+    causal,
     event_parameter,
     handle_issues,
     use_matrix_image,
@@ -64,6 +65,7 @@ def cli_update_phase_pick(
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image()] = False,
+    causal: Annotated[bool, causal()] = True,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new phase arrival time (t1) for an event.
@@ -86,6 +88,7 @@ def cli_update_phase_pick(
             context=iccs_plot_parameters.context,
             all_seismograms=iccs_plot_parameters.all_seismograms,
             use_matrix_image=use_matrix_image,
+            causal=causal,
             return_fig=False,
         )
 
@@ -97,6 +100,7 @@ def cli_pick_timewindow(
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image()] = False,
+    causal: Annotated[bool, causal()] = False,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new cross-correlation time window for an event.
@@ -121,6 +125,7 @@ def cli_pick_timewindow(
             iccs_plot_parameters.context,
             all_seismograms=iccs_plot_parameters.all_seismograms,
             use_matrix_image=use_matrix_image,
+            causal=causal,
             return_fig=False,
         )
 
@@ -132,6 +137,7 @@ def cli_pick_min_cc(
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image()] = True,
+    causal: Annotated[bool, causal()] = False,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new minimum cross-correlation for auto-selection.
@@ -155,6 +161,7 @@ def cli_pick_min_cc(
             iccs,
             iccs_plot_parameters.context,
             all_seismograms=iccs_plot_parameters.all_seismograms,
+            causal=causal,
             return_fig=False,
         )
 

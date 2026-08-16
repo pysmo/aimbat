@@ -42,6 +42,7 @@ from aimbat._tui.modals import (
     InteractiveToolsModal,
     NoProjectModal,
     ParametersModal,
+    SchemaStaleModal,
     SnapshotCommentModal,
     SnapshotDetailsModal,
 )
@@ -64,8 +65,9 @@ from aimbat.core import (
     run_iccs,
     run_mccc,
     set_seismogram_parameter,
+    upgrade_project,
 )
-from aimbat.core._migrations import _build_staleness_warning
+from aimbat.core._migrations import SchemaMismatchError, _build_staleness_warning
 from aimbat.core._project import _project_exists
 from aimbat.db import engine
 from aimbat.io import DATATYPE_SUFFIXES, DataType
@@ -109,12 +111,15 @@ def _tool_phase(
     context: bool,
     all_seismograms: bool,
 ) -> None:
+    # TODO: expose a causal/zero-phase toggle once the TUI overhaul adds a
+    # widget-based equivalent of the CLI's --causal/--zero-phase flag.
     update_pick(
         session,
         iccs,
         context,
         all_seismograms=all_seismograms,
         use_matrix_image=False,
+        causal=True,
         return_fig=False,
     )
 
@@ -126,6 +131,8 @@ def _tool_window(
     context: bool,
     all_seismograms: bool,
 ) -> None:
+    # TODO: expose a causal/zero-phase toggle once the TUI overhaul adds a
+    # widget-based equivalent of the CLI's --causal/--zero-phase flag.
     update_timewindow(
         session,
         event,
@@ -133,6 +140,7 @@ def _tool_window(
         context,
         all_seismograms=all_seismograms,
         use_matrix_image=False,
+        causal=False,
         return_fig=False,
     )
 
@@ -144,12 +152,15 @@ def _tool_cc(
     context: bool,
     all_seismograms: bool,
 ) -> None:
+    # TODO: expose a causal/zero-phase toggle once the TUI overhaul adds a
+    # widget-based equivalent of the CLI's --causal/--zero-phase flag.
     update_min_cc(
         session,
         event,
         iccs,
         context,
         all_seismograms=all_seismograms,
+        causal=False,
         return_fig=False,
     )
 
@@ -256,23 +267,14 @@ class AimbatTUI(App[None]):
         if not _project_exists(engine):
             self.push_screen(NoProjectModal(), self._on_no_project_modal)
         else:
-            self._warn_if_schema_stale()
-            self._create_iccs()
-            self.refresh_all()
-
-    def _warn_if_schema_stale(self) -> None:
-        """Show a toast if the project's database schema is out of date.
-
-        Duplicates the *check* `aimbat.db`'s `first_connect` listener already
-        performs, since that one raises `SchemaStaleWarning` which prints to
-        stderr - invisible once Textual has switched the terminal to its own
-        screen. This is the TUI-native equivalent for the same condition.
-        The message itself comes from `_build_staleness_warning`, shared with
-        `db.py`, so the two can't drift apart.
-        """
-        warning = _build_staleness_warning(get_current_revision(engine))
-        if warning is not None:
-            self.notify(str(warning), severity="warning")
+            warning = _build_staleness_warning(get_current_revision(engine))
+            if warning is not None:
+                self.push_screen(
+                    SchemaStaleModal(str(warning)), self._on_schema_stale_modal
+                )
+            else:
+                self._create_iccs()
+                self.refresh_all()
 
     def _on_no_project_modal(self, create: bool | None) -> None:
         if create:
@@ -283,6 +285,31 @@ class AimbatTUI(App[None]):
         else:
             logger.info("User declined to create a project. Exiting.")
             self.exit()
+
+    def _on_schema_stale_modal(self, upgrade: bool | None) -> None:
+        """Blocks entry to the main UI entirely until the schema is current.
+
+        Proceeding into panels that query columns the live schema doesn't
+        have would crash with a raw `sqlalchemy.exc.OperationalError` from
+        whichever panel happens to touch the drifted table first - see
+        `aimbat.db`'s module docstring for the full reasoning behind always
+        treating this as a hard stop rather than an advisory toast.
+        """
+        if not upgrade:
+            logger.info("User declined to upgrade the project database. Exiting.")
+            self.exit()
+            return
+
+        logger.info("User chose to upgrade the project database.")
+        try:
+            upgrade_project(engine)
+        except SchemaMismatchError as exc:
+            logger.error(f"Automatic upgrade failed: {exc}")
+            self.exit(return_code=1, message=str(exc))
+            return
+
+        self._create_iccs()
+        self.refresh_all()
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:

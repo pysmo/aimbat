@@ -34,25 +34,35 @@ def _print_warning(message: object) -> None:
 
 
 def handle_issues[F: Callable[..., Any]](func: F) -> F:
-    """Decorator to report exceptions and non-fatal warnings to the console.
+    """Decorator to report exceptions to the console and exit cleanly.
 
     Exceptions are printed (without traceback) in a red panel, then exit the
     process. Any `aimbat.core.SchemaStaleWarning` raised during the call
-    (e.g. via `aimbat.db`'s schema-staleness check) is printed as a styled,
-    non-blocking message instead - it doesn't stop the command, and doesn't
-    need `aimbat.db` to touch `warnings.showwarning` globally to look right;
-    this decorator supplies that scoped to just the CLI command's own call
-    via `warnings.catch_warnings()`. Only `SchemaStaleWarning` is
-    intercepted - any other warning raised during the call is passed
-    through to whatever `showwarning` was already in effect, completely
-    unaffected by this decorator. `AIMBAT_STRICT_SCHEMA_CHECK` still reaches
-    the exception branch as normal, since promoting a warning to an error
-    happens during Python's filter matching, before it would ever reach
-    `showwarning` at all.
+    (e.g. via `aimbat.db`'s schema-staleness check) is unconditionally
+    promoted to an error via a `warnings.catch_warnings()`-scoped filter, so
+    it's reported through the exact same red-panel path as any other
+    failure - a stale schema always aborts the command with one clear,
+    attributable message, rather than sometimes silently continuing (if the
+    command never happens to touch the drifted table/column) and sometimes
+    crashing later with a raw, unrelated `sqlalchemy.exc.OperationalError`
+    from deep inside whatever query first hit it. This is independent of
+    `AIMBAT_STRICT_SCHEMA_CHECK`, which now only affects third-party code
+    using `aimbat.db.engine` directly, not AIMBAT's own CLI - see that
+    setting's description and `aimbat.db`'s module docstring.
 
-    In debugging mode (`AIMBAT_LOG_LEVEL=DEBUG`/`TRACE`) this decorator
-    returns the callable unchanged - both exceptions and warnings then
-    behave exactly as plain Python would, untouched by this decorator.
+    The filter is scoped to `SchemaStaleWarning` specifically (not a blanket
+    `simplefilter`), so it can't affect any other warning category's
+    already-ambient filter/display behaviour, and `aimbat db upgrade`'s own
+    `warnings.simplefilter("ignore", SchemaStaleWarning)` (telling a user to
+    run the command they're already running is unhelpful) still takes
+    precedence within its own nested `catch_warnings()` block.
+
+    The `SchemaStaleWarning` promotion applies even in debugging mode
+    (`AIMBAT_LOG_LEVEL=DEBUG`/`TRACE`) - a stale schema must always abort,
+    with no bypass. What debugging mode *does* skip is the try/except that
+    turns any exception (including the now-promoted `SchemaStaleWarning`)
+    into a styled red panel: in that mode the exception instead propagates
+    as a plain Python traceback, exactly as any other exception would.
     """
     import sys
     import warnings
@@ -62,44 +72,16 @@ def handle_issues[F: Callable[..., Any]](func: F) -> F:
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        if settings.log_level in ("TRACE", "DEBUG"):
-            return func(*args, **kwargs)
-        try:
-            passthrough_showwarning = warnings.showwarning
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=SchemaStaleWarning)
 
-            def _display_or_pass_through(  # type: ignore[no-untyped-def]
-                message, category, filename, lineno, file=None, line=None
-            ) -> None:
-                # Printed immediately, at the point the warning actually
-                # fires (typically the command's first DB connection,
-                # before its own output), rather than collected and shown
-                # after `func()` returns - the latter would print the
-                # warning after any output `func()` itself already
-                # produced, which reads oddly since the underlying
-                # condition was detected first.
-                if issubclass(category, SchemaStaleWarning):
-                    _print_warning(message)
-                else:
-                    passthrough_showwarning(
-                        message, category, filename, lineno, file, line
-                    )
+            if settings.log_level in ("TRACE", "DEBUG"):
+                return func(*args, **kwargs)
 
-            # Deliberately does *not* install its own filter rule (e.g.
-            # `simplefilter("always", ...)`) - `simplefilter` prepends,
-            # which would take priority over and silently defeat the
-            # "error" filter `AIMBAT_STRICT_SCHEMA_CHECK` installs. Relying
-            # on whatever filter is already ambient is correct here: the
-            # default action already shows a first-time-per-location
-            # warning (our warning only ever fires once per process, via
-            # `first_connect`), and an "error" filter still takes effect
-            # and raises before `showwarning` is ever reached.
-            with warnings.catch_warnings():
-                warnings.showwarning = _display_or_pass_through
-                result = func(*args, **kwargs)
-
-            return result
-        except Exception as e:
-            print_error_panel(e)
-            sys.exit(1)
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                print_error_panel(e)
+                sys.exit(1)
 
     return wrapper  # type: ignore

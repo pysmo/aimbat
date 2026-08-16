@@ -26,8 +26,13 @@ import aimbat._tui.app
 import aimbat._tui.modals
 import aimbat.db
 from aimbat._tui.app import AimbatTUI
-from aimbat._tui.modals import SnapshotDetailsModal
-from aimbat.core import BoundICCS, create_snapshot
+from aimbat._tui.modals import SchemaStaleModal, SnapshotDetailsModal
+from aimbat.core import (
+    BoundICCS,
+    create_snapshot,
+    get_current_revision,
+    get_head_revision,
+)
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
 from aimbat.models import AimbatEvent, AimbatSeismogram
 
@@ -147,23 +152,22 @@ class TestTUIEmptyDatabase:
 
 
 @pytest.mark.slow
-class TestTUISchemaStalenessToast:
-    """Tests for the startup toast warning about an out-of-date schema.
+class TestTUISchemaStalenessModal:
+    """Tests for the blocking modal shown on startup for an out-of-date schema.
 
-    `first_connect`-based `SchemaStaleWarning` (see `aimbat.db`) prints to
-    stderr, which is invisible once Textual owns the terminal - this is the
-    TUI-native equivalent, checked separately from the CLI-facing warning.
+    A stale schema used to only produce a toast (see git history), which let
+    the TUI proceed into panels that could query columns the live schema
+    doesn't have - crashing with a raw `sqlalchemy.exc.OperationalError` from
+    whichever panel happened to touch the drifted table first, sometimes
+    before the toast even had a chance to render. `on_mount` now blocks
+    entirely on a modal instead, mirroring `NoProjectModal` - see
+    `aimbat.db`'s module docstring for the full reasoning.
     """
 
-    def test_toast_shown_for_legacy_unstamped_database(
+    def test_modal_shown_for_legacy_unstamped_database(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A pre-Alembic database (no `alembic_version` table) triggers a toast.
-
-        Toast widgets aren't mounted as queryable DOM nodes in headless test
-        mode, so `app._notifications` (the underlying collection `notify()`
-        populates) is checked directly rather than querying `Toast` widgets.
-        """
+        """A pre-Alembic database (no `alembic_version` table) blocks on a modal."""
         _patch_engine(monkeypatch, patched_engine)
         with patched_engine.begin() as connection:
             connection.exec_driver_sql("DROP TABLE alembic_version")
@@ -171,25 +175,61 @@ class TestTUISchemaStalenessToast:
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
                 await pilot.pause()
-                notifications = list(pilot.app._notifications)
-                assert any(
-                    "predates AIMBAT's schema versioning" in n.message
-                    for n in notifications
-                )
-                assert all(n.severity == "warning" for n in notifications)
+                modal = pilot.app.screen
+                assert isinstance(modal, SchemaStaleModal)
+                assert "predates AIMBAT's schema versioning" in modal._message
 
         asyncio.run(_run())
 
-    def test_no_toast_when_up_to_date(
+    def test_no_modal_when_up_to_date(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A freshly created (and therefore immediately-stamped) project shows no toast."""
+        """A freshly created (and therefore immediately-stamped) project shows no modal."""
         _patch_engine(monkeypatch, patched_engine)
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
                 await pilot.pause()
-                assert list(pilot.app._notifications) == []
+                assert not isinstance(pilot.app.screen, SchemaStaleModal)
+
+        asyncio.run(_run())
+
+    def test_upgrade_action_upgrades_and_proceeds(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pressing 'u' upgrades the database in place and enters the main UI."""
+        _patch_engine(monkeypatch, patched_engine)
+        with patched_engine.begin() as connection:
+            connection.exec_driver_sql("DROP TABLE alembic_version")
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                assert isinstance(pilot.app.screen, SchemaStaleModal)
+
+                await pilot.press("u")
+                await pilot.pause()
+
+                assert not isinstance(pilot.app.screen, SchemaStaleModal)
+                assert get_current_revision(patched_engine) == get_head_revision()
+
+        asyncio.run(_run())
+
+    def test_quit_action_declines_upgrade_and_exits(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pressing 'q' leaves the database untouched and exits the app."""
+        _patch_engine(monkeypatch, patched_engine)
+        with patched_engine.begin() as connection:
+            connection.exec_driver_sql("DROP TABLE alembic_version")
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                await pilot.press("q")
+
+        asyncio.run(_run())
+        assert get_current_revision(patched_engine) is None
 
         asyncio.run(_run())
 

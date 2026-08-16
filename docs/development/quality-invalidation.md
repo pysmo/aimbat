@@ -53,6 +53,7 @@ use this as the criterion for deciding whether an MCCC invalidation is necessary
 | `ramp_width` | The cosine taper at the window edges is part of the signal preprocessing, so even small ramp changes alter the effective waveform. |
 | `bandpass_apply` | Toggling the filter on/off produces a different signal for both ICCS and MCCC. |
 | `bandpass_fmin` / `bandpass_fmax` | Changing the passband changes the signal used to compute all correlations. |
+| `corners` | Changing the filter order changes the rolloff steepness (and, for the causal variant, the passband itself), altering the filtered signal used for both ICCS and MCCC. |
 
 ### MCCC-specific parameters
 
