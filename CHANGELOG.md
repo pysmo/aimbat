@@ -14,6 +14,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 ### 🚀 New Features
 
 - Auto-create a snapshot per event when data add ingests new seismograms
+- Integrate pysmo causal-filter, persist ICCS.corners, harden schema checks
 
 ### 🧪 Testing
 
