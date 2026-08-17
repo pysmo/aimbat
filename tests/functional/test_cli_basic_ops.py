@@ -123,6 +123,63 @@ class TestDataManagement:
             expected_comment = f"Added {n} seismogram{'' if n == 1 else 's'}"
             assert snap["comment"] == expected_comment
 
+    def test_add_data_snapshot_failure_does_not_cascade(
+        self,
+        patched_engine: Engine,
+        multi_event_data: Sequence[Path],
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list | dict],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """One event's automatic snapshot failing must not knock out the rest.
+
+        Regression test: a failed `create_snapshot` call leaves the session
+        unusable until rolled back. If `_create_snapshots_for_touched_events`
+        doesn't roll back after catching the exception, every event
+        processed after the failing one silently fails too, even though
+        nothing is wrong with them.
+        """
+        from sqlmodel import Session
+
+        import aimbat.core as core
+        from aimbat.models import AimbatEvent
+
+        real_create_snapshot = core.create_snapshot
+        calls = {"n": 0}
+
+        def flaky_create_snapshot(
+            session: Session,
+            event: AimbatEvent,
+            comment: str | None = None,
+            **kwargs: object,
+        ) -> None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # Force a genuine flush failure inside create_snapshot's own
+                # commit by queuing a row that violates the unique constraint
+                # on AimbatEvent.time, rather than raising before any DB
+                # interaction happens.
+                session.add(
+                    AimbatEvent(time=event.time, latitude=0.0, longitude=0.0, depth=0.0)
+                )
+            return real_create_snapshot(session, event, comment=comment, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(core, "create_snapshot", flaky_create_snapshot)
+
+        files = " ".join(f.as_posix() for f in multi_event_data)
+        cli(f"data add {files} --no-progress")
+
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        assert len(events) > 1, "fixture should touch more than one event"
+
+        snapshot_data = cli_json("snapshot dump")
+        assert isinstance(snapshot_data, dict)
+        snapshots = snapshot_data["snapshots"]
+        assert len(snapshots) == len(events) - 1, (
+            "only the first (failing) event's snapshot should be missing"
+        )
+
     def test_add_data_singular_seismogram_comment(
         self,
         patched_engine: Engine,
