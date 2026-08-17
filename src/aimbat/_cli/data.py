@@ -146,7 +146,10 @@ def _create_snapshots_for_touched_events(
             # itself wasn't added. Warn and move on to the next event rather
             # than raising, so one event's snapshot failure (e.g. an
             # unexpected quality-data shape) can't suppress the baseline for
-            # an unrelated event touched in the same call.
+            # an unrelated event touched in the same call. A failed commit
+            # leaves the session unusable until rolled back, which would
+            # otherwise make every subsequent event's snapshot fail too.
+            session.rollback()
             logger.warning(
                 f"Failed to create automatic snapshot for event {event_id}: {e}"
             )
