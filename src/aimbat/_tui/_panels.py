@@ -5,13 +5,16 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable, Sequence
 from contextlib import suppress
-from typing import Any, Literal
+from dataclasses import dataclass
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel
+from rich.text import Text
 from sqlalchemy.exc import NoResultFound, SQLAlchemyError
-from sqlmodel import Session
+from sqlmodel import Session, select
 from textual import on
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.message import Message
@@ -35,6 +38,7 @@ from aimbat.db import engine
 from aimbat.models import (
     AimbatEvent,
     AimbatEventRead,
+    AimbatSeismogram,
     AimbatSeismogramRead,
     AimbatSnapshotRead,
     AimbatStationRead,
@@ -53,23 +57,48 @@ _STATION_TABLE_EXCLUDE: set[str] = {"event_count"}
 _SEISMOGRAM_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
 _SNAPSHOT_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
 
-# Extend this dict to add new per-row actions to any tab.
-_TAB_ROW_ACTIONS: dict[str, list[tuple[str, str]]] = {
+
+@dataclass(frozen=True)
+class RowAction:
+    """One row-level action: a menu entry and, when its table has focus, a footer hotkey."""
+
+    id: str
+    """Action identifier, dispatched via `RowActionChosen`/`ActionChosen`."""
+
+    label: str
+    """Display label shown in the Enter-triggered action menu."""
+
+    key: str
+    """Footer/table hotkey when the owning row's table has keyboard focus."""
+
+
+# Extend this dict to add new per-row actions to any tab. Both the
+# Enter-triggered action menu and the table-focused footer hotkeys
+# (`_RowActionTable`, below) read from this single registry.
+_TAB_ROW_ACTIONS: dict[str, list[RowAction]] = {
     "project-events": [
-        ("select", "Select event"),
-        ("toggle_completed", "Toggle completed"),
-        ("view_seismograms", "View seismograms"),
-        ("delete", "Delete event"),
+        RowAction("select", "Select event", "s"),
+        RowAction("toggle_completed", "Toggle completed", "m"),
+        RowAction("view_seismograms", "View seismograms", "v"),
+        RowAction("delete", "Delete event", "d"),
     ],
     "project-stations": [
-        ("view_seismograms", "View seismograms"),
-        ("delete", "Delete station"),
+        RowAction("view_seismograms", "View seismograms", "v"),
+        RowAction("delete", "Delete station", "d"),
     ],
     "tab-seismograms": [
-        ("toggle_select", "Toggle select"),
-        ("toggle_flip", "Toggle flip"),
-        ("reset", "Reset parameters"),
-        ("delete", "Delete seismogram"),
+        RowAction("toggle_select", "Toggle select", "s"),
+        RowAction("toggle_flip", "Toggle flip", "f"),
+        RowAction("reset", "Reset seismogram", "u"),
+        RowAction("delete", "Delete seismogram", "d"),
+    ],
+    "tab-snapshots": [
+        RowAction("show_details", "Show details", "v"),
+        RowAction("preview_stack", "Preview stack", "s"),
+        RowAction("preview_image", "Preview matrix image", "x"),
+        RowAction("save_results", "Save results to JSON", "w"),
+        RowAction("rollback", "Rollback to this snapshot", "b"),
+        RowAction("delete", "Delete snapshot", "d"),
     ],
 }
 
@@ -125,23 +154,43 @@ def _setup_table(
     return table
 
 
+def _styled_cell(cell: str | Text, style: str) -> Text:
+    """Return `cell` as a `Text` with `style` applied, preserving any
+    existing `Text` formatting (e.g. `text_align`)."""
+    if isinstance(cell, Text):
+        styled = cell.copy()
+        styled.stylize(style)
+        return styled
+    return Text(cell, style=style)
+
+
 def _populate_rows(
     table: DataTable,
     rows: Sequence[dict[str, Any]],
     model: type[BaseModel],
     *,
     on_row: Callable[[dict[str, Any]], Sequence[str]] | None = None,
+    row_style: Callable[[dict[str, Any]], str | None] | None = None,
 ) -> None:
     """Add `rows` (dicts with title keys and an "ID" key) to `table`,
     formatting cells via `tui_cell(model, ...)`.
 
     If given, `on_row` is called with each row dict before "ID" is popped;
     its return value is prepended as extra leading cells (e.g. a marker).
+
+    If given, `row_style` is called with each row dict (before "ID" is
+    popped); when it returns a Rich style string, every cell in that row
+    (including any `on_row` prefix) is wrapped in that style, e.g. to fade
+    rows not relevant to the current context.
     """
     for row in rows:
-        prefix = on_row(row) if on_row is not None else ()
+        style = row_style(row) if row_style is not None else None
+        prefix: Sequence[str | Text] = on_row(row) if on_row is not None else ()
         row_id = str(row.pop("ID"))
-        cells = [tui_cell(model, k, v) for k, v in row.items()]
+        cells: Sequence[str | Text] = [tui_cell(model, k, v) for k, v in row.items()]
+        if style is not None:
+            prefix = [_styled_cell(c, style) for c in prefix]
+            cells = [_styled_cell(c, style) for c in cells]
         table.add_row(*prefix, *cells, key=row_id)
 
 
@@ -184,19 +233,100 @@ def _open_row_action_menu(
     tab: str,
     item_id: str,
     title: str,
-    make_message: Callable[[str, str, str], Message],
+    dispatch: Callable[[str, str, str], None],
 ) -> None:
-    """Open the row-action menu for `tab`, posting `make_message(tab, item_id, action)`
-    on `widget` if the user picks an action (does nothing if they cancel)."""
+    """Open the row-action menu for `tab`, calling `dispatch(tab, item_id, action)`
+    if the user picks an action (does nothing if they cancel)."""
     actions = _TAB_ROW_ACTIONS.get(tab, [])
     if not actions:
         return
 
     def on_action(action: str | None) -> None:
         if action is not None:
-            widget.post_message(make_message(tab, item_id, action))
+            dispatch(tab, item_id, action)
 
-    widget.app.push_screen(ActionMenuModal(title, actions), on_action)
+    widget.app.push_screen(
+        ActionMenuModal(title, [(a.id, a.label) for a in actions]), on_action
+    )
+
+
+class _RowActionTable(VimDataTable):
+    """`VimDataTable` that exposes its `_TAB_ROW_ACTIONS` entries as footer hotkeys.
+
+    Subclasses set `TAB_ID`; `BINDINGS` and `check_action` are derived from
+    `_TAB_ROW_ACTIONS[TAB_ID]` so the Enter-triggered action menu and the
+    footer hotkeys can never drift apart.
+    """
+
+    TAB_ID: ClassVar[str]
+
+    class RowActionSelected(Message):
+        """Posted when a row action is triggered directly via its footer hotkey."""
+
+        def __init__(
+            self, table: "_RowActionTable", row_key: str, action_id: str
+        ) -> None:
+            super().__init__()
+            self.table = table
+            self.row_key = row_key
+            self.action_id = action_id
+
+        @property
+        def control(self) -> "_RowActionTable":
+            return self.table
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        # Textual's own DOMNode.__init_subclass__ (called via super() below)
+        # merges BINDINGS across the MRO into cls._merged_bindings as part of
+        # its own class-setup work, so BINDINGS must already reflect this
+        # subclass's actions *before* that call, not after - getting this
+        # order wrong silently drops every row-action hotkey from the footer
+        # (row actions still work via Enter -> menu, so it's easy to miss).
+        # This depends on the internal ordering of an undocumented Textual
+        # mechanism, not a stable public contract; if a Textual upgrade ever
+        # changes it, TestRowActionFooterHotkeys in test_tui.py is what will
+        # fail and point back here.
+        cls.BINDINGS = [
+            Binding(a.key, f"row_action('{a.id}')", a.label, show=True)
+            for a in _TAB_ROW_ACTIONS[cls.TAB_ID]
+        ]
+        super().__init_subclass__(**kwargs)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "row_action":
+            return self.row_count > 0
+        return True
+
+    def action_row_action(self, action_id: str) -> None:
+        if self.row_count == 0:
+            return
+        row_key = self.coordinate_to_cell_key(self.cursor_coordinate).row_key.value
+        if row_key:
+            self.post_message(self.RowActionSelected(self, row_key, action_id))
+
+
+class _EventTable(_RowActionTable):
+    """Row-action-aware table for the Project tab's event list."""
+
+    TAB_ID = "project-events"
+
+
+class _StationTable(_RowActionTable):
+    """Row-action-aware table for the Project tab's station list."""
+
+    TAB_ID = "project-stations"
+
+
+class _SeismogramTable(_RowActionTable):
+    """Row-action-aware table for the Live data tab's seismogram list."""
+
+    TAB_ID = "tab-seismograms"
+
+
+class _SnapshotTable(_RowActionTable):
+    """Row-action-aware table for the Snapshots tab's snapshot list."""
+
+    TAB_ID = "tab-snapshots"
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +354,8 @@ class ProjectPanel(Widget):
     def compose(self) -> ComposeResult:
         with Horizontal(id="project-layout"):
             with Vertical(id="project-tables"):
-                yield VimDataTable(id="project-event-table")
-                yield VimDataTable(id="project-station-table")
+                yield _EventTable(id="project-event-table")
+                yield _StationTable(id="project-station-table")
             with Vertical(id="project-right-panel"):
                 yield Static(id="project-quality-panel", classes="quality-panel")
                 yield NoteWidget(id="project-note")
@@ -271,6 +401,18 @@ class ProjectPanel(Widget):
                     by_title=True,
                     exclude=_STATION_TABLE_EXCLUDE,
                 )
+                used_station_ids: set[str] = (
+                    {
+                        str(station_id)
+                        for station_id in session.exec(
+                            select(AimbatSeismogram.station_id)
+                            .where(AimbatSeismogram.event_id == current_event_id)
+                            .distinct()
+                        ).all()
+                    }
+                    if current_event_id is not None
+                    else set()
+                )
 
             total = len(event_rows)
             completed = sum(1 for r in event_rows if r.get("Completed"))
@@ -295,10 +437,22 @@ class ProjectPanel(Widget):
                     "▶" if str(row["ID"]) == str(current_event_id) else " ",
                 ),
             )
-            _populate_rows(st, station_rows, AimbatStationRead)
+            _populate_rows(
+                st,
+                station_rows,
+                AimbatStationRead,
+                row_style=lambda row: (
+                    None
+                    if current_event_id is None or str(row["ID"]) in used_station_ids
+                    else "dim"
+                ),
+            )
 
         self._refreshing = True
         _settle_cursor(self, [(et, et_saved), (st, st_saved)], self._on_settled)
+
+    def _dispatch_row_action(self, tab: str, item_id: str, action: str) -> None:
+        self.post_message(self.RowActionChosen(tab, item_id, action))
 
     @on(DataTable.RowSelected, "#project-event-table")
     def project_event_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -308,7 +462,7 @@ class ProjectPanel(Widget):
                 "project-events",
                 event.row_key.value,
                 f"Event  {event.row_key.value[:8]}",
-                self.RowActionChosen,
+                self._dispatch_row_action,
             )
 
     @on(DataTable.RowSelected, "#project-station-table")
@@ -319,8 +473,15 @@ class ProjectPanel(Widget):
                 "project-stations",
                 event.row_key.value,
                 f"Station  {event.row_key.value[:8]}",
-                self.RowActionChosen,
+                self._dispatch_row_action,
             )
+
+    @on(_RowActionTable.RowActionSelected)
+    def _row_action_selected(self, message: _RowActionTable.RowActionSelected) -> None:
+        message.stop()
+        self._dispatch_row_action(
+            message.table.TAB_ID, message.row_key, message.action_id
+        )
 
     @on(DataTable.RowHighlighted, "#project-event-table")
     def project_event_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
@@ -398,7 +559,7 @@ class SeismogramPanel(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="seismogram-layout"):
-            yield VimDataTable(id="seismogram-table")
+            yield _SeismogramTable(id="seismogram-table")
             with Vertical(id="seismogram-right-panel"):
                 yield SeismogramPlotWidget(id="seismogram-plot")
                 yield NoteWidget(id="seismogram-note")
@@ -492,6 +653,9 @@ class SeismogramPanel(Widget):
             self._update_seismogram_note(self._highlighted_id)
             self._update_seismogram_plot(self._highlighted_id)
 
+    def _dispatch_row_action(self, tab: str, item_id: str, action: str) -> None:
+        self.post_message(self.RowActionChosen(item_id, action))
+
     @on(DataTable.RowSelected, "#seismogram-table")
     def seismogram_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.row_key.value:
@@ -500,8 +664,15 @@ class SeismogramPanel(Widget):
                 "tab-seismograms",
                 event.row_key.value,
                 f"Seismogram  {event.row_key.value[:8]}",
-                lambda tab, item_id, action: self.RowActionChosen(item_id, action),
+                self._dispatch_row_action,
             )
+
+    @on(_RowActionTable.RowActionSelected)
+    def _row_action_selected(self, message: _RowActionTable.RowActionSelected) -> None:
+        message.stop()
+        self._dispatch_row_action(
+            message.table.TAB_ID, message.row_key, message.action_id
+        )
 
     def _update_seismogram_note(self, item_id: str | None) -> None:
         _update_note(
@@ -579,7 +750,7 @@ class SnapshotPanel(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="snapshot-layout"):
-            yield VimDataTable(id="snapshot-table")
+            yield _SnapshotTable(id="snapshot-table")
             with Vertical(id="snapshot-right-panel"):
                 yield Static(id="snapshot-quality-panel", classes="quality-panel")
                 yield NoteWidget(id="snapshot-note")
@@ -640,7 +811,19 @@ class SnapshotPanel(Widget):
             self.post_message(self.ActionChosen(snap_id, action, context, all_seis))
 
         self.app.push_screen(
-            SnapshotActionMenuModal(f"Snapshot  {snap_id[:8]}"), on_action
+            SnapshotActionMenuModal(
+                f"Snapshot  {snap_id[:8]}", _TAB_ROW_ACTIONS["tab-snapshots"]
+            ),
+            on_action,
+        )
+
+    @on(_RowActionTable.RowActionSelected)
+    def _row_action_selected(self, message: _RowActionTable.RowActionSelected) -> None:
+        # Direct hotkeys use the modal's own default toggle values; non-default
+        # context/all_seismograms combinations still require Enter -> modal.
+        message.stop()
+        self.post_message(
+            self.ActionChosen(message.row_key, message.action_id, True, False)
         )
 
     def _update_snapshot_quality(self, item_id: str | None) -> None:

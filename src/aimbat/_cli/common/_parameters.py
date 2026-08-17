@@ -26,6 +26,7 @@ __all__ = [
     "use_event_parameter",
     "use_matrix_image",
     "causal",
+    "CAUSAL_DEFAULTS",
     "open_in_editor",
     "DebugParameter",
     "EventDebugParameters",
@@ -203,6 +204,21 @@ def causal() -> Parameter:
         help="Use causal (single-pass) instead of zero-phase filtering.",
         negative="--zero-phase",
     )
+
+
+CAUSAL_DEFAULTS: dict[str, bool] = {
+    "phase": True,
+    "window": False,
+    "cc": False,
+}
+"""Default causal/zero-phase setting per `tool` subcommand/TUI tool id.
+
+Single source of truth for `_cli/tool.py`'s three `causal()` parameter
+defaults and the TUI's equivalent per-tool default (`InteractiveToolsModal`
+in `_tui/modals.py`). These three values previously had to be updated by
+hand in two places at once when pysmo changed one of its own per-function
+defaults - this constant removes that duplication.
+"""
 
 
 # -----------------------------------------------------------------------

@@ -112,25 +112,6 @@ ConfirmModal {
     color: $foreground;
 }
 
-/* ---- Event-switcher modal ---- */
-EventSwitcherModal {
-    align: center middle;
-}
-
-#switcher-dialog {
-    background: $background;
-    border: solid $primary;
-    width: 90%;
-    max-width: 110;
-    height: 70%;
-    padding: 1 2;
-}
-
-#switcher-dialog .modal-title {
-    color: $secondary;
-    text-style: bold;
-}
-
 /* ---- Snapshot action menu modal ---- */
 SnapshotActionMenuModal {
     align: center middle;
@@ -169,7 +150,7 @@ InteractiveToolsModal {
 #tools-dialog {
     background: $background;
     border: solid $primary;
-    width: 58;
+    width: 64;
     height: auto;
     padding: 1 2;
 }

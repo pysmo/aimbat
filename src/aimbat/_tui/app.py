@@ -37,7 +37,6 @@ from aimbat._tui.modals import (
     ActionMenuModal,
     AlignModal,
     ConfirmModal,
-    EventSwitcherModal,
     HelpModal,
     InteractiveToolsModal,
     NoProjectModal,
@@ -45,6 +44,7 @@ from aimbat._tui.modals import (
     SchemaStaleModal,
     SnapshotCommentModal,
     SnapshotDetailsModal,
+    ToolLaunchResult,
 )
 from aimbat._types import SeismogramParameter
 from aimbat.core import (
@@ -98,10 +98,13 @@ _LIGHT_THEME = settings.tui_light_theme
 _MAIN_TABS = {"tab-project", "tab-seismograms", "tab-snapshots"}
 
 
-# Extend _TOOL_REGISTRY to register new interactive tools.  Each entry maps a
-# key to a (label, callable) pair.  The callable receives
-# (session, event, iccs, context, all_seismograms) and returns None.
+# Extend _TOOL_REGISTRY/_CAUSAL_TOOL_REGISTRY to register new interactive
+# tools.  Each entry maps a key to a (label, callable) pair.  Callables in
+# _TOOL_REGISTRY receive (session, event, iccs, context, all_seismograms);
+# callables in _CAUSAL_TOOL_REGISTRY additionally receive a causal argument
+# from InteractiveToolsModal's zero-phase toggle. Both return None.
 type _ToolFn = Callable[[Session, AimbatEvent, ICCS, bool, bool], None]
+type _CausalToolFn = Callable[[Session, AimbatEvent, ICCS, bool, bool, bool], None]
 
 
 def _tool_phase(
@@ -110,16 +113,15 @@ def _tool_phase(
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
+    causal: bool,
 ) -> None:
-    # TODO: expose a causal/zero-phase toggle once the TUI overhaul adds a
-    # widget-based equivalent of the CLI's --causal/--zero-phase flag.
     update_pick(
         session,
         iccs,
         context,
         all_seismograms=all_seismograms,
         use_matrix_image=False,
-        causal=True,
+        causal=causal,
         return_fig=False,
     )
 
@@ -130,9 +132,8 @@ def _tool_window(
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
+    causal: bool,
 ) -> None:
-    # TODO: expose a causal/zero-phase toggle once the TUI overhaul adds a
-    # widget-based equivalent of the CLI's --causal/--zero-phase flag.
     update_timewindow(
         session,
         event,
@@ -140,7 +141,7 @@ def _tool_window(
         context,
         all_seismograms=all_seismograms,
         use_matrix_image=False,
-        causal=False,
+        causal=causal,
         return_fig=False,
     )
 
@@ -151,16 +152,15 @@ def _tool_cc(
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
+    causal: bool,
 ) -> None:
-    # TODO: expose a causal/zero-phase toggle once the TUI overhaul adds a
-    # widget-based equivalent of the CLI's --causal/--zero-phase flag.
     update_min_cc(
         session,
         event,
         iccs,
         context,
         all_seismograms=all_seismograms,
-        causal=False,
+        causal=causal,
         return_fig=False,
     )
 
@@ -204,12 +204,14 @@ def _tool_image(
 
 
 _TOOL_REGISTRY: dict[str, tuple[str, _ToolFn]] = {
-    "phase": ("Phase arrival (t1)", _tool_phase),
-    "window": ("Time window", _tool_window),
-    "cc": ("Min CC", _tool_cc),
     "bandpass": ("Bandpass filter", _tool_bandpass),
     "stack": ("Stack plot", _tool_stack),
     "image": ("Matrix image", _tool_image),
+}
+_CAUSAL_TOOL_REGISTRY: dict[str, tuple[str, _CausalToolFn]] = {
+    "phase": ("Phase arrival (t1)", _tool_phase),
+    "window": ("Time window", _tool_window),
+    "cc": ("Min CC", _tool_cc),
 }
 
 
@@ -225,8 +227,7 @@ class AimbatTUI(App[None]):
     CSS_PATH = "aimbat.tcss"
 
     BINDINGS = [
-        Binding("e", "switch_event", "Events", show=True),
-        Binding("d", "add_data", "Add Data", show=True),
+        Binding("i", "add_data", "Add Data", show=True),
         Binding("p", "open_parameters", "Parameters", show=True),
         Binding("t", "open_interactive_tools", "Tools", show=True),
         Binding("a", "open_align", "Align", show=True),
@@ -326,13 +327,30 @@ class AimbatTUI(App[None]):
             self.query_one(SnapshotPanel).clear_selection_if_empty()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action in {
-            "open_parameters",
-            "open_interactive_tools",
-            "open_align",
-            "new_snapshot",
-        }:
-            return self._current_event_id is not None
+        if action == "add_data":
+            return self._active_tab == "tab-project"
+        if action == "new_snapshot":
+            return (
+                self._active_tab == "tab-seismograms"
+                and self._current_event_id is not None
+            )
+        if action in {"open_interactive_tools", "open_align"}:
+            return (
+                self._active_tab == "tab-seismograms"
+                and self._current_event_id is not None
+            )
+        if action == "open_parameters":
+            if self._current_event_id is None:
+                return False
+            if self._active_tab == "tab-seismograms":
+                return True
+            if self._active_tab == "tab-project":
+                # `self.focused` is the DataTable itself when a table has
+                # keyboard focus (DataTable has no focusable descendants), so
+                # comparing its id directly is sufficient - this would need
+                # revisiting if DataTable ever grew focusable child widgets.
+                return getattr(self.focused, "id", None) == "project-event-table"
+            return False
         return True
 
     # ------------------------------------------------------------------
@@ -521,15 +539,17 @@ class AimbatTUI(App[None]):
                 )
                 bar.update(
                     f"▶ {time_str}  |  {lat}, {lon}{modified}"
-                    f"  [dim]{iccs_status}  e = switch event[/dim]"
+                    f"  [dim]{iccs_status}  switch events on the Project tab[/dim]"
                 )
         except NoResultFound:
             with Session(engine) as session:
                 has_events = session.exec(select(AimbatEvent)).first() is not None
             if has_events:
-                bar.update("[red]No event selected — press e to select one[/red]")
+                bar.update(
+                    "[red]No event selected — select one on the Project tab[/red]"
+                )
             else:
-                bar.update("[red]No data in project — press d to add data[/red]")
+                bar.update("[red]No data in project — press i to add data[/red]")
         except RuntimeError as exc:
             bar.update(f"[red]{exc}[/red]")
 
@@ -799,7 +819,10 @@ class AimbatTUI(App[None]):
                 event = self._get_current_event(session)
                 event_id = event.id
         except NoResultFound:
-            self.notify("No event selected — press e to select one", severity="warning")
+            self.notify(
+                "No event selected — select one on the Project tab",
+                severity="warning",
+            )
             return
 
         def on_close(changed: bool | None) -> None:
@@ -809,20 +832,6 @@ class AimbatTUI(App[None]):
                 self.refresh_all()
 
         self.push_screen(ParametersModal(event_id), on_close)
-
-    def action_switch_event(self) -> None:
-        def on_result(result: tuple[uuid.UUID | None, bool] | None) -> None:
-            selected_event_id, deleted_current_event = result or (None, False)
-            if selected_event_id is not None:
-                logger.debug(f"User switched to event {str(selected_event_id)[:8]}.")
-                self._current_event_id = selected_event_id
-                self._create_iccs()
-            elif deleted_current_event:
-                self._current_event_id = None
-                self._bound_iccs = None
-            self.refresh_all()
-
-        self.push_screen(EventSwitcherModal(self._current_event_id), on_result)
 
     def action_add_data(self) -> None:
         actions = [(dt.value, dt.name.replace("_", " ")) for dt in DataType]
@@ -872,40 +881,60 @@ class AimbatTUI(App[None]):
                 severity="warning",
             )
         else:
-            self.notify("No event selected — press e to select one", severity="warning")
+            self.notify(
+                "No event selected — select one on the Project tab",
+                severity="warning",
+            )
         return False
 
     def action_open_interactive_tools(self) -> None:
         if not self._require_iccs():
             return
 
-        def on_result(result: tuple[str, bool, bool] | None) -> None:
+        def on_result(result: ToolLaunchResult | None) -> None:
             if result is not None:
-                self._run_tool(*result)
+                self._run_tool(
+                    result.tool, result.context, result.all_seismograms, result.causal
+                )
 
         self.push_screen(InteractiveToolsModal(), on_result)
 
-    def _run_tool(self, tool: str, context: bool, all_seis: bool) -> None:
+    def _run_tool(
+        self, tool: str, context: bool, all_seis: bool, causal: bool | None
+    ) -> None:
         """Run an interactive tool, suspending Textual while matplotlib is active.
 
         Uses the long-lived ICCS instance (waveform data already loaded) and runs
         matplotlib on the main thread via App.suspend(), which is the correct
-        Textual pattern for blocking terminal-adjacent processes.
+        Textual pattern for blocking terminal-adjacent processes. `causal` is
+        only meaningful (non-None) for tools in _CAUSAL_TOOL_REGISTRY.
         """
         logger.debug(
-            f"User launched interactive tool '{tool}' (context={context}, all_seis={all_seis})."
+            f"User launched interactive tool '{tool}' "
+            f"(context={context}, all_seis={all_seis}, causal={causal})."
         )
         if self._bound_iccs is None:
             self.notify("ICCS not ready — please wait", severity="warning")
             return
-        label, fn = _TOOL_REGISTRY[tool]
         iccs = self._bound_iccs.iccs
+        is_causal_tool = tool in _CAUSAL_TOOL_REGISTRY
+        label = (
+            _CAUSAL_TOOL_REGISTRY[tool][0]
+            if is_causal_tool
+            else _TOOL_REGISTRY[tool][0]
+        )
 
         try:
             with self._suspend(label):
                 with Session(engine) as session:
                     event = self._get_current_event(session)
-                    fn(session, event, iccs, context, all_seis)
+                    if is_causal_tool:
+                        assert causal is not None
+                        _CAUSAL_TOOL_REGISTRY[tool][1](
+                            session, event, iccs, context, all_seis, causal
+                        )
+                    else:
+                        _TOOL_REGISTRY[tool][1](session, event, iccs, context, all_seis)
         except Exception as exc:
             logger.exception(f"Interactive tool '{tool}' raised: {exc}")
             self.notify(str(exc), severity="error")

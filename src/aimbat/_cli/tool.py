@@ -12,6 +12,7 @@ from uuid import UUID
 from cyclopts import App
 
 from .common import (
+    CAUSAL_DEFAULTS,
     DebugParameter,
     IccsPlotParameters,
     causal,
@@ -65,7 +66,7 @@ def cli_update_phase_pick(
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image()] = False,
-    causal: Annotated[bool, causal()] = True,
+    causal: Annotated[bool, causal()] = CAUSAL_DEFAULTS["phase"],
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new phase arrival time (t1) for an event.
@@ -100,7 +101,7 @@ def cli_pick_timewindow(
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image()] = False,
-    causal: Annotated[bool, causal()] = False,
+    causal: Annotated[bool, causal()] = CAUSAL_DEFAULTS["window"],
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new cross-correlation time window for an event.
@@ -137,7 +138,7 @@ def cli_pick_min_cc(
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image()] = True,
-    causal: Annotated[bool, causal()] = False,
+    causal: Annotated[bool, causal()] = CAUSAL_DEFAULTS["cc"],
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new minimum cross-correlation for auto-selection.
