@@ -10,6 +10,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Drain startup ICCS worker before TestICCSStalenessRetry asserts
 - Refresh project table after Tools-menu parameter changes
 - Refresh all TUI panels after mutations, not just the active one
+- Roll back session after failed automatic snapshot
 
 ### 🚀 New Features
 
