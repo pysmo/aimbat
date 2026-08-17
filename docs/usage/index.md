@@ -121,22 +121,26 @@ without leaving the terminal.
 │ │  ...                                                         │ │
 │ └──────────────────────────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────────────────┤
-│ e Events  d Add Data  a Align  t Tools  p Parameters  ...  q Quit│  ← footer
+│ i Add Data  p Parameters  t Tools  a Align  n New Snapshot  q Quit│ ← footer
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 The **event bar** shows the event currently selected for processing and the
 ICCS status (`● ICCS ready` / `○ no ICCS`).
 
-The **footer** lists the available key bindings. Actions that require an event
-to be selected (Align, Tools, Parameters, New Snapshot) only appear once one
-is chosen.
+The **footer** is both project-state- and table-aware. Actions that require an
+event to be selected (Align, Tools, Parameters, New Snapshot) only appear once
+one is chosen, and several only appear on the tab (or table) they apply to —
+see [Global key bindings](#global-key-bindings) below. When a table row has
+keyboard focus, that row's own actions (normally reached via `Enter`) also
+appear directly in the footer as one-key shortcuts — see
+[Row actions](#row-actions).
 
 #### Tabs
 
 The TUI has three tabs:
 
-- **Project** — two tables side by side: the events in the project and the stations. Pressing `Enter` on an event row lets you select it, mark it completed, view its seismograms, or delete it.
+- **Project** — two tables side by side: the events in the project and the stations. Focus the events table and press its hotkey, or press `Enter` to open the row's action menu, to select it, mark it completed, view its seismograms, or delete it.
 - **Live data** — the seismogram table for the currently selected event. "Live" means the table always reflects the current in-memory ICCS state: picks, CC norms, and select/flip flags update immediately as you run alignment or change parameters, without any manual refresh. See [The ICCS Stack](iccs-stack.md) for a detailed explanation.
 - **Snapshots** — a list of saved parameter snapshots for the selected event with a quality summary panel.
 
@@ -148,67 +152,84 @@ Switch tabs with `H` / `L` (vim-style) or with the mouse. All tables support:
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
+| `h` / `l` | Scroll left / right (wide tables) |
 | `g` / `G` | Jump to top / bottom |
 | `Enter` | Open row action menu |
 
 #### Row actions
 
-Pressing `Enter` on any table row opens a context menu. Available actions depend on the tab:
+Every row action is reachable two ways: press its key directly once the row's
+table has keyboard focus (it appears in the footer for as long as that table
+is focused), or press `Enter` on the row to open the same actions as a
+context menu — useful for mouse users, or when the key isn't top of mind.
+Available actions depend on the tab:
 
 **Project — Events table:**
 
-| Action | Description |
-|--------|-------------|
-| Select event | Make this the active event for processing |
-| Toggle completed | Mark or unmark the event as completed |
-| View seismograms | Switch to the Live data tab filtered to this event |
-| Delete event | Remove the event and its seismograms from the project |
+| Key | Action | Description |
+|-----|--------|-------------|
+| `s` | Select event | Make this the active event for processing |
+| `m` | Toggle completed | Mark or unmark the event as completed |
+| `v` | View seismograms | Switch to the Live data tab filtered to this event |
+| `d` | Delete event | Remove the event and its seismograms from the project |
 
 **Project — Stations table:**
 
-| Action | Description |
-|--------|-------------|
-| View seismograms | Switch to the Live data tab filtered to this station |
-| Delete station | Remove the station from the project |
+| Key | Action | Description |
+|-----|--------|-------------|
+| `v` | View seismograms | Switch to the Live data tab filtered to this station |
+| `d` | Delete station | Remove the station from the project |
 
 **Live data — Seismograms table:**
 
-| Action | Description |
-|--------|-------------|
-| Toggle select | Include or exclude this seismogram from the ICCS stack |
-| Toggle flip | Multiply the seismogram's data by −1 to correct polarity |
-| Reset parameters | Restore all per-seismogram parameters to their defaults |
-| Delete seismogram | Remove the seismogram from the project |
+| Key | Action | Description |
+|-----|--------|-------------|
+| `s` | Toggle select | Include or exclude this seismogram from the ICCS stack |
+| `f` | Toggle flip | Multiply the seismogram's data by −1 to correct polarity |
+| `u` | Reset seismogram | Restore all per-seismogram parameters to their defaults |
+| `d` | Delete seismogram | Remove the seismogram from the project |
 
 **Snapshots — Snapshots table:**
 
-| Action | Description |
-|--------|-------------|
-| Show details | Display the event-level parameters saved in the snapshot |
-| Preview stack | Open the ICCS stack plot built from the snapshot's parameters |
-| Preview matrix image | Open the matrix image built from the snapshot's parameters |
-| Save results to JSON | Export per-seismogram picks and MCCC metrics to a JSON file |
-| Rollback to this snapshot | Restore the snapshot's parameters as the current live values |
-| Delete snapshot | Permanently remove the snapshot |
+| Key | Action | Description |
+|-----|--------|-------------|
+| `v` | Show details | Display the event-level parameters saved in the snapshot |
+| `s` | Preview stack | Open the ICCS stack plot built from the snapshot's parameters |
+| `x` | Preview matrix image | Open the matrix image built from the snapshot's parameters |
+| `w` | Save results to JSON | Export per-seismogram picks and MCCC metrics to a JSON file |
+| `b` | Rollback to this snapshot | Restore the snapshot's parameters as the current live values |
+| `d` | Delete snapshot | Permanently remove the snapshot |
 
-Both preview options support `c` (toggle context waveforms) and `a` (include
-all seismograms) key bindings inside the action menu before the plot opens.
+The same key means the same thing on every table it appears on (`d` always
+deletes, `v` always means "look at this in more detail", `s` is the tab's
+main/default action), so once you've learned one table's hotkeys the others
+are largely familiar. The direct hotkey for **Preview stack**/**Preview
+matrix image** uses the action menu's default toggle values (context
+waveforms on, all seismograms off); to use non-default values, open the
+action menu with `Enter` and toggle `c`/`a` there before selecting the action.
 See [Snapshots](snapshots.md) for a description of each action and the format
 of the exported results file.
 
 #### Global key bindings
 
-| Key | Action |
-|-----|--------|
-| `e` | Open event switcher |
-| `a` | Run alignment (ICCS or MCCC) |
-| `t` | Open interactive parameter tools (phase pick, time window, min CC, bandpass filter) |
-| `p` | Edit processing parameters |
-| `n` | Create a new snapshot |
-| `d` | Add data files to the project |
-| `r` | Refresh all panels |
-| `c` | Toggle colour theme |
-| `q` | Quit |
+| Key | Action | Scope |
+|-----|--------|-------|
+| `i` | Add data files to the project | Project tab |
+| `p` | Edit processing parameters | Live data tab, or Project tab with the Events table focused |
+| `t` | Open interactive parameter tools (phase pick, time window, min CC, bandpass filter) | Live data tab |
+| `a` | Run alignment (ICCS or MCCC) | Live data tab |
+| `n` | Create a new snapshot | Live data tab |
+| `r` | Refresh all panels | Global |
+| `c` | Toggle colour theme | Global |
+| `q` | Quit | Global |
+
+The interactive tools modal (`t`) additionally supports `c` (toggle context
+waveforms) and `a` (include all seismograms) for every tool, and `z`
+(zero-phase instead of causal filtering) for the three tools that support it
+(phase pick, time window, min CC). The alignment modal (`a`) supports `f`
+(autoflip) and `s` (autoselect) for ICCS, and `a` (include all seismograms)
+for MCCC. All are toggled inside their respective modal before running the
+tool.
 
 #### ICCS lifecycle in the TUI
 

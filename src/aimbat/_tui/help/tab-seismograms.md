@@ -1,8 +1,8 @@
 # Live data tab
 
 This tab shows the seismograms for the currently selected event. If the
-table is empty, go to the **Project** tab and select an event first (`e`
-to open the event switcher, or `Enter` → **Select event** on any event row).
+table is empty, go to the **Project** tab and select an event first
+(`s`, or `Enter` → **Select event**, on any event row).
 
 **Everything here is synced directly to the database.** Row actions (toggle
 select, toggle flip, reset, delete) take effect immediately — there is no
@@ -47,8 +47,8 @@ that seismogram in two tabs:
   window used for alignment. This is exactly what ICCS correlates against
   the stack.
 - **Context** — the same trace with extra padding beyond the time window,
-  normalised within the window. Use this to judge whether the window
-  boundaries make sense in relation to the surrounding signal.
+  normalised within the window. Use this to check whether the window
+  boundaries fit the surrounding signal.
 
 The x-axis shows time in seconds relative to the phase-arrival pick (t1), or
 relative to t0 if t1 has not yet been set. The y-axis shows normalised
@@ -69,7 +69,8 @@ note, which persists in the database.
 3. Run ICCS (`a`) to align all selected seismograms.
 4. Use the interactive tools (`t`) to manually adjust picks or the time
    window if needed.
-5. Exclude obvious outliers with **Toggle select** (`Enter` on the row).
+5. Exclude obvious outliers with **Toggle select** (press `s` on the row,
+   or `Enter` for the menu).
 6. Take a snapshot (`n`) to save a checkpoint.
 7. Run MCCC (`a` → MCCC) for the final high-precision picks.
 
@@ -77,12 +78,15 @@ note, which persists in the database.
 
 ## Row actions
 
-| Action | Description |
-|--------|-------------|
-| Toggle select | Include or exclude this seismogram from the ICCS stack |
-| Toggle flip | Invert polarity — use this if a seismogram is clearly upside down |
-| Reset parameters | Restore all per-seismogram parameters (t1, select, flip) to their defaults |
-| Delete seismogram | Remove this seismogram from the project permanently |
+Each action's key works directly once this table has focus, or via `Enter`
+for the equivalent menu.
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| `s` | Toggle select | Include or exclude this seismogram from the ICCS stack |
+| `f` | Toggle flip | Invert polarity — use this if a seismogram is clearly upside down |
+| `u` | Reset seismogram | Restore all per-seismogram parameters (t1, select, flip) to their defaults |
+| `d` | Delete seismogram | Remove this seismogram from the project permanently |
 
 ---
 
@@ -92,6 +96,7 @@ note, which persists in the database.
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
+| `h` / `l` | Scroll left / right (wide tables) |
 | `g` / `G` | Jump to top / bottom |
 | `Enter` | Open row action menu |
 
@@ -101,7 +106,6 @@ note, which persists in the database.
 
 | Key | Action |
 |-----|--------|
-| `e` | Open event switcher |
 | `a` | Run alignment (opens ICCS / MCCC menu) |
 | `t` | Open interactive tools |
 | `p` | Edit processing parameters |
@@ -109,3 +113,9 @@ note, which persists in the database.
 | `r` | Refresh all panels |
 | `?` | Show this help |
 | `q` | Quit |
+
+The tools modal (`t`) additionally supports `c` (toggle context waveforms)
+and `a` (include all seismograms) for every tool, and `z` (zero-phase
+instead of causal filtering) for phase pick, time window, and min CC. The
+alignment modal (`a`) supports `f` (autoflip) and `s` (autoselect) for ICCS,
+and `a` (include all seismograms) for MCCC.

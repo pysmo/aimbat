@@ -1,12 +1,11 @@
 # Snapshots tab
 
 A snapshot is a saved checkpoint of the current processing state — the
-time window, bandpass filter, picks, and per-seismogram flags. Snapshots
-let you experiment freely: take one before making changes, and roll back
-if things go wrong.
+time window, bandpass filter, picks, and per-seismogram flags. Take one
+before making changes, then roll back to it if needed.
 
 If the list is empty, go to the **Project** tab and select an event first,
-then press `n` to create a snapshot.
+then switch to the Live data tab and press `n` to create a snapshot.
 
 ---
 
@@ -42,21 +41,25 @@ needed. Each snapshot has its own note, which persists in the database.
 - **Quality metrics** — ICCS correlation coefficients per seismogram (always captured);
   MCCC metrics (only if MCCC has been run with the current parameters)
 
-Waveform data is not copied — snapshots are lightweight records of where
-you are in the parameter space.
+Waveform data is not copied — snapshots only record parameter values.
 
 ---
 
 ## Row actions
 
-| Action | Description |
-|--------|-------------|
-| Show details | View the event parameters (window, filter, min CC) as saved |
-| Preview stack | Open the ICCS stack plot built from this snapshot's parameters, without changing anything in the database |
-| Preview matrix image | Open the cross-correlation matrix image from this snapshot |
-| Save results to JSON | Export the snapshot's quality metrics and picks to a JSON file via a file-save dialogue |
-| Rollback to this snapshot | Restore these parameters as the current live values — overwrites the current parameters for this event |
-| Delete snapshot | Permanently remove the snapshot (the live parameters are not affected) |
+Each action's key works directly once this table has focus, or via `Enter`
+for the equivalent menu. The direct hotkeys for the two preview actions use
+the menu's default toggle values (context on, all seismograms off) — open
+the menu with `Enter` to change them first.
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| `v` | Show details | View the event parameters (window, filter, min CC) as saved |
+| `s` | Preview stack | Open the ICCS stack plot built from this snapshot's parameters, without changing anything in the database |
+| `x` | Preview matrix image | Open the cross-correlation matrix image from this snapshot |
+| `w` | Save results to JSON | Export the snapshot's quality metrics and picks to a JSON file via a file-save dialogue |
+| `b` | Rollback to this snapshot | Restore these parameters as the current live values — overwrites the current parameters for this event |
+| `d` | Delete snapshot | Permanently remove the snapshot (the live parameters are not affected) |
 
 ### About rollback
 
@@ -76,10 +79,12 @@ also restored from the best matching snapshot.
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
+| `h` / `l` | Scroll left / right (wide tables) |
 | `g` / `G` | Jump to top / bottom |
 | `Enter` | Open row action menu |
 
-When previewing a stack or matrix image, two extra toggles appear:
+When previewing a stack or matrix image via the `Enter` menu, two extra
+toggles appear:
 - `c` — include context seismograms (wider view around the pick window)
 - `a` — include all seismograms, even those with `Select = ✗`
 
@@ -89,8 +94,6 @@ When previewing a stack or matrix image, two extra toggles appear:
 
 | Key | Action |
 |-----|--------|
-| `e` | Open event switcher |
-| `n` | Create a new snapshot for the current event |
 | `r` | Refresh all panels |
 | `?` | Show this help |
 | `q` | Quit |

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple
 
 from pandas import Timedelta
 from pydantic import ValidationError
@@ -16,15 +17,16 @@ from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input, Label, Markdown, Static
 
-from aimbat._tui._format import tui_cell, tui_display_title
+from aimbat._cli.common import CAUSAL_DEFAULTS
 from aimbat._tui._widgets import VimDataTable
 from aimbat._types import EventParameter
-from aimbat.core import delete_event, dump_event_table, set_event_parameter
+from aimbat.core import set_event_parameter
 from aimbat.db import engine
-from aimbat.models import AimbatEvent, AimbatEventRead
+from aimbat.models import AimbatEvent
 from aimbat.models._parameters import AimbatEventParametersBase
 
-_SWITCHER_EVENT_EXCLUDE: set[str] = {"snapshot_count", "last_modified"}
+if TYPE_CHECKING:
+    from aimbat._tui._panels import RowAction
 
 
 class _CSS(StrEnum):
@@ -40,7 +42,6 @@ class _Hint(StrEnum):
     SAVE_CANCEL = (
         "[@click='screen.save']⏎ save[/]   [@click='screen.cancel']⎋ cancel[/]"
     )
-    NAVIGATE_EVENT_SWITCHER = "↑↓ navigate   [@click='screen.select']⏎ select[/]   [@click='screen.toggle_completed']c complete[/]   [@click='screen.delete_event']⌫ delete[/]   [@click='screen.cancel']⎋ cancel[/]"
     NAVIGATE_SELECT_CANCEL = "↑↓ navigate   [@click='screen.select']⏎ select[/]   [@click='screen.cancel']⎋ cancel[/]"
     NAVIGATE_RUN_CANCEL = "↑↓ navigate   [@click='screen.select']⏎ run[/]   [@click='screen.cancel']⎋ cancel[/]"
     CONFIRM_CANCEL = "[@click='screen.confirm'][bold]y[/bold] / ⏎ confirm[/]   [@click='screen.cancel'][bold]n[/bold] / ⎋ cancel[/]"
@@ -52,7 +53,6 @@ __all__ = [
     "ActionMenuModal",
     "AlignModal",
     "ConfirmModal",
-    "EventSwitcherModal",
     "HelpModal",
     "InteractiveToolsModal",
     "NoProjectModal",
@@ -61,152 +61,8 @@ __all__ = [
     "SnapshotActionMenuModal",
     "SnapshotCommentModal",
     "SnapshotDetailsModal",
+    "ToolLaunchResult",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Event-switcher modal
-# ---------------------------------------------------------------------------
-
-
-class EventSwitcherModal(ModalScreen[tuple[uuid.UUID | None, bool]]):
-    """Modal screen for selecting a seismic event to process.
-
-    Dismisses with `(selected_event_id, deleted_current_event)`: the UUID of
-    the event the user switched to (`None` if the modal was just cancelled),
-    and whether the previously-active event was deleted during this modal's
-    lifetime — both are carried in the dismiss result so callers don't need
-    to inspect the screen instance after the fact.
-    """
-
-    BINDINGS = [
-        Binding("escape", "cancel", "Cancel", show=False),
-        Binding("c", "toggle_completed", "Complete", show=True),
-        Binding("backspace", "delete_event", "Delete", show=True),
-    ]
-
-    def __init__(self, current_event_id: uuid.UUID | None = None) -> None:
-        """Initialise the modal.
-
-        Args:
-            current_event_id: ID of the currently active event, used to mark
-                the active row with a `▶` indicator.
-        """
-        super().__init__()
-        self._current_event_id = current_event_id
-        self._selected_event_id: str | None = None
-        self._deleted_current_event: bool = False
-
-    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        """Disable destructive actions when no row is highlighted."""
-        if action in {"delete_event", "toggle_completed"}:
-            return True if self._selected_event_id else False
-        return True
-
-    def compose(self) -> ComposeResult:
-        with Container(id="switcher-dialog"):
-            yield Label("Switch Event", classes=_CSS.TITLE)
-            yield VimDataTable(id="event-table")
-            yield Label(_Hint.NAVIGATE_EVENT_SWITCHER, classes=_CSS.HINT)
-
-    def on_mount(self) -> None:
-        table = self.query_one(DataTable)
-        table.cursor_type = "row"
-        headers = [
-            tui_display_title(AimbatEventRead, f)
-            for f in AimbatEventRead.model_fields
-            if f not in _SWITCHER_EVENT_EXCLUDE | {"id"}
-        ]
-        table.add_columns(" ", *headers)
-        self._populate(table)
-
-    def _populate(self, table: DataTable) -> None:
-        """Fetch events from the database and populate `table` with rows."""
-        try:
-            with Session(engine) as session:
-                rows = dump_event_table(
-                    session,
-                    from_read_model=True,
-                    by_title=True,
-                    exclude=_SWITCHER_EVENT_EXCLUDE,
-                )
-            for row in rows:
-                row_id = str(row.pop("ID"))
-                marker = "▶" if row_id == str(self._current_event_id) else " "
-                cells = [tui_cell(AimbatEventRead, k, v) for k, v in row.items()]
-                table.add_row(marker, *cells, key=row_id)
-        except RuntimeError as exc:
-            self.notify(str(exc), severity="error")
-            self.dismiss((None, self._deleted_current_event))
-
-    def _refresh_table(self) -> None:
-        """Clear and repopulate the event table, preserving cursor position."""
-        table = self.query_one("#event-table", DataTable)
-        saved_row = table.cursor_row
-        table.clear()
-        self._populate(table)
-        if table.row_count > 0:
-            table.move_cursor(row=min(saved_row, table.row_count - 1))
-
-    @on(DataTable.RowHighlighted, "#event-table")
-    def row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        self._selected_event_id = event.row_key.value if event.row_key else None
-        self.refresh_bindings()
-
-    @on(DataTable.RowSelected, "#event-table")
-    def row_selected(self, event: DataTable.RowSelected) -> None:
-        row_key = event.row_key.value
-        if not row_key:
-            return
-        self.dismiss((uuid.UUID(row_key), self._deleted_current_event))
-
-    def action_toggle_completed(self) -> None:
-        event_id = self._selected_event_id
-        if not event_id:
-            return
-        try:
-            with Session(engine) as session:
-                event = session.get(AimbatEvent, uuid.UUID(event_id))
-                if event is None:
-                    return
-                event.parameters.completed = not event.parameters.completed
-                session.add(event)
-                session.commit()
-            self._refresh_table()
-        except Exception as exc:
-            self.notify(str(exc), severity="error")
-
-    def action_delete_event(self) -> None:
-        event_id = self._selected_event_id
-        if not event_id:
-            return
-
-        def on_confirm(confirmed: bool | None) -> None:
-            if not confirmed:
-                return
-            try:
-                with Session(engine) as session:
-                    delete_event(session, uuid.UUID(event_id))
-                self._selected_event_id = None
-                if (
-                    self._current_event_id is not None
-                    and uuid.UUID(event_id) == self._current_event_id
-                ):
-                    self._deleted_current_event = True
-                self._refresh_table()
-                self.notify("Event deleted", timeout=2)
-            except Exception as exc:
-                self.notify(str(exc), severity="error")
-
-        self.app.push_screen(
-            ConfirmModal("Delete this event and all its data?"), on_confirm
-        )
-
-    def action_select(self) -> None:
-        self.query_one(DataTable).action_select_cursor()
-
-    def action_cancel(self) -> None:
-        self.dismiss((None, self._deleted_current_event))
 
 
 # ---------------------------------------------------------------------------
@@ -618,15 +474,6 @@ class ActionMenuModal(ModalScreen[str | None]):
 # Snapshot action menu modal
 # ---------------------------------------------------------------------------
 
-_SNAPSHOT_ACTIONS: list[tuple[str, str]] = [
-    ("show_details", "Show details"),
-    ("preview_stack", "Preview stack"),
-    ("preview_image", "Preview matrix image"),
-    ("save_results", "Save results to JSON"),
-    ("rollback", "Rollback to this snapshot"),
-    ("delete", "Delete snapshot"),
-]
-
 _PREVIEW_ACTIONS: frozenset[str] = frozenset({"preview_stack", "preview_image"})
 
 
@@ -643,14 +490,17 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
         Binding("a", "toggle_all", show=False),
     ]
 
-    def __init__(self, title: str) -> None:
+    def __init__(self, title: str, actions: list["RowAction"]) -> None:
         """Initialise the modal.
 
         Args:
             title: Heading displayed above the action list.
+            actions: Row actions shown as rows (same registry the Snapshots
+                tab's footer hotkeys are built from).
         """
         super().__init__()
         self._title = title
+        self._actions = actions
         self._use_context = True
         self._all_seis = False
         self._highlighted: str = ""
@@ -666,9 +516,9 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_column("action")
-        for key, label in _SNAPSHOT_ACTIONS:
-            table.add_row(label, key=key)
-        table.styles.height = len(_SNAPSHOT_ACTIONS)
+        for action in self._actions:
+            table.add_row(action.label, key=action.id)
+        table.styles.height = len(self._actions)
         table.focus()
 
     def _update_options(self) -> None:
@@ -727,23 +577,38 @@ _TOOLS: list[tuple[str, str]] = [
 ]
 
 
-class InteractiveToolsModal(ModalScreen[tuple[str, bool, bool] | None]):
+class ToolLaunchResult(NamedTuple):
+    """Result of choosing a tool in `InteractiveToolsModal`.
+
+    `causal` is `None` for tools that don't take a causal argument.
+    """
+
+    tool: str
+    context: bool
+    all_seismograms: bool
+    causal: bool | None
+
+
+class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
     """Menu for launching interactive matplotlib tools.
 
     Options are toggled with key bindings so no Checkbox widgets are needed.
-    Dismisses with (tool_key, context, all_seismograms) or None on cancel.
+    Dismisses with a `ToolLaunchResult` or None on cancel.
     """
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=False),
         Binding("c", "toggle_context", "Context", show=False),
         Binding("a", "toggle_all", "All", show=False),
+        Binding("z", "toggle_zero_phase", "Zero-phase", show=False),
     ]
 
     def __init__(self) -> None:
         super().__init__()
         self._use_context = True
         self._all_seis = False
+        self._highlighted_tool: str = ""
+        self._causal: bool = True
 
     def compose(self) -> ComposeResult:
         with Container(id="tools-dialog"):
@@ -761,23 +626,38 @@ class InteractiveToolsModal(ModalScreen[tuple[str, bool, bool] | None]):
         table.add_column("tool")
         for key, label in _TOOLS:
             table.add_row(label, key=key)
+        self._highlighted_tool = _TOOLS[0][0]
+        self._causal = CAUSAL_DEFAULTS.get(self._highlighted_tool, True)
         self._update_options()
         table.focus()
 
     def _update_options(self) -> None:
-        """Refresh the context/all-seismograms toggle display."""
+        """Refresh the context/all-seismograms/zero-phase toggle display."""
         ctx = "✓" if self._use_context else "✗"
         al = "✓" if self._all_seis else "✗"
-        self.query_one("#tools-options", Static).update(
+        options = (
             f"  [@click='screen.toggle_context'][dim]c[/dim] context: {ctx}[/]"
             f"   [@click='screen.toggle_all'][dim]a[/dim] all seismograms: {al}[/]"
         )
+        if self._highlighted_tool in CAUSAL_DEFAULTS:
+            zp = "✓" if not self._causal else "✗"
+            options += f"   [@click='screen.toggle_zero_phase'][dim]z[/dim] zero-phase: {zp}[/]"
+        self.query_one("#tools-options", Static).update(options)
+
+    @on(DataTable.RowHighlighted, "#tools-table")
+    def row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        self._highlighted_tool = event.row_key.value or ""
+        self._causal = CAUSAL_DEFAULTS.get(self._highlighted_tool, True)
+        self._update_options()
 
     @on(DataTable.RowSelected, "#tools-table")
     def row_selected(self, event: DataTable.RowSelected) -> None:
         key = event.row_key.value
         if key:
-            self.dismiss((key, self._use_context, self._all_seis))
+            causal = self._causal if key in CAUSAL_DEFAULTS else None
+            self.dismiss(
+                ToolLaunchResult(key, self._use_context, self._all_seis, causal)
+            )
 
     def action_toggle_context(self) -> None:
         self._use_context = not self._use_context
@@ -786,6 +666,11 @@ class InteractiveToolsModal(ModalScreen[tuple[str, bool, bool] | None]):
     def action_toggle_all(self) -> None:
         self._all_seis = not self._all_seis
         self._update_options()
+
+    def action_toggle_zero_phase(self) -> None:
+        if self._highlighted_tool in CAUSAL_DEFAULTS:
+            self._causal = not self._causal
+            self._update_options()
 
     def action_select(self) -> None:
         self.query_one(DataTable).action_select_cursor()

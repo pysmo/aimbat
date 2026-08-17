@@ -13,11 +13,14 @@ monkeypatched to the test fixture's database:
 
 import asyncio
 import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import cast
 
 import pytest
 from sqlalchemy import Engine
 from sqlmodel import Session, select
+from textual.binding import Binding
 from textual.widgets import DataTable, Static, TabbedContent, TabPane
 
 import aimbat._tui._panels
@@ -26,7 +29,12 @@ import aimbat._tui.app
 import aimbat._tui.modals
 import aimbat.db
 from aimbat._tui.app import AimbatTUI
-from aimbat._tui.modals import SchemaStaleModal, SnapshotDetailsModal
+from aimbat._tui.modals import (
+    InteractiveToolsModal,
+    SchemaStaleModal,
+    SnapshotDetailsModal,
+    ToolLaunchResult,
+)
 from aimbat.core import (
     BoundICCS,
     create_snapshot,
@@ -587,3 +595,511 @@ class TestRowActionMenuWiring:
                 assert isinstance(pilot.app.screen, SnapshotDetailsModal)
 
         asyncio.run(_run())
+
+
+# ===========================================================================
+# Row-action footer hotkeys — table-aware footer (bypassing the Enter menu)
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestRowActionFooterHotkeys:
+    """Row actions are reachable directly as footer hotkeys when their table
+    has keyboard focus, not just via Enter -> menu (see `_RowActionTable` in
+    `_panels.py`)."""
+
+    def test_seismogram_hotkey_toggles_select(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pressing 's' directly on a focused seismogram row toggles select,
+        with no Enter/menu navigation, and produces the same result the
+        Enter -> menu path does."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> uuid.UUID:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                await pilot.press("L")  # Project -> Live data
+                await pilot.pause()
+                table = pilot.app.query_one("#seismogram-table", DataTable)
+                table.focus()
+                await pilot.pause()
+                row_id = table.ordered_rows[0].key.value
+                assert row_id is not None
+                await pilot.press("s")  # direct hotkey, no menu
+                await pilot.pause(delay=0.3)
+                return uuid.UUID(row_id)
+
+        seismogram_id = asyncio.run(_run())
+
+        with Session(loaded_engine) as session:
+            seismogram = session.get(AimbatSeismogram, seismogram_id)
+            assert seismogram is not None
+            assert seismogram.parameters.select is False
+
+    def test_footer_shows_row_action_only_for_focused_table(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An events-table-only hotkey appears only while that table (not the
+        stations table) has keyboard focus."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                event_table = pilot.app.query_one("#project-event-table", DataTable)
+                event_table.focus()
+                await pilot.pause()
+                # "m" = toggle_completed, an events-table-only row action.
+                assert "m" in pilot.app.screen.active_bindings
+
+                station_table = pilot.app.query_one("#project-station-table", DataTable)
+                station_table.focus()
+                await pilot.pause()
+                assert "m" not in pilot.app.screen.active_bindings
+
+        asyncio.run(_run())
+
+    def test_footer_hides_row_action_when_table_empty(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Row-action hotkeys are absent from the footer when their table has no rows."""
+        _patch_engine(monkeypatch, patched_engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                table = pilot.app.query_one("#project-event-table", DataTable)
+                assert table.row_count == 0
+                table.focus()
+                await pilot.pause()
+                assert "m" not in pilot.app.screen.active_bindings
+
+        asyncio.run(_run())
+
+
+# ===========================================================================
+# Hotkey scoping — add_data/tools/align/new_snapshot/parameters
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestHotkeyScoping:
+    """Top-level hotkeys are scoped to the tab (and, for parameters, the
+    table) they make sense on, via `AimbatTUI.check_action`."""
+
+    def test_add_data_key_is_i_not_d(self) -> None:
+        """`add_data` is bound to 'i'; 'd' is no longer bound to it anywhere
+        in the app-level BINDINGS (it is now the per-table delete hotkey)."""
+        keys_to_actions = {
+            b.key: b.action for b in AimbatTUI.BINDINGS if isinstance(b, Binding)
+        }
+        assert keys_to_actions.get("i") == "add_data"
+        assert "d" not in keys_to_actions
+
+    def test_add_data_hidden_outside_project_tab(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, patched_engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                app = cast(AimbatTUI, pilot.app)
+                assert app.check_action("add_data", ()) is True
+                await pilot.press("L")  # Project -> Live data
+                await pilot.pause()
+                assert app.check_action("add_data", ()) is False
+                assert "i" not in pilot.app.screen.active_bindings
+
+        asyncio.run(_run())
+
+    def test_new_snapshot_only_on_seismograms_tab(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                assert app.check_action("new_snapshot", ()) is False  # tab-project
+
+                await pilot.press("L")  # -> tab-seismograms
+                await pilot.pause()
+                assert app.check_action("new_snapshot", ()) is True
+
+                await pilot.press("L")  # -> tab-snapshots
+                await pilot.pause()
+                assert app.check_action("new_snapshot", ()) is False
+
+        asyncio.run(_run())
+
+    def test_tools_and_align_hidden_outside_seismograms_tab(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                for action in ("open_interactive_tools", "open_align"):
+                    assert app.check_action(action, ()) is False  # tab-project
+
+                await pilot.press("L")  # -> tab-seismograms
+                await pilot.pause()
+                for action in ("open_interactive_tools", "open_align"):
+                    assert app.check_action(action, ()) is True
+                assert "t" in pilot.app.screen.active_bindings
+                assert "a" in pilot.app.screen.active_bindings
+
+                await pilot.press("L")  # -> tab-snapshots
+                await pilot.pause()
+                for action in ("open_interactive_tools", "open_align"):
+                    assert app.check_action(action, ()) is False
+
+        asyncio.run(_run())
+
+    def test_parameters_visible_on_events_table_not_stations_table(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+
+                event_table = pilot.app.query_one("#project-event-table", DataTable)
+                event_table.focus()
+                await pilot.pause()
+                assert app.check_action("open_parameters", ()) is True
+                assert "p" in pilot.app.screen.active_bindings
+
+                station_table = pilot.app.query_one("#project-station-table", DataTable)
+                station_table.focus()
+                await pilot.pause()
+                assert app.check_action("open_parameters", ()) is False
+                assert "p" not in pilot.app.screen.active_bindings
+
+        asyncio.run(_run())
+
+    def test_parameters_visible_on_seismograms_tab(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+
+                # Leave focus on the stations table (where 'p' is hidden),
+                # then switch tabs — the seismograms-tab branch must not
+                # inherit that restriction.
+                station_table = pilot.app.query_one("#project-station-table", DataTable)
+                station_table.focus()
+                await pilot.pause()
+                await pilot.press("L")  # -> tab-seismograms
+                await pilot.pause()
+                assert app.check_action("open_parameters", ()) is True
+                assert "p" in pilot.app.screen.active_bindings
+
+        asyncio.run(_run())
+
+    def test_parameters_hidden_on_snapshots_tab(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                await pilot.press("L")  # -> tab-seismograms
+                await pilot.press("L")  # -> tab-snapshots
+                await pilot.pause()
+                assert app.check_action("open_parameters", ()) is False
+                assert "p" not in pilot.app.screen.active_bindings
+
+        asyncio.run(_run())
+
+
+# ===========================================================================
+# Event-switcher retirement
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestEventSwitcherRetirement:
+    """The global 'e' hotkey and `EventSwitcherModal` are gone; event
+    selection only happens via the Project tab's event table."""
+
+    def test_e_key_is_not_bound(self) -> None:
+        keys = {b.key for b in AimbatTUI.BINDINGS if isinstance(b, Binding)}
+        assert "e" not in keys
+
+    def test_e_key_press_does_nothing(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, patched_engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                depth_before = len(pilot.app.screen_stack)
+                await pilot.press("e")
+                await pilot.pause()
+                # No modal was pushed in response to the unbound key.
+                assert len(pilot.app.screen_stack) == depth_before
+
+        asyncio.run(_run())
+
+    def test_event_bar_hint_no_longer_mentions_e(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With an event selected, the bar's dimmed hint points at the
+        Project tab instead of the retired 'e' hotkey."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                bar = pilot.app.query_one("#event-bar", Static)
+                text = str(bar.render())
+                assert "e = switch event" not in text
+                assert "press e" not in text
+                assert "Project tab" in text
+
+        asyncio.run(_run())
+
+
+# ===========================================================================
+# Causal/zero-phase toggle — InteractiveToolsModal + _run_tool dispatch
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestCausalZeroPhaseToggle:
+    """The interactive-tools modal's zero-phase toggle, and its wiring
+    through `ToolLaunchResult`/`_run_tool` into the causal-aware tools."""
+
+    def test_causal_toggle_hidden_for_non_causal_tool(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, patched_engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                modal = InteractiveToolsModal()
+                pilot.app.push_screen(modal)
+                await pilot.pause()
+                table = modal.query_one("#tools-table", DataTable)
+                # _TOOLS[3] == "bandpass", a non-causal tool.
+                table.move_cursor(row=3)
+                await pilot.pause()
+                assert "zero-phase" not in str(
+                    modal.query_one("#tools-options", Static).render()
+                )
+
+        asyncio.run(_run())
+
+    def test_causal_toggle_defaults_per_tool(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, patched_engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                modal = InteractiveToolsModal()
+                pilot.app.push_screen(modal)
+                await pilot.pause()
+                # _TOOLS[0] == "phase", causal default True.
+                assert modal._causal is True
+                table = modal.query_one("#tools-table", DataTable)
+                # _TOOLS[1] == "window", causal default False.
+                table.move_cursor(row=1)
+                await pilot.pause()
+                assert modal._causal is False
+
+        asyncio.run(_run())
+
+    def test_run_tool_passes_causal_through(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A non-default causal toggle reaches `update_pick`, not just the
+        registry dispatch — the actual regression the ToolLaunchResult /
+        mixed-arity-registry design in decision 7 is guarding against."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        @contextmanager
+        def _noop_suspend(
+            self: AimbatTUI, label: str | None = None
+        ) -> Generator[None, None, None]:
+            yield
+
+        monkeypatch.setattr(AimbatTUI, "_suspend", _noop_suspend)
+
+        captured: dict[str, object] = {}
+
+        def _fake_update_pick(
+            session: object,
+            iccs: object,
+            context: object,
+            *,
+            all_seismograms: object,
+            use_matrix_image: object,
+            causal: object,
+            return_fig: object,
+        ) -> None:
+            captured["causal"] = causal
+
+        monkeypatch.setattr(aimbat._tui.app, "update_pick", _fake_update_pick)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app._current_event_id = event.id
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                assert app._bound_iccs is not None
+
+                # "phase"'s causal default is True; pass the non-default
+                # value through explicitly.
+                app._run_tool("phase", True, False, False)
+                await pilot.pause()
+
+        asyncio.run(_run())
+        assert captured["causal"] is False
+
+    def test_run_tool_ignores_causal_for_non_causal_tools(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A non-causal tool's registry function is never called with a
+        `causal` argument, even though `_run_tool` receives one."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        @contextmanager
+        def _noop_suspend(
+            self: AimbatTUI, label: str | None = None
+        ) -> Generator[None, None, None]:
+            yield
+
+        monkeypatch.setattr(AimbatTUI, "_suspend", _noop_suspend)
+
+        calls: list[dict[str, object]] = []
+
+        def _fake_update_bandpass(*args: object, **kwargs: object) -> None:
+            calls.append(kwargs)
+
+        monkeypatch.setattr(aimbat._tui.app, "update_bandpass", _fake_update_bandpass)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app._current_event_id = event.id
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                assert app._bound_iccs is not None
+
+                app._run_tool("bandpass", True, False, None)
+                await pilot.pause()
+
+        asyncio.run(_run())
+        assert len(calls) == 1
+        assert "causal" not in calls[0]
+
+    def test_tool_launch_result_causal_is_none_for_non_causal_tools(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, patched_engine)
+
+        results: list[ToolLaunchResult | None] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                modal = InteractiveToolsModal()
+                pilot.app.push_screen(modal, results.append)
+                await pilot.pause()
+                table = modal.query_one("#tools-table", DataTable)
+                table.move_cursor(row=3)  # "bandpass"
+                await pilot.pause()
+                await pilot.press("enter")
+                await pilot.pause()
+
+        asyncio.run(_run())
+        assert len(results) == 1
+        result = results[0]
+        assert result is not None
+        assert result.tool == "bandpass"
+        assert result.causal is None
