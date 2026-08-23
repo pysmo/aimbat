@@ -12,6 +12,10 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Refresh all TUI panels after mutations, not just the active one
 - Roll back session after failed automatic snapshot
 
+### 📚 Documentation
+
+- Overhaul documentation and enforce docstring linting
+
 ### 🚀 New Features
 
 - Auto-create a snapshot per event when data add ingests new seismograms
