@@ -38,12 +38,19 @@ def render_item(
 ) -> str | Literal[False]:
     """Add missing imports for AIMBAT/SQLModel column types during autogenerate.
 
-    Alembic's default renderer already emits fully-qualified references for
-    types outside SQLAlchemy's own builtins (e.g. `aimbat._types.SAPandasTimestamp`,
-    `sqlmodel.sql.sqltypes.AutoString`), but only adds a matching import
-    statement for its own `sqlalchemy.dialects.*` types — leaving generated
-    migrations with undefined names for everything else. Always returning
-    `False` keeps Alembic's default rendering; only the import is injected here.
+    Registered as Alembic's `render_item` hook. Ensures generated migration
+    scripts import any `aimbat.*` or `sqlmodel.*` type referenced in a
+    rendered column definition.
+
+    Args:
+        type_: Category of object being rendered (e.g. `"type"`).
+        obj: The object being rendered.
+        autogen_context: Autogenerate context, used here to register the
+            required import.
+
+    Returns:
+        Always `False`, so that Alembic falls back to its default rendering
+        for `obj`.
     """
     if type_ == "type":
         module = type(obj).__module__
@@ -68,7 +75,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    """Configure and run migrations against an already-open connection."""
+    """Configure and run migrations against an already-open connection.
+
+    Args:
+        connection: Database connection to run migrations against.
+    """
     context.configure(
         connection=connection,
         target_metadata=target_metadata,

@@ -1,5 +1,4 @@
-"""
-Utilities for AIMBAT.
+"""Utilities for AIMBAT.
 
 The utils subcommand contains useful tools that
 are not strictly part of an AIMBAT workflow.

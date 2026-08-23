@@ -8,7 +8,17 @@ __all__ = ["get_title_map"]
 
 @lru_cache(maxsize=None)
 def get_title_map(model_class: type[BaseModel]) -> dict[str, str]:
-    """Creates a mapping from field names to their 'title' metadata."""
+    """Build a mapping from field names to their display titles.
+
+    Includes both regular and computed fields. A field without a `title` set
+    falls back to its name with underscores replaced by spaces.
+
+    Args:
+        model_class: Pydantic model class to inspect.
+
+    Returns:
+        Mapping of field name to display title.
+    """
     mapping: dict[str, str] = {}
 
     for name, info in model_class.model_fields.items():

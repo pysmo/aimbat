@@ -1,3 +1,5 @@
+"""StrEnum types used for CLI argument typing and validation."""
+
 from enum import StrEnum, auto
 
 __all__ = ["EventParameter", "SeismogramParameter"]

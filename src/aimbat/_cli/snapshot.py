@@ -100,6 +100,7 @@ def cli_snapshot_create(
     they can be restored later with `snapshot rollback`.
 
     Args:
+        event_id: UUID (or unique prefix) of the event to snapshot.
         comment: Optional description to help identify this snapshot later.
     """
     from sqlmodel import Session
@@ -158,7 +159,11 @@ def cli_snapshot_delete(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Delete existing snapshot."""
+    """Delete an existing snapshot.
+
+    Only removes the snapshot's frozen parameter and quality records;
+    current event and seismogram data are unaffected.
+    """
     from sqlmodel import Session
 
     from aimbat.core import delete_snapshot

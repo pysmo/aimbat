@@ -2,9 +2,9 @@ from contextlib import suppress
 
 
 def export_module_names(globals_dict: dict, module_name: str) -> None:
-    """
-    Updates the __module__ attribute of all objects in __all__ to match
-    the current module name.
+    """Update the __module__ attribute of all objects in __all__.
+
+    Sets it to match the current module name.
 
     Args:
         globals_dict: The globals() dictionary of the calling module.

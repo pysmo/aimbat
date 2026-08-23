@@ -115,7 +115,7 @@ class TestTUIEmptyDatabase:
     def test_event_bar_shows_no_data_message(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Event bar indicates that no data exists when the DB has no events."""
+        """Event bar indicates that no data exist when the DB has no events."""
         _patch_engine(monkeypatch, patched_engine)
 
         async def _run() -> None:
@@ -254,7 +254,7 @@ class TestTUIWithData:
     def test_starts_without_error(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """App mounts without raising an exception when data is present."""
+        """App mounts without raising an exception when data are present."""
         _patch_engine(monkeypatch, loaded_engine)
 
         async def _run() -> None:
@@ -606,14 +606,16 @@ class TestRowActionMenuWiring:
 class TestRowActionFooterHotkeys:
     """Row actions are reachable directly as footer hotkeys when their table
     has keyboard focus, not just via Enter -> menu (see `_RowActionTable` in
-    `_panels.py`)."""
+    `_panels.py`).
+    """
 
     def test_seismogram_hotkey_toggles_select(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Pressing 's' directly on a focused seismogram row toggles select,
         with no Enter/menu navigation, and produces the same result the
-        Enter -> menu path does."""
+        Enter -> menu path does.
+        """
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
@@ -650,7 +652,8 @@ class TestRowActionFooterHotkeys:
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """An events-table-only hotkey appears only while that table (not the
-        stations table) has keyboard focus."""
+        stations table) has keyboard focus.
+        """
         _patch_engine(monkeypatch, loaded_engine)
 
         async def _run() -> None:
@@ -695,11 +698,13 @@ class TestRowActionFooterHotkeys:
 @pytest.mark.slow
 class TestHotkeyScoping:
     """Top-level hotkeys are scoped to the tab (and, for parameters, the
-    table) they make sense on, via `AimbatTUI.check_action`."""
+    table) they make sense on, via `AimbatTUI.check_action`.
+    """
 
     def test_add_data_key_is_i_not_d(self) -> None:
         """`add_data` is bound to 'i'; 'd' is no longer bound to it anywhere
-        in the app-level BINDINGS (it is now the per-table delete hotkey)."""
+        in the app-level BINDINGS (it is now the per-table delete hotkey).
+        """
         keys_to_actions = {
             b.key: b.action for b in AimbatTUI.BINDINGS if isinstance(b, Binding)
         }
@@ -883,7 +888,8 @@ class TestHotkeyScoping:
 @pytest.mark.slow
 class TestEventSwitcherRetirement:
     """The global 'e' hotkey and `EventSwitcherModal` are gone; event
-    selection only happens via the Project tab's event table."""
+    selection only happens via the Project tab's event table.
+    """
 
     def test_e_key_is_not_bound(self) -> None:
         keys = {b.key for b in AimbatTUI.BINDINGS if isinstance(b, Binding)}
@@ -909,7 +915,8 @@ class TestEventSwitcherRetirement:
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """With an event selected, the bar's dimmed hint points at the
-        Project tab instead of the retired 'e' hotkey."""
+        Project tab instead of the retired 'e' hotkey.
+        """
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
@@ -941,7 +948,8 @@ class TestEventSwitcherRetirement:
 @pytest.mark.slow
 class TestCausalZeroPhaseToggle:
     """The interactive-tools modal's zero-phase toggle, and its wiring
-    through `ToolLaunchResult`/`_run_tool` into the causal-aware tools."""
+    through `ToolLaunchResult`/`_run_tool` into the causal-aware tools.
+    """
 
     def test_causal_toggle_hidden_for_non_causal_tool(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -990,7 +998,8 @@ class TestCausalZeroPhaseToggle:
     ) -> None:
         """A non-default causal toggle reaches `update_pick`, not just the
         registry dispatch — the actual regression the ToolLaunchResult /
-        mixed-arity-registry design in decision 7 is guarding against."""
+        mixed-arity-registry design in decision 7 is guarding against.
+        """
         _patch_engine(monkeypatch, loaded_engine_from_file)
 
         @contextmanager
@@ -1041,7 +1050,8 @@ class TestCausalZeroPhaseToggle:
         self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A non-causal tool's registry function is never called with a
-        `causal` argument, even though `_run_tool` receives one."""
+        `causal` argument, even though `_run_tool` receives one.
+        """
         _patch_engine(monkeypatch, loaded_engine_from_file)
 
         @contextmanager

@@ -1,3 +1,5 @@
+"""Create and delete AIMBAT project databases, including the SQLite quality-invalidation triggers."""
+
 from pathlib import Path
 
 from sqlalchemy import Engine
@@ -9,7 +11,21 @@ __all__ = ["create_project", "delete_project"]
 
 
 def _project_exists(engine: Engine) -> bool:
-    """Check if AIMBAT project exists by checking if aimbatevent table exists."""
+    """Check whether an AIMBAT project already exists at `engine`.
+
+    Presence is inferred from the `aimbatevent` table rather than any
+    explicit marker.
+
+    Args:
+        engine: The SQLAlchemy/SQLModel Engine instance connected to the
+            target database.
+
+    Returns:
+        True if the `aimbatevent` table exists, False otherwise.
+
+    Raises:
+        RuntimeError: If `engine`'s driver is not `pysqlite`.
+    """
 
     _TABLE_TO_CHECK = "aimbatevent"
 
@@ -33,7 +49,12 @@ def _project_exists(engine: Engine) -> bool:
 
 
 def create_project(engine: Engine) -> None:
-    """Initializes a new AIMBAT project database schema and triggers.
+    """Initialise a new AIMBAT project database schema and triggers.
+
+    Creates all tables from `SQLModel.metadata`, then, for SQLite engines,
+    creates the triggers that track event modification times and
+    automatically null quality metrics when the parameters they depend on
+    change. The new database is stamped at the latest Alembic revision.
 
     Args:
         engine: The SQLAlchemy/SQLModel Engine instance connected to the target database.
@@ -315,8 +336,16 @@ def create_project(engine: Engine) -> None:
 def delete_project(engine: Engine) -> None:
     """Delete the AIMBAT project.
 
+    For a file-based SQLite database, deletes the database file itself. For
+    an in-memory database, this is a no-op beyond disposing the engine.
+
+    Args:
+        engine: The SQLAlchemy/SQLModel Engine instance connected to the
+            target database.
+
     Raises:
-        RuntimeError: If unable to delete project.
+        RuntimeError: If no project exists at `engine`, or if `engine`'s
+            driver is not `pysqlite`.
     """
 
     logger.info(f"Deleting project at {engine.url}.")

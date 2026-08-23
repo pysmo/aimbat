@@ -28,8 +28,6 @@
 <em>Source Code:</em> <a href="https://github.com/pysmo/aimbat" target="_blank">https://github.com/pysmo/aimbat</a>
 </p>
 
----
-
 AIMBAT (Automated and Interactive Measurement of Body wave Arrival Times) is an
 open-source tool for measuring teleseismic body wave arrival times. Seismograms
 are automatically aligned using the ICCS [Iterative Cross-Correlation and Stack][^1]
@@ -39,50 +37,26 @@ arrival times.
 
 ## Version 2
 
-AIMBAT v2 is a complete rewrite. It shares the same goal as v1 but none of the
-code. The main improvements for users are:
+AIMBAT v2 is a complete rewrite, sharing no code with v1. Changes for users
+include:
 
-- **Flexible workflow.** Snapshots save the complete processing state at any
-  point, making it straightforward to roll back, compare parameter sets, or
-  try a different approach without losing prior work. ICCS and MCCC can be run
-  in any order and as many times as needed; results can be exported from any
-  snapshot, not only after a final MCCC pass.
+- **Flexible workflow.** Snapshots record the processing state at any point,
+  so earlier states can be restored and parameter sets compared without
+  losing prior work. ICCS and MCCC can be run in any order and repeated as
+  needed; results can be exported from any snapshot, not only after a final
+  MCCC pass.
 - **Multi-event projects.** A single project database holds any number of
-  seismic events. Waveform files can live anywhere on disk — no prescribed
-  directory layout and no need to manage separate directories per event.
-- **Structured output for downstream analysis.** Each snapshot can be exported
-  as a structured JSON document containing per-station arrival times, ICCS
-  correlation coefficients, and — if MCCC has been run — formal timing standard
-  errors. This makes AIMBAT useful as a data source beyond tomographic
-  inversion: station quality assessment, delay patterns as a function of
-  back-azimuth, or any workflow that requires picks and quality metrics in a
-  machine-readable format.
-- **Multiple interfaces.** AIMBAT can be used via a CLI, an interactive shell,
-  a terminal UI, or directly as a Python library. All functionality is
-  accessible through the Python API, making it straightforward to script any
-  part of the workflow.
+  seismic events. Waveform files can be stored anywhere on disk; no fixed
+  directory layout is required.
+- **Structured output.** Each snapshot can be exported as a JSON document
+  containing per-station arrival times, ICCS correlation coefficients, and,
+  if MCCC has been run, formal timing standard errors. This format supports
+  uses beyond tomographic inversion, such as station quality assessment or
+  analysis of delay patterns as a function of back-azimuth.
+- **Multiple interfaces.** AIMBAT is available as a CLI, an interactive
+  shell, a terminal UI, and a Python library. All functionality is
+  accessible through the Python API.
 
-## Quick Start
-
-```bash
-pip install aimbat
-
-# Create a project in the current directory
-aimbat project create
-
-# Import SAC files — events and stations are detected automatically
-aimbat data add *.sac
-
-# List events to find their IDs, then set one as the default
-aimbat event list
-aimbat event default <ID>
-
-# Open the terminal UI to run ICCS, review picks, and run MCCC
-aimbat tui
-
-# Or work interactively from the shell (tab-completion, command history)
-aimbat shell
-```
 
 ## Authors' Contacts
 

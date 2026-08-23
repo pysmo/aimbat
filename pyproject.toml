@@ -124,8 +124,8 @@ exclude_also = [
 extend-exclude = ["sample-data", "docs", "site"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
-ignore = ["E501"]
+select = ["E", "F", "I", "D"]
+ignore = ["E501", "D202"]
 
 [tool.ruff.lint.isort]
 
@@ -142,4 +142,9 @@ section-order = [
 [tool.ruff.lint.isort.sections]
 "pysmo-group" = ["pysmo"]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+"src/aimbat/_migrations/versions/*.py" = ["D"]

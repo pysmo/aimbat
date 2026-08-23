@@ -1,3 +1,5 @@
+"""Interactive matplotlib plots of seismogram waveforms for an event or station."""
+
 from functools import singledispatch
 from typing import Literal, overload
 
@@ -22,7 +24,11 @@ _VISIBLE_SEISMOGRAMS = 7
 
 
 def _add_scroll_pan(ax: plt.Axes) -> None:
-    """Pan the y-axis on scroll and the x-axis on shift+scroll."""
+    """Pan the y-axis on scroll and the x-axis on shift+scroll.
+
+    Args:
+        ax: Axes to attach the scroll-pan behaviour to.
+    """
     y_lo, y_hi = ax.dataLim.y0, ax.dataLim.y1
 
     def on_scroll(event: MouseEvent) -> None:
@@ -54,12 +60,38 @@ def _add_scroll_pan(ax: plt.Axes) -> None:
 def _plot_seis(
     arg: AimbatEvent | AimbatStation, session: Session
 ) -> tuple[plt.Figure, plt.Axes]:
+    """Plot seismograms for an event or station.
+
+    Dispatches to the implementation registered for the type of `arg`.
+
+    Args:
+        arg: Event or station to plot seismograms for.
+        session: Database session.
+
+    Returns:
+        The created figure and axes.
+
+    Raises:
+        NotImplementedError: If `arg` is neither an `AimbatEvent` nor an
+            `AimbatStation`.
+    """
     raise NotImplementedError(f"Cannot plot type: {type(arg)}")
 
 
 @_plot_seis.register
 def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
-    """Plot all seismograms for a particular event ordered by great circle distance."""
+    """Plot all seismograms for a particular event ordered by great circle distance.
+
+    Args:
+        event: Event whose seismograms are plotted.
+        session: Database session.
+
+    Returns:
+        The created figure and axes.
+
+    Raises:
+        RuntimeError: If the event has no seismograms.
+    """
 
     if len(seismograms := event_seismograms(event)) == 0:
         raise RuntimeError(f"No seismograms found in event {event.id}.")
@@ -111,7 +143,18 @@ def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
 
 @_plot_seis.register
 def _(station: AimbatStation, session: Session) -> tuple[plt.Figure, plt.Axes]:
-    """Plot all seismograms for a particular station ordered by event time."""
+    """Plot all seismograms for a particular station ordered by event time.
+
+    Args:
+        station: Station whose seismograms are plotted.
+        session: Database session.
+
+    Returns:
+        The created figure and axes.
+
+    Raises:
+        RuntimeError: If the station has no seismograms.
+    """
     if len(seismograms := station_seismograms(station)) == 0:
         raise RuntimeError(f"No seismograms found for station {station.id}.")
 

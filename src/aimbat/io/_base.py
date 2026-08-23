@@ -150,6 +150,9 @@ def station_creator(
 ]:
     """Decorator that registers a function as a station creator for `datatype`.
 
+    Args:
+        datatype: The data type the decorated function creates stations from.
+
     Example:
         ```python
         @station_creator(DataType.SAC)
@@ -173,6 +176,9 @@ def event_creator(
     [Callable[[str | PathLike], AimbatEvent]], Callable[[str | PathLike], AimbatEvent]
 ]:
     """Decorator that registers a function as an event creator for `datatype`.
+
+    Args:
+        datatype: The data type the decorated function creates events from.
 
     Example:
         ```python
@@ -199,6 +205,9 @@ def seismogram_creator(
 ]:
     """Decorator that registers a function as a seismogram creator for `datatype`.
 
+    Args:
+        datatype: The data type the decorated function creates seismograms from.
+
     Example:
         ```python
         @seismogram_creator(DataType.SAC)
@@ -224,6 +233,9 @@ def seismogram_data_reader(
 ]:
     """Decorator that registers a function as a seismogram data reader for `datatype`.
 
+    Args:
+        datatype: The data type the decorated function reads waveform data from.
+
     Example:
         ```python
         @seismogram_data_reader(DataType.SAC)
@@ -248,6 +260,9 @@ def seismogram_data_writer(
     Callable[[str | PathLike, npt.NDArray[np.float64]], None],
 ]:
     """Decorator that registers a function as a seismogram data writer for `datatype`.
+
+    Args:
+        datatype: The data type the decorated function writes waveform data to.
 
     Example:
         ```python

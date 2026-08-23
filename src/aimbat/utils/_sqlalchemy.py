@@ -1,3 +1,5 @@
+"""Typing helpers for working with SQLAlchemy relationship attributes."""
+
 from typing import Any, cast
 
 from sqlalchemy.orm import QueryableAttribute

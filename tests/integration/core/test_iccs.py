@@ -165,7 +165,8 @@ class TestCcStats:
 
     def test_counts_and_selection(self, loaded_session: Session) -> None:
         """Verifies n_all/n_selected track the ICCS instance's seismograms
-        and that deselecting one drops it from the selected stats only."""
+        and that deselecting one drops it from the selected stats only.
+        """
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 

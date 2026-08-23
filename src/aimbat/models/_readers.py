@@ -1,3 +1,11 @@
+"""Read models derived from the ORM layer, for display and export.
+
+These models flatten and enrich ORM instances (adding shortened IDs and
+aggregated quality statistics) for consumption by the CLI, TUI, and export
+commands. They are built via `from_*` classmethods rather than validated
+directly from user input.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self
@@ -366,7 +374,7 @@ class AimbatEventRead(BaseModel):
 
 
 class AimbatStationRead(BaseModel):
-    """Read model for AimbatStation including parameters."""
+    """Read model for AimbatStation including aggregated quality statistics."""
 
     model_config = ConfigDict(
         frozen=True, alias_generator=to_camel, populate_by_name=True
@@ -434,6 +442,7 @@ class AimbatStationRead(BaseModel):
         station: AimbatStation,
         session: Session | None = None,
     ) -> Self:
+        """Create an AimbatStationRead from an AimbatStation ORM instance."""
         data = station.model_dump()
 
         if session is not None:
@@ -552,6 +561,7 @@ class AimbatSeismogramRead(BaseModel):
     def from_seismogram(
         cls, seismogram: AimbatSeismogram, session: Session | None = None
     ) -> Self:
+        """Create an AimbatSeismogramRead from an AimbatSeismogram ORM instance."""
         name = (
             f"{seismogram.station.network}." if seismogram.station.network else ""
         ) + seismogram.station.name
@@ -797,7 +807,7 @@ class SnapshotSeismogramResult(BaseModel):
         Args:
             param_snap: Seismogram parameters snapshot record.
             quality_snap: Matching seismogram quality snapshot, or `None` if
-                no quality data was captured for this seismogram.
+                no quality data were captured for this seismogram.
 
         Returns:
             Assembled result record.

@@ -1,3 +1,11 @@
+"""Pydantic annotations for validating and serialising pandas time types.
+
+Provides `PydanticTimestamp` and `PydanticTimedelta` — pandas-native
+equivalents of Pydantic's own datetime/timedelta support — along with
+`Timedelta` variants constrained to negative, positive, or non-negative
+values, and a non-negative float constraint.
+"""
+
 from typing import Annotated, Any, Callable, ClassVar, cast
 
 from pandas import Timedelta, Timestamp
@@ -9,6 +17,7 @@ __all__ = [
     "PydanticTimedelta",
     "PydanticNegativeTimedelta",
     "PydanticPositiveTimedelta",
+    "PydanticNonNegativeTimedelta",
     "PydanticNonNegativeFloat",
 ]
 
@@ -30,6 +39,13 @@ def _must_be_positive_pd_timedelta(v: Timedelta) -> Timedelta:
     """Validator to ensure a Timedelta is positive."""
     if v.total_seconds() <= 0:
         raise ValueError(f"Duration must be positive, got {v}")
+    return v
+
+
+def _must_be_non_negative_pd_timedelta(v: Timedelta) -> Timedelta:
+    """Validator to ensure a Timedelta is non-negative."""
+    if v.total_seconds() < 0:
+        raise ValueError(f"Duration must be non-negative, got {v}")
     return v
 
 
@@ -64,10 +80,14 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
 
 
 class _AnnotatedTimestamp(_PandasBaseAnnotation):
+    """Pydantic core-schema provider for `pandas.Timestamp`."""
+
     target_type = Timestamp
 
 
 class _AnnotatedTimedelta(_PandasBaseAnnotation):
+    """Pydantic core-schema provider for `pandas.Timedelta`."""
+
     target_type = Timedelta
 
 
@@ -82,5 +102,8 @@ type PydanticNegativeTimedelta = Annotated[
 ]
 type PydanticPositiveTimedelta = Annotated[
     PydanticTimedelta, AfterValidator(_must_be_positive_pd_timedelta)
+]
+type PydanticNonNegativeTimedelta = Annotated[
+    PydanticTimedelta, AfterValidator(_must_be_non_negative_pd_timedelta)
 ]
 type PydanticNonNegativeFloat = Annotated[float, Field(ge=0.0)]

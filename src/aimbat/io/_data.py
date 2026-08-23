@@ -1,3 +1,10 @@
+"""Data types recognised by AIMBAT's I/O dispatch layer.
+
+Defines the `DataType` enum used to route station, event, and seismogram
+creation and reading/writing to the data source registered for a given type,
+along with the file suffixes associated with each type.
+"""
+
 from enum import StrEnum, auto
 
 __all__ = [

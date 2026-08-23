@@ -26,6 +26,18 @@ def clean_timedelta(x: float, _: int | None) -> str:
 
 
 def _prepare_seismogram_for_plotting(seismogram: AimbatSeismogram) -> MiniSeismogram:
+    """Prepare a copy of a seismogram for plotting.
+
+    Removes any linear trend, applies the event's bandpass filter if enabled,
+    resamples to a fixed sample interval, and normalises the amplitude by its
+    absolute maximum.
+
+    Args:
+        seismogram: Seismogram to prepare.
+
+    Returns:
+        A new, independent seismogram ready for plotting.
+    """
     logger.debug(f"Preparing seismogram {seismogram.id} for plotting.")
     preped_seis = clone_to_mini(MiniSeismogram, seismogram)
     detrend(preped_seis)

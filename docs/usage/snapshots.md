@@ -5,35 +5,32 @@
 A snapshot saves the current processing parameters and quality metrics for an
 event at a point in time. Specifically, it stores:
 
-- All event-level parameters: the time window, bandpass filter settings, and
-  Min CC (`min_cc`) — see [Aligning with ICCS](alignment.md) for what each
-  controls
+- All event-level parameters: the time window, bandpass filter settings, and Min
+    CC (`min_cc`) — see [Parameters](parameters.md) for what each controls
 - Per-seismogram parameters for every seismogram in the event: the current `t1`
-  pick, `select` flag, and `flip` flag
+    pick, `select` flag, and `flip` flag
 - Quality metrics, if available at snapshot time:
   - ICCS CC per seismogram (always present once the event has been opened)
   - MCCC metrics per seismogram and the global RMSE (present only if MCCC has
-      been run)
+        been run)
 - Whether the snapshot was created automatically (by `aimbat data add`) or
-  explicitly (`snapshot create` / TUI / GUI)
+    explicitly (`snapshot create` / TUI)
 
-The seismogram waveform data itself is not copied — snapshots are lightweight.
-They capture where you are in the parameter space, not the data.
+The seismogram waveform data themselves are not copied — snapshots are
+lightweight. They capture where you are in the parameter space, not the data.
 
-This works because the CC seismograms and context seismograms that ICCS
-operates on are entirely deterministic: given the original waveform data and a
-set of parameters, they are always reconstructed identically. Restoring a
-snapshot therefore restores the exact state of the ICCS instance — there is
-nothing lost by not saving the derived arrays.
+This works because the CC seismograms and context seismograms that ICCS operates
+on are entirely deterministic: given the original waveform data and a set of
+parameters, they are always reconstructed identically. Restoring a snapshot
+therefore restores the exact state of the ICCS instance — there is nothing lost
+by not saving the derived arrays.
 
-If seismograms are added to the project after a snapshot was taken, they have
-no entry in that snapshot. When previewing or rolling back, those seismograms
-are included using their current live parameters — the snapshot's event-level
+If seismograms are added to the project after a snapshot was taken, they have no
+entry in that snapshot. When previewing or rolling back, those seismograms are
+included using their current live parameters — the snapshot's event-level
 parameters (window, filter, Min CC) still apply to them.
 
 Snapshots are per-event. Each event maintains its own list.
-
----
 
 ## When to take a snapshot
 
@@ -43,15 +40,13 @@ Take a snapshot before making changes you might want to undo:
 - Before trying an experimental configuration (different window, filter, etc.)
 - Before running MCCC
 
-A clean post-import baseline is created for you automatically — `aimbat data
-add` snapshots each event that received new seismogram data, so there is no
-need to take one manually right after importing. See [Adding
-Data](data.md#automatic-snapshots) for details.
+A clean post-import baseline is created for you automatically —
+`aimbat data add` snapshots each event that received new seismogram data, so
+there is no need to take one manually right after importing. See
+[Adding Data](data.md#automatic-snapshots) for details.
 
 Snapshots are cheap. Taking one costs almost nothing, and having a rollback
 point available is worth it.
-
----
 
 ## Creating a snapshot
 
@@ -69,19 +64,12 @@ point available is worth it.
     snapshot create "after bandpass 1–3Hz" # with comment
     ```
 
-The comment is optional but useful for identifying the snapshot later.
-
 === "TUI"
 
-    Press `n` to open the snapshot comment dialog, optionally enter a comment,
-    and confirm. The new snapshot appears immediately in the **Snapshots** tab.
+    Press `n` to open the snapshot comment dialog, optionally enter a comment, and
+    confirm. The new snapshot appears immediately in the **Snapshots** tab.
 
-=== "GUI"
-
-    Click **New Snapshot** in the **Processing** tab. A dialog lets you enter
-    an optional comment.
-
----
+The comment is optional but useful for identifying the snapshot later.
 
 ## Listing snapshots
 
@@ -99,20 +87,14 @@ The comment is optional but useful for identifying the snapshot later.
     snapshot list all   # across all events
     ```
 
-The table shows the snapshot ID, date and time, comment, whether it was
-created automatically, and number of seismograms captured.
-
 === "TUI"
 
-    Snapshots for the current event are listed in the **Snapshots** tab.
-    Switch events using the event switcher (`e`) to see another event's
-    snapshots.
+    Snapshots for the currently selected event are listed in the **Snapshots**
+    tab. To see another event's snapshots, select it first — see
+    [Selecting an Event](event-selection.md).
 
-=== "GUI"
-
-    The **Snapshots** tab lists all snapshots for the selected event.
-
----
+The table shows the snapshot ID, date and time, comment, whether it was created
+automatically, and number of seismograms captured.
 
 ## Inspecting a snapshot
 
@@ -134,11 +116,6 @@ Before rolling back, it can be useful to see what a snapshot contains.
     snapshot preview --matrix <SNAPSHOT_ID>
     ```
 
-`details` shows the event-level parameters (window, filter, min_cc) as
-they were when the snapshot was taken. `preview` builds the ICCS stack from
-the snapshot's parameters and displays it — without modifying anything in
-the database.
-
 === "TUI"
 
     Press `Enter` on a snapshot row in the **Snapshots** tab to open the action
@@ -148,20 +125,17 @@ the database.
     - **Preview stack** — opens the stack plot built from the snapshot
     - **Preview matrix image** — opens the matrix image
 
-    Both preview options support the **context** (`c`) and **all seismograms**
-    (`a`) toggles in the action menu before launching.
+    Both preview options support the **context** (`c`) and **all seismograms** (`a`)
+    toggles in the action menu before launching.
 
-=== "GUI"
-
-    Select a snapshot in the **Snapshots** tab — its stack and matrix image
-    are shown in the right panel in read-only mode.
-
----
+`details` shows the event-level parameters (window, filter, min_cc) as they were
+when the snapshot was taken. `preview` builds the ICCS stack from the snapshot's
+parameters and displays it — without modifying anything in the database.
 
 ## Rolling back
 
-Rolling back restores the snapshot's parameters as the current live values.
-This overwrites the current event and seismogram parameters for this event.
+Rolling back restores the snapshot's parameters as the current live values. This
+overwrites the current event and seismogram parameters for this event.
 
 === "CLI"
 
@@ -177,24 +151,18 @@ This overwrites the current event and seismogram parameters for this event.
 
 === "TUI"
 
-    Press `Enter` on a snapshot row and choose **Rollback to this snapshot**.
-    A confirmation dialog appears before any changes are made.
-
-=== "GUI"
-
-    Select a snapshot and click **Rollback to this**.
+    Press `Enter` on a snapshot row and choose **Rollback to this snapshot**. A
+    confirmation dialog appears before any changes are made.
 
 After rolling back, the event's parameters are exactly as they were when the
-snapshot was taken. Any ICCS runs or parameter changes made after that snapshot
-are undone. The snapshot itself is not deleted — you can roll back to it again.
+snapshot was taken, and any ICCS runs or parameter changes made after that
+snapshot are undone. The snapshot itself is not deleted — you can roll back to
+it again.
 
 If the snapshot contains MCCC quality data, the live quality metrics are
-restored from the best matching snapshot: the one whose parameter hash matches
-the restored state and that has the most recent MCCC data. In practice this is
-the snapshot you rolled back to, but if that snapshot predates any MCCC run,
-the most recent snapshot with the same parameters and MCCC data is used instead.
-
----
+restored too. See
+[`aimbat snapshot rollback`][aimbat._cli.snapshot.cli_snapshot_rollback] for the
+exact rule used to pick which snapshot's quality data is restored.
 
 ## Deleting a snapshot
 
@@ -212,16 +180,10 @@ the most recent snapshot with the same parameters and MCCC data is used instead.
 
 === "TUI"
 
-    Press `Enter` on a snapshot row and choose **Delete snapshot**. A
-    confirmation dialog appears.
-
-=== "GUI"
-
-    Select a snapshot and click **Delete**.
+    Press `Enter` on a snapshot row and choose **Delete snapshot**. A confirmation
+    dialog appears.
 
 Deletion is permanent. The snapshot cannot be recovered after deletion.
-
----
 
 ## Exporting snapshot data
 
@@ -242,23 +204,20 @@ For archiving or scripting purposes, snapshot data can be exported to JSON:
 The output is a JSON object with five keys, all cross-referenced by
 `snapshot_id`:
 
-| Key | Contents | Always present? |
-|-----|----------|----------------|
-| `snapshots` | Snapshot metadata (ID, time, comment, `automatic` flag, hash) | Yes |
-| `event_parameters` | Event parameter snapshots | Yes |
-| `seismogram_parameters` | Per-seismogram parameter snapshots | Yes |
-| `event_quality` | Event quality snapshots (MCCC RMSE) | Only if MCCC has been run |
-| `seismogram_quality` | Per-seismogram quality snapshots (ICCS CC, MCCC metrics) | Only if quality metrics exist |
-
----
+| Key                     | Contents                                                      | Always present?               |
+| ----------------------- | ------------------------------------------------------------- | ----------------------------- |
+| `snapshots`             | Snapshot metadata (ID, time, comment, `automatic` flag, hash) | Yes                           |
+| `event_parameters`      | Event parameter snapshots                                     | Yes                           |
+| `seismogram_parameters` | Per-seismogram parameter snapshots                            | Yes                           |
+| `event_quality`         | Event quality snapshots (MCCC RMSE)                           | Only if MCCC has been run     |
+| `seismogram_quality`    | Per-seismogram quality snapshots (ICCS CC, MCCC metrics)      | Only if quality metrics exist |
 
 ## Saving results
 
-Any snapshot can be exported as a structured JSON document containing the
-frozen `t1` picks, ICCS correlation coefficients, and — if MCCC was run before
-the snapshot — per-seismogram MCCC quality metrics and the event-level RMSE.
-MCCC does not need to have been run; the export is useful at any stage of
-processing.
+Any snapshot can be exported as a structured JSON document containing the frozen
+`t1` picks, ICCS correlation coefficients, and — if MCCC was run before the
+snapshot — per-seismogram MCCC quality metrics and the event-level RMSE. MCCC
+does not need to have been run; the export is useful at any stage of processing.
 
 This is the primary format for passing AIMBAT picks into downstream tools such
 as tomographic inversion codes. See [Exporting Results](results.md) for full
@@ -280,13 +239,11 @@ details on the output format and how to work with it.
 
 === "TUI"
 
-    Press `Enter` on a snapshot row in the **Snapshots** tab and choose
-    **Save results to JSON**. A file-picker dialog opens; the suggested
-    filename is `results_<short_id>.json`. Confirm to write the file.
+    Press `Enter` on a snapshot row in the **Snapshots** tab and choose **Save
+    results to JSON**. A file-picker dialog opens; the suggested filename is
+    `results_<short_id>.json`. Confirm to write the file.
 
 Pass `--alias` to use camelCase field names in the output.
-
----
 
 ## Snapshot notes
 
@@ -310,8 +267,6 @@ snapshot was taken.
 
 If no note exists yet, `read` prints `(no note)` and `edit` opens an empty
 buffer. The note is saved when you close the editor without error.
-
----
 
 ## Snapshot quality statistics
 

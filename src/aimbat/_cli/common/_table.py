@@ -1,3 +1,5 @@
+"""Render JSON data as a rich console table, driven by a Pydantic model's fields."""
+
 import types
 from typing import (
     Annotated,

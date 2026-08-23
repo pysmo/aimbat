@@ -1,3 +1,5 @@
+"""Cyclopts command groups for the AIMBAT CLI, re-exported for `aimbat.app`."""
+
 from .align import app as align
 from .data import app as data
 from .db import app as db

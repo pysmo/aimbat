@@ -59,9 +59,9 @@ def _make_uuid_converter(
     """Return a cyclopts converter that resolves a UUID prefix for the given model.
 
     Args:
-     model_class: AIMBAT model class to resolve the UUID against.
-     allow_all: If True, the converter will also accept the string "all"
-        (case-insensitive) and return it as a literal.
+        model_class: AIMBAT model class to resolve the UUID against.
+        allow_all: If True, the converter will also accept the string "all"
+            (case-insensitive) and return it as a literal.
     """
 
     def _converter(hint: type, tokens: tuple[Token, ...]) -> UUID | Literal["all"]:
@@ -211,13 +211,11 @@ CAUSAL_DEFAULTS: dict[str, bool] = {
     "window": False,
     "cc": False,
 }
-"""Default causal/zero-phase setting per `tool` subcommand/TUI tool id.
+"""Default causal/zero-phase setting per `tool` subcommand and TUI tool id.
 
-Single source of truth for `_cli/tool.py`'s three `causal()` parameter
-defaults and the TUI's equivalent per-tool default (`InteractiveToolsModal`
-in `_tui/modals.py`). These three values previously had to be updated by
-hand in two places at once when pysmo changed one of its own per-function
-defaults - this constant removes that duplication.
+Single source of truth for the `causal()` parameter defaults in
+`_cli/tool.py` and the equivalent per-tool defaults in the TUI's
+`InteractiveToolsModal` (`_tui/modals.py`).
 """
 
 
@@ -227,17 +225,15 @@ defaults - this constant removes that duplication.
 
 
 def open_in_editor(initial_content: str) -> str:
-    """Write `initial_content` to a temporary Markdown file, open it in `$EDITOR`,
-    and return the (possibly updated) content after the editor exits.
+    """Write `initial_content` to a temporary Markdown file, open it in `$EDITOR`.
 
-    The temporary file uses `delete=False` so that it can be opened by a
-    second process on Windows (which prohibits opening a file that is already
-    open). It is always removed in a `finally` block.
+    Returns the (possibly updated) content after the editor exits. The
+    temporary file is not removed until then, since Windows does not allow a
+    second process to open a file that is already open.
 
     The editor command is taken from `$EDITOR` or `$VISUAL`. If neither is
     set, `notepad` is used on Windows and `vi` elsewhere. To use a GUI editor
-    that does not block by default (e.g. VS Code), set
-    ``EDITOR="code --wait"``.
+    that does not block by default (e.g. VS Code), set `EDITOR="code --wait"`.
     """
     import os
     import shlex

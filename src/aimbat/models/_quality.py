@@ -3,7 +3,7 @@
 from sqlmodel import Field, SQLModel
 
 from aimbat._types import (
-    PydanticPositiveTimedelta,
+    PydanticNonNegativeTimedelta,
     SAPandasTimedelta,
 )
 
@@ -19,7 +19,7 @@ class AimbatEventQualityBase(SQLModel):
     Fields are `None` when the corresponding algorithm has not been run yet.
     """
 
-    mccc_rmse: PydanticPositiveTimedelta | None = Field(
+    mccc_rmse: PydanticNonNegativeTimedelta | None = Field(
         default=None,
         sa_type=SAPandasTimedelta,
         title="MCCC RMSE",
@@ -57,7 +57,7 @@ class AimbatSeismogramQualityBase(SQLModel):
         description="Standard deviation of cross-correlation coefficients from the MCCC run (waveform consistency).",
     )
 
-    mccc_error: PydanticPositiveTimedelta | None = Field(
+    mccc_error: PydanticNonNegativeTimedelta | None = Field(
         default=None,
         sa_type=SAPandasTimedelta,
         title="MCCC error",

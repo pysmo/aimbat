@@ -357,7 +357,8 @@ class TestEventParametersValidation:
 
     def test_bandpass_fmax_must_exceed_fmin(self) -> None:
         """The bandpass validator mixin is on AimbatEventParameters (table model),
-        so we must use model_validate to trigger it."""
+        so we must use model_validate to trigger it.
+        """
         with pytest.raises(ValidationError):
             AimbatEventParameters.model_validate(
                 {"bandpass_fmin": 2.0, "bandpass_fmax": 1.0}

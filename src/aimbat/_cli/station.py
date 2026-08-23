@@ -92,7 +92,12 @@ def cli_station_delete(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Delete existing station (for all events)."""
+    """Delete an existing station.
+
+    Cascades to every seismogram recorded at this station across all events,
+    including their data sources, parameters, quality records, and snapshot
+    history.
+    """
     from sqlmodel import Session
 
     from aimbat.core import delete_station

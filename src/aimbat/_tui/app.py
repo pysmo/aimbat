@@ -115,6 +115,7 @@ def _tool_phase(
     all_seismograms: bool,
     causal: bool,
 ) -> None:
+    """Launch the interactive phase-arrival (t1) picking tool."""
     update_pick(
         session,
         iccs,
@@ -134,6 +135,7 @@ def _tool_window(
     all_seismograms: bool,
     causal: bool,
 ) -> None:
+    """Launch the interactive time-window selection tool."""
     update_timewindow(
         session,
         event,
@@ -154,6 +156,7 @@ def _tool_cc(
     all_seismograms: bool,
     causal: bool,
 ) -> None:
+    """Launch the interactive minimum-CC threshold tool."""
     update_min_cc(
         session,
         event,
@@ -172,6 +175,7 @@ def _tool_bandpass(
     context: bool,
     all_seismograms: bool,
 ) -> None:
+    """Launch the interactive bandpass-filter tool."""
     update_bandpass(
         session,
         event,
@@ -190,6 +194,7 @@ def _tool_stack(
     context: bool,
     all_seismograms: bool,
 ) -> None:
+    """Show the interactive stack plot."""
     plot_stack(iccs, context, all_seismograms, return_fig=False)
 
 
@@ -200,6 +205,7 @@ def _tool_image(
     context: bool,
     all_seismograms: bool,
 ) -> None:
+    """Show the interactive cross-correlation matrix image."""
     plot_matrix_image(iccs, context, all_seismograms, return_fig=False)
 
 
@@ -221,7 +227,14 @@ _CAUSAL_TOOL_REGISTRY: dict[str, tuple[str, _CausalToolFn]] = {
 
 
 class AimbatTUI(App[None]):
-    """AIMBAT Terminal User Interface."""
+    """Root screen of the AIMBAT Terminal User Interface.
+
+    Composes a header, an event status bar, a tabbed content area (Project,
+    Live data, Snapshots) and a footer. Owns the current active event, the
+    long-lived `BoundICCS` instance used by the Live data tab and the
+    interactive tools, and dispatches row actions and key bindings to the
+    corresponding core functions.
+    """
 
     TITLE = "AIMBAT"
     CSS_PATH = "aimbat.tcss"
@@ -241,6 +254,7 @@ class AimbatTUI(App[None]):
     ]
 
     def compose(self) -> ComposeResult:
+        """Build the header, event bar, tabbed panels and footer."""
         yield Header()
         yield Static(id="event-bar")
         with TabbedContent(initial="tab-project"):
@@ -253,6 +267,14 @@ class AimbatTUI(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
+        """Initialise TUI state and start the application.
+
+        If no project exists in the current directory, prompts to create
+        one. If a project exists but its database schema is out of date,
+        prompts to upgrade before entry is allowed. Otherwise creates the
+        ICCS instance for the current event (if any) and populates all
+        panels. Also starts the periodic ICCS staleness check.
+        """
         self._bound_iccs: BoundICCS | None = None
         self._iccs_creating: bool = False
         self._iccs_last_modified_seen: Timestamp | None = None
@@ -278,6 +300,14 @@ class AimbatTUI(App[None]):
                 self.refresh_all()
 
     def _on_no_project_modal(self, create: bool | None) -> None:
+        """Handle the result of `NoProjectModal`.
+
+        Creates a new project and the ICCS instance if the user opted in,
+        otherwise exits the application.
+
+        Args:
+            create: Whether the user chose to create a new project.
+        """
         if create:
             logger.info("User chose to create a new project.")
             create_project(engine)
@@ -288,13 +318,15 @@ class AimbatTUI(App[None]):
             self.exit()
 
     def _on_schema_stale_modal(self, upgrade: bool | None) -> None:
-        """Blocks entry to the main UI entirely until the schema is current.
+        """Handle the result of `SchemaStaleModal`.
 
-        Proceeding into panels that query columns the live schema doesn't
-        have would crash with a raw `sqlalchemy.exc.OperationalError` from
-        whichever panel happens to touch the drifted table first - see
-        `aimbat.db`'s module docstring for the full reasoning behind always
-        treating this as a hard stop rather than an advisory toast.
+        Exits the application if the user declines to upgrade. Otherwise
+        runs the database upgrade and, on success, creates the ICCS
+        instance and refreshes all panels. Exits with an error message if
+        the upgrade itself fails.
+
+        Args:
+            upgrade: Whether the user chose to upgrade the project database.
         """
         if not upgrade:
             logger.info("User declined to upgrade the project database. Exiting.")
@@ -314,6 +346,13 @@ class AimbatTUI(App[None]):
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Track the active main tab and focus its table.
+
+        Updates `_active_tab`, refreshes key-binding availability, moves
+        focus to the tab's `DataTable` unless a `Tabs` widget already has
+        focus, and clears the highlighted row's detail panels when
+        switching into an empty Live data or Snapshots tab.
+        """
         if event.pane.id not in _MAIN_TABS:
             return
         self._active_tab = event.pane.id
@@ -327,6 +366,15 @@ class AimbatTUI(App[None]):
             self.query_one(SnapshotPanel).clear_selection_if_empty()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Enable or disable key bindings based on the active tab and selected event.
+
+        Args:
+            action: Name of the action being checked.
+            parameters: Arguments the action would be called with.
+
+        Returns:
+            Whether the action is currently available.
+        """
         if action == "add_data":
             return self._active_tab == "tab-project"
         if action == "new_snapshot":
@@ -360,8 +408,18 @@ class AimbatTUI(App[None]):
     def _get_current_event(self, session: Session) -> AimbatEvent:
         """Return the event currently selected for processing in the TUI.
 
-        Raises `NoResultFound` when no event has been selected yet.
-        Clears a stale `_current_event_id` if the referenced event no longer exists.
+        Clears a stale `_current_event_id` if the referenced event no longer
+        exists.
+
+        Args:
+            session: Database session used to look up the event.
+
+        Returns:
+            The currently selected event.
+
+        Raises:
+            NoResultFound: If no event has been selected, or the previously
+                selected event no longer exists.
         """
         if self._current_event_id is not None:
             event = session.get(AimbatEvent, self._current_event_id)
@@ -418,10 +476,12 @@ class AimbatTUI(App[None]):
         ICCS construction reads waveform data, so it must not block the asyncio event loop.
         Concurrent calls are ignored — only one worker runs at a time.
 
-        `is_retry` marks a call made in response to `_iccs_retry_pending` (i.e. the
-        one-shot retry after a previous failure). It is not itself allowed to
-        re-arm `_iccs_retry_pending` on failure, so a persistently failing event
-        gets exactly one automatic retry rather than retrying forever.
+        Args:
+            is_retry: Whether this call is the one-shot retry made in
+                response to `_iccs_retry_pending` after a previous failure.
+                A retry call is not itself allowed to re-arm
+                `_iccs_retry_pending`, so a persistently failing event gets
+                exactly one automatic retry rather than retrying forever.
         """
         if self._iccs_creating:
             logger.debug(
@@ -435,7 +495,17 @@ class AimbatTUI(App[None]):
 
     @work(thread=True)
     def _worker_create_iccs(self, is_retry: bool = False) -> None:
-        """Background worker: create ICCS instance without blocking the UI."""
+        """Create the ICCS instance for the current event without blocking the UI.
+
+        On success, hands the new `BoundICCS` instance to `_assign_iccs` on
+        the main thread. On failure, notifies the user and, unless this call
+        is itself a retry, arms `_iccs_retry_pending` for one further
+        automatic attempt.
+
+        Args:
+            is_retry: Whether this call is the one-shot retry after a
+                previous failure.
+        """
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
@@ -458,7 +528,11 @@ class AimbatTUI(App[None]):
         self.call_from_thread(self._assign_iccs, bound_iccs)
 
     def _assign_iccs(self, bound_iccs: BoundICCS) -> None:
-        """Main-thread callback: store the new BoundICCS instance and refresh status."""
+        """Store the newly created ICCS instance and refresh all panels.
+
+        Args:
+            bound_iccs: The instance created by `_worker_create_iccs`.
+        """
         self._iccs_creating = False
         self._bound_iccs = bound_iccs
         logger.info("ICCS instance ready and assigned.")
@@ -471,12 +545,12 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
 
     def refresh_all(self) -> None:
-        """Refresh every panel.
+        """Refresh every panel to reflect the current database state.
 
-        Call this after any mutation by default. Only use a targeted
-        `<Panel>.refresh_data(...)` call when you can name the specific
-        reason no other panel's displayed data (including `column_property`
-        counts and the live quality getters) is affected, and record that
+        The default choice after any mutation. A targeted
+        `<Panel>.refresh_data(...)` call is appropriate only when no other
+        panel's displayed data (including `column_property` counts and the
+        live quality getters) is affected by the change; record that
         reasoning as a comment at the call site.
         """
         self.refresh_bindings()
@@ -522,6 +596,12 @@ class AimbatTUI(App[None]):
             self.refresh_all()
 
     def _refresh_event_bar(self) -> None:
+        """Update the status bar with the current event's time, location and ICCS status.
+
+        Shows a prompt to select an event or add data when no event is
+        selected, or an error message if the current event could not be
+        loaded.
+        """
         bar = self.query_one("#event-bar", Static)
         try:
             with Session(engine) as session:
@@ -559,16 +639,25 @@ class AimbatTUI(App[None]):
 
     @on(ProjectPanel.RowActionChosen)
     def _project_row_action_chosen(self, message: ProjectPanel.RowActionChosen) -> None:
+        """Dispatch a row action chosen on the Project tab."""
         self._handle_row_action(message.tab, message.item_id, message.action)
 
     @on(SeismogramPanel.RowActionChosen)
     def _seismogram_row_action_chosen(
         self, message: SeismogramPanel.RowActionChosen
     ) -> None:
+        """Dispatch a row action chosen on the Live data tab."""
         self._handle_row_action("tab-seismograms", message.item_id, message.action)
 
     @on(SnapshotPanel.ActionChosen)
     def _snapshot_action_chosen(self, message: SnapshotPanel.ActionChosen) -> None:
+        """Dispatch a row action chosen on the Snapshots tab.
+
+        Preview and results-saving actions are handled directly since they
+        carry extra `context`/`all_seismograms` options not shared with the
+        other tabs' row actions; all other actions go through
+        `_handle_row_action`.
+        """
         if message.action == "preview_stack":
             self._preview_snapshot_plot(
                 message.item_id, "stack", message.context, message.all_seismograms
@@ -587,6 +676,13 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
 
     def _handle_row_action(self, tab: str, item_id: str, action: str | None) -> None:
+        """Route a row action chosen from a table's action menu or footer hotkey to its handler.
+
+        Args:
+            tab: ID of the tab the row belongs to.
+            item_id: ID of the row's underlying database entity.
+            action: Action key chosen, or `None` if the menu was cancelled.
+        """
         if action == "delete":
             self._confirm_delete(tab, item_id)
         elif action == "select":
@@ -607,6 +703,7 @@ class AimbatTUI(App[None]):
             self._reset_seismogram_parameters(item_id)
 
     def _select_event(self, item_id: str) -> None:
+        """Make the given event the active event and rebuild its ICCS instance."""
         logger.debug(f"User selected event {item_id[:8]}.")
         self._current_event_id = uuid.UUID(item_id)
         self._create_iccs()
@@ -614,6 +711,7 @@ class AimbatTUI(App[None]):
         self.notify("Event selected", timeout=2)
 
     def _toggle_event_completed(self, item_id: str) -> None:
+        """Flip the `completed` flag on the given event's parameters."""
         logger.debug(f"User toggled completed flag for event {item_id[:8]}.")
         try:
             with Session(engine) as session:
@@ -629,6 +727,13 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _view_seismograms(self, tab: str, item_id: str) -> None:
+        """Suspend the TUI and show a matplotlib plot of seismograms for an event or station.
+
+        Args:
+            tab: Tab the row belongs to; determines whether `item_id`
+                refers to an event or a station.
+            item_id: ID of the event or station whose seismograms to plot.
+        """
         item_uuid = uuid.UUID(item_id)
         try:
             with self._suspend("View seismograms"):
@@ -647,6 +752,16 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _toggle_seismogram_bool(self, item_id: str, param: SeismogramParameter) -> None:
+        """Flip a boolean seismogram parameter (select or flip) and update the in-memory ICCS instance.
+
+        Persists the new value to the database, then updates the matching
+        seismogram in the live ICCS instance directly and refreshes only
+        the Live data table, without a full `refresh_all`.
+
+        Args:
+            item_id: ID of the seismogram to update.
+            param: Boolean parameter to toggle.
+        """
         logger.debug(f"User toggled {param} for seismogram {item_id[:8]}.")
         try:
             seis_uuid = uuid.UUID(item_id)
@@ -676,6 +791,7 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _reset_seismogram_parameters(self, item_id: str) -> None:
+        """Reset a seismogram's processing parameters to their defaults."""
         logger.debug(f"User reset parameters for seismogram {item_id[:8]}.")
         try:
             with Session(engine) as session:
@@ -686,6 +802,14 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _confirm_delete(self, tab: str, item_id: str) -> None:
+        """Show a confirmation dialog, then delete the row's entity if confirmed.
+
+        Args:
+            tab: Tab the row belongs to; determines which entity type
+                `item_id` refers to (event, station, seismogram or
+                snapshot).
+            item_id: ID of the entity to delete.
+        """
         messages = {
             "project-events": "Delete this event and all its data?",
             "project-stations": "Delete this station and all its seismograms?",
@@ -736,6 +860,7 @@ class AimbatTUI(App[None]):
         self.push_screen(ConfirmModal(msg), on_confirm)
 
     def _show_snapshot_details(self, snap_id: str) -> None:
+        """Open a modal listing the event parameters captured in a snapshot."""
         try:
             with Session(engine) as session:
                 snap = session.get(AimbatSnapshot, uuid.UUID(snap_id))
@@ -752,6 +877,7 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _save_snapshot_results(self, snap_id: str) -> None:
+        """Prompt for a file path and write a snapshot's results to it as JSON."""
         default_name = f"results_{snap_id[:8]}.json"
 
         def on_path(path: Path | None) -> None:
@@ -776,6 +902,14 @@ class AimbatTUI(App[None]):
     def _preview_snapshot_plot(
         self, snap_id: str, plot_type: str, context: bool, all_seis: bool
     ) -> None:
+        """Suspend the TUI and show a matplotlib stack or matrix-image plot rebuilt from a snapshot.
+
+        Args:
+            snap_id: ID of the snapshot to rebuild ICCS from.
+            plot_type: Either `"stack"` or `"image"`.
+            context: Whether to plot the context window rather than the CC window.
+            all_seis: Whether to include seismograms not currently selected.
+        """
         logger.debug(f"User previewing {plot_type} plot for snapshot {snap_id[:8]}.")
         try:
             with self._suspend("Previewing snapshot"):
@@ -790,6 +924,8 @@ class AimbatTUI(App[None]):
             self.notify(str(exc), severity="error")
 
     def _confirm_rollback(self, snap_id: str) -> None:
+        """Show a confirmation dialog, then roll the active event back to a snapshot if confirmed."""
+
         def on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 return
@@ -813,6 +949,7 @@ class AimbatTUI(App[None]):
     # ------------------------------------------------------------------
 
     def action_open_parameters(self) -> None:
+        """Open the parameters modal for the current event, recreating ICCS if changed."""
         logger.debug("User opened parameters modal.")
         try:
             with Session(engine) as session:
@@ -834,6 +971,7 @@ class AimbatTUI(App[None]):
         self.push_screen(ParametersModal(event_id), on_close)
 
     def action_add_data(self) -> None:
+        """Prompt for a data type, then a data source, and add it to the project."""
         actions = [(dt.value, dt.name.replace("_", " ")) for dt in DataType]
 
         def on_type(selected: str | None) -> None:
@@ -872,7 +1010,11 @@ class AimbatTUI(App[None]):
         self.push_screen(ActionMenuModal("Add Data", actions), on_type)
 
     def _require_iccs(self) -> bool:
-        """Return True if ICCS is ready; show a contextual warning and return False otherwise."""
+        """Check that the ICCS instance is ready, showing a contextual warning otherwise.
+
+        Returns:
+            Whether the ICCS instance is ready to use.
+        """
         if self._bound_iccs is not None:
             return True
         if self._current_event_id is not None:
@@ -888,6 +1030,7 @@ class AimbatTUI(App[None]):
         return False
 
     def action_open_interactive_tools(self) -> None:
+        """Open the interactive tools menu and run the chosen tool."""
         if not self._require_iccs():
             return
 
@@ -902,12 +1045,19 @@ class AimbatTUI(App[None]):
     def _run_tool(
         self, tool: str, context: bool, all_seis: bool, causal: bool | None
     ) -> None:
-        """Run an interactive tool, suspending Textual while matplotlib is active.
+        """Run an interactive tool from `_TOOL_REGISTRY` or `_CAUSAL_TOOL_REGISTRY`.
 
-        Uses the long-lived ICCS instance (waveform data already loaded) and runs
-        matplotlib on the main thread via App.suspend(), which is the correct
-        Textual pattern for blocking terminal-adjacent processes. `causal` is
-        only meaningful (non-None) for tools in _CAUSAL_TOOL_REGISTRY.
+        Uses the long-lived ICCS instance so waveform data do not need to be
+        reloaded. Suspends the TUI while the tool's matplotlib window is
+        open and refreshes all panels once it closes.
+
+        Args:
+            tool: Key identifying the tool in the registry.
+            context: Whether to operate on the context window rather than
+                the CC window.
+            all_seis: Whether to include seismograms not currently selected.
+            causal: Zero-phase/causal filter setting; only meaningful for
+                tools in `_CAUSAL_TOOL_REGISTRY`, otherwise `None`.
         """
         logger.debug(
             f"User launched interactive tool '{tool}' "
@@ -947,6 +1097,7 @@ class AimbatTUI(App[None]):
         self.notify("Done", timeout=2)
 
     def action_open_align(self) -> None:
+        """Open the alignment menu and run the chosen algorithm (ICCS or MCCC)."""
         if not self._require_iccs():
             return
 
@@ -965,7 +1116,18 @@ class AimbatTUI(App[None]):
         autoselect: bool,
         all_seis: bool,
     ) -> None:
-        """Run ICCS or MCCC in a background thread."""
+        """Run ICCS or MCCC in a background thread and post the result to the main thread.
+
+        Args:
+            bound: The current `BoundICCS` instance to align.
+            algorithm: Either `"iccs"` or `"mccc"`.
+            autoflip: Whether ICCS should automatically flip polarity-reversed
+                seismograms.
+            autoselect: Whether ICCS should automatically deselect
+                poorly-correlated seismograms.
+            all_seis: Whether MCCC should run over all seismograms rather
+                than only the selected ones.
+        """
         logger.debug(
             f"Alignment worker starting: {algorithm=}, {autoflip=}, {autoselect=}, {all_seis=}."
         )
@@ -997,10 +1159,18 @@ class AimbatTUI(App[None]):
     def _post_align_complete(
         self, msg: str, severity: Literal["information", "warning", "error"]
     ) -> None:
+        """Refresh all panels and show the alignment result notification.
+
+        Args:
+            msg: Notification text.
+            severity: Notification severity level.
+        """
         self.refresh_all()
         self.notify(msg, severity=severity, timeout=4)
 
     def action_new_snapshot(self) -> None:
+        """Prompt for an optional comment and create a snapshot of the current event's parameters."""
+
         def on_comment(comment: str | None) -> None:
             if comment is None:
                 return
@@ -1018,39 +1188,37 @@ class AimbatTUI(App[None]):
         self.push_screen(SnapshotCommentModal(), on_comment)
 
     def action_vim_left(self) -> None:
+        """Switch to the previous main tab, unless a modal is open."""
         if not isinstance(self.screen, ModalScreen):
             self.query_one(TabbedContent).query_one(Tabs).action_previous_tab()
 
     def action_vim_right(self) -> None:
+        """Switch to the next main tab, unless a modal is open."""
         if not isinstance(self.screen, ModalScreen):
             self.query_one(TabbedContent).query_one(Tabs).action_next_tab()
 
     def action_toggle_theme(self) -> None:
+        """Toggle between the configured dark and light themes."""
         self.theme = _LIGHT_THEME if self.theme == _DEFAULT_THEME else _DEFAULT_THEME
 
     def action_show_help(self) -> None:
+        """Open the help modal for the active tab."""
         self.push_screen(HelpModal(self._active_tab))
 
     def action_refresh(self) -> None:
+        """Refresh all panels on demand."""
         logger.debug("User triggered manual refresh.")
         self.refresh_all()
         self.notify("Refreshed", timeout=1)
 
 
 def main() -> None:
-    """Entry point for the AIMBAT TUI.
+    """Run the AIMBAT TUI until it exits.
 
     Raises:
-        RuntimeError: If the TUI exited due to an unhandled exception (e.g.
-            a `SchemaStaleWarning` promoted to an error by
-            `AIMBAT_STRICT_SCHEMA_CHECK`). Textual catches exceptions raised
-            inside its own message loop and shows its own crash screen
-            rather than letting them propagate - `App.run()` then returns
-            normally, which would otherwise report a successful (exit 0)
-            process despite the crash. Checking `return_code` (Textual's own
-            documented mechanism for this - see `App.return_code`) and
-            re-raising here restores the same hard-failure contract every
-            other AIMBAT command already has via `handle_issues`.
+        RuntimeError: If the TUI exited after an unhandled exception (a
+            non-zero `App.return_code`), so the process reports failure
+            rather than exiting 0 despite the crash.
     """
     app = AimbatTUI()
     app.run()

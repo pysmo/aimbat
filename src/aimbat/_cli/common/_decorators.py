@@ -1,3 +1,5 @@
+"""Console error/warning helpers and the `handle_issues` command decorator."""
+
 from collections.abc import Callable
 from typing import Any
 
@@ -34,35 +36,19 @@ def _print_warning(message: object) -> None:
 
 
 def handle_issues[F: Callable[..., Any]](func: F) -> F:
-    """Decorator to report exceptions to the console and exit cleanly.
+    """Decorator that reports exceptions to the console and exits cleanly.
 
-    Exceptions are printed (without traceback) in a red panel, then exit the
-    process. Any `aimbat.core.SchemaStaleWarning` raised during the call
-    (e.g. via `aimbat.db`'s schema-staleness check) is unconditionally
-    promoted to an error via a `warnings.catch_warnings()`-scoped filter, so
-    it's reported through the exact same red-panel path as any other
-    failure - a stale schema always aborts the command with one clear,
-    attributable message, rather than sometimes silently continuing (if the
-    command never happens to touch the drifted table/column) and sometimes
-    crashing later with a raw, unrelated `sqlalchemy.exc.OperationalError`
-    from deep inside whatever query first hit it. This is independent of
-    `AIMBAT_STRICT_SCHEMA_CHECK`, which now only affects third-party code
-    using `aimbat.db.engine` directly, not AIMBAT's own CLI - see that
-    setting's description and `aimbat.db`'s module docstring.
+    Exceptions raised by the wrapped command are printed (without traceback)
+    in a red panel, then the process exits with status 1. Any
+    `aimbat.core.SchemaStaleWarning` raised during the call is always
+    promoted to an error first, so a stale database schema is reported
+    through the same red-panel path as any other failure, regardless of
+    `AIMBAT_STRICT_SCHEMA_CHECK`.
 
-    The filter is scoped to `SchemaStaleWarning` specifically (not a blanket
-    `simplefilter`), so it can't affect any other warning category's
-    already-ambient filter/display behaviour, and `aimbat db upgrade`'s own
-    `warnings.simplefilter("ignore", SchemaStaleWarning)` (telling a user to
-    run the command they're already running is unhelpful) still takes
-    precedence within its own nested `catch_warnings()` block.
-
-    The `SchemaStaleWarning` promotion applies even in debugging mode
-    (`AIMBAT_LOG_LEVEL=DEBUG`/`TRACE`) - a stale schema must always abort,
-    with no bypass. What debugging mode *does* skip is the try/except that
-    turns any exception (including the now-promoted `SchemaStaleWarning`)
-    into a styled red panel: in that mode the exception instead propagates
-    as a plain Python traceback, exactly as any other exception would.
+    In debugging mode (`AIMBAT_LOG_LEVEL=DEBUG` or `TRACE`), the schema
+    staleness promotion still applies, but exceptions are no longer caught
+    and rendered as a panel; they propagate as a normal Python traceback
+    instead.
     """
     import sys
     import warnings

@@ -9,8 +9,6 @@ time — you never need to clear them manually.
 This page documents every case that triggers invalidation and explains the
 reasoning behind it.
 
----
-
 ## Quality fields at a glance
 
 | Field | Scope | Source |
@@ -24,8 +22,6 @@ reasoning behind it.
 When a field is *invalidated* its database column is set to `NULL`. It will be
 recomputed the next time ICCS or MCCC is run.
 
----
-
 ## Inferring MCCC participation
 
 A seismogram is included in a MCCC run either because it was selected (default
@@ -36,8 +32,6 @@ to the current MCCC results.
 The correct signal is the presence of **live MCCC stats**: if `mccc_cc_mean IS
 NOT NULL` for a seismogram, it was included in the last MCCC run. The triggers
 use this as the criterion for deciding whether an MCCC invalidation is necessary.
-
----
 
 ## Event-level parameter changes
 
@@ -66,8 +60,6 @@ use this as the criterion for deciding whether an MCCC invalidation is necessary
 | :--- | :--- |
 | `mccc_damp` | Tikhonov regularisation strength changes the inversion solution and therefore all MCCC output statistics. |
 | `mccc_min_cc` | The minimum CC threshold controls which seismogram pairs enter the inversion, directly changing `mccc_error`, `mccc_cc_mean`, and `mccc_rmse`. |
-
----
 
 ## Per-seismogram parameter changes
 
@@ -129,8 +121,6 @@ seismogram was in the MCCC run (live stats).
 | :--- | :--- | :--- |
 | Has live MCCC stats (any `select`) | Yes | Whether it was selected or included via `--all`, the stored arrival time has changed and MCCC results are stale. |
 | No live MCCC stats | No | Seismogram was not in the MCCC run; nothing to null. |
-
----
 
 ## Summary table
 

@@ -1,4 +1,4 @@
-"""Module to manage and view events in AIMBAT."""
+"""Query, update, and delete AimbatEvent records, their parameters, and their quality statistics."""
 
 from collections.abc import Sequence
 from typing import Any, Literal, overload
@@ -47,8 +47,8 @@ def resolve_event(session: Session, event_id: UUID | None = None) -> AimbatEvent
         The specified event.
 
     Raises:
-        NoResultFound: If an explicit event_id is given but not found.
-        NoResultFound: If no event_id is given.
+        NoResultFound: If `event_id` is not given, or if no event with the
+            given `event_id` exists.
     """
     if event_id:
         logger.debug(f"Resolving event by explicit ID: {event_id}.")
@@ -82,6 +82,8 @@ def delete_event(session: Session, event_id: UUID) -> None:
         session: Database session.
         event_id: Event ID.
 
+    Raises:
+        NoResultFound: If no event with the given ID is found.
     """
 
     logger.info(f"Deleting event {event_id}.")
@@ -124,7 +126,8 @@ def get_events_using_station(
         session: Database session.
         station_id: UUID of the station to return events for.
 
-    Returns: Events that use the station.
+    Returns:
+        Events that use the station.
     """
 
     logger.debug(f"Getting events for station: {station_id}.")
@@ -221,6 +224,11 @@ def dump_event_table(
             output (only applicable when from_read_model is True). Mutually
             exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
+
+    Returns:
+        A JSON string of the ORM model data when `from_read_model` is False,
+        or a list of dicts built from the read model when `from_read_model`
+        is True.
 
     Raises:
         ValueError: If both `by_alias` and `by_title` are True.
@@ -337,6 +345,12 @@ def set_event_parameter(
         value: Value to set.
         validate_iccs: If True, attempt ICCS construction with the new value
             before committing. Raises and leaves the database unchanged on failure.
+
+    Raises:
+        NoResultFound: If no event with the given ID is found.
+        ValidationError: If `value` fails Pydantic validation for `name`, or,
+            when `validate_iccs` is True, if ICCS construction fails with the
+            new value.
     """
     from ._iccs import clear_mccc_quality
     from ._snapshot import compute_parameters_hash, sync_from_matching_hash
