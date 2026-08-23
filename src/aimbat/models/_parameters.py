@@ -26,8 +26,10 @@ class AimbatEventParametersBase(SQLModel):
     """Base class defining event-level processing parameters for AIMBAT.
 
     This class serves as a base that is inherited by the actual classes that
-    create the database tables. The attributes correspond exactly to the AIMBAT
-    event parameters.
+    create the database tables. It covers the settings applied uniformly to
+    all seismograms of an event: window bounds, taper ramp width, bandpass
+    filter settings, the CC threshold for automatic de-selection, and MCCC
+    settings.
     """
 
     completed: bool = Field(
@@ -138,8 +140,8 @@ class AimbatSeismogramParametersBase(SQLModel):
     """Base class defining seismogram-level processing parameters for AIMBAT.
 
     This class serves as a base that is inherited by the actual classes that
-    create the database tables. The attributes correspond exactly to the AIMBAT
-    per-seismogram parameters.
+    create the database tables. It covers the per-seismogram `flip` and
+    `select` flags and the working arrival-time pick `t1`.
     """
 
     flip: bool = Field(

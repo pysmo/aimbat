@@ -1,3 +1,5 @@
+"""Download and remove the bundled AIMBAT sample dataset."""
+
 import os
 import shutil
 from io import BytesIO
@@ -9,9 +11,13 @@ from aimbat.logger import logger
 
 __all__ = ["delete_sampledata", "download_sampledata"]
 
+_SAMPLEDATA_SRC = (
+    "https://github.com/pysmo/aimbat-sampledata/archive/refs/heads/master.zip"
+)
+
 
 def delete_sampledata() -> None:
-    """Delete sample data."""
+    """Delete the sample data directory (`Settings.sampledata_dir`) and its contents."""
 
     logger.info(f"Deleting sample data in {settings.sampledata_dir}.")
 
@@ -19,10 +25,22 @@ def delete_sampledata() -> None:
 
 
 def download_sampledata(force: bool = False) -> None:
-    """Download sample data."""
+    """Download and extract the AIMBAT sample dataset.
+
+    Downloads the sample data archive and extracts it into
+    `Settings.sampledata_dir`.
+
+    Args:
+        force: Delete and replace an existing non-empty sample data
+            directory instead of raising an error.
+
+    Raises:
+        FileExistsError: If the sample data directory already exists and is
+            non-empty, and `force` is False.
+    """
 
     logger.info(
-        f"Downloading sample data from {settings.sampledata_src} to {settings.sampledata_dir}."
+        f"Downloading sample data from {_SAMPLEDATA_SRC} to {settings.sampledata_dir}."
     )
 
     if (
@@ -36,7 +54,7 @@ def download_sampledata(force: bool = False) -> None:
                 f"The directory {settings.sampledata_dir} already exists and is non-empty."
             )
 
-    with urlopen(settings.sampledata_src) as zipresp:
+    with urlopen(_SAMPLEDATA_SRC) as zipresp:
         logger.debug(f"Extracting sample data to {settings.sampledata_dir}.")
         with ZipFile(BytesIO(zipresp.read())) as zfile:
             zfile.extractall(settings.sampledata_dir)

@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aimbat.utils._sampledata import delete_sampledata, download_sampledata
+from aimbat.utils._sampledata import (
+    _SAMPLEDATA_SRC,
+    delete_sampledata,
+    download_sampledata,
+)
 
 
 def _make_zip_bytes(filenames: list[str]) -> bytes:
@@ -140,14 +144,12 @@ class TestDownloadSampledata:
         mock_urlopen.assert_called_once()
 
     def test_urlopen_called_with_src(self, sampledata_dir: Path) -> None:
-        """Verifies that urlopen is called with the configured source URL.
+        """Verifies that urlopen is called with the sample data source URL.
 
         Args:
             sampledata_dir (Path): The sample data directory.
         """
-        import aimbat
-
         mock_urlopen = self._mock_urlopen(["data/file.sac"])
         with patch("aimbat.utils._sampledata.urlopen", mock_urlopen):
             download_sampledata()
-        mock_urlopen.assert_called_once_with(aimbat.settings.sampledata_src)
+        mock_urlopen.assert_called_once_with(_SAMPLEDATA_SRC)

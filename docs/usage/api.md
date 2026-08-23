@@ -2,22 +2,23 @@
 
 After running ICCS and MCCC alignment across many events, the accumulated
 quality metrics span stations and events in ways that are natural to analyse
-with pandas and matplotlib but impossible from the CLI or TUI. The Python API
-is the primary interface for that kind of post-processing quality analysis: you
+with pandas and matplotlib but impossible from the CLI or TUI. The Python API is
+the primary interface for that kind of post-processing quality analysis: you
 query `AimbatSeismogram`, `AimbatStation`, and `AimbatEvent` records directly,
 build DataFrames, and apply whatever aggregation or visualisation you need.
 
 The same API also drives the CLI and TUI internally, so it covers the full
-workflow — data ingestion, parameter management, alignment, snapshots — not
-just quality analysis. See the full [API reference](../api/aimbat.md) for a
-complete listing.
+workflow — data ingestion, parameter management, alignment, snapshots — not just
+quality analysis. See the full [API reference](../api/aimbat.md) for a complete
+listing.
 
 !!! note "Writing seismogram data"
-    [`AimbatSeismogram.data`][aimbat.models.AimbatSeismogram.data] is backed by
-    an IO cache. Assigning a new array replaces the cached value and, for data
-    types that support it, writes through to the source file on disk. In-place
-    mutation of the returned array does not persist — each access returns the
-    cached value, so changes to the array itself are silently discarded:
+
+    [`AimbatSeismogram.data`][aimbat.models.AimbatSeismogram.data] is backed by an
+    IO cache. Assigning a new array replaces the cached value and, for data types
+    that support it, writes through to the source file on disk. In-place mutation of
+    the returned array does not persist — each access returns the cached value, so
+    changes to the array itself are silently discarded:
 
     ```python
     seis.data = my_modified_array  # replaces cache (and writes to disk if supported)
@@ -26,8 +27,7 @@ complete listing.
     ```
 
     AIMBAT does not write seismogram data in normal usage. All processing results
-    are stored as parameters in the database; source files are treated as
-    read-only.
+    are stored as parameters in the database; source files are treated as read-only.
 
 ## Core Concepts
 
@@ -37,8 +37,8 @@ The API is built on three main components:
     the database schema (`aimbat.models`) as Python objects.
 2. **Core Functions**: High-level operations that manipulate those models
     (`aimbat.core`).
-3. **Database Session**: A SQLAlchemy session used to track changes and
-    interact with the project database.
+3. **Database Session**: A SQLAlchemy session used to track changes and interact
+    with the project database.
 
 ## Project Location
 
@@ -54,8 +54,8 @@ import it will use the same database as the CLI.
 
 ## Session Management
 
-Every database operation requires a `Session`. Use it as a context manager so
-it is always closed cleanly:
+Every database operation requires a `Session`. Use it as a context manager so it
+is always closed cleanly:
 
 ```python
 from sqlmodel import Session
@@ -81,8 +81,8 @@ create_project(engine)
 ```
 
 This is a one-time operation that creates the schema and the SQLite triggers
-that enforce database constraints and track modification times.
-It raises `RuntimeError` if the schema already exists.
+that enforce database constraints and track modification times. It raises
+`RuntimeError` if the schema already exists.
 
 ## Adding Data
 
@@ -99,19 +99,20 @@ with Session(engine) as session:
 ```
 
 !!! note "No automatic snapshots at this level"
-    The `aimbat data add` CLI command snapshots each newly touched event
-    after importing (see [Adding Data](data.md#automatic-snapshots)), but
-    that behaviour lives in the CLI layer, not in `add_data_to_project`
-    itself. Calling it directly — as above — never creates a snapshot; call
+
+    The `aimbat data add` CLI command snapshots each newly touched event after
+    importing (see [Adding Data](data.md#automatic-snapshots)), but that behaviour
+    lives in the CLI layer, not in `add_data_to_project` itself. Calling it directly
+    — as above — never creates a snapshot; call
     [`create_snapshot`][aimbat.core.create_snapshot] yourself if you want one.
 
 The `DataType` enum controls what is read from each source:
 
-| `DataType`       | What is created                          |
-|------------------|------------------------------------------|
-| `SAC`            | Event + Station + Seismogram             |
-| `JSON_EVENT`     | Event only (no seismogram)               |
-| `JSON_STATION`   | Station only (no seismogram)             |
+| `DataType`     | What is created              |
+| -------------- | ---------------------------- |
+| `SAC`          | Event + Station + Seismogram |
+| `JSON_EVENT`   | Event only (no seismogram)   |
+| `JSON_STATION` | Station only (no seismogram) |
 
 ### JSON formats
 
@@ -142,9 +143,9 @@ The `DataType` enum controls what is read from each source:
 
 ### Providing event or station metadata externally
 
-SAC files from some sources omit event or station headers. In that case, add
-the metadata separately first and then link the SAC files to the resulting
-database records using `event_id` and `station_id`:
+SAC files from some sources omit event or station headers. In that case, add the
+metadata separately first and then link the SAC files to the resulting database
+records using `event_id` and `station_id`:
 
 ```python
 with Session(engine) as session:
@@ -174,18 +175,18 @@ below show the most common patterns.
 Per-seismogram metrics are stored in `AimbatSeismogramQuality` and accessed via
 `seismogram.quality`:
 
-| Attribute | Description |
-|---|---|
-| `iccs_cc` | ICCS cross-correlation with the stack |
-| `mccc_cc_mean` | MCCC waveform quality — mean CC across seismogram pairs |
-| `mccc_cc_std` | MCCC waveform consistency — std of CC across pairs |
-| `mccc_error` | MCCC timing precision (`pd.Timedelta`, SEM from covariance matrix) |
+| Attribute      | Description                                                        |
+| -------------- | ------------------------------------------------------------------ |
+| `iccs_cc`      | ICCS cross-correlation with the stack                              |
+| `mccc_cc_mean` | MCCC waveform quality — mean CC across seismogram pairs            |
+| `mccc_cc_std`  | MCCC waveform consistency — std of CC across pairs                 |
+| `mccc_error`   | MCCC timing precision (`pd.Timedelta`, SEM from covariance matrix) |
 
 The per-event MCCC global array fit is stored in `AimbatEventQuality` and
 accessed via `event.quality`:
 
-| Attribute | Description |
-|---|---|
+| Attribute   | Description                       |
+| ----------- | --------------------------------- |
 | `mccc_rmse` | Global array fit (`pd.Timedelta`) |
 
 ### Build a per-seismogram DataFrame across all events
@@ -247,8 +248,8 @@ with Session(engine) as session:
     stats = [SeismogramQualityStats.from_station(s) for s in stations]
 ```
 
-Each `stats` item exposes `cc_mean`, `mccc_cc_mean`, and `mccc_error` as
-(mean, SEM) pairs aggregated across all events at that station.
+Each `stats` item exposes `cc_mean`, `mccc_cc_mean`, and `mccc_error` as (mean,
+SEM) pairs aggregated across all events at that station.
 
 ### Event-level quality summary
 
@@ -270,8 +271,8 @@ with Session(engine) as session:
     stats = [SeismogramQualityStats.from_event(e) for e in events]
 ```
 
-`mccc_rmse` on each stats object is the global array fit for that event —
-useful for comparing event difficulty across a dataset.
+`mccc_rmse` on each stats object is the global array fit for that event — useful
+for comparing event difficulty across a dataset.
 
 ## Worked Example
 
@@ -298,11 +299,11 @@ Models can be queried directly using SQLModel's `select`:
 `(network, name, location, channel)`, so importing the same station from
 multiple sources never creates duplicate records.
 
-Events are a different story: they are deduplicated by exact origin time.
-When two data sources report the same earthquake with times that differ by a
-second or two, they are stored as separate `AimbatEvent` records. The script
-below detects such near-duplicates, merges their seismograms into the record
-with the most data, averages the location and depth, and removes the extras.
+Events are a different story: they are deduplicated by exact origin time. When
+two data sources report the same earthquake with times that differ by a second
+or two, they are stored as separate `AimbatEvent` records. The script below
+detects such near-duplicates, merges their seismograms into the record with the
+most data, averages the location and depth, and removes the extras.
 
 ```python
 --8<-- "docs/snippets/api_deduplicate.py"

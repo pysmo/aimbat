@@ -10,9 +10,9 @@ The main classes and their relationships are:
 - `AimbatEvent` — a seismic event.
 - `AimbatStation` — a seismic recording station.
 - `AimbatSeismogram` — links an `AimbatEvent` to an `AimbatStation` and holds
-  the timing metadata (`begin_time`, `delta`, `t0`). Waveform data is accessed
+  the timing metadata (`begin_time`, `delta`, `t0`). Waveform data are accessed
   via the associated `AimbatDataSource`.
-- `AimbatDataSource` — records where the waveform data for a seismogram is
+- `AimbatDataSource` — records where the waveform data for a seismogram are
   stored, along with its type (e.g. SAC).
 - `AimbatEventParameters` — processing parameters shared across all seismograms
   of an event (window bounds, bandpass filter settings, MCCC settings, etc.).

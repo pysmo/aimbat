@@ -194,7 +194,7 @@ class TestAddDataToProject:
         multi_event_data: list[Path],
         patched_session: Session,
     ) -> None:
-        """Verifies dry run behaviour when all data is new.
+        """Verifies dry run behaviour when all data are new.
 
         Args:
             multi_event_data (list[Path]): List of paths to SAC files.
@@ -278,7 +278,7 @@ class TestAddDataToProject:
         multi_event_data: list[Path],
         patched_session: Session,
     ) -> None:
-        """Verifies the real-run (dry_run=False) return value when all data is new.
+        """Verifies the real-run (dry_run=False) return value when all data are new.
 
         Args:
             multi_event_data (list[Path]): List of paths to SAC files.
@@ -594,7 +594,7 @@ class TestCombinedSacAndJsonStation:
     def test_sac_with_station_id_does_not_create_extra_station(
         self, engine: Engine, sac_file_good: Path, station_json: Path
     ) -> None:
-        """Verifies that the SAC file's embedded station data is ignored when station_id is provided.
+        """Verifies that the SAC file's embedded station data are ignored when station_id is provided.
 
         Args:
             engine: In-memory SQLAlchemy Engine.
@@ -645,7 +645,7 @@ class TestCombinedSacAndJsonEvent:
     def test_sac_with_event_id_does_not_create_extra_event(
         self, engine: Engine, sac_file_good: Path, event_json: Path
     ) -> None:
-        """Verifies that the SAC file's embedded event data is ignored when event_id is provided.
+        """Verifies that the SAC file's embedded event data are ignored when event_id is provided.
 
         Args:
             engine: In-memory SQLAlchemy Engine.

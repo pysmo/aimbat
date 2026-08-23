@@ -98,7 +98,7 @@ class TestJsonToTable:
         table = mock_console.print.call_args[0][0]
         # In vertical table, values are in second column
         # We need to find the "score" row.
-        # Row data is not easily accessible from rich.table.Table without private access
+        # Row data are not easily accessible from rich.table.Table without private access
         # but we can check column headers aren't overridden by RichColSpec
         headers = [col.header for col in table.columns]
         assert "User ID" not in headers  # RichColSpec.display_title ignored

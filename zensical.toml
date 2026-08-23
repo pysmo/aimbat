@@ -25,6 +25,7 @@ nav = [
     { "Selecting an Event" = "usage/event-selection.md" },
     { "Initial Inspection" = "usage/inspection.md" },
     { "The ICCS Stack" = "usage/iccs-stack.md" },
+    { "Parameters" = "usage/parameters.md" },
     { "Snapshots" = "usage/snapshots.md" },
     { "Aligning with ICCS" = "usage/alignment.md" },
     { "MCCC Alignment" = "usage/mccc.md" },

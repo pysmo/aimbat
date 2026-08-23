@@ -63,7 +63,7 @@ class _AimbatDataSourceCreate(SQLModel):
 
 
 class AimbatDataSource(SQLModel, table=True):
-    """Class to store data source information."""
+    """Location and format of the waveform data source for a seismogram."""
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -356,9 +356,9 @@ class AimbatEventQualitySnapshot(AimbatEventQualityBase, table=True):
 class AimbatSnapshot(SQLModel, table=True):
     """Container for a point-in-time snapshot of event and seismogram parameters.
 
-    The AimbatSnapshot class does not actually save any parameter data.
-    It is used to keep track of the AimbatEventParametersSnapshot and
-    AimbatSeismogramParametersSnapshot instances.
+    An `AimbatSnapshot` does not store any parameter data itself. It is used
+    to group and keep track of the associated `AimbatEventParametersSnapshot`
+    and `AimbatSeismogramParametersSnapshot` instances.
     """
 
     model_config = SQLModelConfig(
@@ -423,7 +423,12 @@ class AimbatSnapshot(SQLModel, table=True):
 
 
 class AimbatSeismogram(SQLModel, table=True):
-    """Class to store seismogram metadata."""
+    """Seismogram metadata linking a recording station to an event.
+
+    Holds timing information (`begin_time`, `delta`, `t0`) and a reference to
+    the waveform data source; the waveform samples themselves are not stored
+    on this model but are read from and written to that data source on demand.
+    """
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,

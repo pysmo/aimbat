@@ -1,3 +1,5 @@
+"""Shared decorators, parameters, and table formatting for CLI command modules."""
+
 # flake8: noqa: E402, F403
 _internal_names = set(dir())
 

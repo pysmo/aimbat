@@ -89,6 +89,7 @@ class ParameterInputModal(ModalScreen[str | None]):
         self._unit = unit
 
     def compose(self) -> ComposeResult:
+        """Build the title, current-value hint, input field and save/cancel hint."""
         hint = f"Current: {self._current} {self._unit}".strip()
         with Container(id="param-edit-dialog"):
             yield Label(f"Edit: {self._param_name}", classes=_CSS.TITLE)
@@ -100,16 +101,20 @@ class ParameterInputModal(ModalScreen[str | None]):
             )
 
     def on_mount(self) -> None:
+        """Focus the input field."""
         self.query_one(Input).focus()
 
     @on(Input.Submitted)
     def submitted(self, event: Input.Submitted) -> None:
+        """Dismiss with the submitted value."""
         self.dismiss(event.value.strip())
 
     def action_save(self) -> None:
+        """Dismiss with the current input value."""
         self.dismiss(self.query_one("#param-input", Input).value.strip())
 
     def action_cancel(self) -> None:
+        """Dismiss without a value."""
         self.dismiss(None)
 
 
@@ -132,6 +137,7 @@ class NoProjectModal(ModalScreen[bool]):
     ]
 
     def compose(self) -> ComposeResult:
+        """Build the no-project message and create/quit hint."""
         with Container(id="confirm-dialog"):
             yield Label(
                 "No project found in the current directory.", classes=_CSS.TITLE
@@ -144,9 +150,11 @@ class NoProjectModal(ModalScreen[bool]):
             )
 
     def action_create(self) -> None:
+        """Dismiss, indicating a project should be created."""
         self.dismiss(True)
 
     def action_quit_app(self) -> None:
+        """Dismiss, indicating the application should quit."""
         self.dismiss(False)
 
 
@@ -183,6 +191,7 @@ class SchemaStaleModal(ModalScreen[bool]):
         self._message = message
 
     def compose(self) -> ComposeResult:
+        """Build the staleness message and upgrade/quit hint."""
         with Container(id="confirm-dialog"):
             yield Label(self._message, classes=_CSS.TITLE)
             yield Label(
@@ -193,9 +202,11 @@ class SchemaStaleModal(ModalScreen[bool]):
             )
 
     def action_upgrade(self) -> None:
+        """Dismiss, indicating the database should be upgraded."""
         self.dismiss(True)
 
     def action_quit_app(self) -> None:
+        """Dismiss, indicating the application should quit."""
         self.dismiss(False)
 
 
@@ -227,6 +238,7 @@ class ConfirmModal(ModalScreen[bool | None]):
         self._message = message
 
     def compose(self) -> ComposeResult:
+        """Build the confirmation message and confirm/cancel hint."""
         with Container(id="confirm-dialog"):
             yield Label(self._message, classes=_CSS.TITLE)
             yield Label(
@@ -235,9 +247,11 @@ class ConfirmModal(ModalScreen[bool | None]):
             )
 
     def action_confirm(self) -> None:
+        """Dismiss with confirmation."""
         self.dismiss(True)
 
     def action_cancel(self) -> None:
+        """Dismiss with cancellation."""
         self.dismiss(False)
 
 
@@ -256,6 +270,7 @@ class SnapshotCommentModal(ModalScreen[str | None]):
     BINDINGS = [Binding("escape", "cancel", "Cancel", show=False)]
 
     def compose(self) -> ComposeResult:
+        """Build the title, comment input and save/cancel hint."""
         with Container(id="param-edit-dialog"):
             yield Label("New Snapshot", classes=_CSS.TITLE)
             yield Input(placeholder="Comment (optional)", id="param-input")
@@ -265,16 +280,20 @@ class SnapshotCommentModal(ModalScreen[str | None]):
             )
 
     def on_mount(self) -> None:
+        """Focus the comment input field."""
         self.query_one(Input).focus()
 
     @on(Input.Submitted)
     def submitted(self, event: Input.Submitted) -> None:
+        """Dismiss with the submitted comment."""
         self.dismiss(event.value.strip())
 
     def action_save(self) -> None:
+        """Dismiss with the current comment input value."""
         self.dismiss(self.query_one("#param-input", Input).value.strip())
 
     def action_cancel(self) -> None:
+        """Dismiss without creating a snapshot."""
         self.dismiss(None)
 
 
@@ -302,12 +321,14 @@ class ParametersModal(ModalScreen[bool]):
         self._changed = False
 
     def compose(self) -> ComposeResult:
+        """Build the title, parameter table and navigate/edit/close hint."""
         with Container(id="param-table-dialog"):
             yield Label("Parameters", classes=_CSS.TITLE)
             yield VimDataTable(id="param-modal-table", show_header=True)
             yield Label(_Hint.NAVIGATE_EDIT_CLOSE, classes=_CSS.HINT)
 
     def on_mount(self) -> None:
+        """Configure the parameter table's columns and load its rows."""
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_columns("Parameter", "Value", "Description")
@@ -342,6 +363,7 @@ class ParametersModal(ModalScreen[bool]):
 
     @on(DataTable.RowSelected)
     def row_selected(self, event: DataTable.RowSelected) -> None:
+        """Open the edit dialog for the selected parameter."""
         attr = event.row_key.value
         if not attr:
             return
@@ -409,9 +431,11 @@ class ParametersModal(ModalScreen[bool]):
         self._populate()
 
     def action_select(self) -> None:
+        """Trigger selection of the row under the cursor."""
         self.query_one(DataTable).action_select_cursor()
 
     def action_cancel(self) -> None:
+        """Close the modal, reporting whether any parameter was changed."""
         self.dismiss(self._changed)
 
 
@@ -442,6 +466,7 @@ class ActionMenuModal(ModalScreen[str | None]):
         self._actions = actions  # [(action_key, display_label), ...]
 
     def compose(self) -> ComposeResult:
+        """Build the title, action table and navigate/select/cancel hint."""
         with Container(id="action-menu-dialog"):
             yield Label(self._title, classes=_CSS.TITLE)
             yield VimDataTable(id="action-table", show_header=False)
@@ -451,6 +476,7 @@ class ActionMenuModal(ModalScreen[str | None]):
             )
 
     def on_mount(self) -> None:
+        """Populate the action table from `_actions`."""
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_column("action")
@@ -461,12 +487,15 @@ class ActionMenuModal(ModalScreen[str | None]):
 
     @on(DataTable.RowSelected)
     def row_selected(self, event: DataTable.RowSelected) -> None:
+        """Dismiss with the chosen action's key."""
         self.dismiss(event.row_key.value)
 
     def action_select(self) -> None:
+        """Trigger selection of the row under the cursor."""
         self.query_one(DataTable).action_select_cursor()
 
     def action_cancel(self) -> None:
+        """Dismiss without choosing an action."""
         self.dismiss(None)
 
 
@@ -506,6 +535,7 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
         self._highlighted: str = ""
 
     def compose(self) -> ComposeResult:
+        """Build the title, action table, toggle options display and hint."""
         with Container(id="snapshot-action-dialog"):
             yield Label(self._title, classes=_CSS.TITLE)
             yield VimDataTable(id="snapshot-action-table", show_header=False)
@@ -513,6 +543,7 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
             yield Label(_Hint.NAVIGATE_SELECT_CANCEL, classes=_CSS.HINT)
 
     def on_mount(self) -> None:
+        """Populate the action table from `_actions`."""
         table = self.query_one(DataTable)
         table.cursor_type = "row"
         table.add_column("action")
@@ -536,29 +567,35 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
 
     @on(DataTable.RowHighlighted, "#snapshot-action-table")
     def row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Track the highlighted action and show its toggles if it is a preview action."""
         self._highlighted = event.row_key.value or ""
         self._update_options()
 
     @on(DataTable.RowSelected, "#snapshot-action-table")
     def row_selected(self, event: DataTable.RowSelected) -> None:
+        """Dismiss with the chosen action and the current toggle values."""
         key = event.row_key.value
         if key:
             self.dismiss((key, self._use_context, self._all_seis))
 
     def action_toggle_context(self) -> None:
+        """Toggle the context option, if the highlighted action is a preview action."""
         if self._highlighted in _PREVIEW_ACTIONS:
             self._use_context = not self._use_context
             self._update_options()
 
     def action_toggle_all(self) -> None:
+        """Toggle the all-seismograms option, if the highlighted action is a preview action."""
         if self._highlighted in _PREVIEW_ACTIONS:
             self._all_seis = not self._all_seis
             self._update_options()
 
     def action_select(self) -> None:
+        """Trigger selection of the row under the cursor."""
         self.query_one(DataTable).action_select_cursor()
 
     def action_cancel(self) -> None:
+        """Dismiss without choosing an action."""
         self.dismiss(None)
 
 
@@ -604,6 +641,7 @@ class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
     ]
 
     def __init__(self) -> None:
+        """Initialise the modal with context enabled and all-seismograms/causal defaults."""
         super().__init__()
         self._use_context = True
         self._all_seis = False
@@ -611,6 +649,7 @@ class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
         self._causal: bool = True
 
     def compose(self) -> ComposeResult:
+        """Build the title, tool table, toggle options display and hint."""
         with Container(id="tools-dialog"):
             yield Label("Tools", classes=_CSS.TITLE)
             yield VimDataTable(id="tools-table", show_header=False)
@@ -621,6 +660,7 @@ class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
             )
 
     def on_mount(self) -> None:
+        """Populate the tool table and set the causal default for the first tool."""
         table = self.query_one("#tools-table", DataTable)
         table.cursor_type = "row"
         table.add_column("tool")
@@ -646,12 +686,14 @@ class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
 
     @on(DataTable.RowHighlighted, "#tools-table")
     def row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Track the highlighted tool and reset the causal toggle to its default."""
         self._highlighted_tool = event.row_key.value or ""
         self._causal = CAUSAL_DEFAULTS.get(self._highlighted_tool, True)
         self._update_options()
 
     @on(DataTable.RowSelected, "#tools-table")
     def row_selected(self, event: DataTable.RowSelected) -> None:
+        """Dismiss with the chosen tool and the current toggle values."""
         key = event.row_key.value
         if key:
             causal = self._causal if key in CAUSAL_DEFAULTS else None
@@ -660,22 +702,27 @@ class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
             )
 
     def action_toggle_context(self) -> None:
+        """Toggle the context option."""
         self._use_context = not self._use_context
         self._update_options()
 
     def action_toggle_all(self) -> None:
+        """Toggle the all-seismograms option."""
         self._all_seis = not self._all_seis
         self._update_options()
 
     def action_toggle_zero_phase(self) -> None:
+        """Toggle the causal/zero-phase filter option, if the highlighted tool supports it."""
         if self._highlighted_tool in CAUSAL_DEFAULTS:
             self._causal = not self._causal
             self._update_options()
 
     def action_select(self) -> None:
+        """Trigger selection of the row under the cursor."""
         self.query_one(DataTable).action_select_cursor()
 
     def action_cancel(self) -> None:
+        """Dismiss without choosing a tool."""
         self.dismiss(None)
 
 
@@ -705,6 +752,7 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
     ]
 
     def __init__(self) -> None:
+        """Initialise the modal with all toggles off and ICCS as the highlighted algorithm."""
         super().__init__()
         self._autoflip = False
         self._autoselect = False
@@ -712,6 +760,7 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
         self._highlighted_algorithm: str = "iccs"
 
     def compose(self) -> ComposeResult:
+        """Build the title, algorithm table, toggle options display and hint."""
         with Container(id="align-dialog"):
             yield Label("Align Seismograms", classes=_CSS.TITLE)
             yield VimDataTable(id="align-table", show_header=False)
@@ -722,6 +771,7 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
             )
 
     def on_mount(self) -> None:
+        """Populate the algorithm table."""
         table = self.query_one("#align-table", DataTable)
         table.cursor_type = "row"
         table.add_column("algorithm")
@@ -748,34 +798,41 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
 
     @on(DataTable.RowHighlighted, "#align-table")
     def row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Track the highlighted algorithm and show its option toggles."""
         self._highlighted_algorithm = event.row_key.value or "iccs"
         self._update_options()
 
     @on(DataTable.RowSelected, "#align-table")
     def row_selected(self, event: DataTable.RowSelected) -> None:
+        """Dismiss with the chosen algorithm and the current toggle values."""
         key = event.row_key.value
         if key:
             self.dismiss((key, self._autoflip, self._autoselect, self._all_seis))
 
     def action_toggle_autoflip(self) -> None:
+        """Toggle the ICCS autoflip option, if ICCS is the highlighted algorithm."""
         if self._highlighted_algorithm == "iccs":
             self._autoflip = not self._autoflip
             self._update_options()
 
     def action_toggle_autoselect(self) -> None:
+        """Toggle the ICCS autoselect option, if ICCS is the highlighted algorithm."""
         if self._highlighted_algorithm == "iccs":
             self._autoselect = not self._autoselect
             self._update_options()
 
     def action_toggle_all(self) -> None:
+        """Toggle the MCCC all-seismograms option, if MCCC is the highlighted algorithm."""
         if self._highlighted_algorithm == "mccc":
             self._all_seis = not self._all_seis
             self._update_options()
 
     def action_select(self) -> None:
+        """Trigger selection of the row under the cursor."""
         self.query_one(DataTable).action_select_cursor()
 
     def action_cancel(self) -> None:
+        """Dismiss without choosing an algorithm."""
         self.dismiss(None)
 
 
@@ -803,12 +860,14 @@ class SnapshotDetailsModal(ModalScreen[None]):
         self._rows = rows  # [(label, value), ...]
 
     def compose(self) -> ComposeResult:
+        """Build the title, read-only parameter table and close hint."""
         with Container(id="snapshot-details-dialog"):
             yield Label(self._title, classes=_CSS.TITLE)
             yield VimDataTable(id="snapshot-details-table", show_header=True)
             yield Label(_Hint.CLOSE, classes=_CSS.HINT)
 
     def on_mount(self) -> None:
+        """Populate the table from `_rows`."""
         table = self.query_one(DataTable)
         table.cursor_type = "none"
         table.add_columns("Parameter", "Value")
@@ -817,6 +876,7 @@ class SnapshotDetailsModal(ModalScreen[None]):
         table.styles.height = len(self._rows) + 2
 
     def action_cancel(self) -> None:
+        """Close the modal."""
         self.dismiss(None)
 
 
@@ -861,10 +921,12 @@ class HelpModal(ModalScreen[None]):
         self._tab_id = tab_id
 
     def compose(self) -> ComposeResult:
+        """Build the title, rendered help Markdown and close hint."""
         with Container(id="help-dialog"):
             yield Label("Help", classes=_CSS.TITLE)
             yield Markdown(_load_help(self._tab_id), id="help-content")
             yield Label(_Hint.CLOSE, classes=_CSS.HINT)
 
     def action_cancel(self) -> None:
+        """Close the modal."""
         self.dismiss(None)

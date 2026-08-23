@@ -41,7 +41,7 @@ needed. Each snapshot has its own note, which persists in the database.
 - **Quality metrics** — ICCS correlation coefficients per seismogram (always captured);
   MCCC metrics (only if MCCC has been run with the current parameters)
 
-Waveform data is not copied — snapshots only record parameter values.
+Waveform data are not copied — snapshots only record parameter values.
 
 ---
 
@@ -57,7 +57,7 @@ the menu with `Enter` to change them first.
 | `v` | Show details | View the event parameters (window, filter, min CC) as saved |
 | `s` | Preview stack | Open the ICCS stack plot built from this snapshot's parameters, without changing anything in the database |
 | `x` | Preview matrix image | Open the cross-correlation matrix image from this snapshot |
-| `w` | Save results to JSON | Export the snapshot's quality metrics and picks to a JSON file via a file-save dialogue |
+| `w` | Save results to JSON | Export the snapshot's quality metrics and picks to a JSON file via a file-save dialog |
 | `b` | Rollback to this snapshot | Restore these parameters as the current live values — overwrites the current parameters for this event |
 | `d` | Delete snapshot | Permanently remove the snapshot (the live parameters are not affected) |
 

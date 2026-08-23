@@ -1,5 +1,4 @@
-"""
-Manage the AIMBAT project database schema.
+"""Manage the AIMBAT project database schema.
 
 Schema changes are applied via [Alembic](https://alembic.sqlalchemy.org).
 Most users never need this command group — `aimbat project create` already

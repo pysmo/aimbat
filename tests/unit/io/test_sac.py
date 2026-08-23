@@ -36,7 +36,7 @@ class TestReadSeismogramData:
         assert isinstance(data, np.ndarray)
 
     def test_matches_pysmo_data(self, sac_file_good: Path) -> None:
-        """Verifies that the read data matches data read by pysmo.
+        """Verifies that the read data match data read by pysmo.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.

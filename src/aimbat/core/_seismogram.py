@@ -1,3 +1,5 @@
+"""Query, update, and delete AimbatSeismogram records and their processing parameters."""
+
 from collections.abc import Sequence
 from typing import Any, Literal, overload
 from uuid import UUID
@@ -41,6 +43,8 @@ def delete_seismogram(session: Session, seismogram_id: UUID) -> None:
         session: Database session.
         seismogram_id: Seismogram ID.
 
+    Raises:
+        NoResultFound: If no seismogram with the given ID is found.
     """
 
     logger.info(f"Deleting seismogram {seismogram_id}.")
@@ -72,6 +76,10 @@ def dump_seismogram_table(
         exclude: Set of field names to exclude from the output.
         event_id: Event ID to filter seismograms by (if none is provided,
             seismograms for all events are dumped).
+
+    Returns:
+        List of dicts representing the seismograms, built from the read
+        model when `from_read_model` is True or from the ORM model otherwise.
 
     Raises:
         ValueError: If both `by_alias` and `by_title` are True.
@@ -141,6 +149,9 @@ def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
     Args:
         session: Database session.
         seismogram_id: ID of seismogram to reset parameters for.
+
+    Raises:
+        NoResultFound: If no seismogram with the given ID is found.
     """
 
     logger.info(f"Resetting parameters for seismogram {seismogram_id}.")
@@ -215,6 +226,9 @@ def set_seismogram_parameter(
         name: Name of the parameter.
         value: Value to set parameter to.
 
+    Raises:
+        ValueError: If no seismogram with the given ID is found.
+        ValidationError: If `value` fails Pydantic validation for `name`.
     """
     from ._iccs import clear_mccc_quality
     from ._snapshot import compute_parameters_hash, sync_from_matching_hash
@@ -255,12 +269,19 @@ def get_selected_seismograms(
 ) -> Sequence[AimbatSeismogram]:
     """Get the selected seismograms for the given event.
 
+    A selected seismogram is one whose `select` parameter is set, i.e. one
+    that is included in the ICCS stack and, by default, in MCCC.
+
     Args:
         session: Database session.
         event_id: Event ID to get seismograms for (only used when all_events is False).
         all_events: Get the selected seismograms for all events.
 
-    Returns: Selected seismograms.
+    Returns:
+        Selected seismograms.
+
+    Raises:
+        ValueError: If `all_events` is False and `event_id` is not given.
     """
 
     if all_events is True:

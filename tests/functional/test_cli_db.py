@@ -41,7 +41,8 @@ class TestDbCommands:
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
     ) -> None:
         """A freshly created project is stamped immediately, so `db current`
-        should already report a revision rather than "no history"."""
+        should already report a revision rather than "no history".
+        """
         aimbat_subprocess(["project", "create"])
         result = aimbat_subprocess(["db", "current"])
         assert result.returncode == 0, result.stderr
@@ -80,14 +81,16 @@ class TestSchemaStalenessWarning:
     `sqlalchemy.exc.OperationalError` from whatever query happens to first
     touch a drifted column. Each `aimbat_subprocess` call is a fresh
     process, so the check (fired once via `first_connect`) is exercised
-    independently by each command below."""
+    independently by each command below.
+    """
 
     def test_silent_when_up_to_date(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
     ) -> None:
         """A freshly created (and therefore immediately-stamped) project
-        should never trigger the warning."""
+        should never trigger the warning.
+        """
         aimbat_subprocess(["project", "create"])
         result = aimbat_subprocess(["db", "current"])
         assert "run `aimbat db upgrade`" not in result.stderr
@@ -98,7 +101,8 @@ class TestSchemaStalenessWarning:
         db_path: Path,
     ) -> None:
         """A pre-Alembic database (no `alembic_version` table at all) should
-        trigger the "predates schema versioning" warning on any command."""
+        trigger the "predates schema versioning" warning on any command.
+        """
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:
             connection.execute("DROP TABLE alembic_version")
@@ -115,7 +119,8 @@ class TestSchemaStalenessWarning:
         db_path: Path,
     ) -> None:
         """`aimbat db upgrade` on a stale database must not print "run
-        `aimbat db upgrade`" - that's the exact command already running."""
+        `aimbat db upgrade`" - that's the exact command already running.
+        """
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:
             connection.execute("DROP TABLE alembic_version")
@@ -138,7 +143,8 @@ class TestSchemaStalenessWarning:
         different from "genuinely behind a known revision", which isn't
         constructible with only one migration in existence; see
         `tests/integration/core/test_migrations.py` for that case, tested
-        directly against `_build_staleness_warning`."""
+        directly against `_build_staleness_warning`.
+        """
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:
             connection.execute(
@@ -159,7 +165,8 @@ class TestSchemaStalenessWarning:
     ) -> None:
         """`aimbat db upgrade` against an unrecognised revision must fail
         with a friendly, actionable error - not a raw Alembic "Can't locate
-        revision" exception leaking straight to the user."""
+        revision" exception leaking straight to the user.
+        """
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:
             connection.execute(
@@ -177,7 +184,8 @@ class TestSchemaStalenessWarning:
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
     ) -> None:
         """No project at all should surface only the existing "run aimbat
-        project create" error, not a staleness warning about it."""
+        project create" error, not a staleness warning about it.
+        """
         result = aimbat_subprocess(["db", "current"])
         assert "run `aimbat db upgrade`" not in result.stderr
 
@@ -196,7 +204,8 @@ class TestStrictSchemaCheck:
     for third-party warning categories (Python resolves them too early
     during interpreter startup), so this setting sidesteps that by calling
     `warnings.simplefilter` programmatically instead of relying on
-    env-var-driven filter parsing."""
+    env-var-driven filter parsing.
+    """
 
     def test_still_succeeds_when_strict_and_up_to_date(
         self,
@@ -226,7 +235,8 @@ class TestStrictSchemaCheck:
         the exception and keeps running - exactly what this test does:
         opens the real `aimbat.db.engine` directly (bypassing the CLI) to
         exercise several new connections within one process and confirm
-        only the first raises."""
+        only the first raises.
+        """
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:
             connection.execute("DROP TABLE alembic_version")

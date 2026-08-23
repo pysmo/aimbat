@@ -1,4 +1,10 @@
-"""ICCS plotting functions for AIMBAT."""
+"""ICCS plotting and interactive parameter-adjustment functions for AIMBAT.
+
+Wraps the plotting and interactive widget functions from `pysmo.tools.iccs`.
+Where a widget lets a user change an alignment parameter (bandpass filter,
+phase pick, time window, minimum CC threshold), the change is persisted to
+the database once the interactive session ends.
+"""
 
 from typing import TYPE_CHECKING, Any
 

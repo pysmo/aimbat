@@ -146,7 +146,8 @@ class TestHandleIssues:
         command through the same red-panel/exit(1) path as any other
         exception - unlike other warnings, it's unconditionally promoted to
         an error rather than displayed and allowed to continue, so a stale
-        schema never lets a command silently proceed on drifted data."""
+        schema never lets a command silently proceed on drifted data.
+        """
         settings.log_level = "INFO"
 
         @handle_issues
@@ -166,7 +167,8 @@ class TestHandleIssues:
         DEBUG/TRACE mode - see `test_reraises_in_debug_mode`), a stale
         schema must still be promoted to an error even then: the promoting
         filter is installed unconditionally, only the try/except that turns
-        it into a styled panel is skipped in debugging mode."""
+        it into a styled panel is skipped in debugging mode.
+        """
         settings.log_level = "DEBUG"
 
         @handle_issues
@@ -180,7 +182,8 @@ class TestHandleIssues:
         self, recwarn: pytest.WarningsRecorder
     ) -> None:
         """A warning that isn't `SchemaStaleWarning` must reach the
-        previously active `showwarning`, not be swallowed by this decorator."""
+        previously active `showwarning`, not be swallowed by this decorator.
+        """
         settings.log_level = "INFO"
 
         @handle_issues
@@ -199,7 +202,8 @@ class TestHandleIssues:
         """If a warning has been promoted to an error (as
         `AIMBAT_STRICT_SCHEMA_CHECK` does), it must still exit 1 with an
         error panel - promotion happens during filter matching, before this
-        decorator's own warning-capturing logic would ever see it."""
+        decorator's own warning-capturing logic would ever see it.
+        """
         settings.log_level = "INFO"
 
         @handle_issues

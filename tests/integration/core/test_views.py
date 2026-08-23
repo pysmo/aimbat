@@ -136,7 +136,7 @@ class TestSeismogramQualityStatsFromEvent:
     def test_count_is_total_not_just_with_quality(
         self, loaded_session: Session
     ) -> None:
-        """count reflects all seismograms in the event, not just those with quality data."""
+        """Count reflects all seismograms in the event, not just those with quality data."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         total = len(event.seismograms)

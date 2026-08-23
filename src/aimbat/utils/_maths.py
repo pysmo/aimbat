@@ -17,7 +17,7 @@ def _narrow_pandas_type(val: Any) -> float | None:
 def _mean_and_sem_tuple(
     data: tuple[float | None, ...],
 ) -> tuple[float | None, float | None]:
-
+    """Return the cached mean and SEM for a tuple of numeric values."""
     series = pd.Series(data)
 
     return (

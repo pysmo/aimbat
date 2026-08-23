@@ -90,7 +90,12 @@ def cli_seismogram_delete(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Delete existing seismogram."""
+    """Delete an existing seismogram.
+
+    Cascades to its data source, processing parameters, and quality record.
+    Also removes this seismogram's parameter and quality data from every
+    snapshot that recorded it, including snapshots taken before deletion.
+    """
     from sqlmodel import Session
 
     from aimbat.core import delete_seismogram
@@ -188,6 +193,7 @@ def cli_seismogram_parameter_get(
 
     Args:
         name: Name of the seismogram parameter.
+        seismogram_id: UUID (or unique prefix) of the seismogram to query.
     """
     from sqlalchemy.exc import NoResultFound
     from sqlmodel import Session
@@ -222,6 +228,7 @@ def cli_seismogram_parameter_set(
     Args:
         name: Name of the seismogram parameter.
         value: Value of the seismogram parameter.
+        seismogram_id: UUID (or unique prefix) of the seismogram to modify.
     """
     from sqlmodel import Session
 

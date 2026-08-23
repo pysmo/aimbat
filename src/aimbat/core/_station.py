@@ -36,6 +36,9 @@ def delete_station(session: Session, station_id: UUID) -> None:
     Args:
         session: Database session.
         station_id: ID of the station to delete.
+
+    Raises:
+        NoResultFound: If no station with the given ID is found.
     """
 
     logger.info(f"Deleting station with id={station_id}.")
@@ -70,7 +73,12 @@ def get_stations_in_event(
         event_id: ID of the event to get stations for.
         as_json: Whether to return the result as JSON.
 
-    Returns: Stations in event.
+    Returns:
+        Stations in the event, as ORM model instances or as a JSON-serialisable
+        list of dicts depending on `as_json`.
+
+    Raises:
+        NoResultFound: If no event with the given ID is found.
     """
     logger.debug(f"Getting stations for event: {event_id}.")
 
@@ -116,7 +124,8 @@ def get_station_iccs_ccs(
         session: Database session.
         station_id: ID of the station.
 
-    Returns: Tuple of ICCS CC values, one per seismogram (None if not yet computed).
+    Returns:
+        Tuple of ICCS CC values, one per seismogram (None if not yet computed).
     """
     logger.debug(f"Getting ICCS CCs for {station_id=}.")
 
@@ -179,6 +188,10 @@ def dump_station_table(
         exclude: Set of field names to exclude from the output.
         event_id: Event ID to filter seismograms by (if none is provided,
             seismograms for all events are dumped).
+
+    Returns:
+        List of dicts representing the stations, built from the read model
+        when `from_read_model` is True or from the ORM model otherwise.
 
     Raises:
         ValueError: If both `by_alias` and `by_title` are True.

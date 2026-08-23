@@ -1,3 +1,5 @@
+"""Add data sources to an AIMBAT project, creating and linking station, event, and seismogram records."""
+
 import os
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -126,8 +128,27 @@ def _process_datasource(
 ) -> AimbatDataSource | None:
     """Process a single data source, creating whichever entities the data type supports.
 
-    Returns an `AimbatDataSource` when seismogram data is created, or `None`
+    Returns an `AimbatDataSource` when seismogram data are created, or `None`
     for station-only or event-only imports.
+
+    Args:
+        session: Database session.
+        datasource: Path or identifier of the data source to process.
+        datatype: Type of data, which determines which of station, event, and
+            seismogram creation are attempted.
+        station_id: UUID of an existing station to link to instead of
+            extracting one from `datasource`.
+        event_id: UUID of an existing event to link to instead of extracting
+            one from `datasource`.
+
+    Returns:
+        The created or reused `AimbatDataSource`, or `None` if `datatype`
+        does not support seismogram creation.
+
+    Raises:
+        ValueError: If `event_id` is given but no matching event exists, or
+            if `datatype` does not support the station or event creation
+            required to link a seismogram.
     """
 
     # Resolve station — use the provided UUID, extract from the source, or skip

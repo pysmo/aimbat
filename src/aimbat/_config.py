@@ -19,7 +19,12 @@ from aimbat._types import (
 
 
 class Settings(BaseSettings):
-    """Global configuration options for the AIMBAT application."""
+    """Runtime configuration for AIMBAT.
+
+    Values are populated, in order of precedence, from keyword arguments,
+    environment variables prefixed with `AIMBAT_`, and an `.env` file in the
+    current working directory.
+    """
 
     model_config = SettingsConfigDict(env_prefix="aimbat_", env_file=".env")
 
@@ -104,11 +109,6 @@ class Settings(BaseSettings):
         description="Directory to store downloaded sample data.",
     )
 
-    sampledata_src: str = Field(
-        default="https://github.com/pysmo/data-example/archive/refs/heads/aimbat_v2.zip",
-        description="URL where sample data is downloaded from.",
-    )
-
     strict_schema_check: bool = Field(
         default=False,
         description=(
@@ -151,7 +151,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def set_computed_defaults(self) -> Self:
-        """Set defaults that depend on other fields."""
+        """Derive `db_url` from `project` when not set explicitly."""
         if self.db_url == "":
             self.db_url = f"sqlite+pysqlite:///{self.project}"
         return self
@@ -161,10 +161,12 @@ settings = Settings()
 
 
 def print_settings_table(pretty: bool) -> None:
-    """Print a table with AIMBAT configuration options.
+    """Print the current AIMBAT configuration.
 
     Args:
-        pretty: Print the table in a pretty format.
+        pretty: If True, print a Rich table with name, value, and
+            description columns. If False, print each setting as a
+            shell-style `AIMBAT_NAME="value"` assignment.
     """
     import json
 
@@ -217,11 +219,10 @@ def cli_settings_list(
     *,
     pretty: bool = True,
 ) -> None:
-    """Print a table with default settings currently in use by AIMBAT.
+    """Print the AIMBAT configuration currently in effect.
 
-    These defaults control the default behaviour of AIMBAT within a project.
-    Overriding these defaults can be done on a per-project basis in the
-    following ways (in order of precedence):
+    These settings control the default behaviour of AIMBAT within a project.
+    They can be overridden on a per-project basis, in order of precedence:
 
     - By using environment variables of the form `AIMBAT_{SETTING_NAME}`
       (e.g. `AIMBAT_LOG_LEVEL=DEBUG`).
@@ -229,17 +230,27 @@ def cli_settings_list(
       (e.g. `AIMBAT_LOG_LEVEL=DEBUG` in `.env`).
 
     Args:
-        pretty: Print the table in a pretty format.
+        pretty: If True, print a Rich table with name, value, and
+            description columns. If False, print each setting as a
+            shell-style `AIMBAT_NAME="value"` assignment.
     """
     print_settings_table(pretty)
 
 
 def generate_settings_table_markdown() -> str:
-    """Generate a markdown table of all AIMBAT default settings."""
+    """Generate a Markdown table of all AIMBAT default settings.
+
+    Returns:
+        Markdown table text, with one row per setting giving its
+        environment variable name, default value, and description.
+    """
     import json
 
     class _DefaultsOnly(Settings):
-        """Settings subclass that ignores all external sources."""
+        """Settings subclass that ignores environment variables and `.env` files.
+
+        Used to read field defaults uninfluenced by the current environment.
+        """
 
         @classmethod
         def settings_customise_sources(
@@ -250,6 +261,7 @@ def generate_settings_table_markdown() -> str:
             dotenv_settings: PydanticBaseSettingsSource,
             file_secret_settings: PydanticBaseSettingsSource,
         ) -> tuple[PydanticBaseSettingsSource, ...]:
+            """Return no settings sources, so only field defaults apply."""
             return ()
 
     env_prefix = Settings.model_config.get("env_prefix", "").upper()

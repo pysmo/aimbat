@@ -1,5 +1,4 @@
-"""
-AIMBAT command line interface entrypoint for all other commands.
+"""AIMBAT command line interface entrypoint for all other commands.
 
 This is the main command line interface for AIMBAT. It must be executed with a
 command (as specified below) to actually do anything. Help for individual

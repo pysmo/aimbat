@@ -55,7 +55,11 @@ def cli_event_delete(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Delete existing event."""
+    """Delete an existing event.
+
+    Cascades to all of the event's seismograms (with their data sources,
+    parameters, and quality records) and to every snapshot taken for it.
+    """
     from aimbat.core import delete_event, resolve_event
     from aimbat.db import engine
 
@@ -178,6 +182,7 @@ def cli_event_parameter_get(
 
     Args:
         name: Event parameter name.
+        event_debug_parameters: Event context and debug mode.
     """
 
     from sqlmodel import Session
@@ -203,6 +208,7 @@ def cli_event_parameter_set(
     Args:
         name: Event parameter name.
         value: New parameter value.
+        event_debug_parameters: Event context and debug mode.
     """
     from sqlmodel import Session
 

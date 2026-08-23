@@ -1,5 +1,4 @@
-"""
-Manage AIMBAT projects.
+"""Manage AIMBAT projects.
 
 This command manages projects. By default, the project consists
 of a file called `aimbat.db` in the current working directory. All aimbat
@@ -40,7 +39,10 @@ def cli_project_create(*, _: DebugParameter = DebugParameter()) -> None:
 @app.command(name="delete")
 @handle_issues
 def cli_project_delete(*, _: DebugParameter = DebugParameter()) -> None:
-    """Delete project (note: this does *not* delete seismogram files)."""
+    """Delete the AIMBAT project database.
+
+    Does not delete the underlying seismogram data source files.
+    """
     from aimbat.core import delete_project
     from aimbat.db import engine
 

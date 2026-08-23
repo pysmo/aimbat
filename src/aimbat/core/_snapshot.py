@@ -1,3 +1,14 @@
+"""Create, restore, and query AIMBAT snapshots of processing parameters and quality metrics.
+
+A snapshot freezes a copy of an event's live event/seismogram parameters and,
+when available, its live quality metrics (`AimbatSeismogramQuality.iccs_cc`
+and the MCCC diagnostics) for later inspection or rollback. Snapshots are
+matched to the live state by a deterministic hash of the parameters that
+affect ICCS and MCCC output (`compute_parameters_hash`), which lets a live
+quality record be repopulated from a matching prior snapshot instead of being
+recomputed (`sync_from_matching_hash`).
+"""
+
 import hashlib
 import json
 from collections.abc import Sequence
@@ -219,8 +230,17 @@ def create_snapshot(
 def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
     """Rollback to an AIMBAT parameters snapshot.
 
+    Restores the event's and its seismograms' live parameters to the values
+    frozen in the snapshot, then attempts to repopulate live quality metrics
+    from a snapshot with a matching parameters hash (see
+    `sync_from_matching_hash`).
+
     Args:
+        session: Database session.
         snapshot_id: Snapshot id.
+
+    Raises:
+        ValueError: If no snapshot with the given ID is found.
     """
 
     logger.info(f"Rolling back to snapshot with id={snapshot_id}.")
@@ -381,7 +401,11 @@ def delete_snapshot(session: Session, snapshot_id: UUID) -> None:
     """Delete an AIMBAT parameter snapshot.
 
     Args:
+        session: Database session.
         snapshot_id: Snapshot id.
+
+    Raises:
+        NoResultFound: If no snapshot with the given ID is found.
     """
     logger.info(f"Deleting snapshot {snapshot_id}.")
 
@@ -402,7 +426,8 @@ def get_snapshots(
         session: Database session.
         event_id: Event ID to filter snapshots by (if none is provided, snapshots for all events are returned).
 
-    Returns: Snapshots.
+    Returns:
+        Snapshots.
     """
     logger.debug("Getting AIMBAT snapshots.")
 
@@ -443,6 +468,14 @@ def dump_snapshot_table(
         by_title: Whether to use titles for the field names in the output (only
             applicable when from_read_model is True). Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
+
+    Returns:
+        List of dicts representing the snapshots, built from the read model
+        when `from_read_model` is True or from the ORM model otherwise.
+
+    Raises:
+        ValueError: If both `by_alias` and `by_title` are True.
+        ValueError: If `by_title` is True but `from_read_model` is False.
     """
     logger.debug("Dumping AimbatSnapshot table to json.")
 
@@ -574,6 +607,9 @@ def dump_event_parameter_snapshot_table(
             snapshots for all events are dumped).
         by_alias: Whether to use serialization aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
+
+    Returns:
+        List of dicts, one per event parameters snapshot.
     """
     logger.debug("Dumping AimbatEventParametersSnapshot table to json.")
 
@@ -607,6 +643,10 @@ def dump_seismogram_parameter_snapshot_table(
             snapshots for all events are dumped).
         by_alias: Whether to use serialization aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
+
+    Returns:
+        List of dicts, one per seismogram parameters snapshot across all
+        matching snapshots.
     """
     logger.debug("Dumping AimbatSeismogramParametersSnapshot table to json.")
 
@@ -640,6 +680,10 @@ def dump_event_quality_snapshot_table(
             snapshots for all events are dumped).
         by_alias: Whether to use serialization aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
+
+    Returns:
+        List of dicts, one per snapshot that has an event quality record
+        (snapshots taken before any quality data existed are omitted).
     """
     logger.debug("Dumping AimbatEventQualitySnapshot table to json.")
 
@@ -678,6 +722,10 @@ def dump_seismogram_quality_snapshot_table(
             snapshots for all events are dumped).
         by_alias: Whether to use serialization aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
+
+    Returns:
+        List of dicts, one per seismogram quality record captured across all
+        matching snapshots.
     """
     logger.debug("Dumping AimbatSeismogramQualitySnapshot table to json.")
 

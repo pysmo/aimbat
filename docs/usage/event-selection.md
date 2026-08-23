@@ -18,19 +18,13 @@ one event at a time.
     event list
     ```
 
-The table shows each event's ID, time, and location. IDs are displayed in
-their shortest unambiguous form — use any unique prefix when passing an
-ID to other commands.
-
 === "TUI"
 
     Events are listed in the **Project** tab under **Events**.
 
-=== "GUI"
-
-    Events are listed in the **Project** tab.
-
----
+The table shows each event's ID, time, and location. IDs are displayed in their
+shortest unambiguous form — use any unique prefix when passing an ID to other
+commands.
 
 ## Selecting an Event for the CLI and Shell
 
@@ -56,8 +50,8 @@ aimbat align iccs --event 6a4a
 ### 2. The `DEFAULT_EVENT_ID` environment variable
 
 If you are working on the same event for multiple commands, set the
-`DEFAULT_EVENT_ID` environment variable in your shell. AIMBAT uses it
-whenever no explicit ID is provided:
+`DEFAULT_EVENT_ID` environment variable in your shell. AIMBAT uses it whenever
+no explicit ID is provided:
 
 ```bash
 export DEFAULT_EVENT_ID=6a4a
@@ -69,33 +63,21 @@ The shell prompt also reflects this ID when set. To clear it, unset the
 variable: `unset DEFAULT_EVENT_ID`.
 
 !!! note
-    `DEFAULT_EVENT_ID` is a plain shell environment variable consumed directly
-    by the CLI argument parser. It is **not** an AIMBAT setting: it has no
-    `AIMBAT_` prefix, cannot be set in `.env`, and does not appear in
-    `aimbat settings list`.
 
----
+    `DEFAULT_EVENT_ID` is a plain shell environment variable consumed directly by
+    the CLI argument parser. It is **not** an AIMBAT setting: it has no `AIMBAT_`
+    prefix, cannot be set in `.env`, and does not appear in `aimbat settings list`.
 
-## Selecting an event for processing (TUI / GUI)
+## Selecting an event for processing (TUI)
 
-The TUI and GUI maintain their own event selection independently of the
-CLI / shell context — changing it here does not affect what the CLI uses,
-and vice versa.
+The TUI maintains its own event selection independently of the CLI / shell
+context — changing it here does not affect what the CLI uses, and vice versa.
 
 === "TUI"
 
-    Two ways to select an event:
+    In the **Project** tab, navigate to the **Events** table and press `s` (or press
+    `Enter` on a row and choose **Select event**).
 
-    - Press `e` to open the event switcher, navigate with `j` / `k`, and
-      press `Enter` to select.
-    - In the **Project** tab, navigate to the **Events** table, press `Enter`
-      on a row, and choose **Select event**.
-
-    The selected event is shown in the event bar at the top of the screen
-    and marked with `▶` in both the switcher and the events table.
-
-=== "GUI"
-
-    Select an event in the **Project** tab. The selection is reflected across
-    the **Event**, **Snapshots**, and **Processing** tabs.
-
+    The selected event is shown in the event bar at the top of the screen and marked
+    with `▶` in the events table. Selecting an event populates the **Live data** and
+    **Snapshots** tabs with that event's data.

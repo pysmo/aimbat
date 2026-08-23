@@ -2,8 +2,8 @@
 
 Each subcommand opens an interactive matplotlib plot for an event. Use
 `--event-id` or set the `DEFAULT_EVENT_ID` environment variable to choose
-which event to work with. Click on the plot to set the chosen value, then
-close the window to save it.
+which event to work with. Interact with the plot (click or scroll, depending
+on the tool) to set the chosen value, then close the window to save it.
 """
 
 from typing import Annotated

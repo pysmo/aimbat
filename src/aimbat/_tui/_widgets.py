@@ -47,12 +47,15 @@ class VimDataTable(DataTable):
     ]
 
     def on_focus(self) -> None:
+        """Post `Focused` when the table gains keyboard focus."""
         self.post_message(self.Focused(self))
 
     def action_scroll_home(self) -> None:
+        """Move the cursor to the first row."""
         self.move_cursor(row=0)
 
     def action_scroll_end(self) -> None:
+        """Move the cursor to the last row."""
         if self.row_count > 0:
             self.move_cursor(row=self.row_count - 1)
 
@@ -67,6 +70,7 @@ class SeismogramPlotWidget(Widget):
     BORDER_TITLE = "Seismogram"
 
     def compose(self) -> ComposeResult:
+        """Build the CC and Context plot tabs."""
         with TabbedContent(initial="seis-plot-tab-cc"):
             with TabPane("CC", id="seis-plot-tab-cc"):
                 yield PlotextPlot(id="seis-cc-plot")
@@ -116,6 +120,7 @@ class _NoteTextArea(TextArea):
         """Posted when the edit area loses keyboard focus."""
 
     def on_blur(self) -> None:
+        """Post `Blurred` when the edit area loses keyboard focus."""
         self.post_message(self.Blurred())
 
 
@@ -143,6 +148,7 @@ class NoteWidget(Widget):
         self._saved_content: str = ""
 
     def compose(self) -> ComposeResult:
+        """Build the View (rendered Markdown) and Edit (text area) tabs."""
         with TabbedContent(id="note-tabs"):
             with TabPane("View", id="note-tab-view"):
                 yield Markdown("", id="note-markdown")
@@ -181,10 +187,12 @@ class NoteWidget(Widget):
 
     @on(_NoteTextArea.Blurred)
     def _on_textarea_blur(self) -> None:
+        """Save the note when the edit area loses focus."""
         self._auto_save()
 
     @on(TabbedContent.TabActivated, "#note-tabs")
     def _on_note_tab_switch(self, event: TabbedContent.TabActivated) -> None:
+        """Save the note and refresh the rendered view when switching to the View tab."""
         if event.pane.id == "note-tab-view":
             self._auto_save()
             with suppress(NoMatches):
@@ -195,6 +203,7 @@ class NoteWidget(Widget):
                 )
 
     def _auto_save(self) -> None:
+        """Persist the edit area's content to the current entity if it has changed."""
         if self._target_type is None or self._target_id is None:
             return
         content = self._saved_content

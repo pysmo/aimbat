@@ -1,3 +1,5 @@
+"""Formatters for displaying values in tables and panels."""
+
 import math
 from collections.abc import Callable
 from typing import Any
@@ -83,8 +85,10 @@ def fmt_timedelta(td: Timedelta | None, decimals: int = 4) -> str:
 def fmt_timedelta_sem(
     mean: Timedelta | None, sem: Timedelta | None, decimals: int = 4
 ) -> str:
-    """Format a `Timedelta` mean with an optional SEM as `mean ± sem` (in
-    seconds), or `—` if `mean` is `None`."""
+    """Format a `Timedelta` mean with an optional SEM as `mean ± sem` (in seconds).
+
+    Returns `—` if `mean` is `None`.
+    """
     if mean is None:
         return _MISSING
     s = mean.total_seconds()

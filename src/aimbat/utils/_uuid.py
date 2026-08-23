@@ -1,4 +1,4 @@
-"""UUID functions for AIMBAT."""
+"""Helpers for resolving and shortening AIMBAT record UUIDs."""
 
 from uuid import UUID
 
@@ -32,7 +32,7 @@ def string_to_uuid(
         The full UUID.
 
     Raises:
-        ValueError: If the UUID could not be determined.
+        ValueError: If no record matches `id`, or more than one record does.
     """
     statement = select(aimbat_class.id).where(
         func.replace(cast(aimbat_class.id, String), "-", "").like(
@@ -66,7 +66,12 @@ def uuid_shortener[T: AimbatTypes](
         str_uuid: The full UUID string. Required only if `aimbat_obj` is a class.
 
     Returns:
-        str: The shortest unique prefix string, including hyphens where applicable.
+        The shortest unique prefix string, including hyphens where applicable.
+
+    Raises:
+        ValueError: If `aimbat_obj` is a class and `str_uuid` is not
+            provided, or if the resolved UUID has no matching record in the
+            table.
     """
 
     if isinstance(aimbat_obj, type):

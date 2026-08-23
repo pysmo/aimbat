@@ -3,9 +3,8 @@
 The sampledata subcommand manages an example dataset that can be used
 for testing or learning how to use AIMBAT.
 
-The sample data source url can be viewed or changed via `aimbat default
-<list/set> sampledata_src`. Likewise the sample data destination folder
-be viewed or changed via `aimbat default <list/set> sampledata_dir`.
+The sample data destination folder can be viewed with `aimbat utils
+settings` and changed by setting `AIMBAT_SAMPLEDATA_DIR`.
 """
 
 from typing import Annotated

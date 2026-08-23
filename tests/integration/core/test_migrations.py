@@ -98,7 +98,8 @@ class TestCreateAllVsMigrateParity:
     """`create_project()` (`create_all`) and `upgrade_project()` (Alembic)
     must produce structurally identical schemas, since both are used to
     reach the same "current schema" state via different code paths (§5 of
-    the Alembic plan)."""
+    the Alembic plan).
+    """
 
     @pytest.fixture
     def create_all_engine(self, tmp_path: Path) -> Generator[Engine, None, None]:
@@ -172,7 +173,8 @@ def test_triggers_helper_detects_body_drift(tmp_path: Path) -> None:
     """Guards `_triggers` itself: a same-named trigger with a different body
     must compare unequal, proving `test_same_triggers` would actually catch
     a trigger's logic silently drifting between `create_project()` and the
-    migration - not just a trigger being entirely missing or extra."""
+    migration - not just a trigger being entirely missing or extra.
+    """
     engine_a = create_engine(f"sqlite+pysqlite:///{tmp_path / 'a.db'}")
     engine_b = create_engine(f"sqlite+pysqlite:///{tmp_path / 'b.db'}")
     for engine in (engine_a, engine_b):
@@ -203,7 +205,8 @@ def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:
     silently dropping `AimbatEvent`'s unique `time` constraint or
     `aimbat_note_exactly_one_parent`, which the schema comparisons this
     module used before (tables/columns/foreign keys/triggers only) would
-    have missed entirely."""
+    have missed entirely.
+    """
     engine_with = create_engine(f"sqlite+pysqlite:///{tmp_path / 'with.db'}")
     engine_without = create_engine(f"sqlite+pysqlite:///{tmp_path / 'without.db'}")
 
@@ -250,7 +253,8 @@ class TestUpgradeProject:
         self, engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A pre-Alembic database (schema created but never stamped) should
-        be recognised and stamped automatically, not rejected."""
+        be recognised and stamped automatically, not rejected.
+        """
         from aimbat.core import _migrations
 
         # Simulate a database created before `create_project()` stamped at
@@ -268,7 +272,8 @@ class TestUpgradeProject:
         self, engine_from_file: Engine
     ) -> None:
         """A database with *some* schema that doesn't match any known
-        revision must be rejected rather than silently stamped."""
+        revision must be rejected rather than silently stamped.
+        """
         with engine_from_file.begin() as connection:
             connection.execute(text("CREATE TABLE aimbatevent (id TEXT)"))
 
@@ -283,7 +288,8 @@ class TestUpgradeProject:
         scripts don't recognise at all (e.g. a different/newer AIMBAT
         release, or a corrupted `alembic_version` value) must be rejected
         with a friendly error, not `command.upgrade()`'s raw "Can't locate
-        revision" exception."""
+        revision" exception.
+        """
         create_project(engine_from_file)
         with engine_from_file.begin() as connection:
             connection.execute(
@@ -342,7 +348,8 @@ def two_revision_migrations(
     """Points `core._migrations` at a disposable, hand-written two-revision
     migration chain (unrelated to AIMBAT's real models), so multi-revision
     matching can be tested against a genuine "older, non-head revision"
-    without needing a second real AIMBAT migration to exist yet."""
+    without needing a second real AIMBAT migration to exist yet.
+    """
     from aimbat.core import _migrations
 
     migrations_dir = tmp_path / "test_migrations"
@@ -391,7 +398,8 @@ class TestFindMatchingRevisionAcrossMultipleRevisions:
     skipped an intermediate AIMBAT release, matching an older revision
     exactly. Only one real AIMBAT migration exists today, so this uses a
     disposable synthetic two-revision chain (`two_revision_migrations`) to
-    actually exercise the multi-revision path."""
+    actually exercise the multi-revision path.
+    """
 
     def test_matches_older_revision_not_just_head(
         self, tmp_path: Path, two_revision_migrations: None
@@ -408,7 +416,8 @@ class TestFindMatchingRevisionAcrossMultipleRevisions:
     ) -> None:
         """The full `upgrade_project()` path: stamp at the matched older
         revision, then apply the remaining migrations on top - not reject
-        outright just because the live schema doesn't match head."""
+        outright just because the live schema doesn't match head.
+        """
         engine = _build_database_matching_first_revision_only(tmp_path / "old.db")
 
         assert get_current_revision(engine) is None
@@ -427,11 +436,13 @@ class TestBuildStalenessWarning:
     can't be constructed with real data while only one migration exists
     (any non-head, non-`None` value is definitionally unrecognised today),
     so the "genuinely behind" case is simulated by monkeypatching the set
-    of known ancestors."""
+    of known ancestors.
+    """
 
     def test_unrecognised_revision_does_not_suggest_upgrade(self) -> None:
         """The message must not tell the user to run `aimbat db upgrade`
-        for a revision that command can't actually resolve."""
+        for a revision that command can't actually resolve.
+        """
         from aimbat.core import _migrations
 
         warning = _migrations._build_staleness_warning("not_a_real_revision")
@@ -444,7 +455,8 @@ class TestBuildStalenessWarning:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A revision that genuinely is a known ancestor of head must still
-        get the normal "run `aimbat db upgrade`" advice."""
+        get the normal "run `aimbat db upgrade`" advice.
+        """
         from aimbat.core import _migrations
 
         monkeypatch.setattr(
@@ -461,7 +473,8 @@ class TestBuildStalenessWarning:
 
     def test_none_still_means_legacy_predates_versioning(self) -> None:
         """`None` (never stamped at all) keeps its own distinct message,
-        unaffected by the unrecognised-revision check."""
+        unaffected by the unrecognised-revision check.
+        """
         from aimbat.core import _migrations
 
         warning = _migrations._build_staleness_warning(None)

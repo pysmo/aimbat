@@ -7,7 +7,8 @@ Three modules are re-exported from here:
   typing and validation.
 - `_pydantic` — `PydanticTimestamp`, `PydanticTimedelta`, and constrained
   variants (`PydanticPositiveTimedelta`, `PydanticNegativeTimedelta`,
-  `PydanticNonNegativeFloat`) for use in Pydantic models.
+  `PydanticNonNegativeTimedelta`, `PydanticNonNegativeFloat`) for use in
+  Pydantic models.
 - `_sqlalchemy` — `SAPandasTimestamp` and `SAPandasTimedelta` SQLAlchemy
   `TypeDecorator` classes for storing `pandas.Timestamp` and
   `pandas.Timedelta` values in the database.

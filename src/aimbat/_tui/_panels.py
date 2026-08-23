@@ -113,11 +113,11 @@ def _settle_cursor(
     tables: Sequence[tuple[DataTable, int]],
     on_settled: Callable[[], None],
 ) -> None:
-    """Restore cursor position on `tables`, deferring `on_settled` until any
-    RowHighlighted events the moves trigger have been processed.
+    """Restore cursor position on `tables`.
 
-    If none of `tables` has any rows, no cursor move happens and `on_settled`
-    runs immediately instead of being deferred.
+    Defers `on_settled` until any RowHighlighted events the moves trigger
+    have been processed. If none of `tables` has any rows, no cursor move
+    happens and `on_settled` runs immediately instead of being deferred.
     """
     moved = False
     for table, saved_row in tables:
@@ -139,9 +139,11 @@ def _setup_table(
     *,
     extra_columns: Sequence[str] = (),
 ) -> DataTable:
-    """Configure the `DataTable` at `selector`: border title, row cursor, and
-    columns derived from `model`'s fields (minus `exclude` and `id`),
-    prefixed by any `extra_columns`."""
+    """Configure the `DataTable` at `selector`.
+
+    Sets the border title, row cursor, and columns derived from `model`'s
+    fields (minus `exclude` and `id`), prefixed by any `extra_columns`.
+    """
     headers = [
         tui_display_title(model, f)
         for f in model.model_fields
@@ -155,8 +157,10 @@ def _setup_table(
 
 
 def _styled_cell(cell: str | Text, style: str) -> Text:
-    """Return `cell` as a `Text` with `style` applied, preserving any
-    existing `Text` formatting (e.g. `text_align`)."""
+    """Return `cell` as a `Text` with `style` applied.
+
+    Preserves any existing `Text` formatting (e.g. `text_align`).
+    """
     if isinstance(cell, Text):
         styled = cell.copy()
         styled.stylize(style)
@@ -172,8 +176,9 @@ def _populate_rows(
     on_row: Callable[[dict[str, Any]], Sequence[str]] | None = None,
     row_style: Callable[[dict[str, Any]], str | None] | None = None,
 ) -> None:
-    """Add `rows` (dicts with title keys and an "ID" key) to `table`,
-    formatting cells via `tui_cell(model, ...)`.
+    """Add `rows` (dicts with title keys and an "ID" key) to `table`.
+
+    Cells are formatted via `tui_cell(model, ...)`.
 
     If given, `on_row` is called with each row dict before "ID" is popped;
     its return value is prepended as extra leading cells (e.g. a marker).
@@ -235,8 +240,11 @@ def _open_row_action_menu(
     title: str,
     dispatch: Callable[[str, str, str], None],
 ) -> None:
-    """Open the row-action menu for `tab`, calling `dispatch(tab, item_id, action)`
-    if the user picks an action (does nothing if they cancel)."""
+    """Open the row-action menu for `tab`.
+
+    Calls `dispatch(tab, item_id, action)` if the user picks an action (does
+    nothing if they cancel).
+    """
     actions = _TAB_ROW_ACTIONS.get(tab, [])
     if not actions:
         return
@@ -276,6 +284,11 @@ class _RowActionTable(VimDataTable):
             return self.table
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Derive `BINDINGS` from `_TAB_ROW_ACTIONS[cls.TAB_ID]`.
+
+        Args:
+            **kwargs: Forwarded to `Widget.__init_subclass__`.
+        """
         # Textual's own DOMNode.__init_subclass__ (called via super() below)
         # merges BINDINGS across the MRO into cls._merged_bindings as part of
         # its own class-setup work, so BINDINGS must already reflect this
@@ -293,11 +306,25 @@ class _RowActionTable(VimDataTable):
         super().__init_subclass__(**kwargs)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Disable row-action hotkeys when the table has no rows.
+
+        Args:
+            action: Name of the action being checked.
+            parameters: Arguments the action would be called with.
+
+        Returns:
+            Whether the action is currently available.
+        """
         if action == "row_action":
             return self.row_count > 0
         return True
 
     def action_row_action(self, action_id: str) -> None:
+        """Post `RowActionSelected` for the row under the cursor.
+
+        Args:
+            action_id: ID of the row action that was triggered.
+        """
         if self.row_count == 0:
             return
         row_key = self.coordinate_to_cell_key(self.cursor_coordinate).row_key.value
@@ -352,6 +379,7 @@ class ProjectPanel(Widget):
             self.action = action
 
     def compose(self) -> ComposeResult:
+        """Build the event and station tables and the shared quality/note panels."""
         with Horizontal(id="project-layout"):
             with Vertical(id="project-tables"):
                 yield _EventTable(id="project-event-table")
@@ -361,6 +389,7 @@ class ProjectPanel(Widget):
                 yield NoteWidget(id="project-note")
 
     def on_mount(self) -> None:
+        """Initialise selection state and configure the event and station table columns."""
         self._highlighted_event_id: str | None = None
         self._highlighted_station_id: str | None = None
         self._quality_source: Literal["event", "station"] = "event"
@@ -382,6 +411,18 @@ class ProjectPanel(Widget):
         )
 
     def refresh_data(self, current_event_id: uuid.UUID | None) -> None:
+        """Reload the event and station tables from the database.
+
+        Marks the active event's row with an arrow, dims stations that have
+        no seismograms in the active event, and updates the border titles
+        with event/completed counts and the active event's station count.
+        Preserves cursor position where possible and refreshes the quality
+        panel once the cursor has settled.
+
+        Args:
+            current_event_id: ID of the currently active event, or `None`
+                if no event is selected.
+        """
         et = self.query_one("#project-event-table", DataTable)
         st = self.query_one("#project-station-table", DataTable)
         et_saved, st_saved = et.cursor_row, st.cursor_row
@@ -452,10 +493,12 @@ class ProjectPanel(Widget):
         _settle_cursor(self, [(et, et_saved), (st, st_saved)], self._on_settled)
 
     def _dispatch_row_action(self, tab: str, item_id: str, action: str) -> None:
+        """Post `RowActionChosen` for the given tab, row and action."""
         self.post_message(self.RowActionChosen(tab, item_id, action))
 
     @on(DataTable.RowSelected, "#project-event-table")
     def project_event_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Open the row-action menu for the selected event."""
         if event.row_key.value:
             _open_row_action_menu(
                 self,
@@ -467,6 +510,7 @@ class ProjectPanel(Widget):
 
     @on(DataTable.RowSelected, "#project-station-table")
     def project_station_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Open the row-action menu for the selected station."""
         if event.row_key.value:
             _open_row_action_menu(
                 self,
@@ -478,6 +522,7 @@ class ProjectPanel(Widget):
 
     @on(_RowActionTable.RowActionSelected)
     def _row_action_selected(self, message: _RowActionTable.RowActionSelected) -> None:
+        """Dispatch a row action triggered via a footer hotkey."""
         message.stop()
         self._dispatch_row_action(
             message.table.TAB_ID, message.row_key, message.action_id
@@ -485,6 +530,7 @@ class ProjectPanel(Widget):
 
     @on(DataTable.RowHighlighted, "#project-event-table")
     def project_event_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Track the highlighted event and show its live quality statistics."""
         self._highlighted_event_id = event.row_key.value if event.row_key else None
         if not self._refreshing:
             self._quality_source = "event"
@@ -492,6 +538,7 @@ class ProjectPanel(Widget):
 
     @on(DataTable.RowHighlighted, "#project-station-table")
     def project_station_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Track the highlighted station and show its live quality statistics."""
         self._highlighted_station_id = event.row_key.value if event.row_key else None
         if not self._refreshing:
             self._quality_source = "station"
@@ -499,17 +546,20 @@ class ProjectPanel(Widget):
 
     @on(VimDataTable.Focused, "#project-event-table")
     def _project_event_table_focused(self) -> None:
+        """Switch the quality panel to show event statistics when the event table gains focus."""
         if not self._refreshing:
             self._quality_source = "event"
             self._update_event_quality(self._highlighted_event_id)
 
     @on(VimDataTable.Focused, "#project-station-table")
     def _project_station_table_focused(self) -> None:
+        """Switch the quality panel to show station statistics when the station table gains focus."""
         if not self._refreshing:
             self._quality_source = "station"
             self._update_station_quality(self._highlighted_station_id)
 
     def _update_event_quality(self, item_id: str | None) -> None:
+        """Refresh the quality panel and note widget for the given event."""
         _update_quality_panel(
             self.query_one("#project-quality-panel", Static),
             self.query_one("#project-note", NoteWidget),
@@ -520,6 +570,7 @@ class ProjectPanel(Widget):
         )
 
     def _update_station_quality(self, item_id: str | None) -> None:
+        """Refresh the quality panel and note widget for the given station."""
         _update_quality_panel(
             self.query_one("#project-quality-panel", Static),
             self.query_one("#project-note", NoteWidget),
@@ -530,6 +581,7 @@ class ProjectPanel(Widget):
         )
 
     def _on_settled(self) -> None:
+        """Refresh the quality panel for whichever table last had focus, once cursor moves have settled."""
         self._refreshing = False
         if self._quality_source == "station":
             self._update_station_quality(self._highlighted_station_id)
@@ -558,6 +610,7 @@ class SeismogramPanel(Widget):
             self.action = action
 
     def compose(self) -> ComposeResult:
+        """Build the seismogram table, waveform plot and note panels."""
         with Horizontal(id="seismogram-layout"):
             yield _SeismogramTable(id="seismogram-table")
             with Vertical(id="seismogram-right-panel"):
@@ -565,6 +618,7 @@ class SeismogramPanel(Widget):
                 yield NoteWidget(id="seismogram-note")
 
     def on_mount(self) -> None:
+        """Initialise selection state and configure the seismogram table columns."""
         self._highlighted_id: str | None = None
         self._refreshing: bool = False
         self._bound_iccs: BoundICCS | None = None
@@ -579,6 +633,21 @@ class SeismogramPanel(Widget):
     def refresh_data(
         self, current_event_id: uuid.UUID | None, bound_iccs: BoundICCS | None
     ) -> None:
+        """Reload the seismogram table from the database and cache the bound ICCS instance.
+
+        Rows are sorted by stack CC (highest first, unselected seismograms
+        last) using the live CC values from `bound_iccs` where available.
+        Updates the border title with the mean CC for selected and all
+        seismograms. Preserves cursor position where possible and refreshes
+        the note and plot for the highlighted row once the cursor has
+        settled.
+
+        Args:
+            current_event_id: ID of the currently active event, or `None`
+                if no event is selected.
+            bound_iccs: Current ICCS instance for the active event, or
+                `None` if it is not ready.
+        """
         self._bound_iccs = bound_iccs
         table = self.query_one("#seismogram-table", DataTable)
         saved_row = table.cursor_row
@@ -642,22 +711,26 @@ class SeismogramPanel(Widget):
         _settle_cursor(self, [(table, saved_row)], self._on_settled)
 
     def clear_selection_if_empty(self) -> None:
+        """Clear the note and plot panels if the seismogram table has no rows."""
         if self.query_one("#seismogram-table", DataTable).row_count == 0:
             self._update_seismogram_note(None)
             self._update_seismogram_plot(None)
 
     @on(DataTable.RowHighlighted, "#seismogram-table")
     def seismogram_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Track the highlighted seismogram and refresh its note and waveform plot."""
         self._highlighted_id = event.row_key.value if event.row_key else None
         if not self._refreshing:
             self._update_seismogram_note(self._highlighted_id)
             self._update_seismogram_plot(self._highlighted_id)
 
     def _dispatch_row_action(self, tab: str, item_id: str, action: str) -> None:
+        """Post `RowActionChosen` for the given row and action."""
         self.post_message(self.RowActionChosen(item_id, action))
 
     @on(DataTable.RowSelected, "#seismogram-table")
     def seismogram_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Open the row-action menu for the selected seismogram."""
         if event.row_key.value:
             _open_row_action_menu(
                 self,
@@ -669,17 +742,27 @@ class SeismogramPanel(Widget):
 
     @on(_RowActionTable.RowActionSelected)
     def _row_action_selected(self, message: _RowActionTable.RowActionSelected) -> None:
+        """Dispatch a row action triggered via a footer hotkey."""
         message.stop()
         self._dispatch_row_action(
             message.table.TAB_ID, message.row_key, message.action_id
         )
 
     def _update_seismogram_note(self, item_id: str | None) -> None:
+        """Bind the note widget to the given seismogram, or clear it if `item_id` is `None`."""
         _update_note(
             self.query_one("#seismogram-note", NoteWidget), "seismogram", item_id
         )
 
     def _update_seismogram_plot(self, item_id: str | None) -> None:
+        """Update the waveform plot with the CC and context windows of the given seismogram.
+
+        Clears the plot if `item_id` is `None`, no ICCS instance is bound,
+        or the seismogram cannot be located in the bound ICCS instance.
+
+        Args:
+            item_id: ID of the seismogram to plot, or `None` to clear.
+        """
         try:
             plot_widget = self.query_one("#seismogram-plot", SeismogramPlotWidget)
         except NoMatches:
@@ -718,6 +801,7 @@ class SeismogramPanel(Widget):
         )
 
     def _on_settled(self) -> None:
+        """Refresh the note and waveform plot once cursor moves have settled."""
         self._refreshing = False
         self._update_seismogram_note(self._highlighted_id)
         self._update_seismogram_plot(self._highlighted_id)
@@ -749,6 +833,7 @@ class SnapshotPanel(Widget):
             self.all_seismograms = all_seismograms
 
     def compose(self) -> ComposeResult:
+        """Build the snapshot table and the quality/note panels."""
         with Horizontal(id="snapshot-layout"):
             yield _SnapshotTable(id="snapshot-table")
             with Vertical(id="snapshot-right-panel"):
@@ -756,6 +841,7 @@ class SnapshotPanel(Widget):
                 yield NoteWidget(id="snapshot-note")
 
     def on_mount(self) -> None:
+        """Initialise selection state and configure the snapshot table columns."""
         self._highlighted_id: str | None = None
         self._refreshing: bool = False
         _setup_table(
@@ -767,6 +853,16 @@ class SnapshotPanel(Widget):
         )
 
     def refresh_data(self, current_event_id: uuid.UUID | None) -> None:
+        """Reload the snapshot table for the active event from the database.
+
+        Clears the table if no event is active. Preserves cursor position
+        where possible and refreshes the quality panel once the cursor has
+        settled.
+
+        Args:
+            current_event_id: ID of the currently active event, or `None`
+                if no event is selected.
+        """
         table = self.query_one("#snapshot-table", DataTable)
         saved_row = table.cursor_row
         table.clear()
@@ -789,17 +885,20 @@ class SnapshotPanel(Widget):
         _settle_cursor(self, [(table, saved_row)], self._on_settled)
 
     def clear_selection_if_empty(self) -> None:
+        """Clear the quality panel if the snapshot table has no rows."""
         if self.query_one("#snapshot-table", DataTable).row_count == 0:
             self._update_snapshot_quality(None)
 
     @on(DataTable.RowHighlighted, "#snapshot-table")
     def snapshot_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Track the highlighted snapshot and show its quality statistics."""
         self._highlighted_id = event.row_key.value if event.row_key else None
         if not self._refreshing:
             self._update_snapshot_quality(self._highlighted_id)
 
     @on(DataTable.RowSelected, "#snapshot-table")
     def snapshot_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Open the snapshot action menu and post the resolved action."""
         snap_id = event.row_key.value
         if not snap_id:
             return
@@ -819,6 +918,7 @@ class SnapshotPanel(Widget):
 
     @on(_RowActionTable.RowActionSelected)
     def _row_action_selected(self, message: _RowActionTable.RowActionSelected) -> None:
+        """Dispatch a row action triggered via a footer hotkey, using default preview options."""
         # Direct hotkeys use the modal's own default toggle values; non-default
         # context/all_seismograms combinations still require Enter -> modal.
         message.stop()
@@ -827,6 +927,7 @@ class SnapshotPanel(Widget):
         )
 
     def _update_snapshot_quality(self, item_id: str | None) -> None:
+        """Refresh the quality panel and note widget for the given snapshot."""
         _update_quality_panel(
             self.query_one("#snapshot-quality-panel", Static),
             self.query_one("#snapshot-note", NoteWidget),
@@ -837,5 +938,6 @@ class SnapshotPanel(Widget):
         )
 
     def _on_settled(self) -> None:
+        """Refresh the quality panel once cursor moves have settled."""
         self._refreshing = False
         self._update_snapshot_quality(self._highlighted_id)

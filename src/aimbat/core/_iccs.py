@@ -1,4 +1,12 @@
-"""Processing of data for AIMBAT."""
+"""Build and run ICCS/MCCC instances for AIMBAT events, and track their live quality metrics.
+
+Wraps `pysmo.tools.iccs.ICCS` with AIMBAT's database-backed event and
+seismogram parameters. `create_iccs_instance` builds (or reuses a
+process-level cached) `ICCS` instance for an event and keeps the
+`iccs_cc` quality field in sync with it; `run_iccs` and `run_mccc` run
+the corresponding alignment/picking algorithms and persist their
+results.
+"""
 
 from dataclasses import dataclass
 from uuid import UUID, uuid4
@@ -59,6 +67,11 @@ class BoundICCS:
 
         Args:
             event: The event to check against.
+
+        Returns:
+            True if `event.id` differs from the bound event, or if
+            `event.last_modified` has advanced since this instance was
+            created. False otherwise.
         """
         if event.id != self.event_id:
             return True
@@ -174,7 +187,7 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
 
     `MiniIccsSeismogram` instances are constructed directly from each
     `AimbatSeismogram`, passing `data` by reference to the read-only io cache.
-    No waveform data is copied.
+    No waveform data are copied.
 
     Args:
         session: Database session.
