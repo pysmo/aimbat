@@ -30,6 +30,7 @@ __all__ = [
     "get_events_using_station",
     "resolve_event",
     "set_event_parameter",
+    "toggle_event_completed",
     "dump_event_table",
     "dump_event_parameter_table",
     "dump_event_quality_table",
@@ -151,6 +152,35 @@ def get_events_using_station(
     logger.debug(f"Found {len(events)}.")
 
     return events
+
+
+def toggle_event_completed(session: Session, event_id: UUID) -> bool:
+    """Flip the `completed` flag on an event's parameters.
+
+    `completed` is excluded from the parameters hash used for snapshot
+    matching (it does not affect seismogram processing), so this does not
+    go through `set_event_parameter`'s snapshot-sync/MCCC-invalidation path.
+
+    Args:
+        session: Database session.
+        event_id: UUID of the event to toggle.
+
+    Returns:
+        The new value of the `completed` flag.
+
+    Raises:
+        NoResultFound: If no event with the given ID is found.
+    """
+    logger.debug(f"Toggling completed flag for event {event_id}.")
+
+    event = session.get(AimbatEvent, event_id)
+    if event is None:
+        raise NoResultFound(f"No AimbatEvent found with id: {event_id}.")
+
+    event.parameters.completed = not event.parameters.completed
+    session.add(event)
+    session.commit()
+    return event.parameters.completed
 
 
 def get_event_quality(session: Session, event_id: UUID) -> SeismogramQualityStats:

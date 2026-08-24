@@ -1,9 +1,25 @@
 from functools import lru_cache
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-__all__ = ["get_title_map"]
+__all__ = ["format_validation_error", "get_title_map"]
+
+
+def format_validation_error(exc: ValidationError) -> str:
+    """Format a `ValidationError` as a short, semicolon-joined message.
+
+    Strips the redundant `"Value error, "` prefix Pydantic adds to custom
+    validator messages, so the result is fit for display without leaking
+    implementation detail.
+
+    Args:
+        exc: The validation error to format.
+
+    Returns:
+        A single-line, semicolon-joined summary of all validation errors.
+    """
+    return "; ".join(e["msg"].removeprefix("Value error, ") for e in exc.errors())
 
 
 @lru_cache(maxsize=None)

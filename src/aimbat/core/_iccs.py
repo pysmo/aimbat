@@ -8,7 +8,7 @@ the corresponding alignment/picking algorithms and persist their
 results.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
 from pandas import Timestamp
@@ -26,7 +26,9 @@ from aimbat import settings
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
+    AimbatEventQuality,
     AimbatSeismogram,
+    AimbatSeismogramQuality,
     AimbatSnapshot,
 )
 from aimbat.models._parameters import (
@@ -38,6 +40,7 @@ from aimbat.utils import mean_and_sem, rel
 __all__ = [
     "BoundICCS",
     "CcStats",
+    "IccsLifecycle",
     "build_iccs_from_snapshot",
     "cc_stats",
     "clear_iccs_cache",
@@ -47,6 +50,7 @@ __all__ = [
     "run_mccc",
     "sync_iccs_parameters",
     "validate_iccs_construction",
+    "write_back_seismograms",
 ]
 
 
@@ -78,6 +82,103 @@ class BoundICCS:
         if event.last_modified is None:
             return False
         return event.last_modified > self.created_at
+
+
+@dataclass
+class IccsLifecycle:
+    """Framework-agnostic state and policy for keeping a `BoundICCS` up to date.
+
+    Owns the bound instance plus the bookkeeping needed to create it
+    asynchronously without blocking a UI thread: an in-progress guard so
+    overlapping creation attempts collapse into one, a one-shot retry flag
+    for recovering from a transient failure, and a fallback staleness check
+    (`event.last_modified`) for the window before any instance exists yet.
+
+    Callers own the actual I/O and threading (reading waveform data, running
+    in a background thread, marshalling results back to a UI thread) and
+    call the methods here only to record the outcome. See `AimbatTUI`'s
+    `_IccsLifecycleMixin` for the reference (Textual-based) caller.
+    """
+
+    bound: BoundICCS | None = None
+    retry_pending: bool = False
+    last_modified_seen: Timestamp | None = None
+    _creating: bool = field(default=False, repr=False, init=False)
+
+    @property
+    def ready(self) -> bool:
+        """Whether a bound ICCS instance is currently available."""
+        return self.bound is not None
+
+    def is_stale(self, event: AimbatEvent) -> bool:
+        """Return True if the bound instance (or lack of one) needs refreshing.
+
+        Delegates to `BoundICCS.is_stale` when an instance exists; otherwise
+        falls back to comparing `event.last_modified` against the value last
+        recorded via `note_checked`.
+
+        Args:
+            event: The event to check against.
+        """
+        if self.bound is not None:
+            return self.bound.is_stale(event)
+        return event.last_modified != self.last_modified_seen
+
+    def start_creating(self) -> bool:
+        """Begin a creation attempt, discarding any existing bound instance.
+
+        Returns:
+            False if a creation attempt is already in progress, in which
+            case the caller should skip starting a new one.
+        """
+        if self._creating:
+            return False
+        self._creating = True
+        self.bound = None
+        self.retry_pending = False
+        return True
+
+    def mark_aborted(self) -> None:
+        """Clear the in-progress flag without arming a retry.
+
+        Use when creation could not even be attempted (e.g. no event
+        selected) rather than when it was attempted and failed.
+        """
+        self._creating = False
+
+    def mark_failed(self, *, is_retry: bool) -> None:
+        """Record a failed creation attempt.
+
+        Args:
+            is_retry: Whether this attempt was itself the one-shot retry. A
+                retry is not allowed to re-arm itself, so a persistently
+                failing event gets exactly one automatic retry rather than
+                retrying forever.
+        """
+        self._creating = False
+        if not is_retry:
+            self.retry_pending = True
+
+    def assign(self, bound_iccs: BoundICCS) -> None:
+        """Record a newly created instance as ready."""
+        self._creating = False
+        self.bound = bound_iccs
+
+    def clear(self) -> None:
+        """Discard the bound instance without arming a retry.
+
+        Use when the instance is invalidated by something other than a
+        failed creation attempt (e.g. its event was deleted).
+        """
+        self.bound = None
+
+    def note_checked(self, last_modified: Timestamp | None) -> None:
+        """Record the `last_modified` value observed at a staleness check.
+
+        Only meaningful while `bound` is `None`; used by `is_stale` to
+        detect further changes before a new instance can be created.
+        """
+        self.last_modified_seen = last_modified
 
 
 @dataclass(frozen=True)
@@ -224,6 +325,17 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     return bound
 
 
+def _find_seismogram_quality(
+    write_session: Session, seismogram_id: UUID
+) -> AimbatSeismogramQuality | None:
+    """Look up a seismogram's live quality row by seismogram ID, if one exists."""
+    return write_session.exec(
+        select(AimbatSeismogramQuality).where(
+            col(AimbatSeismogramQuality.seismogram_id) == seismogram_id
+        )
+    ).first()
+
+
 def _write_iccs_stats(event_id: UUID, iccs: ICCS) -> None:
     """Upsert per-seismogram ICCS CC values into the live quality table.
 
@@ -239,17 +351,12 @@ def _write_iccs_stats(event_id: UUID, iccs: ICCS) -> None:
         iccs: ICCS instance whose `ccs` values are written.
     """
     from aimbat.db import engine as _engine
-    from aimbat.models import AimbatSeismogramQuality
 
     logger.debug(f"Writing ICCS stats for event {event_id}.")
     with Session(_engine) as write_session:
         for iccs_seis, cc in zip(iccs.seismograms, iccs.ccs):
             seis_id = iccs_seis.extra["id"]
-            existing = write_session.exec(
-                select(AimbatSeismogramQuality).where(
-                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
-                )
-            ).first()
+            existing = _find_seismogram_quality(write_session, seis_id)
             cc_val = max(-1.0, min(1.0, float(cc)))
             if existing is None:
                 row = AimbatSeismogramQuality(
@@ -283,7 +390,6 @@ def _write_mccc_quality(
             only the selected ones (`False`).
     """
     from aimbat.db import engine as _engine
-    from aimbat.models import AimbatEventQuality, AimbatSeismogramQuality
 
     used_seis = (
         iccs.seismograms
@@ -311,11 +417,7 @@ def _write_mccc_quality(
         # Clear MCCC fields for all seismograms first
         for iccs_seis in iccs.seismograms:
             seis_id = iccs_seis.extra["id"]
-            sq = write_session.exec(
-                select(AimbatSeismogramQuality).where(
-                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
-                )
-            ).first()
+            sq = _find_seismogram_quality(write_session, seis_id)
             if sq is not None:
                 sq.mccc_error = None
                 sq.mccc_cc_mean = None
@@ -327,11 +429,7 @@ def _write_mccc_quality(
             used_seis, result.errors, result.cc_means, result.cc_stds
         ):
             seis_id = iccs_seis.extra["id"]
-            sq = write_session.exec(
-                select(AimbatSeismogramQuality).where(
-                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
-                )
-            ).first()
+            sq = _find_seismogram_quality(write_session, seis_id)
             if sq is None:
                 sq = AimbatSeismogramQuality(
                     id=uuid4(),
@@ -481,7 +579,7 @@ def validate_iccs_construction(
     _build_iccs(event, parameters=parameters)
 
 
-def _write_back_seismograms(session: Session, iccs: ICCS) -> None:
+def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     """Write t1, flip, and select from ICCS seismograms back to the database.
 
     Calls `session.commit()` after writing; any other pending changes on
@@ -557,7 +655,7 @@ def run_iccs(
     n_iter = len(result.convergence)
     status = "converged" if result.converged else "did not converge"
     logger.info(f"ICCS {status} after {n_iter} iterations.")
-    _write_back_seismograms(session, iccs)
+    write_back_seismograms(session, iccs)
     _write_iccs_stats(event.id, iccs)
     return result
 
@@ -586,7 +684,7 @@ def run_mccc(
         min_cc=event.parameters.mccc_min_cc,
         damping=event.parameters.mccc_damp,
     )
-    _write_back_seismograms(session, iccs)
+    write_back_seismograms(session, iccs)
     _write_iccs_stats(event.id, iccs)
     _write_mccc_quality(event.id, iccs, result, all_seismograms)
     return result

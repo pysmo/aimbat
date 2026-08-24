@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Literal
@@ -29,10 +29,10 @@ from textual.widgets import (
 )
 from textual_fspicker import FileOpen, FileSave, Filters
 
-from pysmo.tools.iccs import ICCS
-
 from aimbat import settings
+from aimbat._tui._iccs_lifecycle import _IccsLifecycleMixin
 from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
+from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY
 from aimbat._tui.modals import (
     ActionMenuModal,
     AlignModal,
@@ -51,7 +51,6 @@ from aimbat.core import (
     BoundICCS,
     add_data_to_project,
     build_iccs_from_snapshot,
-    create_iccs_instance,
     create_project,
     create_snapshot,
     delete_event,
@@ -65,6 +64,7 @@ from aimbat.core import (
     run_iccs,
     run_mccc,
     set_seismogram_parameter,
+    toggle_event_completed,
     upgrade_project,
 )
 from aimbat.core._migrations import SchemaMismatchError, _build_staleness_warning
@@ -79,15 +79,7 @@ from aimbat.models import (
     AimbatSnapshot,
     AimbatStation,
 )
-from aimbat.plot import (
-    plot_matrix_image,
-    plot_seismograms,
-    plot_stack,
-    update_bandpass,
-    update_min_cc,
-    update_pick,
-    update_timewindow,
-)
+from aimbat.plot import plot_matrix_image, plot_seismograms, plot_stack
 from aimbat.utils.formatters import fmt_timestamp
 
 from ._format import tui_cell, tui_display_title
@@ -98,142 +90,20 @@ _LIGHT_THEME = settings.tui_light_theme
 _MAIN_TABS = {"tab-project", "tab-seismograms", "tab-snapshots"}
 
 
-# Extend _TOOL_REGISTRY/_CAUSAL_TOOL_REGISTRY to register new interactive
-# tools.  Each entry maps a key to a (label, callable) pair.  Callables in
-# _TOOL_REGISTRY receive (session, event, iccs, context, all_seismograms);
-# callables in _CAUSAL_TOOL_REGISTRY additionally receive a causal argument
-# from InteractiveToolsModal's zero-phase toggle. Both return None.
-type _ToolFn = Callable[[Session, AimbatEvent, ICCS, bool, bool], None]
-type _CausalToolFn = Callable[[Session, AimbatEvent, ICCS, bool, bool, bool], None]
-
-
-def _tool_phase(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all_seismograms: bool,
-    causal: bool,
-) -> None:
-    """Launch the interactive phase-arrival (t1) picking tool."""
-    update_pick(
-        session,
-        iccs,
-        context,
-        all_seismograms=all_seismograms,
-        use_matrix_image=False,
-        causal=causal,
-        return_fig=False,
-    )
-
-
-def _tool_window(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all_seismograms: bool,
-    causal: bool,
-) -> None:
-    """Launch the interactive time-window selection tool."""
-    update_timewindow(
-        session,
-        event,
-        iccs,
-        context,
-        all_seismograms=all_seismograms,
-        use_matrix_image=False,
-        causal=causal,
-        return_fig=False,
-    )
-
-
-def _tool_cc(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all_seismograms: bool,
-    causal: bool,
-) -> None:
-    """Launch the interactive minimum-CC threshold tool."""
-    update_min_cc(
-        session,
-        event,
-        iccs,
-        context,
-        all_seismograms=all_seismograms,
-        causal=causal,
-        return_fig=False,
-    )
-
-
-def _tool_bandpass(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all_seismograms: bool,
-) -> None:
-    """Launch the interactive bandpass-filter tool."""
-    update_bandpass(
-        session,
-        event,
-        iccs,
-        context,
-        all_seismograms=all_seismograms,
-        use_matrix_image=False,
-        return_fig=False,
-    )
-
-
-def _tool_stack(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all_seismograms: bool,
-) -> None:
-    """Show the interactive stack plot."""
-    plot_stack(iccs, context, all_seismograms, return_fig=False)
-
-
-def _tool_image(
-    session: Session,
-    event: AimbatEvent,
-    iccs: ICCS,
-    context: bool,
-    all_seismograms: bool,
-) -> None:
-    """Show the interactive cross-correlation matrix image."""
-    plot_matrix_image(iccs, context, all_seismograms, return_fig=False)
-
-
-_TOOL_REGISTRY: dict[str, tuple[str, _ToolFn]] = {
-    "bandpass": ("Bandpass filter", _tool_bandpass),
-    "stack": ("Stack plot", _tool_stack),
-    "image": ("Matrix image", _tool_image),
-}
-_CAUSAL_TOOL_REGISTRY: dict[str, tuple[str, _CausalToolFn]] = {
-    "phase": ("Phase arrival (t1)", _tool_phase),
-    "window": ("Time window", _tool_window),
-    "cc": ("Min CC", _tool_cc),
-}
-
-
 # ---------------------------------------------------------------------------
 # Main application
 # ---------------------------------------------------------------------------
 
 
-class AimbatTUI(App[None]):
+class AimbatTUI(_IccsLifecycleMixin, App[None]):
     """Root screen of the AIMBAT Terminal User Interface.
 
     Composes a header, an event status bar, a tabbed content area (Project,
     Live data, Snapshots) and a footer. Owns the current active event, the
     long-lived `BoundICCS` instance used by the Live data tab and the
-    interactive tools, and dispatches row actions and key bindings to the
-    corresponding core functions.
+    interactive tools (lifecycle managed by `_IccsLifecycleMixin`), and
+    dispatches row actions and key bindings to the corresponding core
+    functions.
     """
 
     TITLE = "AIMBAT"
@@ -275,16 +145,11 @@ class AimbatTUI(App[None]):
         ICCS instance for the current event (if any) and populates all
         panels. Also starts the periodic ICCS staleness check.
         """
-        self._bound_iccs: BoundICCS | None = None
-        self._iccs_creating: bool = False
-        self._iccs_last_modified_seen: Timestamp | None = None
-        self._iccs_retry_pending: bool = False
+        self._init_iccs_lifecycle()
         self._current_event_id: uuid.UUID | None = None
         self._active_tab: str = "tab-project"
 
         self.theme = _DEFAULT_THEME
-
-        self.set_interval(5, self._check_iccs_staleness)
 
         logger.info("TUI started.")
         if not _project_exists(engine):
@@ -467,80 +332,6 @@ class AimbatTUI(App[None]):
             raise caught
 
     # ------------------------------------------------------------------
-    # ICCS lifecycle
-    # ------------------------------------------------------------------
-
-    def _create_iccs(self, *, is_retry: bool = False) -> None:
-        """Discard the existing ICCS instance and create a new one in a background worker.
-
-        ICCS construction reads waveform data, so it must not block the asyncio event loop.
-        Concurrent calls are ignored — only one worker runs at a time.
-
-        Args:
-            is_retry: Whether this call is the one-shot retry made in
-                response to `_iccs_retry_pending` after a previous failure.
-                A retry call is not itself allowed to re-arm
-                `_iccs_retry_pending`, so a persistently failing event gets
-                exactly one automatic retry rather than retrying forever.
-        """
-        if self._iccs_creating:
-            logger.debug(
-                "ICCS creation already in progress; skipping duplicate request."
-            )
-            return
-        self._iccs_creating = True
-        self._bound_iccs = None
-        self._iccs_retry_pending = False
-        self._worker_create_iccs(is_retry)
-
-    @work(thread=True)
-    def _worker_create_iccs(self, is_retry: bool = False) -> None:
-        """Create the ICCS instance for the current event without blocking the UI.
-
-        On success, hands the new `BoundICCS` instance to `_assign_iccs` on
-        the main thread. On failure, notifies the user and, unless this call
-        is itself a retry, arms `_iccs_retry_pending` for one further
-        automatic attempt.
-
-        Args:
-            is_retry: Whether this call is the one-shot retry after a
-                previous failure.
-        """
-        try:
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                bound_iccs = create_iccs_instance(session, event)
-        except (NoResultFound, RuntimeError):
-            logger.debug("ICCS worker: no event selected or no data; aborting.")
-            self.call_from_thread(setattr, self, "_iccs_creating", False)
-            return
-        except Exception as exc:
-            logger.exception(f"ICCS worker: unexpected error during creation: {exc}")
-            self.call_from_thread(
-                self.notify, f"ICCS init failed: {exc}", severity="error"
-            )
-            self.call_from_thread(setattr, self, "_iccs_creating", False)
-            if not is_retry:
-                # Give the staleness poller one retry attempt on the next tick.
-                self.call_from_thread(setattr, self, "_iccs_retry_pending", True)
-            return
-        logger.debug("ICCS worker: instance created successfully.")
-        self.call_from_thread(self._assign_iccs, bound_iccs)
-
-    def _assign_iccs(self, bound_iccs: BoundICCS) -> None:
-        """Store the newly created ICCS instance and refresh all panels.
-
-        Args:
-            bound_iccs: The instance created by `_worker_create_iccs`.
-        """
-        self._iccs_creating = False
-        self._bound_iccs = bound_iccs
-        logger.info("ICCS instance ready and assigned.")
-        # Rebuilding ICCS re-upserts iccs_cc per seismogram, which also feeds
-        # ProjectPanel's quality panel and station cc_mean/cc_sem column.
-        self.refresh_all()
-
-    # ------------------------------------------------------------------
     # Data refresh
     # ------------------------------------------------------------------
 
@@ -557,43 +348,9 @@ class AimbatTUI(App[None]):
         self._refresh_event_bar()
         self.query_one(ProjectPanel).refresh_data(self._current_event_id)
         self.query_one(SeismogramPanel).refresh_data(
-            self._current_event_id, self._bound_iccs
+            self._current_event_id, self._iccs_lifecycle.bound
         )
         self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
-
-    def _check_iccs_staleness(self) -> None:
-        """Trigger ICCS recreation if the current event has been modified externally.
-
-        When ICCS creation previously failed (e.g. due to an invalid parameter set via
-        the CLI), retries once via `_iccs_retry_pending`, then waits for
-        `event.last_modified` to change again before retrying further — this avoids
-        retrying forever against a persistently failing event. On any detected
-        change the full UI is refreshed so panels reflect the new DB state immediately.
-        """
-        if self._current_event_id is None:
-            return
-        try:
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                last_modified = event.last_modified
-                stale = (
-                    self._bound_iccs.is_stale(event)
-                    if self._bound_iccs is not None
-                    else last_modified != self._iccs_last_modified_seen
-                )
-        except (NoResultFound, RuntimeError):
-            return
-        if stale:
-            logger.debug(
-                "ICCS staleness detected; recreating instance and refreshing UI."
-            )
-            self._iccs_last_modified_seen = last_modified
-            self._create_iccs()
-            self.refresh_all()
-        elif self._iccs_retry_pending:
-            logger.debug("Retrying ICCS creation after a previous failure.")
-            self._create_iccs(is_retry=True)
-            self.refresh_all()
 
     def _refresh_event_bar(self) -> None:
         """Update the status bar with the current event's time, location and ICCS status.
@@ -607,11 +364,11 @@ class AimbatTUI(App[None]):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 iccs_status = (
-                    " ● ICCS ready" if self._bound_iccs is not None else " ○ no ICCS"
+                    " ● ICCS ready" if self._iccs_lifecycle.ready else " ○ no ICCS"
                 )
                 time_str = fmt_timestamp(event.time) if event.time else "unknown"
-                lat = f"{event.latitude:.3f}°" if event.latitude is not None else "?"
-                lon = f"{event.longitude:.3f}°" if event.longitude is not None else "?"
+                lat = f"{event.latitude:.3f}°"
+                lon = f"{event.longitude:.3f}°"
                 modified = (
                     f"  modified: {fmt_timestamp(event.last_modified)}"
                     if event.last_modified is not None
@@ -715,12 +472,7 @@ class AimbatTUI(App[None]):
         logger.debug(f"User toggled completed flag for event {item_id[:8]}.")
         try:
             with Session(engine) as session:
-                event = session.get(AimbatEvent, uuid.UUID(item_id))
-                if event is None:
-                    return
-                event.parameters.completed = not event.parameters.completed
-                session.add(event)
-                session.commit()
+                toggle_event_completed(session, uuid.UUID(item_id))
             self.refresh_all()
             self.notify("Completed flag toggled", timeout=2)
         except Exception as exc:
@@ -771,12 +523,13 @@ class AimbatTUI(App[None]):
                     raise ValueError(f"Seismogram {item_id} not found")
                 new_value = not getattr(seis.parameters, param)
                 set_seismogram_parameter(session, seis_uuid, param, new_value)
-            if self._bound_iccs is not None:
-                for iccs_seis in self._bound_iccs.iccs.seismograms:
+            bound = self._iccs_lifecycle.bound
+            if bound is not None:
+                for iccs_seis in bound.iccs.seismograms:
                     if iccs_seis.extra.get("id") == seis_uuid:
                         setattr(iccs_seis, param, new_value)
-                        self._bound_iccs.iccs.clear_cache()
-                        self._bound_iccs.created_at = Timestamp.now("UTC")
+                        bound.iccs.clear_cache()
+                        bound.created_at = Timestamp.now("UTC")
                         break
             # Deliberately scoped: this only mutates the in-memory ICCS instance
             # and clears its cache, without re-upserting iccs_cc, so no other
@@ -784,7 +537,7 @@ class AimbatTUI(App[None]):
             # changes here. Also repeated once per seismogram during QC review,
             # so avoid the extra DB round trips a full refresh_all() would add.
             self.query_one(SeismogramPanel).refresh_data(
-                self._current_event_id, self._bound_iccs
+                self._current_event_id, self._iccs_lifecycle.bound
             )
             self.notify(f"{param} toggled", timeout=2)
         except Exception as exc:
@@ -830,7 +583,7 @@ class AimbatTUI(App[None]):
                         delete_event(session, uuid.UUID(item_id))
                     if self._current_event_id == uuid.UUID(item_id):
                         self._current_event_id = None
-                        self._bound_iccs = None
+                        self._iccs_lifecycle.clear()
                     self.refresh_all()
                     self.notify("Event deleted", timeout=2)
                 elif tab == "project-stations":
@@ -1009,26 +762,6 @@ class AimbatTUI(App[None]):
 
         self.push_screen(ActionMenuModal("Add Data", actions), on_type)
 
-    def _require_iccs(self) -> bool:
-        """Check that the ICCS instance is ready, showing a contextual warning otherwise.
-
-        Returns:
-            Whether the ICCS instance is ready to use.
-        """
-        if self._bound_iccs is not None:
-            return True
-        if self._current_event_id is not None:
-            self.notify(
-                "ICCS not ready — check event parameters (Parameters tab)",
-                severity="warning",
-            )
-        else:
-            self.notify(
-                "No event selected — select one on the Project tab",
-                severity="warning",
-            )
-        return False
-
     def action_open_interactive_tools(self) -> None:
         """Open the interactive tools menu and run the chosen tool."""
         if not self._require_iccs():
@@ -1045,7 +778,7 @@ class AimbatTUI(App[None]):
     def _run_tool(
         self, tool: str, context: bool, all_seis: bool, causal: bool | None
     ) -> None:
-        """Run an interactive tool from `_TOOL_REGISTRY` or `_CAUSAL_TOOL_REGISTRY`.
+        """Run an interactive tool from `TOOL_REGISTRY` or `CAUSAL_TOOL_REGISTRY`.
 
         Uses the long-lived ICCS instance so waveform data do not need to be
         reloaded. Suspends the TUI while the tool's matplotlib window is
@@ -1057,21 +790,20 @@ class AimbatTUI(App[None]):
                 the CC window.
             all_seis: Whether to include seismograms not currently selected.
             causal: Zero-phase/causal filter setting; only meaningful for
-                tools in `_CAUSAL_TOOL_REGISTRY`, otherwise `None`.
+                tools in `CAUSAL_TOOL_REGISTRY`, otherwise `None`.
         """
         logger.debug(
             f"User launched interactive tool '{tool}' "
             f"(context={context}, all_seis={all_seis}, causal={causal})."
         )
-        if self._bound_iccs is None:
+        bound = self._iccs_lifecycle.bound
+        if bound is None:
             self.notify("ICCS not ready — please wait", severity="warning")
             return
-        iccs = self._bound_iccs.iccs
-        is_causal_tool = tool in _CAUSAL_TOOL_REGISTRY
+        iccs = bound.iccs
+        is_causal_tool = tool in CAUSAL_TOOL_REGISTRY
         label = (
-            _CAUSAL_TOOL_REGISTRY[tool][0]
-            if is_causal_tool
-            else _TOOL_REGISTRY[tool][0]
+            CAUSAL_TOOL_REGISTRY[tool][0] if is_causal_tool else TOOL_REGISTRY[tool][0]
         )
 
         try:
@@ -1080,11 +812,11 @@ class AimbatTUI(App[None]):
                     event = self._get_current_event(session)
                     if is_causal_tool:
                         assert causal is not None
-                        _CAUSAL_TOOL_REGISTRY[tool][1](
+                        CAUSAL_TOOL_REGISTRY[tool][1](
                             session, event, iccs, context, all_seis, causal
                         )
                     else:
-                        _TOOL_REGISTRY[tool][1](session, event, iccs, context, all_seis)
+                        TOOL_REGISTRY[tool][1](session, event, iccs, context, all_seis)
         except Exception as exc:
             logger.exception(f"Interactive tool '{tool}' raised: {exc}")
             self.notify(str(exc), severity="error")
@@ -1092,7 +824,7 @@ class AimbatTUI(App[None]):
 
         # suspend() is synchronous, so the staleness poller cannot fire
         # between the session commit and this assignment.
-        self._bound_iccs.created_at = Timestamp.now("UTC")
+        bound.created_at = Timestamp.now("UTC")
         self.refresh_all()
         self.notify("Done", timeout=2)
 
@@ -1103,7 +835,7 @@ class AimbatTUI(App[None]):
 
         def on_result(result: tuple[str, bool, bool, bool] | None) -> None:
             if result is not None:
-                self._run_align_tool(self._bound_iccs, *result)
+                self._run_align_tool(self._iccs_lifecycle.bound, *result)
 
         self.push_screen(AlignModal(), on_result)
 
