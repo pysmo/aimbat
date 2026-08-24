@@ -16,6 +16,10 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 - Overhaul documentation and enforce docstring linting
 
+### 🔧 Refactoring
+
+- **(tui)** Split app.py god object, dedupe core/_iccs helpers
+
 ### 🚀 New Features
 
 - Auto-create a snapshot per event when data add ingests new seismograms
