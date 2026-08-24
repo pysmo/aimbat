@@ -30,6 +30,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 ### 🧪 Testing
 
 - Use testkit for shared pytest fixtures
+- Add old-DB regression fixture and CI migration/wheel gates
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
