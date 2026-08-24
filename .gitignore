@@ -21,6 +21,7 @@ old
 .coverage
 sample-data
 aimbat.db
+.check-migrations.db
 .tox
 nohup.out
 .idea

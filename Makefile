@@ -1,6 +1,6 @@
 .PHONY: help check-uv \
-	build clean docs format format-check lint live-docs mypy \
-	python sync test-figs tests tests-full upgrade
+	build check-migrations check-wheel clean docs format format-check lint \
+	live-docs mypy python sync test-figs tests tests-full upgrade
 
 ifeq ($(OS),Windows_NT)
   UV_VERSION := $(shell uv --version 2> NUL)
@@ -22,6 +22,19 @@ ifndef UV_VERSION
 else
 	@echo "Found ${UV_VERSION}";
 endif
+
+# NOTE: `alembic check` diffs SQLModel.metadata against the DB schema, so it
+# does not see the hand-written triggers in core/_project.py::create_project -
+# trigger drift is only caught by
+# tests/integration/core/test_migrations.py::TestCreateAllVsMigrateParity.
+check-migrations: check-uv sync ## Verify every model change has a matching Alembic migration.
+	@trap 'rm -f .check-migrations.db' EXIT; \
+	AIMBAT_DB_URL="sqlite+pysqlite:///.check-migrations.db" uv run alembic upgrade head && \
+	AIMBAT_DB_URL="sqlite+pysqlite:///.check-migrations.db" uv run alembic check
+
+check-wheel: build ## Verify the built wheel packages the Alembic migration scripts.
+	$(PYTHON_VERSION) -m zipfile -l dist/*.whl | grep -q '_migrations/versions/.*\.py' || \
+		(echo "ERROR: no Alembic migration scripts found in the built wheel" && exit 1)
 
 build: clean check-uv sync ## Build distribution.
 	uv build

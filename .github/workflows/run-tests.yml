@@ -8,3 +8,14 @@ jobs:
   test:
     uses: pysmo/.github/.github/workflows/unit-tests.yml@main
     secrets: inherit
+
+  check-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: verify models and Alembic migrations agree
+        run: make check-migrations
