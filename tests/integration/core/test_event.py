@@ -16,8 +16,9 @@ from aimbat.core import (
     get_completed_events,
     get_events_using_station,
     set_event_parameter,
+    toggle_event_completed,
 )
-from aimbat.models import AimbatEvent, AimbatStation
+from aimbat.models import AimbatEvent, AimbatEventQuality, AimbatStation
 
 # ===================================================================
 # Default event
@@ -230,6 +231,74 @@ class TestSetEventParameter:
             assert event is not None
             assert event.parameters.window_post == new_value
             assert event.last_modified is not None
+
+
+class TestToggleEventCompleted:
+    """Tests for flipping an event's `completed` flag."""
+
+    def test_toggle_flips_false_to_true(self, loaded_session: Session) -> None:
+        """Verifies the flag flips and the new value is returned.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        assert event.parameters.completed is False
+
+        result = toggle_event_completed(loaded_session, event.id)
+
+        assert result is True
+        assert event.parameters.completed is True
+
+    def test_toggle_twice_returns_to_original(self, loaded_session: Session) -> None:
+        """Verifies a second toggle flips the flag back.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        toggle_event_completed(loaded_session, event.id)
+        result = toggle_event_completed(loaded_session, event.id)
+
+        assert result is False
+        assert event.parameters.completed is False
+
+    def test_toggle_not_found_raises(self, loaded_session: Session) -> None:
+        """Verifies a missing event ID raises NoResultFound.
+
+        Args:
+            loaded_session: The database session.
+        """
+        with pytest.raises(NoResultFound):
+            toggle_event_completed(loaded_session, uuid.uuid4())
+
+    def test_toggle_does_not_clear_mccc_quality(self, loaded_session: Session) -> None:
+        """Verifies toggling `completed` leaves MCCC quality untouched.
+
+        `completed` is deliberately excluded from the parameters hash used
+        for snapshot matching (see `compute_parameters_hash`), so this must
+        not go through `set_event_parameter`'s snapshot-sync/MCCC-invalidation
+        path the way real processing parameters do.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        rmse = Timedelta(milliseconds=1)
+        loaded_session.add(
+            AimbatEventQuality(id=uuid.uuid4(), event_id=event.id, mccc_rmse=rmse)
+        )
+        loaded_session.commit()
+
+        toggle_event_completed(loaded_session, event.id)
+
+        loaded_session.refresh(event)
+        assert event.quality is not None
+        assert event.quality.mccc_rmse == rmse
 
 
 # ===================================================================

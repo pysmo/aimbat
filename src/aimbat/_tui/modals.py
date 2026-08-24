@@ -18,12 +18,14 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Input, Label, Markdown, Static
 
 from aimbat._cli.common import CAUSAL_DEFAULTS
+from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY
 from aimbat._tui._widgets import VimDataTable
 from aimbat._types import EventParameter
 from aimbat.core import set_event_parameter
 from aimbat.db import engine
 from aimbat.models import AimbatEvent
 from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.utils import format_validation_error
 
 if TYPE_CHECKING:
     from aimbat._tui._panels import RowAction
@@ -418,10 +420,7 @@ class ParametersModal(ModalScreen[bool]):
                     validate_iccs=True,
                 )  # type: ignore[call-overload]
         except ValidationError as exc:
-            msgs = "; ".join(
-                e["msg"].removeprefix("Value error, ") for e in exc.errors()
-            )
-            self.notify(msgs, severity="error")
+            self.notify(format_validation_error(exc), severity="error")
             return
         except Exception as exc:
             self.notify(str(exc), severity="error")
@@ -603,14 +602,8 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
 # Interactive Tools modal
 # ---------------------------------------------------------------------------
 
-# Keep in sync with _TOOL_REGISTRY in app.py.
 _TOOLS: list[tuple[str, str]] = [
-    ("phase", "Phase arrival (t1)"),
-    ("window", "Time window"),
-    ("cc", "Min CC"),
-    ("bandpass", "Bandpass filter"),
-    ("stack", "Stack plot"),
-    ("image", "Matrix image"),
+    (key, label) for key, (label, _) in (CAUSAL_TOOL_REGISTRY | TOOL_REGISTRY).items()
 ]
 
 

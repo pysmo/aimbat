@@ -6,6 +6,8 @@ monkeypatched to the test fixture's database:
 
 - ``aimbat.db.engine`` — the canonical engine attribute
 - ``aimbat._tui.app.engine`` — top-level import in the app module
+- ``aimbat._tui._iccs_lifecycle.engine`` — top-level import in the ICCS
+  lifecycle module
 - ``aimbat._tui._panels.engine`` — top-level import in the panels module
 - ``aimbat._tui.modals.engine`` — top-level import in the modals module
 - ``aimbat._tui._widgets.engine`` — top-level import in the widgets module
@@ -23,7 +25,9 @@ from sqlmodel import Session, select
 from textual.binding import Binding
 from textual.widgets import DataTable, Static, TabbedContent, TabPane
 
+import aimbat._tui._iccs_lifecycle
 import aimbat._tui._panels
+import aimbat._tui._tools
 import aimbat._tui._widgets
 import aimbat._tui.app
 import aimbat._tui.modals
@@ -56,6 +60,7 @@ def _patch_engine(monkeypatch: pytest.MonkeyPatch, engine: Engine) -> None:
     """Patch the engine in all TUI modules that import it at module level."""
     monkeypatch.setattr(aimbat.db, "engine", engine)
     monkeypatch.setattr(aimbat._tui.app, "engine", engine)
+    monkeypatch.setattr(aimbat._tui._iccs_lifecycle, "engine", engine)
     monkeypatch.setattr(aimbat._tui._panels, "engine", engine)
     monkeypatch.setattr(aimbat._tui.modals, "engine", engine)
     monkeypatch.setattr(aimbat._tui._widgets, "engine", engine)
@@ -373,8 +378,9 @@ class TestICCSStalenessRetry:
     """A failed ICCS creation gets exactly one automatic retry, not a retry storm.
 
     See `AimbatTUI._check_iccs_staleness` / `_create_iccs`: a fresh (non-retry)
-    failure sets `_iccs_retry_pending`, which the staleness poller consumes at
-    most once before falling silent again until `event.last_modified` changes.
+    failure sets `IccsLifecycle.retry_pending`, which the staleness poller
+    consumes at most once before falling silent again until
+    `event.last_modified` changes.
     """
 
     def test_retries_once_then_stops_on_persistent_failure(
@@ -390,7 +396,9 @@ class TestICCSStalenessRetry:
             call_count += 1
             raise ValueError("simulated persistent failure")
 
-        monkeypatch.setattr(aimbat._tui.app, "create_iccs_instance", _always_fails)
+        monkeypatch.setattr(
+            aimbat._tui._iccs_lifecycle, "create_iccs_instance", _always_fails
+        )
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
@@ -398,7 +406,7 @@ class TestICCSStalenessRetry:
                 # `on_mount` already kicked off its own `_create_iccs()` for
                 # this event-bearing fixture, with no event selected yet. Drain
                 # it first: otherwise it can still be in flight below, and the
-                # `_iccs_creating` guard silently skips the call this test
+                # `IccsLifecycle.start_creating` guard silently skips the call this test
                 # actually wants to observe.
                 await _wait_for_iccs_worker(app)
 
@@ -408,20 +416,20 @@ class TestICCSStalenessRetry:
                 app._current_event_id = event.id
                 # Mirror what `_check_iccs_staleness` records before a fresh
                 # attempt, so later polls see an unchanged `last_modified`.
-                app._iccs_last_modified_seen = event.last_modified
+                app._iccs_lifecycle.note_checked(event.last_modified)
 
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
                 assert call_count == 1
-                assert app._iccs_retry_pending is True
-                assert app._bound_iccs is None
+                assert app._iccs_lifecycle.retry_pending is True
+                assert app._iccs_lifecycle.bound is None
 
                 # The poller consumes the pending retry exactly once.
                 app._check_iccs_staleness()
                 await _wait_for_iccs_worker(app)
                 assert call_count == 2
-                assert app._iccs_retry_pending is False
-                assert app._bound_iccs is None
+                assert app._iccs_lifecycle.retry_pending is False
+                assert app._iccs_lifecycle.bound is None
 
                 # Further polls must not retry again — no infinite loop.
                 app._check_iccs_staleness()
@@ -446,7 +454,7 @@ class TestICCSStalenessRetry:
             return _real_create_iccs_instance(session, event)
 
         monkeypatch.setattr(
-            aimbat._tui.app, "create_iccs_instance", _fail_once_then_succeed
+            aimbat._tui._iccs_lifecycle, "create_iccs_instance", _fail_once_then_succeed
         )
 
         async def _run() -> None:
@@ -456,28 +464,192 @@ class TestICCSStalenessRetry:
                 # test_retries_once_then_stops_on_persistent_failure: drain
                 # `on_mount`'s own startup `_create_iccs()` call first, or it
                 # can still be in flight and make the call below a silent
-                # no-op via the `_iccs_creating` guard.
+                # no-op via the `IccsLifecycle.start_creating` guard.
                 await _wait_for_iccs_worker(app)
 
                 with Session(loaded_engine_from_file) as session:
                     event = session.exec(select(AimbatEvent)).first()
                 assert event is not None
                 app._current_event_id = event.id
-                app._iccs_last_modified_seen = event.last_modified
+                app._iccs_lifecycle.note_checked(event.last_modified)
 
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
                 assert attempts == 1
-                assert app._iccs_retry_pending is True
-                assert app._bound_iccs is None
+                assert app._iccs_lifecycle.retry_pending is True
+                assert app._iccs_lifecycle.bound is None
 
                 app._check_iccs_staleness()
                 await _wait_for_iccs_worker(app)
                 assert attempts == 2
-                assert app._iccs_retry_pending is False
-                assert app._bound_iccs is not None
+                assert app._iccs_lifecycle.retry_pending is False
+                assert app._iccs_lifecycle.bound is not None
 
         asyncio.run(_run())
+
+
+@pytest.mark.slow
+class TestIccsAssignmentRace:
+    """A worker completing for an event that is no longer current is discarded.
+
+    See `_IccsLifecycleMixin._assign_iccs`: if the selected event changes
+    (e.g. the bound event was deleted and a different one selected) while a
+    `_worker_create_iccs` call is still in flight, its result must not be
+    bound as if it were current — otherwise the app could end up "ready"
+    with an ICCS instance for the wrong (or deleted) event.
+    """
+
+    def test_stale_worker_result_is_discarded_and_current_event_retried(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stale `_assign_iccs` call is dropped and the current event is (re)built."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                with Session(loaded_engine_from_file) as session:
+                    events = session.exec(select(AimbatEvent)).all()
+                assert len(events) >= 2
+                stale_event, current_event = events[0], events[1]
+
+                with Session(loaded_engine_from_file) as session:
+                    stale_event_reloaded = session.get(AimbatEvent, stale_event.id)
+                    assert stale_event_reloaded is not None
+                    stale_bound = _real_create_iccs_instance(
+                        session, stale_event_reloaded
+                    )
+
+                # Simulate the user having switched to a different event
+                # while `stale_bound` was still being built in the
+                # background for `stale_event`.
+                app._current_event_id = current_event.id
+
+                app._assign_iccs(stale_bound)
+                assert app._iccs_lifecycle.bound is None
+
+                await _wait_for_iccs_worker(app)
+                assert app._iccs_lifecycle.bound is not None
+                assert app._iccs_lifecycle.bound.event_id == current_event.id
+
+        asyncio.run(_run())
+
+    def test_stale_worker_result_for_deleted_event_is_discarded(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stale result is dropped and no retry is armed when nothing is selected."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+
+                with Session(loaded_engine_from_file) as session:
+                    event_reloaded = session.get(AimbatEvent, event.id)
+                    assert event_reloaded is not None
+                    stale_bound = _real_create_iccs_instance(session, event_reloaded)
+
+                # Simulate the event having been deleted (and none selected)
+                # while `stale_bound` was still being built.
+                app._current_event_id = None
+
+                app._assign_iccs(stale_bound)
+                await pilot.pause(delay=0.2)
+
+                assert app._iccs_lifecycle.bound is None
+                assert app._iccs_lifecycle.retry_pending is False
+
+        asyncio.run(_run())
+
+
+# ===========================================================================
+# _require_iccs — contextual "not ready" notification
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestRequireIccs:
+    """`_require_iccs` picks its warning based on whether an event is selected.
+
+    See `_IccsLifecycleMixin._require_iccs`: with no current event it points
+    the user at the Project tab; with an event selected but no bound ICCS
+    instance yet, it points at the Parameters tab instead.
+    """
+
+    def test_no_event_selected(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With no current event, the notification directs to the Project tab."""
+        _patch_engine(monkeypatch, patched_engine)
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                app = cast(AimbatTUI, pilot.app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                assert app._current_event_id is None
+
+                assert app._require_iccs() is False
+
+        asyncio.run(_run())
+
+        assert len(notifications) == 1
+        message, severity = notifications[0]
+        assert "no event selected" in message.lower()
+        assert "project" in message.lower()
+        assert severity == "warning"
+
+    def test_event_selected_but_iccs_not_ready(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With an event selected but no bound ICCS yet, it points at Parameters."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+
+                with Session(loaded_engine) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app._current_event_id = event.id
+                assert app._iccs_lifecycle.ready is False
+
+                assert app._require_iccs() is False
+
+        asyncio.run(_run())
+
+        assert len(notifications) == 1
+        message, severity = notifications[0]
+        assert "iccs not ready" in message.lower()
+        assert "parameters" in message.lower()
+        assert severity == "warning"
 
 
 # ===========================================================================
@@ -1024,7 +1196,7 @@ class TestCausalZeroPhaseToggle:
         ) -> None:
             captured["causal"] = causal
 
-        monkeypatch.setattr(aimbat._tui.app, "update_pick", _fake_update_pick)
+        monkeypatch.setattr(aimbat._tui._tools, "update_pick", _fake_update_pick)
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
@@ -1036,7 +1208,7 @@ class TestCausalZeroPhaseToggle:
                 app._current_event_id = event.id
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
-                assert app._bound_iccs is not None
+                assert app._iccs_lifecycle.bound is not None
 
                 # "phase"'s causal default is True; pass the non-default
                 # value through explicitly.
@@ -1067,7 +1239,9 @@ class TestCausalZeroPhaseToggle:
         def _fake_update_bandpass(*args: object, **kwargs: object) -> None:
             calls.append(kwargs)
 
-        monkeypatch.setattr(aimbat._tui.app, "update_bandpass", _fake_update_bandpass)
+        monkeypatch.setattr(
+            aimbat._tui._tools, "update_bandpass", _fake_update_bandpass
+        )
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
@@ -1079,7 +1253,7 @@ class TestCausalZeroPhaseToggle:
                 app._current_event_id = event.id
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
-                assert app._bound_iccs is not None
+                assert app._iccs_lifecycle.bound is not None
 
                 app._run_tool("bandpass", True, False, None)
                 await pilot.pause()

@@ -34,7 +34,7 @@ from pysmo.tools.iccs import (
 
 from aimbat._types import EventParameter
 from aimbat.core._event import set_event_parameter
-from aimbat.core._iccs import _write_back_seismograms
+from aimbat.core._iccs import write_back_seismograms
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
 
@@ -182,7 +182,7 @@ def update_pick(
     )
 
     if not return_fig:
-        _write_back_seismograms(session, iccs)
+        write_back_seismograms(session, iccs)
         return None
 
     logger.warning(_RETURN_FIG_WARNING)
