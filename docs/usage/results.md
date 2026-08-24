@@ -35,8 +35,8 @@ either way — MCCC fields are `null` in snapshots that pre-date any MCCC run.
     results to JSON**. A file-picker dialog opens; the suggested filename is
     `results_<short_id>.json`.
 
-Pass `--alias` to use camelCase field names (e.g. `snapshotId`, `eventTime`,
-`mcccRmse`).
+The CLI and shell commands accept `--alias` to use camelCase field names (e.g.
+`snapshotId`, `eventTime`, `mcccRmse`).
 
 ## Output format
 
