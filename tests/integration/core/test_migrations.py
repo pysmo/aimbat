@@ -10,10 +10,17 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import Engine, create_engine, inspect, text
+from sqlmodel import Session, select
 
 import aimbat._migrations
-from aimbat.core import create_project, get_current_revision, upgrade_project
+from aimbat.core import (
+    create_project,
+    get_current_revision,
+    get_head_revision,
+    upgrade_project,
+)
 from aimbat.core._migrations import SchemaMismatchError
+from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 
 
 def _triggers(engine: Engine) -> dict[str, str]:
@@ -298,6 +305,53 @@ class TestUpgradeProject:
 
         with pytest.raises(SchemaMismatchError, match="doesn't recognise"):
             upgrade_project(engine_from_file)
+
+
+class TestOldDatabaseRegressionFixture:
+    """Regression test against a real pre-Alembic database, not a freshly
+    generated one.
+
+    `tests/assets/pre_alembic_project.db` was built by running
+    `create_project()`/`add_data_to_project()`/`create_snapshot()` from the
+    last commit before Alembic was introduced (`7c1acd0`), against a small
+    ICCS dataset - one event, three seismograms, one snapshot. Every other
+    test in this module builds its database fresh at the current schema;
+    this is the one that represents what `aimbat db upgrade` actually has to
+    handle for an existing test user's project, and would have caught a
+    regression that a synthetic empty database wouldn't.
+    """
+
+    @pytest.fixture
+    def old_project_engine(self, tmp_path: Path) -> Generator[Engine, None, None]:
+        db_path = tmp_path / "pre_alembic_project.db"
+        shutil.copy(
+            Path(__file__).parents[2] / "assets" / "pre_alembic_project.db",
+            db_path,
+        )
+        engine = create_engine(f"sqlite+pysqlite:///{db_path}")
+        yield engine
+        engine.dispose()
+
+    def test_upgrade_brings_legacy_database_to_head(
+        self, old_project_engine: Engine
+    ) -> None:
+        assert get_current_revision(old_project_engine) is None
+
+        upgrade_project(old_project_engine)
+
+        assert get_current_revision(old_project_engine) == get_head_revision()
+
+    def test_upgrade_preserves_existing_rows(self, old_project_engine: Engine) -> None:
+        upgrade_project(old_project_engine)
+
+        with Session(old_project_engine) as session:
+            events = session.exec(select(AimbatEvent)).all()
+            seismograms = session.exec(select(AimbatSeismogram)).all()
+            snapshots = session.exec(select(AimbatSnapshot)).all()
+
+        assert len(events) == 1
+        assert len(seismograms) == 3
+        assert len(snapshots) == 1
 
 
 _FIRST_REVISION = """

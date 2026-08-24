@@ -15,3 +15,17 @@ jobs:
     permissions:
       contents: read
     uses: pysmo/.github/.github/workflows/build.yml@main
+
+  check-wheel-packaging:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: verify Alembic migration scripts are packaged in the wheel
+        run: make check-wheel
