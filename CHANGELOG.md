@@ -26,6 +26,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Auto-create a snapshot per event when data add ingests new seismograms
 - Integrate pysmo causal-filter, persist ICCS.corners, harden schema checks
 - **(tui)** Table-aware footer, causal toggle, and station dimming
+- **(data)** Add near-duplicate event detection to `data add`
 
 ### 🧪 Testing
 
