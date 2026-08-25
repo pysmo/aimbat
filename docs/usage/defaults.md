@@ -15,7 +15,7 @@ be overridden on a per-project basis (in order of precedence):
 
 --8<-- "docs/usage/defaults-table.md"
 
-!!! tip
+!!! tip "Viewing the settings in effect"
 
     To view the settings currently in use, run `aimbat utils settings`.
 

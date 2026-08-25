@@ -74,7 +74,7 @@ but *all* seismograms are cross-correlated against the stack regardless of their
 `select` status. A deselected seismogram can therefore recover automatically if
 parameter changes bring it into alignment.
 
-!!! tip
+!!! tip "Watch for rogue seismograms"
 
     If a seismogram drifts far from the stack (large difference between initial and
     revised pick across iterations), consider deleting it from the project. Rogue
@@ -91,11 +91,11 @@ MCCC has one optional flag:
     state, which is useful when you want timing estimates for all stations even
     if some were excluded from the ICCS stack.
 
-!!! warning
+!!! warning "Use `--all` with care"
 
-    Use `--all` with care: deselected seismograms are typically excluded because
-    they are noisy or misaligned, and including them may degrade the inversion
-    for the rest of the array.
+    Deselected seismograms are typically excluded because they are noisy or
+    misaligned, and including them may degrade the inversion for the rest of
+    the array.
 
 [^1]: VanDecar, J. C., and R. S. Crosson. "Determination of Teleseismic Relative
     Phase Arrival Times Using Multi-Channel Cross-Correlation and Least Squares."

@@ -74,17 +74,54 @@ aimbat data add *.sac          # second run: no-op, all files already known
 ### Event matching relies on exact time equality
 
 AIMBAT links a SAC file to an existing event only if its origin time is
-**exactly** equal to that event's stored time — otherwise it creates a new,
-separate event. The classic (v6) SAC header stores event time as a 32-bit float,
-which does not always round-trip identically across files, so this can silently
-fragment one real event into many.
+**exactly** equal to that event's stored time — accurate to the microsecond,
+which is the precision AIMBAT stores timestamps at — otherwise it does not
+reuse that event.
+
+A new origin time that nearly, but not exactly, matches an existing event's
+time is not silently turned into a second event, though: it is flagged as a
+possible near-duplicate. How close counts as "near" is controlled by
+`event_duplicate_tolerance` and `event_duplicate_raise_tolerance` (see
+[Aimbat Defaults](defaults.md)):
+
+- Within `event_duplicate_tolerance` (default 0.1 s), importing raises an
+  error — or, during `--dry-run`, is reported as a warning instead — since a
+  gap this small is usually timestamp precision loss upstream (e.g. the
+  classic v6 SAC header's 32-bit float `o` field, which does not always
+  round-trip identically across files) rather than a genuinely distinct
+  event.
+- Beyond that but within `event_duplicate_raise_tolerance` (default 2 s),
+  importing always raises, even during `--dry-run`, since a gap this size
+  usually signals an actual timing problem in the source data worth
+  investigating before import.
+- Beyond `event_duplicate_raise_tolerance`, the new origin time is treated as
+  a genuinely independent event, with no warning.
+
+This check runs against every event AIMBAT already knows about when a file is
+processed, including other events created earlier in the same `data add`
+invocation, not only events already in the project beforehand. Resolving a
+flagged conflict is always first-wins: re-run with `--use-event <ID>` to link
+the new file to the pre-existing event's stored time and location exactly as
+they already are — it never merges, averages, or recomputes from the new
+file.
 
 !!! warning "Use SAC header version 7, or provide the event explicitly"
 
-    Write files with `NVHDR=7` — its double-precision footer avoids the rounding
-    issue. Otherwise, supply the event once from a JSON file and link every SAC file
-    to it with `--use-event <ID>`, bypassing SAC-derived time matching entirely; see
+    Write files with `NVHDR=7` — its double-precision footer avoids the classic
+    header's rounding issue. Otherwise, supply the event once from a JSON file
+    and link every SAC file to it with `--use-event <ID>`, bypassing
+    SAC-derived time matching entirely; see
     [Supplying a missing event](#supplying-a-missing-event).
+
+!!! note "Turning near-duplicate detection off"
+
+    `event_duplicate_strict` (see [Aimbat Defaults](defaults.md)) skips both
+    tolerance checks above, leaving only the exact-time match: any gap of a
+    microsecond or more, however small, then creates a fully independent
+    event with no warning at all. Use it only when the source data are
+    trusted to already be free of timing problems at that precision — e.g. a
+    catalogue known to contain legitimately close, but genuinely distinct,
+    events such as an aftershock swarm.
 
 ### Selecting subsets
 
@@ -104,6 +141,23 @@ Use `--dry-run` to see what would be added without touching the database:
 ```bash
 aimbat data add --dry-run *.sac
 ```
+
+It prints a summary of which stations, events, and seismograms would be newly
+created versus already known, and — because
+[near-duplicate events are flagged rather than silently created](#event-matching-relies-on-exact-time-equality)
+— any near-duplicate warnings that a real run would otherwise raise on
+instead. That makes `--dry-run` worth reaching for as routine practice before
+importing a new batch, not just to preview record counts: catching a flagged
+near-duplicate here means resolving it up front with `--use-event <ID>`,
+rather than hitting it partway through a real import — which aborts the
+whole batch and rolls back everything already added in that call, dry-run or
+not.
+
+`--dry-run` only softens the outcome for gaps within
+`event_duplicate_tolerance`, the tighter of the two bands. A gap in the
+wider `event_duplicate_raise_tolerance` band still raises even during
+`--dry-run`, since that band signals a likely data problem meant to be
+investigated before import, not deferred past it.
 
 ### Initial picks
 
@@ -228,7 +282,7 @@ In the TUI, select any row in the **Seismograms** tab and press `Enter` to open
 the action menu, which includes a delete option. Events and stations can be
 deleted from the **Project** tab in the same way.
 
-!!! note
+!!! note "The file on disk is never touched"
 
     Deleting a seismogram from AIMBAT never touches the underlying file on disk —
     only the database record and its link to the waveform source are removed.

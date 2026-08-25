@@ -45,7 +45,7 @@ __all__ = [
 
 @seismogram_data_reader(DataType.SAC)
 def read_seismogram_data_from_sacfile(
-    sacfile: str | PathLike,
+    sacfile: str | PathLike[str],
 ) -> npt.NDArray[np.float64]:
     """Read seismogram waveform data from a SAC file.
 
@@ -63,7 +63,7 @@ def read_seismogram_data_from_sacfile(
 
 @seismogram_data_writer(DataType.SAC)
 def write_seismogram_data_to_sacfile(
-    sacfile: str | PathLike, data: npt.NDArray[np.float64]
+    sacfile: str | PathLike[str], data: npt.NDArray[np.float64]
 ) -> None:
     """Write seismogram waveform data to a SAC file.
 
@@ -80,7 +80,7 @@ def write_seismogram_data_to_sacfile(
 
 
 @station_creator(DataType.SAC)
-def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
+def create_station_from_sacfile(sacfile: str | PathLike[str]) -> AimbatStation:
     """Create an `AimbatStation` instance from a SAC file.
 
     Args:
@@ -100,7 +100,7 @@ def create_station_from_sacfile(sacfile: str | PathLike) -> AimbatStation:
 
 
 @event_creator(DataType.SAC)
-def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
+def create_event_from_sacfile(sacfile: str | PathLike[str]) -> AimbatEvent:
     """Create an `AimbatEvent` instance from a SAC file.
 
     Args:
@@ -122,7 +122,7 @@ def create_event_from_sacfile(sacfile: str | PathLike) -> AimbatEvent:
 
 
 def create_seismogram_from_sacfile_and_pick_header(
-    sacfile: str | PathLike, sac_pick_header: str
+    sacfile: str | PathLike[str], sac_pick_header: str
 ) -> AimbatSeismogram:
     """Create an `AimbatSeismogram` instance from a SAC file.
 
@@ -148,7 +148,7 @@ def create_seismogram_from_sacfile_and_pick_header(
 
 
 @seismogram_creator(DataType.SAC)
-def create_seismogram_from_sacfile(sacfile: str | PathLike) -> AimbatSeismogram:
+def create_seismogram_from_sacfile(sacfile: str | PathLike[str]) -> AimbatSeismogram:
     """Create an `AimbatSeismogram` instance from a SAC file, using the configured pick header.
 
     Args:

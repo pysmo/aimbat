@@ -60,6 +60,61 @@ class Settings(BaseSettings):
         description="AIMBAT database url (default value is derived from `project`).",
     )
 
+    event_duplicate_raise_tolerance: PydanticPositiveTimedelta = Field(
+        default=Timedelta(seconds=2),
+        description=(
+            "Upper bound of the 'ambiguous gap' band: if a new event's origin "
+            "time is further than `event_duplicate_tolerance` but closer than "
+            "this value to an existing event's time, adding it raises an "
+            "error unconditionally (even during `--dry-run`), since a gap this "
+            "size is too large to be ordinary timestamp precision noise but "
+            "too small to confidently be two unrelated events — it usually "
+            "signals a timing problem in the source data that needs "
+            "investigating before import. Ignored entirely when "
+            "`event_duplicate_strict` is True. This check compares origin "
+            "times only, not location — two genuinely distinct, "
+            "geographically unrelated events whose times happen to land "
+            "within this tolerance of each other would still be flagged."
+        ),
+    )
+
+    event_duplicate_strict: bool = Field(
+        default=False,
+        description=(
+            "If True, skip near-duplicate event detection entirely — both "
+            "`event_duplicate_tolerance` and `event_duplicate_raise_tolerance` "
+            "are ignored, and events are only ever merged on an exact origin "
+            "time match. Origin times are stored with microsecond precision, "
+            "so this exact match is itself only accurate to the microsecond: "
+            "two times less than a microsecond apart are always treated as "
+            "the same event, while any gap of a microsecond or more — however "
+            "small — creates a fully independent event with no warning at "
+            "all. Use only when the source data are trusted to already be "
+            "free of timing problems at that precision (e.g. a catalogue "
+            "known to contain legitimately close, but genuinely distinct, "
+            "events such as an aftershock swarm)."
+        ),
+    )
+
+    event_duplicate_tolerance: PydanticPositiveTimedelta = Field(
+        default=Timedelta(seconds=0.1),
+        description=(
+            "Maximum time difference for a new event's origin time to be "
+            "treated as a possible duplicate of an existing one when no exact "
+            "match is found. Real-world origin times are rarely reported to "
+            "better than sub-second precision, and a gap in that range "
+            "usually reflects precision loss upstream (e.g. SAC's 32-bit "
+            "float `o` header) rather than two genuinely distinct events. "
+            "This is meant to catch that precision noise only. Outside "
+            "`--dry-run`, a detected near-duplicate within this tolerance "
+            "raises an error; during `--dry-run` it is reported as a warning "
+            "instead. A larger gap, up to `event_duplicate_raise_tolerance`, "
+            "is handled separately (see that field) rather than being "
+            "treated as ordinary noise. Ignored entirely when "
+            "`event_duplicate_strict` is True."
+        ),
+    )
+
     log_level: Literal[
         "TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"
     ] = Field(
@@ -154,6 +209,16 @@ class Settings(BaseSettings):
         """Derive `db_url` from `project` when not set explicitly."""
         if self.db_url == "":
             self.db_url = f"sqlite+pysqlite:///{self.project}"
+        return self
+
+    @model_validator(mode="after")
+    def validate_event_duplicate_tolerances(self) -> Self:
+        """Ensure the ambiguous-gap band is non-empty."""
+        if self.event_duplicate_raise_tolerance <= self.event_duplicate_tolerance:
+            raise ValueError(
+                "event_duplicate_raise_tolerance must be greater than "
+                "event_duplicate_tolerance."
+            )
         return self
 
 

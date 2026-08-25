@@ -59,7 +59,7 @@ Usage: aimbat COMMAND
 ...
 ```
 
-!!! tip
+!!! tip "`aimbat` command not found"
 
     If your shell cannot find the `aimbat` command, add `~/.local/bin` to your
     `PATH` by running `#!bash uv tool update-shell`.

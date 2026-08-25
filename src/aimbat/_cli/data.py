@@ -25,6 +25,22 @@ aimbat event list          # list events created from SAC headers
 Re-adding a data source that is already in the project is safe — existing
 records are reused rather than duplicated.
 
+Near-duplicate events — two files whose origin times differ by only a
+sliver, most often from precision loss upstream (e.g. SAC's `o`-header
+32-bit float) rather than genuinely distinct events — are flagged rather
+than silently merged. Resolving a flagged conflict is always first-wins:
+`--use-event <uuid>` links the new data to the pre-existing event's stored
+time and location exactly as they already are, it never merges, averages,
+or recomputes from the new file. Detection is controlled by
+`event_duplicate_tolerance` (below this, a gap is assumed to be ordinary
+precision noise), `event_duplicate_raise_tolerance` (above
+`event_duplicate_tolerance` but below this, a gap is treated as a likely
+data problem and always raises, even during `--dry-run`), and
+`event_duplicate_strict` (skips both checks entirely — with it set, events
+are only ever merged on an exact origin-time match, which is itself only
+accurate to the microsecond AIMBAT stores timestamps at, so any gap of a
+microsecond or more silently creates a second event).
+
 `data add` automatically creates a snapshot for each event that received new
 seismogram data, so there is no need to run `snapshot create` right after
 ingestion (pass `--no-snapshot` to opt out for a given invocation). Use
@@ -63,15 +79,17 @@ app = App(name="data", help=__doc__, help_format="markdown")
 
 def _print_dry_run_results(
     added_datasources: Sequence[AimbatDataSource],
-    existing_station_ids: set,
-    existing_event_ids: set,
-    existing_seismogram_ids: set,
+    existing_station_ids: set[uuid.UUID],
+    existing_event_ids: set[uuid.UUID],
+    existing_seismogram_ids: set[uuid.UUID],
+    duplicate_warnings: Sequence[str],
 ) -> None:
     """Print a summary table showing which entities were added vs skipped."""
     from pydantic import BaseModel, Field
     from rich.console import Console
 
     from .common import json_to_table
+    from .common._decorators import _print_warning
 
     class _DryRunRow(BaseModel):
         source: str = Field(title="Source")
@@ -110,6 +128,9 @@ def _print_dry_run_results(
         f"{new_seismograms} seismogram(s) added, "
         f"{len(added_datasources) - new_seismograms} skipped."
     )
+
+    for message in duplicate_warnings:
+        _print_warning(message)
 
 
 def _create_snapshots_for_touched_events(
@@ -219,6 +240,11 @@ def cli_data_add(
     Use `--dry-run` to preview what would be added without touching the
     database. Use `--no-snapshot` to skip the automatic post-ingestion
     snapshot for this invocation.
+
+    Note `--dry-run` can still raise rather than produce a clean preview: an
+    "ambiguous gap" near-duplicate event (see the module help above) is
+    flagged as an error unconditionally, since it usually signals a data
+    problem worth stopping for even during a preview.
     """
     from rich.progress import Progress
 
@@ -237,6 +263,7 @@ def cli_data_add(
                 existing_station_ids,
                 existing_event_ids,
                 existing_seismogram_ids,
+                duplicate_warnings,
             ) = add_data_to_project(
                 session,
                 data_sources,
@@ -253,6 +280,7 @@ def cli_data_add(
                 existing_station_ids,
                 existing_event_ids,
                 existing_seismogram_ids,
+                duplicate_warnings,
             )
         elif auto_snapshot:
             _create_snapshots_for_touched_events(

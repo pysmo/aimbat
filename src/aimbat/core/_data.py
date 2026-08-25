@@ -5,10 +5,12 @@ from collections.abc import Callable, Sequence
 from typing import Any
 from uuid import UUID
 
+from pandas import Timedelta
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
+from aimbat import settings
 from aimbat.io import (
     DataType,
     create_event,
@@ -27,6 +29,7 @@ from aimbat.models._models import (
     _AimbatDataSourceCreate,
 )
 from aimbat.utils import get_title_map
+from aimbat.utils.formatters import fmt_timedelta
 
 __all__ = [
     "add_data_to_project",
@@ -36,7 +39,7 @@ __all__ = [
 
 
 def _create_station(
-    session: Session, datasource: os.PathLike | str, datatype: DataType
+    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
 ) -> AimbatStation:
     """Create a new AimbatStation if it doesn't exist yet, or use existing one."""
 
@@ -64,20 +67,134 @@ def _create_station(
     return aimbat_station
 
 
+def _format_gap_prefix(
+    datasource: os.PathLike[str] | str,
+    new_event: AimbatEvent,
+    existing_event: AimbatEvent,
+    gap: Timedelta,
+) -> str:
+    """Build the shared origin-time/gap/existing-event sentence fragment."""
+    return (
+        f"{datasource} has origin time {new_event.time}, "
+        f"{fmt_timedelta(gap)} from existing event {existing_event.id} "
+        f"({existing_event.time})"
+    )
+
+
+def _format_duplicate_event_message(
+    datasource: os.PathLike[str] | str,
+    new_event: AimbatEvent,
+    existing_event: AimbatEvent,
+    gap: Timedelta,
+    tolerance: Timedelta,
+) -> str:
+    """Build the noise-band near-duplicate-event message."""
+    prefix = _format_gap_prefix(datasource, new_event, existing_event, gap)
+    return (
+        f"Possible duplicate event: {prefix} — within the configured "
+        f"duplicate-detection tolerance ({fmt_timedelta(tolerance)}) but "
+        f"not an exact match. If these are the same event, re-run with "
+        f"'--use-event {existing_event.id}', or import an authoritative "
+        f"event record first using the 'json_event' data type."
+    )
+
+
+def _format_ambiguous_gap_message(
+    datasource: os.PathLike[str] | str,
+    new_event: AimbatEvent,
+    existing_event: AimbatEvent,
+    gap: Timedelta,
+    tolerance: Timedelta,
+    raise_tolerance: Timedelta,
+) -> str:
+    """Build the ambiguous-gap-band event-time-conflict message."""
+    prefix = _format_gap_prefix(datasource, new_event, existing_event, gap)
+    return (
+        f"Event time conflict: {prefix} — too large a gap to be explained "
+        f"by ordinary timestamp precision noise (tolerance "
+        f"{fmt_timedelta(tolerance)}) but too small to confidently treat as "
+        f"an unrelated event (raise threshold {fmt_timedelta(raise_tolerance)}"
+        f"). This usually indicates a timing problem in the source data; "
+        f"check it before importing. If these are known to be genuinely "
+        f"distinct events, set 'event_duplicate_strict' to skip this check."
+    )
+
+
 def _create_event(
-    session: Session, datasource: os.PathLike | str, datatype: DataType
-) -> AimbatEvent:
-    """Create a new AimbatEvent if it doesn't exist yet, or use existing one."""
+    session: Session,
+    datasource: os.PathLike[str] | str,
+    datatype: DataType,
+    dry_run: bool,
+    known_event_ids: set[UUID],
+) -> tuple[AimbatEvent, str | None]:
+    """Create a new AimbatEvent if it doesn't exist yet, or use existing one.
+
+    If no exact time match is found, checks whether the new event's origin
+    time is a near-duplicate of a known event's time, per
+    `settings.event_duplicate_tolerance` / `event_duplicate_raise_tolerance`
+    / `event_duplicate_strict` — see the `data add` module docstring for the
+    three-tier model. `known_event_ids` is updated in place with the ID of
+    any newly created event, so later data sources in the same batch are
+    checked against events created earlier in that batch too.
+
+    Raises:
+        ValueError: If a real add (`dry_run=False`) finds a near-duplicate
+            within `event_duplicate_tolerance`, or if any near-duplicate
+            (regardless of `dry_run`) falls in the wider "ambiguous gap"
+            band up to `event_duplicate_raise_tolerance`.
+    """
 
     new_aimbat_event = create_event(datasource, datatype)
 
     statement = select(AimbatEvent).where(AimbatEvent.time == new_aimbat_event.time)
     aimbat_event = session.exec(statement).one_or_none()
+    duplicate_warning: str | None = None
 
     if aimbat_event is None:
+        if not settings.event_duplicate_strict:
+            tolerance = settings.event_duplicate_tolerance
+            raise_tolerance = settings.event_duplicate_raise_tolerance
+            near_statement = select(AimbatEvent).where(
+                AimbatEvent.time.between(  # type: ignore[attr-defined]
+                    new_aimbat_event.time - raise_tolerance,
+                    new_aimbat_event.time + raise_tolerance,
+                ),
+            )
+            near_duplicates = [
+                e for e in session.exec(near_statement).all() if e.id in known_event_ids
+            ]
+            if near_duplicates:
+                closest = min(
+                    near_duplicates, key=lambda e: abs(e.time - new_aimbat_event.time)
+                )
+                gap = abs(closest.time - new_aimbat_event.time)
+                # Strictly less than raise_tolerance: at or beyond it, the
+                # gap is treated as fully independent (see the setting's
+                # "closer than this value" description in _config.py).
+                if gap < raise_tolerance:
+                    if gap <= tolerance:
+                        message = _format_duplicate_event_message(
+                            datasource, new_aimbat_event, closest, gap, tolerance
+                        )
+                        if dry_run:
+                            duplicate_warning = message
+                        else:
+                            raise ValueError(message)
+                    else:
+                        raise ValueError(
+                            _format_ambiguous_gap_message(
+                                datasource,
+                                new_aimbat_event,
+                                closest,
+                                gap,
+                                tolerance,
+                                raise_tolerance,
+                            )
+                        )
         aimbat_event = new_aimbat_event
         logger.debug(f"Adding event {aimbat_event.time} to project.")
         session.add(aimbat_event)
+        known_event_ids.add(aimbat_event.id)
     else:
         logger.debug(
             f"Using existing event {aimbat_event.time} instead of adding new one."
@@ -91,11 +208,12 @@ def _create_event(
                 f"Event at {aimbat_event.time} matched by time but has different "
                 f"location metadata in {datasource}. The existing record will be used."
             )
-    return aimbat_event
+
+    return aimbat_event, duplicate_warning
 
 
 def _create_seismogram(
-    session: Session, datasource: os.PathLike | str, datatype: DataType
+    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
 ) -> AimbatSeismogram:
     """Create a new AimbatSeismogram if it doesn't exist yet, or use existing one."""
 
@@ -121,11 +239,13 @@ def _create_seismogram(
 
 def _process_datasource(
     session: Session,
-    datasource: os.PathLike | str,
+    datasource: os.PathLike[str] | str,
     datatype: DataType,
     station_id: UUID | None,
     event_id: UUID | None,
-) -> AimbatDataSource | None:
+    dry_run: bool,
+    known_event_ids: set[UUID],
+) -> tuple[AimbatDataSource | None, str | None]:
     """Process a single data source, creating whichever entities the data type supports.
 
     Returns an `AimbatDataSource` when seismogram data are created, or `None`
@@ -140,16 +260,31 @@ def _process_datasource(
             extracting one from `datasource`.
         event_id: UUID of an existing event to link to instead of extracting
             one from `datasource`.
+        dry_run: If True, a near-duplicate event within
+            `settings.event_duplicate_tolerance` is collected as a warning
+            instead of raising.
+        known_event_ids: IDs of events eligible for near-duplicate matching;
+            updated in place as new events are created, so later data sources
+            in the same batch are checked against earlier ones too.
 
     Returns:
-        The created or reused `AimbatDataSource`, or `None` if `datatype`
-        does not support seismogram creation.
+        A 2-tuple of the created or reused `AimbatDataSource` (or `None` if
+        `datatype` does not support seismogram creation) and a near-duplicate
+        warning message (or `None` if no near-duplicate was found, or if the
+        one found was outside `settings.event_duplicate_tolerance`).
 
     Raises:
-        ValueError: If `event_id` is given but no matching event exists, or
-            if `datatype` does not support the station or event creation
-            required to link a seismogram.
+        ValueError: If `event_id` is given but no matching event exists, if
+            `datatype` does not support the station or event creation
+            required to link a seismogram, if a real add (`dry_run=False`)
+            finds a near-duplicate event within
+            `settings.event_duplicate_tolerance`, or if a near-duplicate
+            event falls in the wider "ambiguous gap" band up to
+            `settings.event_duplicate_raise_tolerance` — the latter is
+            raised regardless of `dry_run`.
     """
+
+    duplicate_warning: str | None = None
 
     # Resolve station — use the provided UUID, extract from the source, or skip
     if station_id is not None:
@@ -169,13 +304,15 @@ def _process_datasource(
             raise ValueError(f"No event found with ID={event_id}.")
         logger.debug(f"Using event {aimbat_event.time} (ID={event_id}).")
     elif supports_event_creation(datatype):
-        aimbat_event = _create_event(session, datasource, datatype)
+        aimbat_event, duplicate_warning = _create_event(
+            session, datasource, datatype, dry_run, known_event_ids
+        )
     else:
         aimbat_event = None
 
     # No seismogram creation → station/event-only import, nothing more to do
     if not supports_seismogram_creation(datatype):
-        return None
+        return None, duplicate_warning
 
     # Seismogram creation requires both a station and an event to link to
     if aimbat_station is None:
@@ -215,18 +352,18 @@ def _process_datasource(
         )
         aimbat_data_source.seismogram = aimbat_seismogram
     session.add(aimbat_data_source)
-    return aimbat_data_source
+    return aimbat_data_source, duplicate_warning
 
 
 def add_data_to_project(
     session: Session,
-    data_sources: Sequence[os.PathLike | str],
+    data_sources: Sequence[os.PathLike[str] | str],
     data_type: DataType,
     station_id: UUID | None = None,
     event_id: UUID | None = None,
     dry_run: bool = False,
     on_progress: Callable[[int, int], None] | None = None,
-) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID]]:
+) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID], list[str]]:
     """Add data sources to the AIMBAT database.
 
     What gets created depends on which capabilities `data_type` supports:
@@ -239,6 +376,14 @@ def add_data_to_project(
 
     Use `station_id` or `event_id` to skip extracting station or event metadata
     from the data source and link to a pre-existing record instead.
+
+    A new event whose origin time nearly, but not exactly, matches a
+    pre-existing event's time is flagged as a possible near-duplicate (see
+    `settings.event_duplicate_tolerance`, `event_duplicate_raise_tolerance`,
+    and `event_duplicate_strict`). Within the tighter tolerance, a real add
+    raises `ValueError` while a dry run collects a warning instead; within
+    the wider "ambiguous gap" band, a `ValueError` is raised unconditionally,
+    even during a dry run.
 
     Args:
         session: The SQLModel database session.
@@ -254,13 +399,19 @@ def add_data_to_project(
             display progress.
 
     Returns:
-        A 4-tuple of `(added_datasources, existing_station_ids,
-        existing_event_ids, existing_seismogram_ids)`. `added_datasources` is
-        every `AimbatDataSource` touched by this call, new or reused.
-        `existing_*_ids` are the sets of station/event/seismogram IDs that
-        already existed in the database *before* this call, so callers can
-        tell which entries in `added_datasources` are newly created versus
-        reused by comparing IDs against these sets.
+        A 5-tuple of `(added_datasources, existing_station_ids,
+        existing_event_ids, existing_seismogram_ids, duplicate_warnings)`.
+        `added_datasources` is every `AimbatDataSource` touched by this call,
+        new or reused. `existing_*_ids` are the sets of station/event/
+        seismogram IDs that already existed in the database *before* this
+        call, so callers can tell which entries in `added_datasources` are
+        newly created versus reused by comparing IDs against these sets.
+        `duplicate_warnings` lists near-duplicate-event messages collected
+        during a dry run (always empty on a real-add call, since a real-add
+        near-duplicate raises instead of being collected).
+
+    Raises:
+        ValueError: If a near-duplicate event is found — see above.
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
@@ -276,16 +427,31 @@ def add_data_to_project(
     existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
     existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
 
+    # Mutated in place as new events are created, so near-duplicate
+    # detection also covers events created earlier in this same batch —
+    # unlike existing_event_ids, which stays a frozen pre-batch snapshot
+    # for the return value's new-vs-reused semantics.
+    known_event_ids = set(existing_event_ids)
+
     try:
         added_datasources: list[AimbatDataSource] = []
+        duplicate_warnings: list[str] = []
         total = len(data_sources)
         with session.begin_nested() as nested:
             for done, datasource in enumerate(data_sources, start=1):
-                result = _process_datasource(
-                    session, datasource, data_type, station_id, event_id
+                result, duplicate_warning = _process_datasource(
+                    session,
+                    datasource,
+                    data_type,
+                    station_id,
+                    event_id,
+                    dry_run,
+                    known_event_ids,
                 )
                 if result is not None:
                     added_datasources.append(result)
+                if duplicate_warning is not None:
+                    duplicate_warnings.append(duplicate_warning)
                 if on_progress is not None:
                     on_progress(done, total)
 
@@ -300,6 +466,7 @@ def add_data_to_project(
                     existing_station_ids,
                     existing_event_ids,
                     existing_seismogram_ids,
+                    duplicate_warnings,
                 )
 
         session.commit()
@@ -309,6 +476,7 @@ def add_data_to_project(
             existing_station_ids,
             existing_event_ids,
             existing_seismogram_ids,
+            duplicate_warnings,
         )
 
     except Exception as e:
