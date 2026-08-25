@@ -51,7 +51,7 @@ __all__ = [
 
 
 @station_creator(DataType.JSON_STATION)
-def create_station_from_json(path: str | PathLike) -> AimbatStation:
+def create_station_from_json(path: str | PathLike[str]) -> AimbatStation:
     """Create an `AimbatStation` from a JSON file.
 
     Args:
@@ -70,7 +70,7 @@ def create_station_from_json(path: str | PathLike) -> AimbatStation:
 
 
 @event_creator(DataType.JSON_EVENT)
-def create_event_from_json(path: str | PathLike) -> AimbatEvent:
+def create_event_from_json(path: str | PathLike[str]) -> AimbatEvent:
     """Create an `AimbatEvent` from a JSON file.
 
     Args:

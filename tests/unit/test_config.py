@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pandas import Timedelta
+from pydantic import ValidationError
 from rich.console import Console
 
 from aimbat._config import (
@@ -93,6 +95,29 @@ class TestSettings:
         """Verifies that context_width is a positive duration."""
         s = Settings()
         assert s.context_width.total_seconds() > 0
+
+    def test_event_duplicate_tolerance_default(self) -> None:
+        """Verifies the default event_duplicate_tolerance."""
+        s = Settings()
+        assert s.event_duplicate_tolerance == Timedelta(seconds=0.1)
+
+    def test_event_duplicate_raise_tolerance_default(self) -> None:
+        """Verifies the default event_duplicate_raise_tolerance."""
+        s = Settings()
+        assert s.event_duplicate_raise_tolerance == Timedelta(seconds=2)
+
+    def test_event_duplicate_strict_default(self) -> None:
+        """Verifies the default event_duplicate_strict."""
+        s = Settings()
+        assert s.event_duplicate_strict is False
+
+    def test_event_duplicate_raise_tolerance_must_exceed_tolerance(self) -> None:
+        """Verifies that an equal (or smaller) raise tolerance is rejected."""
+        with pytest.raises(ValidationError):
+            Settings(
+                event_duplicate_tolerance=Timedelta(seconds=1),
+                event_duplicate_raise_tolerance=Timedelta(seconds=1),
+            )
 
 
 class TestPrintSettingsTablePlain:

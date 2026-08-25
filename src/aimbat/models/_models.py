@@ -54,7 +54,7 @@ __all__ = [
 class _AimbatDataSourceCreate(SQLModel):
     """Input model for creating a new data source entry."""
 
-    sourcename: os.PathLike | str = Field(
+    sourcename: os.PathLike[str] | str = Field(
         unique=True,
     )
     datatype: DataType = Field(
@@ -372,7 +372,6 @@ class AimbatSnapshot(SQLModel, table=True):
     time: PydanticTimestamp = Field(
         default_factory=lambda: Timestamp.now(tz=timezone.utc),
         unique=True,
-        allow_mutation=False,
         sa_type=SAPandasTimestamp,
         title="Snapshot time",
         description="Timestamp when the snapshot was created.",
@@ -577,22 +576,18 @@ class AimbatStation(SQLModel, table=True):
         schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
     )
     name: str = Field(
-        allow_mutation=False,
         title="Name",
         description="Station name (SEED station code).",
     )
     network: str = Field(
-        allow_mutation=False,
         title="Network",
         description="Network code.",
     )
     location: str = Field(
-        allow_mutation=False,
         title="Location",
         description="Location code.",
     )
     channel: str = Field(
-        allow_mutation=False,
         title="Channel",
         description="Channel code (e.g. BHZ).",
     )
@@ -634,7 +629,6 @@ class AimbatEvent(SQLModel, table=True):
     time: PydanticTimestamp = Field(
         unique=True,
         sa_type=SAPandasTimestamp,
-        allow_mutation=False,
         title="Time",
         description="Event origin time (UTC).",
     )

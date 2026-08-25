@@ -1,11 +1,12 @@
 """Integration tests for adding data to the project (aimbat.core._data)."""
 
 import json
+import shutil
 import uuid
 from pathlib import Path
 
 import pytest
-from pandas import Timestamp
+from pandas import Timedelta, Timestamp
 from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
@@ -13,6 +14,7 @@ from sqlmodel import Session, select
 
 from pysmo.classes import SAC
 
+import aimbat
 from aimbat.core import (
     add_data_to_project,
     dump_data_table,
@@ -22,6 +24,7 @@ from aimbat.io import DataType
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
+    AimbatEventParameters,
     AimbatSeismogram,
     AimbatStation,
 )
@@ -216,6 +219,7 @@ class TestAddDataToProject:
             existing_station_ids,
             existing_event_ids,
             existing_seismogram_ids,
+            duplicate_warnings,
         ) = result
         n = len(multi_event_data)
         assert len(added_datasources) == n
@@ -229,6 +233,7 @@ class TestAddDataToProject:
         assert all(
             ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
         )
+        assert duplicate_warnings == []
 
     def test_dry_run_all_skipped(
         self,
@@ -260,6 +265,7 @@ class TestAddDataToProject:
             existing_station_ids,
             existing_event_ids,
             existing_seismogram_ids,
+            duplicate_warnings,
         ) = result
         n = len(multi_event_data)
         assert len(added_datasources) == n
@@ -272,6 +278,7 @@ class TestAddDataToProject:
         assert all(
             ds.seismogram_id in existing_seismogram_ids for ds in added_datasources
         )
+        assert duplicate_warnings == []
 
     def test_real_run_all_new(
         self,
@@ -289,6 +296,7 @@ class TestAddDataToProject:
             existing_station_ids,
             existing_event_ids,
             existing_seismogram_ids,
+            duplicate_warnings,
         ) = add_data_to_project(
             patched_session,
             multi_event_data,
@@ -300,6 +308,7 @@ class TestAddDataToProject:
         assert all(
             ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
         )
+        assert duplicate_warnings == []
 
         datasource = patched_session.exec(select(AimbatDataSource.sourcename)).all()
         assert len(datasource) == n, "Expected data to actually be committed."
@@ -326,6 +335,7 @@ class TestAddDataToProject:
             _existing_station_ids,
             _existing_event_ids,
             existing_seismogram_ids,
+            duplicate_warnings,
         ) = add_data_to_project(
             patched_session,
             multi_event_data,
@@ -336,6 +346,300 @@ class TestAddDataToProject:
         assert all(
             ds.seismogram_id in existing_seismogram_ids for ds in added_datasources
         )
+        assert duplicate_warnings == []
+
+
+class TestNearDuplicateEventDetection:
+    """Tests for near-duplicate event detection in add_data_to_project."""
+
+    @staticmethod
+    def _shifted_copy(
+        source: Path, tmp_path: Path, shift_seconds: float, name: str
+    ) -> Path:
+        """Copy `source` to `tmp_path/name`, shifting its event time.
+
+        Args:
+            source: Path to the SAC file to copy.
+            tmp_path: Directory to copy into.
+            shift_seconds: Seconds to shift the copy's event time by.
+            name: Filename for the copy.
+
+        Returns:
+            Path to the shifted copy.
+        """
+        new_path = tmp_path / name
+        shutil.copy(source, new_path)
+        sac = SAC.from_file(new_path)
+        sac.event.time = sac.event.time + Timedelta(seconds=shift_seconds)
+        sac.write(new_path)
+        return new_path
+
+    @staticmethod
+    def _seed_event(session: Session, time: Timestamp) -> AimbatEvent:
+        """Insert an event directly via the ORM, bypassing add_data_to_project.
+
+        Args:
+            session: Database session.
+            time: Event origin time.
+
+        Returns:
+            The inserted AimbatEvent.
+        """
+        event = AimbatEvent(time=time, latitude=35.0, longitude=-120.0, depth=10.0)
+        session.add(event)
+        session.flush()
+        session.add(AimbatEventParameters(event=event))
+        session.flush()
+        return event
+
+    # -- Noise band (within event_duplicate_tolerance) --------------------
+
+    def test_near_duplicate_event_raises_on_real_add(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """A real add raises when within event_duplicate_tolerance of an existing event.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+        """
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
+
+        with pytest.raises(ValueError):
+            add_data_to_project(patched_session, [near_dup], data_type=DataType.SAC)
+
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 1
+
+    def test_near_duplicate_event_warns_on_dry_run(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """A dry run collects a warning instead of raising within the noise band.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+        """
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
+
+        (
+            added_datasources,
+            _existing_station_ids,
+            existing_event_ids,
+            _existing_seismogram_ids,
+            duplicate_warnings,
+        ) = add_data_to_project(
+            patched_session, [near_dup], data_type=DataType.SAC, dry_run=True
+        )
+
+        assert len(duplicate_warnings) == 1
+        assert str(near_dup) in duplicate_warnings[0]
+
+        # First-wins preview: the near-duplicate is still listed as a newly
+        # added event in the same call that produces the warning.
+        assert len(added_datasources) == 1
+        assert added_datasources[0].seismogram.event_id not in existing_event_ids
+
+    # -- Ambiguous-gap band (between the two tolerances) -------------------
+
+    def test_ambiguous_gap_raises_on_real_add(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """A real add raises with a data-problem message in the ambiguous-gap band.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+        """
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        ambiguous = self._shifted_copy(sac_file_good, tmp_path, 1.0, "ambiguous.sac")
+
+        with pytest.raises(ValueError) as excinfo:
+            add_data_to_project(patched_session, [ambiguous], data_type=DataType.SAC)
+
+        assert "--use-event" not in str(excinfo.value)
+        assert "timing problem" in str(excinfo.value)
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 1
+
+    def test_ambiguous_gap_raises_even_on_dry_run(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """A dry run still raises in the ambiguous-gap band, unlike the noise band.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+        """
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        ambiguous = self._shifted_copy(sac_file_good, tmp_path, 1.0, "ambiguous.sac")
+
+        with pytest.raises(ValueError):
+            add_data_to_project(
+                patched_session, [ambiguous], data_type=DataType.SAC, dry_run=True
+            )
+
+    # -- Independent events and edge cases ---------------------------------
+
+    def test_events_beyond_raise_tolerance_are_independent(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """A real add beyond event_duplicate_raise_tolerance is not flagged.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+        """
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        independent = self._shifted_copy(
+            sac_file_good, tmp_path, 3.0, "independent.sac"
+        )
+
+        add_data_to_project(patched_session, [independent], data_type=DataType.SAC)
+
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 2
+
+    def test_same_batch_near_duplicates_are_flagged(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """Near-duplicates within the same batch are compared against each other too.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+        """
+        near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
+
+        with pytest.raises(ValueError):
+            add_data_to_project(
+                patched_session, [sac_file_good, near_dup], data_type=DataType.SAC
+            )
+
+        # The whole batch shares one nested transaction, so the raise on the
+        # second file rolls back the first file's event too.
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 0
+
+    def test_gap_exactly_at_raise_tolerance_is_independent(
+        self, event_json: Path, patched_session: Session
+    ) -> None:
+        """A gap exactly equal to event_duplicate_raise_tolerance is not flagged.
+
+        Uses a JSON event rather than a SAC file so both origin times are
+        exact to the microsecond: SAC's 32-bit float header leaves the new
+        event's time with sub-microsecond noise that a DB round trip (which
+        floors to microsecond precision) would not reproduce on the seeded
+        side, masking the exact boundary this test targets.
+
+        Args:
+            event_json: Path to a JSON event file.
+            patched_session: Database session.
+        """
+        new_time = Timestamp(_EVENT_DATA["time"])
+        self._seed_event(patched_session, new_time + Timedelta(seconds=2))
+
+        add_data_to_project(
+            patched_session, [event_json], data_type=DataType.JSON_EVENT
+        )
+
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 2
+
+    def test_multiple_near_duplicates_picks_closest(
+        self, sac_file_good: Path, patched_session: Session
+    ) -> None:
+        """The closest pre-existing near-duplicate is identified, not the first found.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+        """
+        new_time = SAC.from_file(sac_file_good).event.time
+        far = self._seed_event(patched_session, new_time - Timedelta(seconds=0.09))
+        close = self._seed_event(patched_session, new_time + Timedelta(seconds=0.04))
+
+        with pytest.raises(ValueError) as excinfo:
+            add_data_to_project(
+                patched_session, [sac_file_good], data_type=DataType.SAC
+            )
+
+        assert str(close.id) in str(excinfo.value)
+        assert str(far.id) not in str(excinfo.value)
+
+    def test_closest_match_determines_band(
+        self, sac_file_good: Path, patched_session: Session
+    ) -> None:
+        """Band classification is based on the closest match, not the query window.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+        """
+        new_time = SAC.from_file(sac_file_good).event.time
+        noise_band_event = self._seed_event(
+            patched_session, new_time + Timedelta(seconds=0.05)
+        )
+        self._seed_event(patched_session, new_time - Timedelta(seconds=1))
+
+        with pytest.raises(ValueError) as excinfo:
+            add_data_to_project(
+                patched_session, [sac_file_good], data_type=DataType.SAC
+            )
+
+        assert "--use-event" in str(excinfo.value)
+        assert str(noise_band_event.id) in str(excinfo.value)
+
+    # -- strict mode ---------------------------------------------------
+
+    def test_strict_skips_noise_band(
+        self,
+        sac_file_good: Path,
+        patched_session: Session,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """event_duplicate_strict=True skips the noise-band check.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+            monkeypatch: Fixture to mock objects/attributes.
+        """
+        monkeypatch.setattr(aimbat.settings, "event_duplicate_strict", True)
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
+
+        add_data_to_project(patched_session, [near_dup], data_type=DataType.SAC)
+
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 2
+
+    def test_strict_skips_ambiguous_gap_band(
+        self,
+        sac_file_good: Path,
+        patched_session: Session,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """event_duplicate_strict=True also skips the ambiguous-gap-band check.
+
+        Args:
+            sac_file_good: Path to a valid SAC file.
+            patched_session: Database session.
+            tmp_path: Temporary directory for the shifted copy.
+            monkeypatch: Fixture to mock objects/attributes.
+        """
+        monkeypatch.setattr(aimbat.settings, "event_duplicate_strict", True)
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        ambiguous = self._shifted_copy(sac_file_good, tmp_path, 1.0, "ambiguous.sac")
+
+        add_data_to_project(patched_session, [ambiguous], data_type=DataType.SAC)
+
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 2
 
 
 class TestGetDataSources:

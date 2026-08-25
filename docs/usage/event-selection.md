@@ -62,7 +62,7 @@ aimbat snapshot create "post-ICCS"
 The shell prompt also reflects this ID when set. To clear it, unset the
 variable: `unset DEFAULT_EVENT_ID`.
 
-!!! note
+!!! note "Not an AIMBAT setting"
 
     `DEFAULT_EVENT_ID` is a plain shell environment variable consumed directly by
     the CLI argument parser. It is **not** an AIMBAT setting: it has no `AIMBAT_`
