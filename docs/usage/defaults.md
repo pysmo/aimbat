@@ -13,7 +13,7 @@ be overridden on a per-project basis (in order of precedence):
 - A `.env`[^1] file in the current working directory (e.g.
     `AIMBAT_LOG_LEVEL=DEBUG`).
 
---8<-- "docs/usage/defaults-table.md"
+{{ settings_table }}
 
 !!! tip "Viewing the settings in effect"
 

@@ -43,7 +43,6 @@ clean: ## Remove existing builds.
 	rm -rf build dist .egg aimbat.egg-info docs/build site
 
 docs: check-uv sync ## Build html docs.
-	uv run python -c "import sys; from aimbat._config import generate_settings_table_markdown as g; sys.stdout.write(g())" > docs/usage/defaults-table.md
 	uv run zensical build --clean
 
 format: check-uv ## Sort imports and format code.
@@ -59,7 +58,6 @@ lint: check-uv ## Run all linting checks.
 	uv run ruff format --check .
 
 live-docs: check-uv sync ## Live build html docs. They are served on http://localhost:8000
-	uv run python -c "import sys; from aimbat._config import generate_settings_table_markdown as g; sys.stdout.write(g())" > docs/usage/defaults-table.md
 	uv run zensical serve
 
 mypy: check-uv ## Run typing tests with pytest.

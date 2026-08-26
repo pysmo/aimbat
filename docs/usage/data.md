@@ -84,13 +84,13 @@ possible near-duplicate. How close counts as "near" is controlled by
 `event_duplicate_tolerance` and `event_duplicate_raise_tolerance` (see
 [Aimbat Defaults](defaults.md)):
 
-- Within `event_duplicate_tolerance` (default 0.1 s), importing raises an
+- Within `event_duplicate_tolerance` (default {{ event_duplicate_tolerance }}), importing raises an
   error — or, during `--dry-run`, is reported as a warning instead — since a
   gap this small is usually timestamp precision loss upstream (e.g. the
   classic v6 SAC header's 32-bit float `o` field, which does not always
   round-trip identically across files) rather than a genuinely distinct
   event.
-- Beyond that but within `event_duplicate_raise_tolerance` (default 2 s),
+- Beyond that but within `event_duplicate_raise_tolerance` (default {{ event_duplicate_raise_tolerance }}),
   importing always raises, even during `--dry-run`, since a gap this size
   usually signals an actual timing problem in the source data worth
   investigating before import.
