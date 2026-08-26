@@ -14,5 +14,3 @@ permissions:
 jobs:
   deploy:
     uses: pysmo/.github/.github/workflows/docs.yml@main
-    with:
-      extra-build-command: uv run python -c "import sys; from aimbat._config import generate_settings_table_markdown as g; sys.stdout.write(g())" > docs/usage/defaults-table.md

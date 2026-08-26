@@ -31,7 +31,6 @@ junit.xml
 .ipynb_checkpoints
 .envrc
 aimbat.log
-docs/usage/defaults-table.md
 .env
 aimbat_test*.log
 scratch/

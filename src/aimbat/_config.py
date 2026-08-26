@@ -302,6 +302,35 @@ def cli_settings_list(
     print_settings_table(pretty)
 
 
+class _DefaultsOnly(Settings):
+    """Settings subclass that ignores environment variables and `.env` files.
+
+    Used to read field defaults uninfluenced by the current environment.
+    """
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Return no settings sources, so only field defaults apply."""
+        return ()
+
+
+def get_default_settings() -> Settings:
+    """Return AIMBAT settings populated from field defaults only.
+
+    Environment variables and `.env` files are ignored, so this reflects
+    the true default value of each setting regardless of the current
+    environment.
+    """
+    return _DefaultsOnly()
+
+
 def generate_settings_table_markdown() -> str:
     """Generate a Markdown table of all AIMBAT default settings.
 
@@ -311,26 +340,8 @@ def generate_settings_table_markdown() -> str:
     """
     import json
 
-    class _DefaultsOnly(Settings):
-        """Settings subclass that ignores environment variables and `.env` files.
-
-        Used to read field defaults uninfluenced by the current environment.
-        """
-
-        @classmethod
-        def settings_customise_sources(
-            cls,
-            settings_cls: type[BaseSettings],
-            init_settings: PydanticBaseSettingsSource,
-            env_settings: PydanticBaseSettingsSource,
-            dotenv_settings: PydanticBaseSettingsSource,
-            file_secret_settings: PydanticBaseSettingsSource,
-        ) -> tuple[PydanticBaseSettingsSource, ...]:
-            """Return no settings sources, so only field defaults apply."""
-            return ()
-
     env_prefix = Settings.model_config.get("env_prefix", "").upper()
-    values: dict[str, str] = json.loads(_DefaultsOnly().model_dump_json())
+    values: dict[str, str] = json.loads(get_default_settings().model_dump_json())
 
     lines = [
         "| Environment Variable | Default | Description |",

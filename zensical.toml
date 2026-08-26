@@ -159,6 +159,7 @@ custom_fences = [
 ]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
+[project.plugins.macros]
 [project.plugins.mkdocstrings.handlers.python]
 paths = ["src"]
 inventories = [
