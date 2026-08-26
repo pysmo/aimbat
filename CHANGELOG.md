@@ -16,6 +16,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 - Overhaul documentation and enforce docstring linting
 - Scope --alias flag to CLI/shell in results export docs
+- Render settings defaults via zensical macros instead of hand-typing/shelling out
 
 ### 🔧 Refactoring
 
