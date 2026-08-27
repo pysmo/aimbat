@@ -8,9 +8,11 @@ from cyclopts import App
 from aimbat.models import AimbatStation
 
 from .common import (
+    ConfirmParameters,
     DebugParameter,
     JsonDumpParameters,
     TableParameters,
+    confirm_or_abort,
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
@@ -90,7 +92,7 @@ def cli_station_delete(
         ),
     ],
     *,
-    _: DebugParameter = DebugParameter(),
+    confirm: ConfirmParameters = ConfirmParameters(),
 ) -> None:
     """Delete an existing station.
 
@@ -103,6 +105,9 @@ def cli_station_delete(
     from aimbat.core import delete_station
     from aimbat.db import engine
 
+    confirm_or_abort(
+        f"Delete station {station_id} and all of its seismograms?", yes=confirm.yes
+    )
     with Session(engine) as session:
         delete_station(session, station_id)
 
@@ -158,6 +163,7 @@ def cli_station_dump(
 @handle_issues
 def cli_station_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
+    *,
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
     """Print information on the stations used in an event."""

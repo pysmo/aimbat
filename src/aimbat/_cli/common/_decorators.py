@@ -5,7 +5,7 @@ from typing import Any
 
 from aimbat import settings
 
-__all__ = ["print_error_panel", "handle_issues"]
+__all__ = ["print_error_panel", "handle_issues", "confirm_or_abort"]
 
 
 def print_error_panel(e: Exception) -> None:
@@ -71,3 +71,33 @@ def handle_issues[F: Callable[..., Any]](func: F) -> F:
                 sys.exit(1)
 
     return wrapper  # type: ignore
+
+
+def confirm_or_abort(message: str, *, yes: bool) -> None:
+    """Prompt for confirmation before a destructive action, then abort if declined.
+
+    Args:
+        message: The Yes/No question to display.
+        yes: If True, skip the prompt (for scripting/non-interactive use).
+
+    Raises:
+        SystemExit: With status 0, if the user declines or the prompt cannot
+            be read (e.g. no interactive terminal is attached).
+    """
+    if yes:
+        return
+
+    import sys
+
+    from rich.console import Console
+    from rich.prompt import Confirm
+
+    console = Console(stderr=True)
+    try:
+        confirmed = Confirm.ask(message, console=console, default=False)
+    except (EOFError, KeyboardInterrupt):
+        confirmed = False
+
+    if not confirmed:
+        console.print("Aborted.")
+        sys.exit(0)

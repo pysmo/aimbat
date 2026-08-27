@@ -14,7 +14,9 @@ from uuid import UUID
 from cyclopts import App
 
 from .common import (
+    ConfirmParameters,
     DebugParameter,
+    confirm_or_abort,
     event_parameter,
     handle_issues,
 )
@@ -38,7 +40,7 @@ def cli_project_create(*, _: DebugParameter = DebugParameter()) -> None:
 
 @app.command(name="delete")
 @handle_issues
-def cli_project_delete(*, _: DebugParameter = DebugParameter()) -> None:
+def cli_project_delete(*, confirm: ConfirmParameters = ConfirmParameters()) -> None:
     """Delete the AIMBAT project database.
 
     Does not delete the underlying seismogram data source files.
@@ -46,6 +48,7 @@ def cli_project_delete(*, _: DebugParameter = DebugParameter()) -> None:
     from aimbat.core import delete_project
     from aimbat.db import engine
 
+    confirm_or_abort("Delete the AIMBAT project database?", yes=confirm.yes)
     delete_project(engine)
 
 

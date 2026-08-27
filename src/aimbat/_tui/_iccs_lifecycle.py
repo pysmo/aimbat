@@ -53,7 +53,10 @@ class _IccsLifecycleMixin(App[None]):
         """Discard the existing ICCS instance and create a new one in a background worker.
 
         ICCS construction reads waveform data, so it must not block the asyncio event loop.
-        Concurrent calls are ignored — only one worker runs at a time.
+        Concurrent calls are ignored — only one worker runs at a time. Also records the
+        current event's `last_modified` via `IccsLifecycle.note_checked`, so that a later
+        staleness poll correctly falls through to the one-shot retry branch instead of
+        treating the still-in-progress attempt as newly detected staleness.
 
         Args:
             is_retry: Whether this call is the one-shot retry made in
@@ -67,6 +70,15 @@ class _IccsLifecycleMixin(App[None]):
                 "ICCS creation already in progress; skipping duplicate request."
             )
             return
+        try:
+            with Session(engine) as session:
+                event = self._get_current_event(session)
+                self._iccs_lifecycle.note_checked(event.last_modified)
+        except Exception:
+            # Best-effort bookkeeping only — any failure here (no event
+            # selected, a locked DB, ...) must not prevent the worker below
+            # from running, since it alone resets `start_creating()`'s guard.
+            pass
         self._worker_create_iccs(is_retry)
 
     @work(thread=True)
@@ -150,7 +162,6 @@ class _IccsLifecycleMixin(App[None]):
             logger.debug(
                 "ICCS staleness detected; recreating instance and refreshing UI."
             )
-            self._iccs_lifecycle.note_checked(event.last_modified)
             self._create_iccs()
             self.refresh_all()
         elif self._iccs_lifecycle.retry_pending:

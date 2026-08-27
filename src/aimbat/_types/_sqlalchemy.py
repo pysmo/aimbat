@@ -35,6 +35,10 @@ class SAPandasTimestamp(TypeDecorator):
         converted to UTC. Precision is truncated to microseconds, since
         `datetime` cannot represent nanoseconds.
 
+        `PydanticTimestamp` validation is expected to have already rejected
+        naive values before they reach this point; the naive-to-UTC handling
+        here is a defensive fallback, not the primary validation point.
+
         Args:
             value: Value to store. `None` and pandas null values are passed
                 through unchanged.

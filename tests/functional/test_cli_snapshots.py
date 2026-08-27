@@ -171,7 +171,7 @@ class TestSnapshotDelete:
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
 
-        cli(f"snapshot delete {snapshot_id}")
+        cli(f"snapshot delete {snapshot_id} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
@@ -200,7 +200,7 @@ class TestSnapshotDelete:
         snapshot_id = data_before["snapshots"][0]["id"]
         event_param_ids = {ep["id"] for ep in data_before["event_parameters"]}
 
-        cli(f"snapshot delete {snapshot_id}")
+        cli(f"snapshot delete {snapshot_id} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
@@ -232,7 +232,7 @@ class TestSnapshotDelete:
             "There should be seismogram parameter snapshots before deletion"
         )
 
-        cli(f"snapshot delete {snapshot_id}")
+        cli(f"snapshot delete {snapshot_id} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
@@ -268,7 +268,7 @@ class TestSnapshotDelete:
             s["id"] for s in data_before["snapshots"] if s["comment"] == "second"
         )
 
-        cli(f"snapshot delete {first_id}")
+        cli(f"snapshot delete {first_id} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
@@ -302,7 +302,7 @@ class TestSnapshotDelete:
         event_param_ids = {ep["id"] for ep in data_before["event_parameters"]}
         seis_param_ids = {sp["id"] for sp in data_before["seismogram_parameters"]}
 
-        cli(f"snapshot delete {short_id}")
+        cli(f"snapshot delete {short_id} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
@@ -340,7 +340,7 @@ class TestSnapshotDelete:
         # Set log level to INFO so handle_issues catches and exits
         monkeypatch.setattr(settings, "log_level", "INFO")
         with pytest.raises(SystemExit) as exc_info:
-            cli("snapshot delete 00000000-0000-0000-0000-000000000000")
+            cli("snapshot delete 00000000-0000-0000-0000-000000000000 --yes")
         assert exc_info.value.code == 1
         output = capsys.readouterr().err
         assert "Error" in output, "Expected error panel in stderr"
@@ -386,7 +386,7 @@ class TestSnapshotRollback:
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_id = data["snapshots"][0]["id"]
 
-        cli(f"snapshot rollback {snapshot_id}")
+        cli(f"snapshot rollback {snapshot_id} --yes")
 
         cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out, (
@@ -426,7 +426,7 @@ class TestSnapshotRollback:
         assert isinstance(data, dict), "Dump should return a dict"
         snapshot_id = data["snapshots"][0]["id"]
 
-        cli(f"snapshot rollback {snapshot_id}")
+        cli(f"snapshot rollback {snapshot_id} --yes")
 
         cli(f"seismogram parameter get flip --id {seis_id}")
         assert "False" in capsys.readouterr().out, (
@@ -461,7 +461,7 @@ class TestSnapshotRollback:
         assert isinstance(data, dict), "Dump should return a dict"
         short_id = data["snapshots"][0]["id"][:8]
 
-        cli(f"snapshot rollback {short_id}")
+        cli(f"snapshot rollback {short_id} --yes")
 
         cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out, (
@@ -487,7 +487,7 @@ class TestSnapshotRollback:
         assert isinstance(data_before, dict), "Dump should return a dict"
         snapshot_id = data_before["snapshots"][0]["id"]
 
-        cli(f"snapshot rollback {snapshot_id}")
+        cli(f"snapshot rollback {snapshot_id} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict), "Dump should return a dict"
@@ -894,6 +894,31 @@ class TestSnapshotResults:
         result = json.loads(out_file.read_text())
         assert isinstance(result, dict)
         assert len(result["seismograms"]) > 0
+
+    def test_results_output_rejects_directory(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str | list[str]], None],
+        cli_json: Callable[[str], list | dict],
+        event_id: str,
+        tmp_path: Path,
+    ) -> None:
+        """Verifies that passing a directory as --output is rejected at the CLI boundary.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            event_id: The default event ID fixture.
+            tmp_path: Pytest temporary directory.
+        """
+        cli(f"snapshot create --event-id {event_id}")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict)
+        snapshot_id: str = data["snapshots"][0]["id"]
+
+        with pytest.raises(SystemExit):
+            cli(["snapshot", "results", snapshot_id, "--output", str(tmp_path)])
 
     def test_results_by_alias(
         self,

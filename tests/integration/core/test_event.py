@@ -300,6 +300,31 @@ class TestToggleEventCompleted:
         assert event.quality is not None
         assert event.quality.mccc_rmse == rmse
 
+    def test_toggle_does_not_bump_last_modified(self, loaded_session: Session) -> None:
+        """Verifies toggling `completed` leaves `last_modified` untouched.
+
+        Regression test: the `event_modified_on_params_update` trigger must
+        exclude `completed`, the same way `compute_parameters_hash` does, so
+        that a bookkeeping-only change does not force a live ICCS instance to
+        be treated as stale (see core/_project.py trigger 1).
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        event.parameters.ramp_width = event.parameters.ramp_width + 0.5
+        loaded_session.add(event.parameters)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+        last_modified_before = event.last_modified
+        assert last_modified_before is not None
+
+        toggle_event_completed(loaded_session, event.id)
+
+        loaded_session.refresh(event)
+        assert event.last_modified == last_modified_before
+
 
 # ===================================================================
 # JSON serialisation

@@ -79,11 +79,25 @@ def create_project(engine: Engine) -> None:
 
     if engine.name == "sqlite":
         with engine.begin() as connection:
-            # Trigger 1: Track last modification time when event parameters change
+            # Trigger 1: Track last modification time when event parameters change.
+            # `completed` is excluded: it is bookkeeping with no effect on ICCS/MCCC
+            # processing, and is excluded from compute_parameters_hash for the same
+            # reason (core/_snapshot.py) — this WHEN clause must list the same
+            # columns as that function's exclude set to stay consistent.
             connection.execute(
                 text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_params_update
                 AFTER UPDATE ON aimbateventparameters
+                WHEN (NEW.ramp_width IS NOT OLD.ramp_width)
+                  OR (NEW.window_pre IS NOT OLD.window_pre)
+                  OR (NEW.window_post IS NOT OLD.window_post)
+                  OR (NEW.bandpass_apply IS NOT OLD.bandpass_apply)
+                  OR (NEW.bandpass_fmin IS NOT OLD.bandpass_fmin)
+                  OR (NEW.bandpass_fmax IS NOT OLD.bandpass_fmax)
+                  OR (NEW.corners IS NOT OLD.corners)
+                  OR (NEW.min_cc IS NOT OLD.min_cc)
+                  OR (NEW.mccc_damp IS NOT OLD.mccc_damp)
+                  OR (NEW.mccc_min_cc IS NOT OLD.mccc_min_cc)
                 BEGIN
                     UPDATE aimbatevent SET last_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
                     WHERE id = NEW.event_id;

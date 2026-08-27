@@ -8,7 +8,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from aimbat.utils._sampledata import (
+    _DOWNLOAD_TIMEOUT_SECONDS,
     _SAMPLEDATA_SRC,
+    _check_safe_to_delete,
     delete_sampledata,
     download_sampledata,
 )
@@ -46,6 +48,41 @@ def sampledata_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     monkeypatch.setattr(aimbat.settings, "sampledata_dir", d)
     return d
+
+
+class TestCheckSafeToDelete:
+    """Tests for the `_check_safe_to_delete` guard."""
+
+    def test_rejects_filesystem_root(self) -> None:
+        """Verifies the filesystem root itself is rejected."""
+        with pytest.raises(ValueError, match="does not look like"):
+            _check_safe_to_delete(Path(Path.home().anchor))
+
+    def test_rejects_own_home_directory(self) -> None:
+        """Verifies the current user's home directory is rejected."""
+        with pytest.raises(ValueError, match="does not look like"):
+            _check_safe_to_delete(Path.home())
+
+    def test_rejects_sibling_home_directory(self) -> None:
+        """Verifies another user's home directory (a sibling of ours) is rejected.
+
+        Regression test: a fixed path-depth check alone lets a 3-component
+        path like `/home/someone-else` through, since it isn't the *current*
+        user's home directory. Any direct child of the home root must be
+        rejected regardless of whose name it is.
+        """
+        sibling = Path.home().parent / "someone-else"
+        with pytest.raises(ValueError, match="does not look like"):
+            _check_safe_to_delete(sibling)
+
+    def test_rejects_shallow_path(self) -> None:
+        """Verifies a suspiciously shallow path (e.g. `/tmp`) is rejected."""
+        with pytest.raises(ValueError, match="does not look like"):
+            _check_safe_to_delete(Path(Path.home().anchor) / "tmp")
+
+    def test_accepts_ordinary_nested_path(self, tmp_path: Path) -> None:
+        """Verifies a normal, deeply-nested sample data path is accepted."""
+        _check_safe_to_delete(tmp_path / "sample-data")
 
 
 class TestDeleteSampledata:
@@ -144,7 +181,7 @@ class TestDownloadSampledata:
         mock_urlopen.assert_called_once()
 
     def test_urlopen_called_with_src(self, sampledata_dir: Path) -> None:
-        """Verifies that urlopen is called with the sample data source URL.
+        """Verifies that urlopen is called with the sample data source URL and a timeout.
 
         Args:
             sampledata_dir (Path): The sample data directory.
@@ -152,4 +189,6 @@ class TestDownloadSampledata:
         mock_urlopen = self._mock_urlopen(["data/file.sac"])
         with patch("aimbat.utils._sampledata.urlopen", mock_urlopen):
             download_sampledata()
-        mock_urlopen.assert_called_once_with(_SAMPLEDATA_SRC)
+        mock_urlopen.assert_called_once_with(
+            _SAMPLEDATA_SRC, timeout=_DOWNLOAD_TIMEOUT_SECONDS
+        )

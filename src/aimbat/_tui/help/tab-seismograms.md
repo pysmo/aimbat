@@ -111,6 +111,8 @@ for the equivalent menu.
 | `p` | Edit processing parameters |
 | `n` | Create a new snapshot |
 | `r` | Refresh all panels |
+| `c` | Toggle light/dark colour theme |
+| `H` / `L` | Switch tabs (vim-style left/right) |
 | `?` | Show this help |
 | `q` | Quit |
 

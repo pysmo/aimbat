@@ -289,6 +289,8 @@ def _process_datasource(
     # Resolve station — use the provided UUID, extract from the source, or skip
     if station_id is not None:
         aimbat_station: AimbatStation | None = session.get(AimbatStation, station_id)
+        if aimbat_station is None:
+            raise ValueError(f"No station found with ID={station_id}.")
         logger.debug(
             f"Using station {getattr(aimbat_station, 'name', 'Unknown')} - {getattr(aimbat_station, 'network', 'Unknown')} (ID={station_id})."
         )

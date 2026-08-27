@@ -95,5 +95,7 @@ toggles appear:
 | Key | Action |
 |-----|--------|
 | `r` | Refresh all panels |
+| `c` | Toggle light/dark colour theme |
+| `H` / `L` | Switch tabs (vim-style left/right) |
 | `?` | Show this help |
 | `q` | Quit |

@@ -27,9 +27,11 @@ affects third-party code that imports `engine` from this module directly.
 """
 
 import sqlite3
+import threading
 import warnings
 
 from sqlalchemy import event
+from sqlalchemy.engine.interfaces import ExceptionContext
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlmodel import create_engine
 
@@ -85,8 +87,8 @@ if engine.name == "sqlite":
         cursor.close()
 
     @event.listens_for(engine, "handle_error")
-    def _handle_missing_schema(exception_context) -> None:  # type: ignore[no-untyped-def]
-        """Convert 'no such table' errors to a user-friendly RuntimeError.
+    def _handle_missing_schema(exception_context: ExceptionContext) -> None:
+        """Convert a missing `aimbatevent` table error to a user-friendly RuntimeError.
 
         Args:
             exception_context: SQLAlchemy's context for the error being handled.
@@ -95,7 +97,7 @@ if engine.name == "sqlite":
             RuntimeError: If the original error indicates that no AIMBAT
                 project exists at the configured database location.
         """
-        if not exception_context.is_disconnect and "no such table" in str(
+        if not exception_context.is_disconnect and "no such table: aimbatevent" in str(
             exception_context.original_exception
         ):
             raise RuntimeError(
@@ -103,6 +105,7 @@ if engine.name == "sqlite":
             ) from exception_context.original_exception
 
     _schema_staleness_checked = False
+    _schema_staleness_lock = threading.Lock()
 
     @event.listens_for(engine, "first_connect")
     def _warn_if_schema_stale(
@@ -123,9 +126,10 @@ if engine.name == "sqlite":
                 when `AIMBAT_STRICT_SCHEMA_CHECK` is enabled.
         """
         global _schema_staleness_checked
-        if _schema_staleness_checked:
-            return
-        _schema_staleness_checked = True
+        with _schema_staleness_lock:
+            if _schema_staleness_checked:
+                return
+            _schema_staleness_checked = True
 
         cursor = dbapi_connection.cursor()
         try:

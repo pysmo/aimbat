@@ -315,10 +315,11 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     ).one()
 
     logger.debug(f"Creating ICCS instance for event {event.id}.")
+    created_at = Timestamp.now("UTC")
     bound = BoundICCS(
         iccs=_build_iccs(event),
         event_id=event.id,
-        created_at=Timestamp.now("UTC"),
+        created_at=created_at,
     )
     _iccs_cache[event.id] = bound
     _write_iccs_stats(event.id, bound.iccs)

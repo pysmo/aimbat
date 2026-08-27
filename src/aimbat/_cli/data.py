@@ -189,7 +189,7 @@ def cli_data_add(
             help="One or more data source paths to add.",
             consume_multiple=1,
             negative_iterable=(),
-            validator=validators.Path(exists=True),
+            validator=validators.Path(exists=True, dir_okay=False),
         ),
     ],
     *,

@@ -182,7 +182,7 @@ def dump_station_table(
     Args:
         session: Database session.
         from_read_model: Whether to dump from the read model (True) or the ORM model.
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         by_title: Whether to use titles for the field names in the output (only
             applicable when from_read_model is True). Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
@@ -271,7 +271,7 @@ def dump_station_quality_table(
 
     Args:
         session: Database session.
-        by_alias: Whether to use serialization aliases for the field names.
+        by_alias: Whether to use serialisation aliases for the field names.
         by_title: Whether to use the field title metadata for the field names.
             Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.

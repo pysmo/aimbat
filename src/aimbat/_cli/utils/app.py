@@ -6,12 +6,13 @@ are not strictly part of an AIMBAT workflow.
 
 from cyclopts import App
 
+from aimbat._cli.common import handle_issues
 from aimbat._config import cli_settings_list
 
 from .sampledata import app as sampledata_app
 
 app = App(name="utils", help=__doc__, help_format="markdown")
-app.command(cli_settings_list, name="settings")
+app.command(handle_issues(cli_settings_list), name="settings")
 app.command(sampledata_app, name="sampledata")
 
 

@@ -8,7 +8,7 @@ from pandas import Timestamp
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from aimbat._types import SeismogramParameter
 from aimbat.logger import logger
@@ -70,7 +70,7 @@ def dump_seismogram_table(
     Args:
         session: Database session.
         from_read_model: Whether to dump from the read model (True) or the ORM model.
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         by_title: Whether to use titles for the field names in the output (only
             applicable when from_read_model is True). Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
@@ -289,7 +289,7 @@ def get_selected_seismograms(
         statement = (
             select(AimbatSeismogram)
             .join(AimbatSeismogramParameters)
-            .where(AimbatSeismogramParameters.select == 1)
+            .where(col(AimbatSeismogramParameters.select).is_(True))
         )
     else:
         if event_id is None:
@@ -298,7 +298,7 @@ def get_selected_seismograms(
         statement = (
             select(AimbatSeismogram)
             .join(AimbatSeismogramParameters)
-            .where(AimbatSeismogramParameters.select == 1)
+            .where(col(AimbatSeismogramParameters.select).is_(True))
             .where(AimbatSeismogram.event_id == event_id)
         )
 
@@ -326,7 +326,7 @@ def dump_seismogram_parameter_table(
 
     Args:
         session: Database session.
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         by_title: Whether to use titles for the field names in the output.
         exclude: Set of field names to exclude from the output.
         event_id: Event ID to filter seismogram parameters by (if none is provided,

@@ -52,7 +52,7 @@ def fmt_timestamp(val: Any) -> str:
             val = to_datetime(val)
         except (ValueError, TypeError):
             return str(val)
-    if val is None or val is NaT or val == "":
+    if val is None or val is NaT or (isinstance(val, str) and val.strip() == ""):
         return _MISSING_MARKER
     if hasattr(val, "strftime"):
         return val.strftime("%Y-%m-%d %H:%M:%S")

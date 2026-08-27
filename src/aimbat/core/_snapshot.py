@@ -294,13 +294,14 @@ def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
         session.add(current_seismogram_parameters)
 
     session.commit()
-    sync_from_matching_hash(session, snapshot_id=snapshot_id)
+    sync_from_matching_hash(session, snapshot_id=snapshot_id, restore_iccs_cc=True)
 
 
 def sync_from_matching_hash(
     session: Session,
     parameters_hash: str | None = None,
     snapshot_id: UUID | None = None,
+    restore_iccs_cc: bool = False,
 ) -> bool:
     """Sync live quality metrics from a snapshot whose parameter hash matches the given hash.
 
@@ -309,12 +310,25 @@ def sync_from_matching_hash(
     is used as a tie-breaker (preferred if it is among them); otherwise the
     most recent candidate is used.
 
+    `parameters_hash` (see `compute_parameters_hash`) deliberately excludes
+    `select`, since `select` only affects MCCC stack membership, not the MCCC
+    computation itself. It does, however, affect the ICCS stack used to
+    compute `iccs_cc`, so a hash match does not guarantee the candidate
+    snapshot's `iccs_cc` values are still valid for the live `select` state.
+    `iccs_cc` is therefore only restored when `restore_iccs_cc` is True, which
+    callers should only pass when they have independently guaranteed the
+    live `select` state matches the snapshot's (as `rollback_to_snapshot`
+    does, by restoring `select` itself immediately beforehand).
+
     Args:
         session: Database session.
         parameters_hash: Hash to match against snapshot hashes. If None and
             `snapshot_id` is provided, the hash is derived from that snapshot.
         snapshot_id: Optional tie-breaker when multiple candidates share the
             same hash.
+        restore_iccs_cc: Whether to also restore `iccs_cc`. Only safe when the
+            caller has already made the live `select` state match the
+            snapshot's.
 
     Returns:
         True if quality metrics were synced, False if no suitable candidate
@@ -388,6 +402,8 @@ def sync_from_matching_hash(
             )
             continue
         for k in AimbatSeismogramQualityBase.model_fields:
+            if k == "iccs_cc" and not restore_iccs_cc:
+                continue
             v = getattr(seis_quality_snap, k)
             logger.debug(f"Setting seismogram quality {k} to {v!r} from snapshot.")
             setattr(live_seis_quality, k, v)
@@ -464,7 +480,7 @@ def dump_snapshot_table(
             snapshots for all events are dumped).
         from_read_model: Whether to dump from the read model (True) or the ORM model.
             Only affects the `snapshots` table.
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         by_title: Whether to use titles for the field names in the output (only
             applicable when from_read_model is True). Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
@@ -559,7 +575,7 @@ def dump_snapshot_quality_table(
 
     Args:
         session: Database session.
-        by_alias: Whether to use serialization aliases for the field names.
+        by_alias: Whether to use serialisation aliases for the field names.
         by_title: Whether to use the field title metadata for the field names.
             Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
@@ -616,7 +632,7 @@ def _dump_snapshot_related_table(
         extract: Given one snapshot, returns the records of `model` it holds.
         event_id: Event ID to filter snapshots by (if none is provided,
             snapshots for all events are dumped).
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
 
     Returns:
@@ -648,7 +664,7 @@ def dump_event_parameter_snapshot_table(
         session: Database session.
         event_id: Event ID to filter snapshots by (if none is provided,
             snapshots for all events are dumped).
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
 
     Returns:
@@ -677,7 +693,7 @@ def dump_seismogram_parameter_snapshot_table(
         session: Database session.
         event_id: Event ID to filter snapshots by (if none is provided,
             snapshots for all events are dumped).
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
 
     Returns:
@@ -707,7 +723,7 @@ def dump_event_quality_snapshot_table(
         session: Database session.
         event_id: Event ID to filter snapshots by (if none is provided,
             snapshots for all events are dumped).
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
 
     Returns:
@@ -739,7 +755,7 @@ def dump_seismogram_quality_snapshot_table(
         session: Database session.
         event_id: Event ID to filter snapshots by (if none is provided,
             snapshots for all events are dumped).
-        by_alias: Whether to use serialization aliases for the field names in the output.
+        by_alias: Whether to use serialisation aliases for the field names in the output.
         exclude: Set of field names to exclude from the output.
 
     Returns:

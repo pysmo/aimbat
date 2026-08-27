@@ -63,18 +63,32 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
             if value is None:
                 raise ValueError(f"{cls.target_type.__name__} value cannot be None")
             if isinstance(value, cls.target_type):
-                return cast(T, value)
-            try:
-                # Interpret bare numeric strings as seconds for Timedelta
-                if cls.target_type is Timedelta and isinstance(value, str):
-                    try:
-                        return cast(T, Timedelta(seconds=float(value)))
-                    except ValueError:
-                        pass
-                result = cls.target_type(value)
-                return cast(T, result)
-            except Exception as e:
-                raise ValueError(f"Could not parse {cls.target_type.__name__}: {e}")
+                result = cast(T, value)
+            else:
+                try:
+                    # Interpret bare numbers (and numeric strings) as seconds
+                    # for Timedelta, matching the seconds-based serialisation.
+                    if cls.target_type is Timedelta and isinstance(value, str):
+                        try:
+                            result = cast(T, Timedelta(seconds=float(value)))
+                        except ValueError:
+                            result = cast(T, cls.target_type(value))
+                    elif (
+                        cls.target_type is Timedelta
+                        and isinstance(value, int | float)
+                        and not isinstance(value, bool)
+                    ):
+                        result = cast(T, Timedelta(seconds=float(value)))
+                    else:
+                        result = cast(T, cls.target_type(value))
+                except Exception as e:
+                    raise ValueError(f"Could not parse {cls.target_type.__name__}: {e}")
+            if cls.target_type is Timestamp and cast(Timestamp, result).tzinfo is None:
+                raise ValueError(
+                    f"Timestamp value must be timezone-aware (UTC), got naive "
+                    f"value {result!r}"
+                )
+            return result
 
         return no_info_plain_validator_function(validate)
 

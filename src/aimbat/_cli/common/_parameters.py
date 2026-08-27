@@ -29,6 +29,7 @@ __all__ = [
     "CAUSAL_DEFAULTS",
     "open_in_editor",
     "DebugParameter",
+    "ConfirmParameters",
     "EventDebugParameters",
     "IccsPlotParameters",
     "TableParameters",
@@ -304,6 +305,19 @@ class _TableParametersTrait:
 
 
 @dataclass
+class _YesTrait:
+    """Mixin that adds a `--yes`/`-y` flag to skip a destructive-action confirmation prompt."""
+
+    yes: Annotated[
+        bool,
+        Parameter(
+            name=["--yes", "-y"],
+            help="Skip the confirmation prompt.",
+        ),
+    ] = False
+
+
+@dataclass
 class _ByAliasTrait:
     """Mixin that adds a `--alias` flag for alias-keyed JSON output."""
 
@@ -344,6 +358,14 @@ class TableParameters(_TableParametersTrait, _DebugTrait):
 @dataclass
 class DebugParameter(_DebugTrait):
     """Shared parameter that adds `--debug` to any CLI command."""
+
+    pass
+
+
+@Parameter(name="*")
+@dataclass
+class ConfirmParameters(_YesTrait, _DebugTrait):
+    """Shared parameters for destructive commands (`--yes`, `--debug`)."""
 
     pass
 

@@ -669,6 +669,116 @@ class TestSyncFromMatchingHash:
         loaded_session.refresh(eq)
         assert eq.mccc_rmse == pd.Timedelta(milliseconds=1)
 
+    def test_sync_from_matching_hash_does_not_restore_iccs_cc_by_default(
+        self, loaded_session: Session
+    ) -> None:
+        """A broad hash-based sync must not restore iccs_cc.
+
+        parameters_hash excludes `select`, which affects the ICCS stack that
+        iccs_cc is computed against, so restoring iccs_cc from an
+        arbitrary hash match could apply values computed against a different
+        stack composition. Only rollback_to_snapshot, which restores `select`
+        itself first, may request iccs_cc restoration.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seis_ids = [s.id for s in event.seismograms]
+
+        for seis_id in seis_ids:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
+                )
+            ).first()
+            if sq is None:
+                sq = AimbatSeismogramQuality(id=uuid.uuid4(), seismogram_id=seis_id)
+            sq.iccs_cc = 0.75
+            loaded_session.add(sq)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+
+        select_flags = [s.select for s in event.seismograms]
+        _write_mock_mccc_quality(
+            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
+        )
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        h = compute_parameters_hash(event)
+
+        for seis_id in seis_ids:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
+                )
+            ).one()
+            sq.iccs_cc = None
+            loaded_session.add(sq)
+        loaded_session.commit()
+
+        assert sync_from_matching_hash(loaded_session, parameters_hash=h) is True
+
+        for seis_id in seis_ids:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
+                )
+            ).one()
+            assert sq.iccs_cc is None
+
+    def test_sync_from_matching_hash_restores_iccs_cc_when_requested(
+        self, loaded_session: Session
+    ) -> None:
+        """restore_iccs_cc=True restores iccs_cc from the matching snapshot."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seis_ids = [s.id for s in event.seismograms]
+
+        for seis_id in seis_ids:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
+                )
+            ).first()
+            if sq is None:
+                sq = AimbatSeismogramQuality(id=uuid.uuid4(), seismogram_id=seis_id)
+            sq.iccs_cc = 0.75
+            loaded_session.add(sq)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+
+        select_flags = [s.select for s in event.seismograms]
+        _write_mock_mccc_quality(
+            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
+        )
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        h = compute_parameters_hash(event)
+
+        for seis_id in seis_ids:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
+                )
+            ).one()
+            sq.iccs_cc = None
+            loaded_session.add(sq)
+        loaded_session.commit()
+
+        assert (
+            sync_from_matching_hash(
+                loaded_session, parameters_hash=h, restore_iccs_cc=True
+            )
+            is True
+        )
+
+        for seis_id in seis_ids:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
+                )
+            ).one()
+            assert sq.iccs_cc == 0.75
+
 
 class TestDumpSnapshotTable:
     """Tests for dump_snapshot_table."""
