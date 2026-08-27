@@ -206,9 +206,16 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def set_computed_defaults(self) -> Self:
-        """Derive `db_url` from `project` when not set explicitly."""
+        """Derive `db_url` from `project` when not set explicitly.
+
+        A literal `?` in `project` is percent-encoded first: SQLite URL
+        parsing otherwise treats it as the start of a query string, silently
+        truncating everything from `?` onwards off the path SQLAlchemy
+        actually opens.
+        """
         if self.db_url == "":
-            self.db_url = f"sqlite+pysqlite:///{self.project}"
+            escaped_project = str(self.project).replace("?", "%3F")
+            self.db_url = f"sqlite+pysqlite:///{escaped_project}"
         return self
 
     @model_validator(mode="after")

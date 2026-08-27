@@ -400,7 +400,7 @@ class AimbatStationRead(BaseModel):
     )
     network: str = Field(title="Network", description="Station network code")
     name: str = Field(title="Name", description="Station name")
-    location: str | None = Field(title="Location", description="Station location code")
+    location: str = Field(title="Location", description="Station location code")
     channel: str = Field(title="Channel", description="Station channel code")
     latitude: float = Field(title="Latitude", description="Station latitude")
     longitude: float = Field(title="Longitude", description="Station longitude")

@@ -2,7 +2,7 @@
 
 import pytest
 from pandas import Timedelta, Timestamp
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from aimbat._types import (
     PydanticNegativeTimedelta,
@@ -34,13 +34,13 @@ class TestPydanticTimestamp:
     """Tests for PydanticTimestamp custom type."""
 
     def test_accepts_timestamp(self) -> None:
-        """Verifies that a pandas Timestamp is accepted."""
-        ts = Timestamp("2020-01-01")
+        """Verifies that a timezone-aware pandas Timestamp is accepted."""
+        ts = Timestamp("2020-01-01", tz="UTC")
         assert _TimestampModel(value=ts).value == ts
 
     def test_accepts_string(self) -> None:
-        """Verifies that a valid date string is accepted and converted to Timestamp."""
-        m = _TimestampModel(value="2020-01-01")  # type: ignore[arg-type]
+        """Verifies that a valid, timezone-aware date string is accepted and converted."""
+        m = _TimestampModel(value="2020-01-01T00:00:00Z")  # type: ignore[arg-type]
         assert isinstance(m.value, Timestamp)
 
     def test_rejects_none(self) -> None:
@@ -57,6 +57,16 @@ class TestPydanticTimestamp:
         with pytest.raises(ValidationError):
             _TimestampModel(value="not-a-timestamp")  # type: ignore[arg-type]
 
+    def test_rejects_naive_timestamp(self) -> None:
+        """Verifies that a naive pandas Timestamp is rejected."""
+        with pytest.raises(ValidationError):
+            _TimestampModel(value=Timestamp("2020-01-01"))
+
+    def test_rejects_naive_string(self) -> None:
+        """Verifies that a naive (no UTC offset) date string is rejected."""
+        with pytest.raises(ValidationError):
+            _TimestampModel(value="2020-01-01T00:00:00")  # type: ignore[arg-type]
+
 
 class TestPydanticTimedelta:
     """Tests for PydanticTimedelta custom type."""
@@ -70,6 +80,24 @@ class TestPydanticTimedelta:
         """Verifies that None is rejected."""
         with pytest.raises(ValidationError):
             _TimedeltaModel(value=None)  # type: ignore[arg-type]
+
+    def test_accepts_bare_number_as_seconds(self) -> None:
+        """Verifies that a bare int/float is interpreted as a count of seconds."""
+        assert _TimedeltaModel(value=30.2).value == Timedelta(  # type: ignore[arg-type]
+            seconds=30.2
+        )
+        assert _TimedeltaModel(value=-20).value == Timedelta(seconds=-20)  # type: ignore[arg-type]
+
+    def test_round_trips_through_serializer(self) -> None:
+        """Verifies dump-then-validate reproduces the original Timedelta.
+
+        Regression test: the serializer emits seconds, so the validator must
+        interpret a bare number as seconds too, not nanoseconds.
+        """
+        ta: TypeAdapter[Timedelta] = TypeAdapter(PydanticTimedelta)
+        original = Timedelta(seconds=30.2)
+        dumped = ta.dump_python(original)
+        assert ta.validate_python(dumped) == original
 
 
 class TestPydanticNegativeTimedelta:

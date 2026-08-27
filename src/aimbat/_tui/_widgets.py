@@ -13,7 +13,7 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Markdown, TabbedContent, TabPane, TextArea
 from textual_plotext import PlotextPlot
 
-from aimbat.core import get_note_content, save_note
+from aimbat.core import NoteTarget, get_note_content, save_note
 from aimbat.db import engine
 
 __all__ = ["NoteWidget", "SeismogramPlotWidget", "VimDataTable"]
@@ -143,7 +143,7 @@ class NoteWidget(Widget):
         disabled: bool = False,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
-        self._target_type: str | None = None
+        self._target_type: NoteTarget | None = None
         self._target_id: uuid.UUID | None = None
         self._saved_content: str = ""
 
@@ -155,7 +155,7 @@ class NoteWidget(Widget):
             with TabPane("Edit", id="note-tab-edit"):
                 yield _NoteTextArea("", id="note-textarea")
 
-    def set_entity(self, target_type: str, target_id: uuid.UUID) -> None:
+    def set_entity(self, target_type: NoteTarget, target_id: uuid.UUID) -> None:
         """Load the note for the given entity and display it.
 
         Args:
@@ -166,7 +166,7 @@ class NoteWidget(Widget):
         self._target_type = target_type
         self._target_id = target_id
         with Session(engine) as session:
-            content = get_note_content(session, target_type, target_id)  # type: ignore[arg-type]
+            content = get_note_content(session, target_type, target_id)
         self._saved_content = content
         with suppress(NoMatches):
             placeholder = "_No note yet. Switch to Edit to add one._"
@@ -211,5 +211,5 @@ class NoteWidget(Widget):
             content = self.query_one("#note-textarea", _NoteTextArea).text
         if content != self._saved_content:
             with Session(engine) as session:
-                save_note(session, self._target_type, self._target_id, content)  # type: ignore[arg-type]
+                save_note(session, self._target_type, self._target_id, content)
             self._saved_content = content

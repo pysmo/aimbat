@@ -62,6 +62,18 @@ class TestSettings:
         s = Settings(db_url="sqlite:///custom.db")
         assert s.db_url == "sqlite:///custom.db"
 
+    def test_db_url_escapes_question_mark_in_project(self) -> None:
+        """A literal `?` in `project` must not truncate the derived db_url.
+
+        Regression test: SQLAlchemy's URL parsing otherwise treats `?` as the
+        start of a query string, silently opening a different (truncated)
+        database file than the one configured.
+        """
+        from sqlalchemy.engine import make_url
+
+        s = Settings(project=Path("weird?name.db"))
+        assert make_url(s.db_url).database == "weird%3Fname.db"
+
     def test_env_prefix(self) -> None:
         """Verifies that the environment variable prefix is 'aimbat_'."""
         assert Settings.model_config.get("env_prefix") == "aimbat_"

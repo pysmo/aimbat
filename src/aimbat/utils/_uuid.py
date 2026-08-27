@@ -13,6 +13,17 @@ __all__ = [
     "uuid_shortener",
 ]
 
+_LIKE_ESCAPE_CHAR = "\\"
+
+
+def _escape_like(value: str) -> str:
+    """Escape `%`, `_`, and the escape character itself for a SQL `LIKE` pattern."""
+    return (
+        value.replace(_LIKE_ESCAPE_CHAR, _LIKE_ESCAPE_CHAR * 2)
+        .replace("%", f"{_LIKE_ESCAPE_CHAR}%")
+        .replace("_", f"{_LIKE_ESCAPE_CHAR}_")
+    )
+
 
 def string_to_uuid(
     session: Session,
@@ -36,7 +47,7 @@ def string_to_uuid(
     """
     statement = select(aimbat_class.id).where(
         func.replace(cast(aimbat_class.id, String), "-", "").like(
-            f"{id.replace('-', '')}%"
+            f"{_escape_like(id.replace('-', ''))}%", escape=_LIKE_ESCAPE_CHAR
         )
     )
     uuid_set = set(session.exec(statement).all())
@@ -87,7 +98,9 @@ def uuid_shortener[T: AimbatTypes](
 
     # select with a WHERE clause that removes dashes and compares the cleaned prefix
     statement = select(model_class.id).where(
-        func.replace(cast(model_class.id, String), "-", "").like(f"{prefix_clean}%")
+        func.replace(cast(model_class.id, String), "-", "").like(
+            f"{_escape_like(prefix_clean)}%", escape=_LIKE_ESCAPE_CHAR
+        )
     )
 
     # Store results as standard hyphenated strings

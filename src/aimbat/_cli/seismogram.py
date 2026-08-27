@@ -9,9 +9,11 @@ from aimbat._types import SeismogramParameter
 from aimbat.models import AimbatSeismogram
 
 from .common import (
+    ConfirmParameters,
     DebugParameter,
     JsonDumpParameters,
     TableParameters,
+    confirm_or_abort,
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
@@ -88,7 +90,7 @@ def cli_seismogram_delete(
         ),
     ],
     *,
-    _: DebugParameter = DebugParameter(),
+    confirm: ConfirmParameters = ConfirmParameters(),
 ) -> None:
     """Delete an existing seismogram.
 
@@ -101,6 +103,7 @@ def cli_seismogram_delete(
     from aimbat.core import delete_seismogram
     from aimbat.db import engine
 
+    confirm_or_abort(f"Delete seismogram {seismogram_id}?", yes=confirm.yes)
     with Session(engine) as session:
         delete_seismogram(session, seismogram_id)
 
@@ -170,10 +173,6 @@ def cli_seismogram_list(
             )
 
         json_to_table(data, model=AimbatSeismogramRead, title=title, raw=raw)
-
-
-if __name__ == "__main__":
-    app()
 
 
 @parameter.command(name="get")
@@ -347,3 +346,7 @@ def cli_seismogram_parameter_list(
             },
             column_order=["id"],
         )
+
+
+if __name__ == "__main__":
+    app()

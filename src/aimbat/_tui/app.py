@@ -302,9 +302,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """Suspend Textual and handle errors gracefully.
 
         If `label` is given, a panel is shown with a "close matplotlib to
-        return" hint.  Any exception raised inside the block is shown in the
-        terminal while still suspended, then re-raised after Textual has fully
-        resumed so callers can still react to it.
+        return" hint.  Any exception raised inside the block — including
+        `KeyboardInterrupt` — is shown in the terminal while still suspended,
+        then re-raised after Textual has fully resumed so callers can still
+        react to it.
         """
         console = Console()
         caught: BaseException | None = None
@@ -322,6 +323,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 )
             try:
                 yield
+            except KeyboardInterrupt as exc:
+                caught = exc
+                console.print("\n[bold yellow]Cancelled.[/bold yellow]")
+                console.input("\n[dim]Press Enter to return to AIMBAT...[/dim]")
             except Exception as exc:
                 caught = exc
                 console.print(f"\n[bold red]Error:[/bold red] {exc}")
@@ -500,6 +505,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                         if station is None:
                             return
                         plot_seismograms(session, station, return_fig=False)
+        except KeyboardInterrupt:
+            pass
         except Exception as exc:
             self.notify(str(exc), severity="error")
 
@@ -672,6 +679,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     plot_stack(bound.iccs, context, all_seis, return_fig=False)
                 else:
                     plot_matrix_image(bound.iccs, context, all_seis, return_fig=False)
+        except KeyboardInterrupt:
+            pass
         except Exception as exc:
             logger.exception(f"Snapshot preview failed: {exc}")
             self.notify(str(exc), severity="error")
@@ -817,6 +826,9 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                         )
                     else:
                         TOOL_REGISTRY[tool][1](session, event, iccs, context, all_seis)
+        except KeyboardInterrupt:
+            self.notify(f"{label} cancelled", timeout=2)
+            return
         except Exception as exc:
             logger.exception(f"Interactive tool '{tool}' raised: {exc}")
             self.notify(str(exc), severity="error")

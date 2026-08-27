@@ -103,6 +103,7 @@ def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
     distance_min = min(d[2] for d in seismograms)
     distance_max = max(d[2] for d in seismograms)
 
+    distance_spacing = 0.0
     if len(seismograms) == 1:
         scaling_factor = max(distance_min * 0.1, 1.0)
     else:
@@ -223,4 +224,5 @@ def plot_seismograms(
     if return_fig:
         return fig, ax
     plt.show()
+    plt.close(fig)
     return None

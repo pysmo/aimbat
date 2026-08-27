@@ -103,6 +103,18 @@ class TestStringToUuid:
         result = string_to_uuid(patched_session, "abcdef12-1234", AimbatEvent)
         assert result == uid
 
+    def test_escapes_like_wildcards_in_input(self, patched_session: Session) -> None:
+        """Verifies that `%`/`_` in the input are treated literally, not as wildcards.
+
+        Args:
+            patched_session: The database session.
+        """
+        uid = uuid.uuid4()
+        patched_session.add(_make_event(uid))
+        patched_session.commit()
+        with pytest.raises(ValueError, match="Unable to find"):
+            string_to_uuid(patched_session, "%", AimbatEvent)
+
 
 class TestUuidShortener:
     """Tests for the uuid_shortener function."""

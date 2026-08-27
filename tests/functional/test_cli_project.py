@@ -66,8 +66,26 @@ class TestProjectLifecycleWithFile:
     ) -> None:
         """Verifies that the project database file is removed after deletion."""
         aimbat_subprocess(["project", "create"])
-        result = aimbat_subprocess(["project", "delete"])
+        result = aimbat_subprocess(["project", "delete", "--yes"])
         assert result.returncode == 0, result.stderr
         assert not db_path.exists(), (
             "Database file should be absent after project delete"
+        )
+
+    def test_delete_project_without_yes_does_not_delete(
+        self,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        db_path: Path,
+    ) -> None:
+        """Verifies that declining the confirmation prompt leaves the database intact.
+
+        Regression test: `project delete` without `--yes` and with no
+        interactive terminal attached (as here) must decline safely rather
+        than deleting or crashing.
+        """
+        aimbat_subprocess(["project", "create"])
+        result = aimbat_subprocess(["project", "delete"])
+        assert result.returncode == 0, result.stderr
+        assert db_path.exists(), (
+            "Database file should still exist after a declined confirmation"
         )

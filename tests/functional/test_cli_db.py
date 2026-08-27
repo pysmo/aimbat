@@ -68,6 +68,26 @@ class TestDbCommands:
         after = aimbat_subprocess(["db", "current"])
         assert before.stdout == after.stdout
 
+    def test_missing_unrelated_table_is_not_reported_as_no_project(
+        self,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        db_path: Path,
+    ) -> None:
+        """A missing table other than `aimbatevent` must not be reported as "no project".
+
+        Regression test: the `handle_error` listener in `db.py` previously
+        matched any "no such table" error, which produced a misleading "No
+        AIMBAT project found" message for a project whose schema is present
+        but broken in some other way.
+        """
+        aimbat_subprocess(["project", "create"])
+        with sqlite3.connect(db_path) as connection:
+            connection.execute("DROP TABLE aimbatstation")
+
+        result = aimbat_subprocess(["station", "list"])
+        assert result.returncode != 0
+        assert "No AIMBAT project found" not in result.stderr
+
 
 @pytest.mark.slow
 @pytest.mark.cli

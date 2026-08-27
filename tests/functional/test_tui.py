@@ -41,6 +41,7 @@ from aimbat._tui.modals import (
 )
 from aimbat.core import (
     BoundICCS,
+    IccsLifecycle,
     create_snapshot,
     get_current_revision,
     get_head_revision,
@@ -484,6 +485,52 @@ class TestICCSStalenessRetry:
                 assert attempts == 2
                 assert app._iccs_lifecycle.retry_pending is False
                 assert app._iccs_lifecycle.bound is not None
+
+        asyncio.run(_run())
+
+    def test_create_iccs_does_not_get_stuck_on_note_checked_failure(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unexpected error recording `note_checked` must not wedge creation.
+
+        Regression test: `_create_iccs` calls `IccsLifecycle.note_checked`
+        (a second, independent event lookup) purely as bookkeeping before
+        starting the worker. If that raises something other than
+        `NoResultFound`/`RuntimeError` (e.g. a transient DB error), the
+        worker must still run — it alone resets the `start_creating()` guard
+        on failure, so skipping it would leave ICCS creation permanently
+        disabled for the rest of the session.
+        """
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        class _SimulatedError(Exception):
+            pass
+
+        def _always_raises(self: IccsLifecycle, last_modified: object) -> None:
+            raise _SimulatedError("simulated failure recording note_checked")
+
+        monkeypatch.setattr(IccsLifecycle, "note_checked", _always_raises)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app._current_event_id = event.id
+
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+
+                assert app._iccs_lifecycle._creating is False
+
+                # A further call must not be silently skipped as "already
+                # in progress" — the guard must have been released.
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                assert app._iccs_lifecycle._creating is False
 
         asyncio.run(_run())
 

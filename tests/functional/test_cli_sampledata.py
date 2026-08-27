@@ -141,7 +141,7 @@ class TestSampledataDownload:
         _run_with_retries(cli, "utils sampledata download")
         assert sampledata_dir.exists(), "Directory should exist after first download"
 
-        _run_with_retries(cli, "utils sampledata download --force")
+        _run_with_retries(cli, "utils sampledata download --force --yes")
         assert sampledata_dir.exists(), (
             "Directory should still exist after force re-download"
         )
@@ -173,7 +173,7 @@ class TestSampledataDelete:
         _run_with_retries(cli, "utils sampledata download")
         assert sampledata_dir.exists(), "Directory should exist before delete"
 
-        cli("utils sampledata delete")
+        cli("utils sampledata delete --yes")
         assert not sampledata_dir.exists(), (
             "Sample data directory should be absent after delete"
         )
@@ -190,7 +190,7 @@ class TestSampledataDelete:
             cli: The in-process CLI callable.
         """
         _run_with_retries(cli, "utils sampledata download")
-        cli("utils sampledata delete")
+        cli("utils sampledata delete --yes")
         assert not sampledata_dir.exists(), "Directory should be absent after delete"
 
         _run_with_retries(cli, "utils sampledata download")

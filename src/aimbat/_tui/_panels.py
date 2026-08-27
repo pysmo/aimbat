@@ -25,6 +25,7 @@ from pysmo.tools.plotutils import relative_time_array
 
 from aimbat.core import (
     BoundICCS,
+    NoteTarget,
     cc_stats,
     dump_event_table,
     dump_seismogram_table,
@@ -200,7 +201,7 @@ def _populate_rows(
 
 
 def _update_note(
-    note_widget: NoteWidget, entity_kind: str, item_id: str | None
+    note_widget: NoteWidget, entity_kind: NoteTarget, item_id: str | None
 ) -> None:
     """Clear `note_widget`, or bind it to `item_id` if given."""
     if item_id is None:
@@ -213,7 +214,7 @@ def _update_note(
 def _update_quality_panel(
     panel: Static,
     note_widget: NoteWidget,
-    entity_kind: str,
+    entity_kind: NoteTarget,
     border_title: str,
     quality_fn: Callable[[Session, uuid.UUID], SeismogramQualityStats],
     item_id: str | None,
@@ -688,7 +689,8 @@ class SeismogramPanel(Widget):
 
                 rows.sort(
                     key=lambda r: (
-                        r["Stack CC"] if r.get("Stack CC") is not None else -2.0
+                        bool(r["Select"]),
+                        r["Stack CC"] if r.get("Stack CC") is not None else -2.0,
                     ),
                     reverse=True,
                 )

@@ -394,8 +394,9 @@ class ParametersModal(ModalScreen[bool]):
             if raw is None:
                 return
             try:
+                new_val: Timedelta | float
                 if isinstance(current, Timedelta):
-                    new_val: object = Timedelta(seconds=float(raw))
+                    new_val = Timedelta(seconds=float(raw))
                 else:
                     new_val = float(raw)
                 self._apply_parameter(attr, new_val)
@@ -405,7 +406,9 @@ class ParametersModal(ModalScreen[bool]):
         label = AimbatEventParametersBase.model_fields[attr].title or attr
         self.app.push_screen(ParameterInputModal(label, current_str, unit), on_input)
 
-    def _apply_parameter(self, attr: str, value: object) -> None:
+    def _apply_parameter(
+        self, attr: str, value: Timedelta | bool | float | int | str
+    ) -> None:
         """Persist a validated parameter change to the database."""
         try:
             with Session(engine) as session:
@@ -418,7 +421,7 @@ class ParametersModal(ModalScreen[bool]):
                     EventParameter(attr),
                     value,
                     validate_iccs=True,
-                )  # type: ignore[call-overload]
+                )
         except ValidationError as exc:
             self.notify(format_validation_error(exc), severity="error")
             return

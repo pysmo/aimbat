@@ -67,7 +67,7 @@ class TestProjectLifecycle:
             patched_engine: The monkeypatched in-memory engine (project already created).
             cli: The in-process CLI callable.
         """
-        cli("project delete")  # should not raise for in-memory
+        cli("project delete --yes")  # should not raise for in-memory
 
 
 # ===================================================================
@@ -386,7 +386,7 @@ class TestEventOperations:
         events_before = cli_json("event dump")
         target_id = events_before[0]["id"]
 
-        cli(f"event delete {target_id}")
+        cli(f"event delete {target_id} --yes")
 
         events_after = cli_json("event dump")
         remaining_ids = [e["id"] for e in events_after]
@@ -420,7 +420,7 @@ class TestEventOperations:
         target_id = events_before[0]["id"]
         short_id = target_id[:8]
 
-        cli(f"event delete {short_id}")
+        cli(f"event delete {short_id} --yes")
 
         events_after = cli_json("event dump")
         remaining_ids = [e["id"] for e in events_after]
@@ -438,7 +438,7 @@ class TestEventOperations:
         events = cli_json("event dump")
         target_id = events[0]["id"]
 
-        cli(f"event delete {target_id}")
+        cli(f"event delete {target_id} --yes")
 
         seis_after = cli_json("seismogram dump")
         assert len(seis_after) < len(seis_before)
@@ -527,7 +527,7 @@ class TestStationOperations:
         stations = cli_json("station dump")
         target_id = stations[0]["id"]
 
-        cli(f"station delete {target_id}")
+        cli(f"station delete {target_id} --yes")
 
         stations_after = cli_json("station dump")
         assert len(stations_after) == len(stations) - 1
@@ -549,7 +549,7 @@ class TestStationOperations:
         target_id = stations[0]["id"]
         short_id = target_id[:8]
 
-        cli(f"station delete {short_id}")
+        cli(f"station delete {short_id} --yes")
 
         stations_after = cli_json("station dump")
         assert len(stations_after) == len(stations) - 1
@@ -593,7 +593,7 @@ class TestSeismogramOperations:
         seis = cli_json("seismogram dump")
         target_id = seis[0]["id"]
 
-        cli(f"seismogram delete {target_id}")
+        cli(f"seismogram delete {target_id} --yes")
 
         seis_after = cli_json("seismogram dump")
         assert len(seis_after) == len(seis) - 1
@@ -615,7 +615,7 @@ class TestSeismogramOperations:
         target_id = seis[0]["id"]
         short_id = target_id[:8]
 
-        cli(f"seismogram delete {short_id}")
+        cli(f"seismogram delete {short_id} --yes")
 
         seis_after = cli_json("seismogram dump")
         assert len(seis_after) == len(seis) - 1
@@ -678,7 +678,7 @@ class TestSnapshotLifecycle:
         snapshots = data["snapshots"]
         assert len(snapshots) == 1
 
-        cli(f"snapshot delete {snapshots[0]['id']}")
+        cli(f"snapshot delete {snapshots[0]['id']} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict)
@@ -705,7 +705,7 @@ class TestSnapshotLifecycle:
         assert len(snapshots) == 1
         short_id = snapshots[0]["id"][:8]
 
-        cli(f"snapshot delete {short_id}")
+        cli(f"snapshot delete {short_id} --yes")
 
         data_after = cli_json("snapshot dump")
         assert isinstance(data_after, dict)
@@ -728,7 +728,7 @@ class TestSnapshotLifecycle:
 
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
-        cli(f"snapshot rollback {data['snapshots'][0]['id']}")
+        cli(f"snapshot rollback {data['snapshots'][0]['id']} --yes")
 
         cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out
@@ -758,7 +758,7 @@ class TestSnapshotLifecycle:
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
         short_id = data["snapshots"][0]["id"][:8]
-        cli(f"snapshot rollback {short_id}")
+        cli(f"snapshot rollback {short_id} --yes")
 
         cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out
@@ -785,7 +785,7 @@ class TestDataReaddWorkflow:
         assert len(events_before) > 0
 
         for event in events_before:
-            cli(f"event delete {event['id']}")
+            cli(f"event delete {event['id']} --yes")
 
         events_empty = cli_json("event dump")
         assert len(events_empty) == 0

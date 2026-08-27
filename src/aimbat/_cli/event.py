@@ -10,10 +10,12 @@ from aimbat._types import EventParameter
 from aimbat.models import AimbatEvent
 
 from .common import (
+    ConfirmParameters,
     DebugParameter,
     EventDebugParameters,
     JsonDumpParameters,
     TableParameters,
+    confirm_or_abort,
     event_parameter,
     event_parameter_is_all,
     event_parameter_with_all,
@@ -53,7 +55,7 @@ app.command(_quality)
 def cli_event_delete(
     event_id: Annotated[uuid.UUID, event_parameter()],
     *,
-    _: DebugParameter = DebugParameter(),
+    confirm: ConfirmParameters = ConfirmParameters(),
 ) -> None:
     """Delete an existing event.
 
@@ -65,6 +67,10 @@ def cli_event_delete(
 
     with Session(engine) as session:
         event = resolve_event(session, event_id)
+        confirm_or_abort(
+            f"Delete event at {event.time} and all of its seismograms?",
+            yes=confirm.yes,
+        )
         delete_event(session, event.id)
 
 

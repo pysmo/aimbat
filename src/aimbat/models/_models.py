@@ -3,7 +3,6 @@
 import os
 import uuid
 from collections.abc import Hashable
-from datetime import timezone
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -78,6 +77,7 @@ class AimbatDataSource(SQLModel, table=True):
         schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
     )
     sourcename: str = Field(
+        unique=True,
         title="Source name",
         description="Path or name of the data source.",
     )
@@ -370,7 +370,7 @@ class AimbatSnapshot(SQLModel, table=True):
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
     time: PydanticTimestamp = Field(
-        default_factory=lambda: Timestamp.now(tz=timezone.utc),
+        default_factory=lambda: Timestamp.now("UTC"),
         unique=True,
         sa_type=SAPandasTimestamp,
         title="Snapshot time",
@@ -730,7 +730,7 @@ AimbatSnapshot.selected_seismogram_count = column_property(  # type: ignore[assi
     select(func.count(col(AimbatSeismogramParametersSnapshot.id)))
     .where(
         (col(AimbatSeismogramParametersSnapshot.snapshot_id) == col(AimbatSnapshot.id))
-        & (col(AimbatSeismogramParametersSnapshot.select) == True)  # noqa: E712
+        & col(AimbatSeismogramParametersSnapshot.select).is_(True)
     )
     .correlate_except(AimbatSeismogramParametersSnapshot)
     .scalar_subquery()
@@ -741,7 +741,7 @@ AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assig
     select(func.count(col(AimbatSeismogramParametersSnapshot.id)))
     .where(
         (col(AimbatSeismogramParametersSnapshot.snapshot_id) == col(AimbatSnapshot.id))
-        & (col(AimbatSeismogramParametersSnapshot.flip) == True)  # noqa: E712
+        & col(AimbatSeismogramParametersSnapshot.flip).is_(True)
     )
     .correlate_except(AimbatSeismogramParametersSnapshot)
     .scalar_subquery()

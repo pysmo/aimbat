@@ -10,15 +10,17 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID
 
-from cyclopts import App, Parameter
+from cyclopts import App, Parameter, validators
 
 from aimbat.models import AimbatSnapshot
 
 from .common import (
+    ConfirmParameters,
     DebugParameter,
     IccsPlotParameters,
     JsonDumpParameters,
     TableParameters,
+    confirm_or_abort,
     event_parameter,
     event_parameter_is_all,
     event_parameter_with_all,
@@ -124,7 +126,7 @@ def cli_snapshot_rollback(
         ),
     ],
     *,
-    _: DebugParameter = DebugParameter(),
+    confirm: ConfirmParameters = ConfirmParameters(),
 ) -> None:
     """Restore saved parameters from a snapshot as the current live values.
 
@@ -142,6 +144,9 @@ def cli_snapshot_rollback(
     from aimbat.core import rollback_to_snapshot
     from aimbat.db import engine
 
+    confirm_or_abort(
+        "Overwrite current live parameters with this snapshot?", yes=confirm.yes
+    )
     with Session(engine) as session:
         rollback_to_snapshot(session, snapshot_id)
 
@@ -157,7 +162,7 @@ def cli_snapshot_delete(
         ),
     ],
     *,
-    _: DebugParameter = DebugParameter(),
+    confirm: ConfirmParameters = ConfirmParameters(),
 ) -> None:
     """Delete an existing snapshot.
 
@@ -169,6 +174,7 @@ def cli_snapshot_delete(
     from aimbat.core import delete_snapshot
     from aimbat.db import engine
 
+    confirm_or_abort(f"Delete snapshot {snapshot_id}?", yes=confirm.yes)
     with Session(engine) as session:
         delete_snapshot(session, snapshot_id)
 
@@ -448,6 +454,7 @@ def cli_snapshot_results(
         Parameter(
             name="output",
             help="Write results to this JSON file instead of printing to stdout.",
+            validator=validators.Path(dir_okay=False),
         ),
     ] = None,
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
