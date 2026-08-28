@@ -19,6 +19,10 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Scope --alias flag to CLI/shell in results export docs
 - Render settings defaults via zensical macros instead of hand-typing/shelling out
 
+### 📦 Miscellaneous
+
+- [**breaking**] Raise Python floor to 3.13
+
 ### 🔧 Refactoring
 
 - **(tui)** Split app.py god object, dedupe core/_iccs helpers
