@@ -4,6 +4,10 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 ## [Unreleased]
 
+### ⚙️ DevOps & Infrastructure
+
+- Add stale management workflow
+
 ### 🐛 Bug Fixes
 
 - Set explicit permissions on workflow-calling jobs
