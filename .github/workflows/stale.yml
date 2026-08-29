@@ -1,0 +1,11 @@
+name: Stale Management
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # Runs daily at 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  stale:
+    if: github.ref == 'refs/heads/master'
+    uses: pysmo/.github/.github/workflows/stale.yml@main
