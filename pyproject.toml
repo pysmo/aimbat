@@ -1,0 +1,92 @@
+[project]
+name = "pysmo.aimbat"
+dynamic = ["version"]
+description = "Automated and Interactive Measurement of Body-wave Arrival Times"
+readme = "README.rst"
+authors = [
+  { name = "Xiaoting Lou", email = "xlou@u.northwestern.edu" },
+  { name = "Suzan van der Lee" },
+  { name = "Simon M. Lloyd", email = "simon@slloyd.net" },
+]
+license = "GPL-3.0-or-later"
+requires-python = ">=3.11,<3.15"
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "pysmo>=0.8.4,<0.9",
+  "numpy>=2.1",
+  "scipy>=1.14",
+  "matplotlib>=3.9",
+  "pyqtgraph>=0.13.7",
+  "pyside6>=6.7",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.3",
+  "pytest-mpl>=0.17",
+  "pytest-cov>=5.0",
+]
+lint = ["ruff>=0.11"]
+docs = [
+  "Sphinx>=7.4",
+  "sphinx-rtd-theme>=3.0",
+]
+dev = ["pysmo.aimbat[test,lint,docs]"]
+
+[project.scripts]
+aimbat-mccc = "pysmo.aimbat.algmccc:main"
+aimbat-iccs = "pysmo.aimbat.algiccs:main"
+aimbat-sac2pkl = "pysmo.aimbat.sacpickle:main"
+aimbat-sacp1 = "pysmo.aimbat.plotphase:sacp1_standalone"
+aimbat-sacp2 = "pysmo.aimbat.plotphase:sacp2_standalone"
+aimbat-sacpaz = "pysmo.aimbat.plotphase:sacpaz_standalone"
+aimbat-sacpbaz = "pysmo.aimbat.plotphase:sacpbaz_standalone"
+aimbat-sacplot = "pysmo.aimbat.plotphase:sacplot_standalone"
+aimbat-sacprs = "pysmo.aimbat.plotphase:sacprs_standalone"
+aimbat-sacppk = "pysmo.aimbat.pickphase:sacppk_standalone"
+aimbat-ttpick = "pysmo.aimbat.qualctrl:main"
+aimbat-qttpick = "pysmo.aimbat.ttguiqt:main"
+
+[project.urls]
+Documentation = "https://aimbat.readthedocs.io"
+Repository = "https://github.com/pysmo/aimbat"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["pysmo/aimbat"]
+exclude = ["pysmo/aimbat/xcorr.f90"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/pysmo",
+  "/tests",
+  "/docs",
+  "/README.rst",
+  "/License.txt",
+  "/Changelog.rst",
+]
+
+[tool.uv.sources]
+pysmo = { path = "../pysmo-0.8.x", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["*_tests.py", "test_*.py"]
+
+[tool.ruff]
+line-length = 88
+extend-exclude = ["docs", "example-scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+ignore = ["E402", "E501", "E722", "E741", "F841", "UP031"]

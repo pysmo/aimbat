@@ -17,11 +17,11 @@ Python module for mapping station with the help of GMT scripts.
     http://www.gnu.org/licenses/gpl.html
 """
 
-import subprocess
 import os
+import subprocess
 
 
-class StationMapper(object):
+class StationMapper:
     def __init__(self, sacgroup):
         self.sacgroup = sacgroup
         self.selats = []
@@ -43,19 +43,19 @@ class StationMapper(object):
             self.delons.append(sacdh.stlo)
 
     def writeToFile(self):
-        selectedLatLon = ''
+        selectedLatLon = ""
         for lat, lon in zip(self.selats, self.selons):
-            selectedLatLon += str(lat) + ' ' + str(lon) + '\n'
-        deselectedLatLon = ''
+            selectedLatLon += str(lat) + " " + str(lon) + "\n"
+        deselectedLatLon = ""
         for lat, lon in zip(self.delats, self.delons):
-            deselectedLatLon += str(lat) + ' ' + str(lon) + '\n'
+            deselectedLatLon += str(lat) + " " + str(lon) + "\n"
 
-        selectedPath = os.path.join(os.getcwd(), 'selectedstations.gmt')
-        deselectedPath = os.path.join(os.getcwd(), 'deselectedstations.gmt')
+        selectedPath = os.path.join(os.getcwd(), "selectedstations.gmt")
+        deselectedPath = os.path.join(os.getcwd(), "deselectedstations.gmt")
 
-        with open(selectedPath, 'w+') as tmpfile:
+        with open(selectedPath, "w+") as tmpfile:
             tmpfile.write(selectedLatLon)
-        with open(deselectedPath, 'w+') as tmpfile:
+        with open(deselectedPath, "w+") as tmpfile:
             tmpfile.write(deselectedLatLon)
 
         return selectedPath, deselectedPath
@@ -76,8 +76,18 @@ class StationMapper(object):
         args[6] = min(lats)
         args[7] = max(lats)
 
-        __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
-        if os.name == 'nt':
-            subprocess.call([os.path.join(__location__, 'stationmapper.bat')] + [selectedPath, deselectedPath] + [str(a) for a in args])
+        __location__ = os.path.realpath(
+            os.path.join(os.getcwd(), os.path.dirname(__file__))
+        )
+        if os.name == "nt":
+            subprocess.call(
+                [os.path.join(__location__, "stationmapper.bat")]
+                + [selectedPath, deselectedPath]
+                + [str(a) for a in args]
+            )
         else:
-            subprocess.call(['/bin/bash', os.path.join(__location__, 'stationmapper.sh')] + [selectedPath, deselectedPath] + [str(a) for a in args])
+            subprocess.call(
+                ["/bin/bash", os.path.join(__location__, "stationmapper.sh")]
+                + [selectedPath, deselectedPath]
+                + [str(a) for a in args]
+            )
