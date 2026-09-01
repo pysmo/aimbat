@@ -54,10 +54,10 @@ from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 
 from pysmo.aimbat import algiccs as iccs
 from pysmo.aimbat import algmccc as mccc
+from pysmo.aimbat import cli_deprecation_notice, ttconfig
 from pysmo.aimbat import prepdata as pdata
 from pysmo.aimbat import prepplot as pplot
 from pysmo.aimbat import sacpickle as sacpkl
-from pysmo.aimbat import ttconfig
 
 
 ###################################################################################################
@@ -1075,6 +1075,7 @@ def getOptions():
 
 def getDataOpts():
     "Get SAC Data and Options"
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     gsac, opts = pdata.paraDataOpts(opts, ifiles)
     # more options:

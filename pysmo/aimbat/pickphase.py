@@ -45,10 +45,10 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pysmo.aimbat import cli_deprecation_notice, qualsort, ttconfig
 from pysmo.aimbat import filtering as ftr
 from pysmo.aimbat import plotutils as putil
 from pysmo.aimbat import prepdata as pdata
-from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 
 mpl.rcParams["backend"] = "QtAgg"
@@ -943,6 +943,7 @@ def getAxes(opts):
 
 def getDataOpts():
     "Get SAC Data and Options"
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     pppara = ttconfig.PPConfig()
     gsac = sacpkl.loadData(ifiles, opts, pppara)

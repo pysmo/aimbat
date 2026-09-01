@@ -22,6 +22,8 @@ from numpy import array, concatenate, cos, linspace, mean, ones, pi, zeros
 from pysmo.core.sac import SacIO
 from scipy import signal
 
+from pysmo.aimbat import cli_deprecation_notice
+
 # ############################################################################### #
 #                                                                                 #
 #                         MANIPULATING PICKLE FILES                               #
@@ -691,6 +693,7 @@ def getOptions():
 
 
 def main():
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     if opts.s2p:
         print("File conversion: sac --> pkl")

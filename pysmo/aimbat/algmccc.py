@@ -42,7 +42,7 @@ from numpy import (
     zeros,
 )
 
-from pysmo.aimbat import qualsort, ttconfig
+from pysmo.aimbat import cli_deprecation_notice, qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat.prepdata import findPhase
 
@@ -646,6 +646,7 @@ def getParams(gsac, mcpara, opts=None):
 
 
 def main():
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     mcpara = ttconfig.MCConfig()
     gsac = sacpkl.loadData(ifiles, opts, mcpara)

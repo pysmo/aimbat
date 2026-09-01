@@ -25,8 +25,8 @@ from optparse import OptionParser
 from numpy import array, corrcoef, dot, linspace, mean, ones, sqrt, transpose, zeros
 from numpy import linalg as LA
 
+from pysmo.aimbat import cli_deprecation_notice, qualsort, ttconfig
 from pysmo.aimbat import prepdata as pdata
-from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 
 
@@ -469,6 +469,7 @@ def checkCoverage(gsac, opts, textra=0.0):
 
 
 def main():
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     ccpara = ttconfig.CCConfig()
     gsac = sacpkl.loadData(ifiles, opts, ccpara)

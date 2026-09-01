@@ -38,13 +38,13 @@ import numpy as np
 
 from pysmo.aimbat import algiccs as iccs
 from pysmo.aimbat import algmccc as mccc
+from pysmo.aimbat import cli_deprecation_notice, qualsort, ttconfig
 from pysmo.aimbat import filtering as ftr
 from pysmo.aimbat import pickphase as ppk
 from pysmo.aimbat import plotphase as pph
 from pysmo.aimbat import plotstations as psta
 from pysmo.aimbat import plotutils as putil
 from pysmo.aimbat import prepdata as pdata
-from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 
 mpl.rcParams["backend"] = "QtAgg"
@@ -1392,6 +1392,7 @@ def sortSeis(gsac, opts):
 
 def getDataOpts():
     "Get SAC Data and Options"
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     pppara = ttconfig.PPConfig()
     qcpara = ttconfig.QCConfig()
