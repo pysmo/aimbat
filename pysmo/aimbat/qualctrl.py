@@ -47,7 +47,7 @@ from pysmo.aimbat import prepdata as pdata
 from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 
-mpl.rcParams["backend"] = "TkAgg"
+mpl.rcParams["backend"] = "QtAgg"
 
 
 """print everything out in an array, DO NOT DELETE!!!"""
@@ -267,7 +267,7 @@ class PickPhaseMenuMore:
 
         def on_select(xmin, xmax):
             """Mouse event: select span."""
-            if self.span.visible:
+            if self.span.get_visible():
                 print("span selected: %6.1f %6.1f " % (xmin, xmax))
                 xxlim = (xmin, xmax)
                 axstk.set_xlim(xxlim)
@@ -1164,7 +1164,7 @@ class PickPhaseMenuMore:
             tfin = sacdh.gethdr(hdrfin)
             ipk = int(hdrfin[1])
             tpk = tfin - sacdh.reftime
-            pp.timepicks[ipk].set_xdata(tpk)
+            pp.timepicks[ipk].set_xdata([tpk, tpk])
             th0 = tfin + twfin[0]
             th1 = tfin + twfin[1]
             pp.twindow = [th0, th1]

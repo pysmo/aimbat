@@ -19,7 +19,7 @@ Python module for preparing plots on Qt GUI.
 
 import pyqtgraph.parametertree.parameterTypes as pTypes
 from pyqtgraph.parametertree import Parameter
-from pyqtgraph.Qt import QtCore, QtGui
+from pyqtgraph.Qt import QtCore, QtWidgets
 
 
 class SeisWaveItem:
@@ -43,7 +43,7 @@ class SeisWaveItem:
         self.y = sacdh.datamem * sacdh.datnorm + sacdh.datbase
 
 
-class KeyPressWidget(QtGui.QWidget):
+class KeyPressWidget(QtWidgets.QWidget):
     """
     Redefine key press event handler
     """
@@ -82,7 +82,7 @@ class KeyPressWidget(QtGui.QWidget):
             waveItem.tpickCurves[ipick].setData(xp, yp)
         elif evkey == QtCore.Qt.Key_Q:
             print("Quit application. Bye")
-            QtGui.QApplication.instance().closeAllWindows()
+            QtWidgets.QApplication.instance().closeAllWindows()
         event.accept()
 
 

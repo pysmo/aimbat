@@ -19,11 +19,23 @@ Python module for plotting seismograms:
 """
 
 import os
+import subprocess
+import sys
 
 import matplotlib.pyplot as plt
 from matplotlib._pylab_helpers import Gcf
 from matplotlib.widgets import SpanSelector
 from numpy import sign
+
+
+def openFile(path):
+    "Open a file with the platform's default application."
+    if sys.platform == "darwin":
+        subprocess.call(["open", path])
+    elif sys.platform == "win32":
+        os.startfile(path)
+    else:
+        subprocess.call(["xdg-open", path])
 
 
 def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
@@ -225,7 +237,7 @@ def plotDelay(stalos, stalas, dtimes, opts):
     if opts.savefig:
         fignm = opts.mcpara.mcname + "." + fmt
         plt.savefig(fignm, format=fmt, dpi=300)
-        os.system("open " + fignm)
+        openFile(fignm)
     else:
         plt.show()
     return fig

@@ -14,8 +14,8 @@ from pysmo.aimbat.qualctrl import getAxes, getDataOpts
 
 
 @unittest.skip(
-    "Simulated pixel-coordinate clicks against the matplotlib GUI; PickPhaseMenu.save "
-    "no longer exists. Needs the GUI overhaul (see HANDOFF.md step 5)."
+    "Tests call PickPhaseMenu.save / save_headers_filterParams, which have never existed "
+    "on this class (save lives on qualctrl.PickPhaseMenuMore); stale tests, not a regression."
 )
 class pickphaseView(unittest.TestCase):
     def test__save_headers_filterParams1(self):

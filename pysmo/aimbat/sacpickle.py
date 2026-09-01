@@ -134,10 +134,11 @@ class SacDataHdrs:
             if user is not None:
                 users[i] = user
         for i in range(nkhdr):
-            # kuser = getattr(isac, 'kuser' + str(i)).rstrip()
             kuser = getattr(isac, "kuser" + str(i))
             if kuser is not None:
-                kusers[i] = kuser
+                kuser = kuser.replace("\x00", "").strip()
+                if kuser and kuser != "-12345":
+                    kusers[i] = kuser
         self.thdrs = thdrs
         self.users = users
         self.kusers = kusers

@@ -27,10 +27,6 @@ class plotutilsModel(unittest.TestCase):
 
 
 class plotutilsView(unittest.TestCase):
-    @unittest.skip(
-        "PickPhaseMenu.on_select relies on SpanSelector.visible, removed in matplotlib 3.7. "
-        "Needs the GUI overhaul (see HANDOFF.md step 5)."
-    )
     def test_timeSelector_ignore(self):
         sys.argv[1:] = [test_filename]
         gsac, opts = getDataOpts()

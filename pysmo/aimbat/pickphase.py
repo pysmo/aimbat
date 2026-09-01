@@ -51,7 +51,7 @@ from pysmo.aimbat import prepdata as pdata
 from pysmo.aimbat import qualsort, ttconfig
 from pysmo.aimbat import sacpickle as sacpkl
 
-mpl.rcParams["backend"] = "TkAgg"
+mpl.rcParams["backend"] = "QtAgg"
 
 
 def getOptions():
@@ -379,7 +379,7 @@ class PickPhase:
             sacdh.thdrs[ipick] = atpk
             out = "File {:s}: pick phase {:s} = {:6.1f} s, absolute = {:6.1f} s. "
             print(out.format(sacdh.filename, ipk, tpk, atpk))
-            timepicks[ipick].set_xdata(tpk)
+            timepicks[ipick].set_xdata([tpk, tpk])
         axpp.figure.canvas.draw()
 
     def updateY(self, xxlim):
@@ -524,7 +524,7 @@ class PickPhaseMenu:
 
     def on_select(self, xmin, xmax):
         """Mouse event: select span."""
-        if self.span.visible:
+        if self.span.get_visible():
             print(f"span selected: {xmin:6.1f} {xmax:6.1f} ")
             xxlim = (xmin, xmax)
             self.axpp.set_xlim(xxlim)
@@ -832,7 +832,7 @@ class PickPhaseMenu:
         self.axquit.cla()
 
         canvas.mpl_disconnect(self.cidpress)
-        self.span.visible = False
+        self.span.set_visible(False)
 
     def finish(self):
         for pp in self.pps:

@@ -50,7 +50,7 @@ import sys
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.parametertree import ParameterTree
-from pyqtgraph.Qt import QtCore, QtGui
+from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
 
 from pysmo.aimbat import algiccs as iccs
 from pysmo.aimbat import algmccc as mccc
@@ -64,15 +64,15 @@ from pysmo.aimbat import ttconfig
 class mainGUI:
     def __init__(self, gsac, opts):
         # initialize Qt, once per application
-        self.app = QtGui.QApplication(sys.argv)
+        self.app = QtWidgets.QApplication(sys.argv)
         # A top-level widget to hold everything
-        # self.window = QtGui.QWidget()
+        # self.window = QtWidgets.QWidget()
         self.window = pplot.KeyPressWidget()
         self.window.twhdrs = opts.pppara.twhdrs
         self.window.setWindowTitle("aimbat-qttpick")
         # Display the widget as a new window
         self.window.show()
-        self.layout = QtGui.QGridLayout(self.window)
+        self.layout = QtWidgets.QGridLayout(self.window)
         #
         self.gsac = gsac
         self.opts = opts
@@ -117,7 +117,7 @@ class mainGUI:
         self.opts.colorwaves = [self.opts.colorwavedel, self.opts.colorwave]
 
     def setupGUI(self):
-        resoRect = self.app.desktop().availableGeometry()
+        resoRect = self.app.primaryScreen().availableGeometry()
         self.window.resize(resoRect.width() * 0.8, resoRect.height() * 0.9)
         # stack and individual traces
         self.stackWidget = self.getStackGraphWidget(resoRect.width() * 0.8, 180)
@@ -126,8 +126,8 @@ class mainGUI:
         )
         self.useScrollArea = False
         if self.useScrollArea:
-            self.stackScrollArea = QtGui.QScrollArea()
-            self.traceScrollArea = QtGui.QScrollArea()
+            self.stackScrollArea = QtWidgets.QScrollArea()
+            self.traceScrollArea = QtWidgets.QScrollArea()
             self.stackScrollArea.setWidget(self.stackWidget)
             self.traceScrollArea.setWidget(self.traceWidget)
             self.addLayoutWidget(self.stackScrollArea, 0, 3, xSpan=4, ySpan=20)
@@ -153,18 +153,18 @@ class mainGUI:
         tsync = f"Sync\n{hdrfin.upper():s} and Time Window"
         tccff = f"Refine\nICCS {hdrfin.upper():s}-->{hdrfin.upper():s}"
         tmccc = f"Finalize \nMCCC {ipick.upper():s}-->{wpick.upper():s}"
-        ccimButton = QtGui.QPushButton(tccim)
-        syncButton = QtGui.QPushButton(tsync)
-        ccffButton = QtGui.QPushButton(tccff)
-        mcccButton = QtGui.QPushButton(tmccc)
-        saveButton = QtGui.QPushButton("Save")
-        quitButton = QtGui.QPushButton("Quit")
-        sac1Button = QtGui.QPushButton("Sac P1")
-        sac2Button = QtGui.QPushButton("Sac P2")
-        pmorButton = QtGui.QPushButton("Plot More Traces")
-        tmapButton = QtGui.QPushButton("Map Delay Times")
-        sortButton = QtGui.QPushButton("Sort\n by Name/Qual/Hdr")
-        filtButton = QtGui.QPushButton("Filter\n on Stack/Traces")
+        ccimButton = QtWidgets.QPushButton(tccim)
+        syncButton = QtWidgets.QPushButton(tsync)
+        ccffButton = QtWidgets.QPushButton(tccff)
+        mcccButton = QtWidgets.QPushButton(tmccc)
+        saveButton = QtWidgets.QPushButton("Save")
+        quitButton = QtWidgets.QPushButton("Quit")
+        sac1Button = QtWidgets.QPushButton("Sac P1")
+        sac2Button = QtWidgets.QPushButton("Sac P2")
+        pmorButton = QtWidgets.QPushButton("Plot More Traces")
+        tmapButton = QtWidgets.QPushButton("Map Delay Times")
+        sortButton = QtWidgets.QPushButton("Sort\n by Name/Qual/Hdr")
+        filtButton = QtWidgets.QPushButton("Filter\n on Stack/Traces")
         # connect:
         ccimButton.clicked.connect(self.ccimButtonClicked)
         syncButton.clicked.connect(self.syncButtonClicked)
@@ -602,7 +602,7 @@ class mainGUI:
         for waveItem in self.traceWaveItemList:
             if waveItem.waveLabel is None:
                 continue
-            yw = waveItem.waveLabel.pos()[1]
+            yw = waveItem.waveLabel.pos().y()
             xw = self.tracePlotItem.viewRange()[0][0]
             waveItem.waveLabel.setPos(xw, yw)
 
@@ -833,7 +833,7 @@ class mainGUI:
             self.addTraceMissing()
 
     def sac2ButtonClicked(self):
-        resoRect = self.app.desktop().availableGeometry()
+        resoRect = self.app.primaryScreen().availableGeometry()
         resoRect.setWidth(resoRect.width() * 0.5)
         resoRect.setHeight(resoRect.height() * 0.7)
         hdrList = list(self.opts.qcpara.ichdrs) + [self.opts.mcpara.wpick]
@@ -843,7 +843,7 @@ class mainGUI:
         self.sacp2Window = sacp2GUI(selTraceWaveItemList, hdrList, resoRect, self.opts)
 
     def sac1ButtonClicked(self):
-        resoRect = self.app.desktop().availableGeometry()
+        resoRect = self.app.primaryScreen().availableGeometry()
         resoRect.setWidth(resoRect.width() * 0.5)
         resoRect.setHeight(resoRect.height() * 0.7)
         hdrList = list(self.opts.qcpara.ichdrs) + [self.opts.mcpara.wpick]
@@ -896,10 +896,10 @@ class sacp1GUI:
     def __init__(self, waveItemList, hdrList, resoRect, opts):
         self.opts = opts
         self.hdrList = hdrList
-        sacp1Window = QtGui.QWidget()
+        sacp1Window = QtWidgets.QWidget()
         sacp1Window.setWindowTitle("SAC P2")
         sacp1Window.show()
-        sacp1Layout = QtGui.QGridLayout(sacp1Window)
+        sacp1Layout = QtWidgets.QGridLayout(sacp1Window)
         sacp1Widget = pg.GraphicsLayoutWidget()
         sacp1Window.resize(resoRect.width(), resoRect.height())
         # create plotItems for each header in hdrList
@@ -954,10 +954,10 @@ class sacp2GUI:
     def __init__(self, waveItemList, hdrList, resoRect, opts):
         self.opts = opts
         self.hdrList = hdrList
-        sacp2Window = QtGui.QWidget()
+        sacp2Window = QtWidgets.QWidget()
         sacp2Window.setWindowTitle("SAC P2")
         sacp2Window.show()
-        sacp2Layout = QtGui.QGridLayout(sacp2Window)
+        sacp2Layout = QtWidgets.QGridLayout(sacp2Window)
         sacp2Widget = pg.GraphicsLayoutWidget()
         sacp2Window.resize(resoRect.width(), resoRect.height())
         # create plotItems for each header in hdrList

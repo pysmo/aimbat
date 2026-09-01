@@ -49,7 +49,7 @@ from pysmo.aimbat import plotutils as putil
 from pysmo.aimbat import sacpickle as sacpkl
 from pysmo.aimbat import ttconfig
 
-mpl.rcParams["backend"] = "TkAgg"
+mpl.rcParams["backend"] = "QtAgg"
 
 
 def getOptions():
@@ -626,7 +626,7 @@ class SingleSeisGather:
 
     def disconnect(self):
         self.axss.figure.canvas.mpl_disconnect(self.cidpress)
-        self.span.visible = False
+        self.span.set_visible(False)
 
     def plotPicks(self):
         for ss in self.sss:
