@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -14,25 +13,21 @@
 #
 import os
 import sys
-from importlib import reload
+from importlib.metadata import version as _version
+
 sys.path.insert(0, os.path.abspath('../..'))
 
 
 # -- Project information -----------------------------------------------------
 
-import pkg_resources
-pkg_resources = reload(pkg_resources)   # This seems to be required to pick up the path defined above...
-
-project = u'Pysmo'
-copyright = u'2019, Pysmo Project'
-author = u'Pysmo Project'
+project = 'AIMBAT'
+copyright = '2019, Pysmo Project'
+author = 'Pysmo Project'
 
 # The full version, including alpha/beta/rc tags
-#release = u''
-release = pkg_resources.get_distribution('pysmo.aimbat').version
+release = _version('pysmo.aimbat')
 
 # The short X.Y version
-#version = u''
 version = '.'.join(release.split('.')[:2])
 
 # -- General configuration ---------------------------------------------------
@@ -71,7 +66,7 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -143,8 +138,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'AIMBAT.tex', u'AIMBAT Documentation',
-   u'Lay Kuan Loh, Xiaoting Lou, \& Suzan van der Lee', 'manual'),
+  ('index', 'AIMBAT.tex', 'AIMBAT Documentation',
+   r'Lay Kuan Loh, Xiaoting Lou, \& Suzan van der Lee', 'manual'),
 ]
 
 
@@ -153,8 +148,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'aimbat', u'AIMBAT Documentation',
-     [u'Lay Kuan Loh, Xiaoting Lou, & Suzan van der Lee'], 1)
+    ('index', 'aimbat', 'AIMBAT Documentation',
+     ['Lay Kuan Loh, Xiaoting Lou, & Suzan van der Lee'], 1)
 ]
 
 
@@ -164,8 +159,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'AIMBAT', u'AIMBAT Documentation',
-   u'Lay Kuan Loh, Xiaoting Lou, \& Suzan van der Lee', 'AIMBAT', 'Automating selection of travel wave arrival times',
+  ('index', 'AIMBAT', 'AIMBAT Documentation',
+   r'Lay Kuan Loh, Xiaoting Lou, \& Suzan van der Lee', 'AIMBAT',
+   'Automating selection of travel wave arrival times',
    'Miscellaneous'),
 ]
 
