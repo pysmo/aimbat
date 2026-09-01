@@ -1,32 +1,36 @@
 name: unit tests
 
-on: [ push, pull_request ]
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+env:
+  # Use uv-managed CPython, not the runner's system Python: several aimbat
+  # modules import tkinter at load time, which the standalone builds bundle
+  # but the runner's system Python does not.
+  UV_PYTHON_PREFERENCE: only-managed
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
-        python-version: [ '3.9' ]
+        python-version: ['3.11', '3.12', '3.13', '3.14']
 
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - name: Install pipenv
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pipenv
-      - name: Install dependencies
-        run: |
-          pipenv requirements > requirements.txt
-          python -m pip install -r requirements.txt
-      - name: run setup.py build and install
-        run: |
-          python --version
-          python setup.py build
-          python setup.py install
+      - name: Install the project
+        run: uv sync --locked --extra dev
+      - name: Lint
+        run: make lint
+      - name: Test with pytest
+        run: uv run pytest

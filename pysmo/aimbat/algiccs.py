@@ -17,25 +17,26 @@ Python module for the ICCS (iterative cross-correlation and stack) algorithm.
     http://www.gnu.org/licenses/gpl.html
 """
 
+import copy
 import os
 import sys
-import copy
 from optparse import OptionParser
-from numpy import array, ones, zeros, sqrt, dot, corrcoef, mean, transpose, linspace
+
+from numpy import array, corrcoef, dot, linspace, mean, ones, sqrt, transpose, zeros
 from numpy import linalg as LA
-from pysmo.aimbat import ttconfig
-from pysmo.aimbat import qualsort
-from pysmo.aimbat import sacpickle as sacpkl
+
+from pysmo.aimbat import cli_deprecation_notice, qualsort, ttconfig
 from pysmo.aimbat import prepdata as pdata
+from pysmo.aimbat import sacpickle as sacpkl
 
 
 def getOptions():
-    """ Parse arguments and options. """
+    """Parse arguments and options."""
     usage = "Usage: %prog [options] <sacfile(s) or a picklefile>"
     parser = OptionParser(usage=usage)
     twcorr = -15, 15
-    ipick = 't0'
-    wpick = 't1'
+    ipick = "t0"
+    wpick = "t1"
     minccc = 0.5
     minsnr = 0.5
     mincoh = 0.0
@@ -46,30 +47,82 @@ def getOptions():
     parser.set_defaults(wpick=wpick)
     parser.set_defaults(minqual=minqual)
     parser.set_defaults(minnsel=minnsel)
-    parser.add_option('-S', '--srate', dest='srate', type='float',
-                      help='Sampling rate to load SAC data. Default is None, '
-                      'use the original rate of first files.')
-    parser.add_option('-i', '--ipick', dest='ipick', type='str',
-                      help='SAC header variable to read input time pick.')
-    parser.add_option('-w', '--wpick', dest='wpick', type='str',
-                      help='SAC header variable to write output time pick.')
-    parser.add_option('-t', '--twcorr', dest='twcorr', type='float', nargs=2,
-                      help='Time window for cross-correlation. Default is '
-                      '[{:.1f}, {:.1f}] s.'.format(twcorr[0], twcorr[1]))
-    parser.add_option('-f', '--fstack', dest='fstack', type='str',
-                      help='SAC file name to save final array stack.')
-    parser.add_option('-p', '--plotiter', action="store_true", dest='plotiter',
-                      help='Plot array stack of each iteration.')
-    parser.add_option('-a', '--auto_on', action="store_true", dest='auto_on',
-                      help='Run ICCS and select/delete seismograms automatically.')
-    parser.add_option('-A', '--auto_on_all', action="store_true", dest='auto_on_all',
-                      help='Run ICCS with -a option but initially use all seismograms.')
-    parser.add_option('-q', '--minqual', dest='minqual', type='float', nargs=3,
-                      help='Minimum quality factor (ccc,snr,coh) for auto selection. '
-                      'Defaults are {:.2f} {:.2f} {:.2f}.'.format(minccc, minsnr, mincoh))
-    parser.add_option('-n', '--minnsel', dest='minnsel', type='int',
-                      help='Minimum number of selected seismograms for auto selection. '
-                      'Default is {:d}.'.format(minnsel))
+    parser.add_option(
+        "-S",
+        "--srate",
+        dest="srate",
+        type="float",
+        help="Sampling rate to load SAC data. Default is None, "
+        "use the original rate of first files.",
+    )
+    parser.add_option(
+        "-i",
+        "--ipick",
+        dest="ipick",
+        type="str",
+        help="SAC header variable to read input time pick.",
+    )
+    parser.add_option(
+        "-w",
+        "--wpick",
+        dest="wpick",
+        type="str",
+        help="SAC header variable to write output time pick.",
+    )
+    parser.add_option(
+        "-t",
+        "--twcorr",
+        dest="twcorr",
+        type="float",
+        nargs=2,
+        help="Time window for cross-correlation. Default is "
+        f"[{twcorr[0]:.1f}, {twcorr[1]:.1f}] s.",
+    )
+    parser.add_option(
+        "-f",
+        "--fstack",
+        dest="fstack",
+        type="str",
+        help="SAC file name to save final array stack.",
+    )
+    parser.add_option(
+        "-p",
+        "--plotiter",
+        action="store_true",
+        dest="plotiter",
+        help="Plot array stack of each iteration.",
+    )
+    parser.add_option(
+        "-a",
+        "--auto_on",
+        action="store_true",
+        dest="auto_on",
+        help="Run ICCS and select/delete seismograms automatically.",
+    )
+    parser.add_option(
+        "-A",
+        "--auto_on_all",
+        action="store_true",
+        dest="auto_on_all",
+        help="Run ICCS with -a option but initially use all seismograms.",
+    )
+    parser.add_option(
+        "-q",
+        "--minqual",
+        dest="minqual",
+        type="float",
+        nargs=3,
+        help="Minimum quality factor (ccc,snr,coh) for auto selection. "
+        f"Defaults are {minccc:.2f} {minsnr:.2f} {mincoh:.2f}.",
+    )
+    parser.add_option(
+        "-n",
+        "--minnsel",
+        dest="minnsel",
+        type="int",
+        help="Minimum number of selected seismograms for auto selection. "
+        f"Default is {minnsel:d}.",
+    )
     opts, files = parser.parse_args(sys.argv[1:])
     if not files:
         print(parser.usage)
@@ -78,32 +131,28 @@ def getOptions():
 
 
 def corrmax(datai, dataj, delta, xcorr, shift):
-    """ Calculate time lag at maximum cross correlation between two time series.
-    """
+    """Calculate time lag at maximum cross correlation between two time series."""
     delay, ccmax, ccpol = xcorr(datai, dataj, shift)
-    return delay*delta, ccmax, ccpol
+    return delay * delta, ccmax, ccpol
 
 
 def meanStack(data, taperwidth, tapertype):
-    """ Calculate array stack by averaging without weighting.
-    """
+    """Calculate array stack by averaging without weighting."""
     sdata = mean(data, 0)
     sdata = sacpkl.taper(sdata, taperwidth, tapertype)
     return sdata
 
 
 def weightStack(data, wgts, taperwidth, tapertype):
-    """ Calculate array stack by averaging with weighting.
-    """
+    """Calculate array stack by averaging with weighting."""
     sdata = mean(transpose(data) * wgts, 1)
     sdata = sacpkl.taper(sdata, taperwidth, tapertype)
     return sdata
 
 
 def normWeightStack(data, wgts, taperwidth, tapertype):
-    """ Calculate array stack by averaging with weighting and normalization.
-    """
-    mdata = [d/max(d) for d in data]
+    """Calculate array stack by averaging with weighting and normalization."""
+    mdata = [d / max(d) for d in data]
     sdata = mean(transpose(mdata) * wgts, 1)
     sdata = sacpkl.taper(sdata, taperwidth, tapertype)
     return sdata
@@ -136,20 +185,24 @@ def ccWeightStack(saclist, opts):
     qqhdrs = ccpara.qheaders
     cchdrs = ccpara.cchdrs
     twcorr = ccpara.twcorr
-    hdrccc, hdrsnr, hdrcoh, = qqhdrs[:3]
+    (
+        hdrccc,
+        hdrsnr,
+        hdrcoh,
+    ) = qqhdrs[:3]
     cchdr0, cchdr1 = cchdrs
-    if convtype == 'coef':
+    if convtype == "coef":
         convergence = coConverg
-    elif convtype == 'resi':
+    elif convtype == "resi":
         convergence = reConverg
     else:
-        print('Unknown convergence criterion: {:s}. Exit.'.format(convtype))
+        print(f"Unknown convergence criterion: {convtype:s}. Exit.")
         sys.exit()
 
-    out = '\n--> Run ICCS at window [{0:5.1f}, {1:5.1f}] wrt {2:s}. Write to header: {3:s}'
+    out = "\n--> Run ICCS at window [{0:5.1f}, {1:5.1f}] wrt {2:s}. Write to header: {3:s}"
     print(out.format(twcorr[0], twcorr[1], cchdr0, cchdr1))
-    print('    Convergence criterion: {:s}'.format(convtype))
-    if ccpara.stackwgt == 'coef':
+    print(f"    Convergence criterion: {convtype:s}")
+    if ccpara.stackwgt == "coef":
         wgtcoef = True
     else:
         wgtcoef = False
@@ -163,74 +216,88 @@ def ccWeightStack(saclist, opts):
     coh = zeros(nseis)
     wgts = ones(nseis)
     stkdata = []
-    datatype = 'datamem'
+    datatype = "datamem"
     for it in range(maxiter):
         # recut data and update array stack
         nstart, ntotal = sacpkl.windowIndex(saclist, tfins, twcorr, taperwindow)
-        windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
+        windata = sacpkl.windowData(
+            saclist, nstart, ntotal, taperwidth, tapertype, datatype
+        )
         sdata = normWeightStack(windata, wgts, taperwidth, tapertype)
         stkdata.append(sdata)
         if it == 0:
-            print('=== Iteration {0:d} : epsilon'.format(it))
+            print(f"=== Iteration {it:d} : epsilon")
         else:
-            conv = convergence(stkdata[it], stkdata[it-1])
-            print('=== Iteration {0:d} : {1:8.6f}'.format(it, conv))
+            conv = convergence(stkdata[it], stkdata[it - 1])
+            print(f"=== Iteration {it:d} : {conv:8.6f}")
             if conv <= convepsi:
-                print('    Array stack converged... Done. Mean corrcoef={0:.3f}'.format(mean(ccc)))
+                print(
+                    f"    Array stack converged... Done. Mean corrcoef={mean(ccc):.3f}"
+                )
                 break
         # Find time lag at peak correlation between each trace and the array stack.
         # Calculate cross correlation coefficient, signal/noise ratio and temporal coherence
-        sdatanorm = sdata/LA.norm(sdata)
+        sdatanorm = sdata / LA.norm(sdata)
         for i in range(nseis):
             datai = windata[i]
             delay, ccmax, ccpol = corrmax(sdata, datai, delta, xcorr, shift)
             tfins[i] += delay
             sacdh = saclist[i]
             sacdh.sethdr(cchdr1, tfins[i])
-            if wgtcoef:    # update weight only when stackwgt == coef
+            if wgtcoef:  # update weight only when stackwgt == coef
                 wgts[i] = ccpol * ccmax
             ccc[i] = ccmax
             sacdh.sethdr(hdrccc, ccc[i])
             snr[i] = snratio(datai, delta, twcorr)
             sacdh.sethdr(hdrsnr, snr[i])
-            coh[i] = coherence(datai*ccpol, sdatanorm)
+            coh[i] = coherence(datai * ccpol, sdatanorm)
             sacdh.sethdr(hdrcoh, coh[i])
     # get maximum time window for plot (excluding taperwindow)
     bb, ee = [], []
     for i in range(nseis):
         sacdh = saclist[i]
         b = sacdh.b - tfins[i]
-        e = b + (sacdh.npts-1) * delta
-        bb.append(b+delta)
-        ee.append(e-delta)
+        e = b + (sacdh.npts - 1) * delta
+        bb.append(b + delta)
+        ee.append(e - delta)
     b = max(bb)
     e = min(ee)
-    d = (e-b)*taperwidth/2
-    twplot = [b+d, e-d]
+    d = (e - b) * taperwidth / 2
+    twplot = [b + d, e - d]
     # calculate final stack at twplot, save to a sacdh object: stkdh
     # set time picks of stkdh as mean of tinis and tfins
     taperwindow = sacpkl.taperWindow(twplot, taperwidth)
     nstart, ntotal = sacpkl.windowIndex(saclist, tfins, twplot, taperwindow)
-    windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
+    windata = sacpkl.windowData(
+        saclist, nstart, ntotal, taperwidth, tapertype, datatype
+    )
     sdatamem = normWeightStack(windata, wgts, taperwidth, tapertype)
     # also create stack from original data
-    datatype = 'data'
-    windata = sacpkl.windowData(saclist, nstart, ntotal, taperwidth, tapertype, datatype)
+    datatype = "data"
+    windata = sacpkl.windowData(
+        saclist, nstart, ntotal, taperwidth, tapertype, datatype
+    )
     sdata = normWeightStack(windata, wgts, taperwidth, tapertype)
     tinimean = mean(tinis)
     tfinmean = mean(tfins)
     stkdh = copy.copy(saclist[0])
-    stkdh.thdrs = [-12345.,] * 10
-    stkdh.users = [-12345.,] * 10
-    stkdh.kusers = ['-1234567',] * 3
-    stkdh.b = twplot[0] - taperwindow*0.5 + tfinmean
+    stkdh.thdrs = [
+        -12345.0,
+    ] * 10
+    stkdh.users = [
+        -12345.0,
+    ] * 10
+    stkdh.kusers = [
+        "-1234567",
+    ] * 3
+    stkdh.b = twplot[0] - taperwindow * 0.5 + tfinmean
     stkdh.npts = len(sdata)
     stkdh.data = sdata
     stkdh.sethdr(cchdr0, tinimean)
     stkdh.sethdr(cchdr1, tfinmean)
-    stkdh.knetwk = 'Array'
-    stkdh.kstnm = 'Stack'
-    stkdh.netsta = 'Array.Stack'
+    stkdh.knetwk = "Array"
+    stkdh.kstnm = "Stack"
+    stkdh.netsta = "Array.Stack"
     stkdh.gcarc = -1
     stkdh.dist = -1
     stkdh.baz = -1
@@ -239,21 +306,21 @@ def ccWeightStack(saclist, opts):
     stkdh.stlo = 0
     stkdh.stel = 0
     stkdh.delta = delta
-    stkdh.e = stkdh.b + (stkdh.npts-1)*delta
-    stkdh.time = linspace(stkdh.b, stkdh.b+(stkdh.npts-1)*stkdh.delta, stkdh.npts)
+    stkdh.e = stkdh.b + (stkdh.npts - 1) * delta
+    stkdh.time = linspace(stkdh.b, stkdh.b + (stkdh.npts - 1) * stkdh.delta, stkdh.npts)
     stkdh.datamem = sdatamem
     # set time window
-    stkdh.sethdr(twhdrs[0], twcorr[0]+tfinmean)
-    stkdh.sethdr(twhdrs[1], twcorr[1]+tfinmean)
-    stkdh.twindow = twcorr[0]+tfinmean, twcorr[1]+tfinmean
+    stkdh.sethdr(twhdrs[0], twcorr[0] + tfinmean)
+    stkdh.sethdr(twhdrs[1], twcorr[1] + tfinmean)
+    stkdh.twindow = twcorr[0] + tfinmean, twcorr[1] + tfinmean
     if opts.fstack is None:
         stkdh.filename = ccpara.fstack
     else:
         stkdh.filename = opts.fstack
     for sacdh, tfin in zip(saclist, tfins):
-        sacdh.sethdr(twhdrs[0], tfin+twcorr[0])
-        sacdh.sethdr(twhdrs[1], tfin+twcorr[1])
-        sacdh.twindow = tfin+twcorr[0], tfin+twcorr[1]
+        sacdh.sethdr(twhdrs[0], tfin + twcorr[0])
+        sacdh.sethdr(twhdrs[1], tfin + twcorr[1])
+        sacdh.twindow = tfin + twcorr[0], tfin + twcorr[1]
     quas = array([ccc, snr, coh])
     return stkdh, stkdata, quas
 
@@ -271,7 +338,7 @@ def reConverg(stack0, stack1):
     Calcuate criterion of convergence by change of stack.
     stack0 and stack1 are current stack and stack from last iteration.
     """
-    return LA.norm(stack0-stack1, 1)/LA.norm(stack0, 2)/len(stack0)
+    return LA.norm(stack0 - stack1, 1) / LA.norm(stack0, 2) / len(stack0)
 
 
 def snratio(data, delta, timewindow):
@@ -280,13 +347,13 @@ def snratio(data, delta, timewindow):
     Time window is relative, such as [-10, 20], to the onset of the arrival.
     """
     tw0, tw1 = timewindow
-    nn = int(round(-tw0/delta))
+    nn = int(round(-tw0 / delta))
     yn = data[:nn]
     ys = data[nn:]
     ns = len(ys)
-    rr = LA.norm(ys)/LA.norm(yn)*sqrt(nn)/sqrt(ns)
+    rr = LA.norm(ys) / LA.norm(yn) * sqrt(nn) / sqrt(ns)
     if LA.norm(yn) == 0:
-        print('snr', LA.norm(yn))
+        print("snr", LA.norm(yn))
     # the same as:
     # rr = sqrt(sum(square(ys))/sum(square(yn))*nn/ns)
     # shoud signal be the whole time seris?
@@ -304,21 +371,21 @@ def coherence(datai, datas):
     res(di) = di - (di . ds) ds
     coh(di) = 1 - res(di) / ||di||
     """
-    return 1 - LA.norm(datai - dot(datai, datas)*datas)/LA.norm(datai)
+    return 1 - LA.norm(datai - dot(datai, datas) * datas) / LA.norm(datai)
 
 
 def plotiter(stkdata):
     import matplotlib.pyplot as plt
+
     plt.figure()
     for i in range(len(stkdata)):
-        plt.plot(stkdata[i], label='iter'+str(i))
+        plt.plot(stkdata[i], label="iter" + str(i))
     plt.legend()
     plt.show()
 
 
 def autoiccs(gsac, opts):
-    """ Run ICCS and delete low quality seismograms automatically.
-    """
+    """Run ICCS and delete low quality seismograms automatically."""
     saclist = gsac.saclist
     hdrsel = opts.ccpara.hdrsel
     minqual = opts.minqual
@@ -326,7 +393,9 @@ def autoiccs(gsac, opts):
     minccc, minsnr, mincoh = minqual
 
     selist, _ = qualsort.seleSeis(saclist)
-    print('\n*** Run ICCS until all low quality seismograms removed: Min_ccc={0:.2f} Min_snr={1:.1f} Min_coh={2:.2f} *** '.format(minccc, minsnr, mincoh))
+    print(
+        f"\n*** Run ICCS until all low quality seismograms removed: Min_ccc={minccc:.2f} Min_snr={minsnr:.1f} Min_coh={mincoh:.2f} *** "
+    )
     rerun = True
     while rerun and len(selist) >= minnsel:
         stkdh, _, quas = ccWeightStack(selist, opts)
@@ -337,9 +406,11 @@ def autoiccs(gsac, opts):
             ccc, snr, coh = tquas[i]
             if ccc < minccc or snr < minsnr or coh < mincoh:
                 inddel.append(i)
-                sacdh.sethdr(hdrsel, 'False')
+                sacdh.sethdr(hdrsel, "False")
                 sacdh.selected = False
-                print('--> Seismogram: {0:s} quality factors {1:.2f} {2:.2f} {3:.2f} < min. Deleted. '.format(sacdh.filename, ccc, snr, coh))
+                print(
+                    f"--> Seismogram: {sacdh.filename:s} quality factors {ccc:.2f} {snr:.2f} {coh:.2f} < min. Deleted. "
+                )
             else:
                 indsel.append(i)
         if len(inddel) > 0:
@@ -349,29 +420,28 @@ def autoiccs(gsac, opts):
             gsac.stkdh = stkdh
     gsac.selist = selist
     nsel = len(selist)
-    print('\nDone selecting seismograms: {0:d} out of {1:d} selected.'.format(nsel, len(saclist)))
+    print(f"\nDone selecting seismograms: {nsel:d} out of {len(saclist):d} selected.")
 
-    save = input('Save to file? [y/n] \n')
-    if save[0].lower() == 'y':
-        if opts.filemode == 'sac':
+    save = input("Save to file? [y/n] \n")
+    if save[0].lower() == "y":
+        if opts.filemode == "sac":
             for sacdh in saclist:
                 sacdh.writeHdrs()
             gsac.stkdh.savesac()
-        elif opts.filemode == 'pkl':
-            print(' Saving gsac to pickle file...')
+        elif opts.filemode == "pkl":
+            print(" Saving gsac to pickle file...")
             sacpkl.writePickle(gsac, opts.pklfile, opts.zipmode)
             if opts.zipmode is not None:
-                pklfile = opts.pklfile + '.' + opts.zipmode
+                pklfile = opts.pklfile + "." + opts.zipmode
             else:
                 pklfile = opts.pklfile
             if nsel < minnsel:
-                os.rename(pklfile, 'deleted.'+pklfile)
-                print('  Less than {:d} seismograms selected. Remove pkl.'.format(minnsel))
+                os.rename(pklfile, "deleted." + pklfile)
+                print(f"  Less than {minnsel:d} seismograms selected. Remove pkl.")
 
 
 def checkCoverage(gsac, opts, textra=0.0):
-    """ Check if each seismogram has enough samples around the time window relative to ipick.
-    """
+    """Check if each seismogram has enough samples around the time window relative to ipick."""
     ipick = opts.ipick
     tw0, tw1 = opts.twcorr
     saclist = gsac.saclist
@@ -381,13 +451,15 @@ def checkCoverage(gsac, opts, textra=0.0):
         sacdh = saclist[i]
         t0 = sacdh.gethdr(ipick)
         b = sacdh.b
-        e = b + (sacdh.npts-1)*sacdh.delta
-        if b-textra > t0+tw0 or e+textra < t0+tw1:
+        e = b + (sacdh.npts - 1) * sacdh.delta
+        if b - textra > t0 + tw0 or e + textra < t0 + tw1:
             inddel.append(i)
-            print('Seismogram {0:s} does not have enough sample. Deleted.'.format(sacdh.filename))
+            print(
+                f"Seismogram {sacdh.filename:s} does not have enough sample. Deleted."
+            )
         elif LA.norm(sacdh.data) == 0.0:
             inddel.append(i)
-            print('Seismogram {0:s} has zero L2 norm. Deleted.'.format(sacdh.filename))
+            print(f"Seismogram {sacdh.filename:s} has zero L2 norm. Deleted.")
         else:
             indsel.append(i)
     if inddel != []:
@@ -397,6 +469,7 @@ def checkCoverage(gsac, opts, textra=0.0):
 
 
 def main():
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     ccpara = ttconfig.CCConfig()
     gsac = sacpkl.loadData(ifiles, opts, ccpara)
@@ -411,11 +484,11 @@ def main():
     if opts.auto_on:
         autoiccs(gsac, opts)
     elif opts.auto_on_all:
-        print('Selecting all seismograms..')
+        print("Selecting all seismograms..")
         hdrsel = opts.ccpara.hdrsel
         for sacdh in gsac.saclist:
             sacdh.selected = True
-            sacdh.sethdr(hdrsel, 'True')
+            sacdh.sethdr(hdrsel, "True")
         autoiccs(gsac, opts)
     else:
         stkdh, stkdata, _ = ccWeightStack(gsac.saclist, opts)

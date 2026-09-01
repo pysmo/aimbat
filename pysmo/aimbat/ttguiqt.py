@@ -44,33 +44,35 @@ in a GUI built by pyqtgraph.
     http://www.gnu.org/licenses/gpl.html
 """
 
-from pysmo.aimbat import ttconfig
+import os
+import sys
+
+import numpy as np
+import pyqtgraph as pg
+from pyqtgraph.parametertree import ParameterTree
+from pyqtgraph.Qt import QtCore, QtGui, QtWidgets
+
 from pysmo.aimbat import algiccs as iccs
 from pysmo.aimbat import algmccc as mccc
-from pysmo.aimbat import sacpickle as sacpkl
+from pysmo.aimbat import cli_deprecation_notice, ttconfig
 from pysmo.aimbat import prepdata as pdata
 from pysmo.aimbat import prepplot as pplot
-from pyqtgraph.Qt import QtGui, QtCore
-from pyqtgraph.parametertree import ParameterTree
-import pyqtgraph as pg
-import numpy as np
-import sys
-import os
+from pysmo.aimbat import sacpickle as sacpkl
 
 
 ###################################################################################################
-class mainGUI(object):
+class mainGUI:
     def __init__(self, gsac, opts):
         # initialize Qt, once per application
-        self.app = QtGui.QApplication(sys.argv)
+        self.app = QtWidgets.QApplication(sys.argv)
         # A top-level widget to hold everything
-        # self.window = QtGui.QWidget()
+        # self.window = QtWidgets.QWidget()
         self.window = pplot.KeyPressWidget()
         self.window.twhdrs = opts.pppara.twhdrs
-        self.window.setWindowTitle('aimbat-qttpick')
+        self.window.setWindowTitle("aimbat-qttpick")
         # Display the widget as a new window
         self.window.show()
-        self.layout = QtGui.QGridLayout(self.window)
+        self.layout = QtWidgets.QGridLayout(self.window)
         #
         self.gsac = gsac
         self.opts = opts
@@ -81,7 +83,7 @@ class mainGUI(object):
         self.setupGUI()
 
     def setupData(self):
-        'sort seismogram, set baselines and data norm after new stack'
+        "sort seismogram, set baselines and data norm after new stack"
         pdata.seisSort(self.gsac, self.opts)
         pdata.seisDataBaseline(self.gsac)
         pdata.sacDataNorm(self.gsac.stkdh, self.opts)
@@ -91,31 +93,41 @@ class mainGUI(object):
 
     def setupPen(self):
         pscode = self.opts.pppara.pickstyles[0]
-        if pscode == '-':
+        if pscode == "-":
             pstyle = QtCore.Qt.SolidLine
-        elif pscode == '--':
+        elif pscode == "--":
             pstyle = QtCore.Qt.DashLine
-        elif pscode == ':':
+        elif pscode == ":":
             pstyle = QtCore.Qt.DotLine
-        self.opts.pickpens = [pg.mkPen(c, width=2, style=pstyle) for c in self.opts.pickcolors]
+        self.opts.pickpens = [
+            pg.mkPen(c, width=2, style=pstyle) for c in self.opts.pickcolors
+        ]
         self.opts.cursorpen = pg.mkPen(width=1, style=QtCore.Qt.DashLine)
-        self.opts.picknames = ['T'+str(i) for i in range(self.opts.pppara.npick)]
-        self.opts.picknones = [None,] * self.opts.pppara.npick
-        self.opts.oripen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwavedel[:3])
-        self.opts.mempen = pg.mkPen(width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwave[:3])
+        self.opts.picknames = ["T" + str(i) for i in range(self.opts.pppara.npick)]
+        self.opts.picknones = [
+            None,
+        ] * self.opts.pppara.npick
+        self.opts.oripen = pg.mkPen(
+            width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwavedel[:3]
+        )
+        self.opts.mempen = pg.mkPen(
+            width=2, style=QtCore.Qt.SolidLine, color=self.opts.colorwave[:3]
+        )
         self.picklist = list(range(self.opts.pppara.npick))
         self.opts.colorwaves = [self.opts.colorwavedel, self.opts.colorwave]
 
     def setupGUI(self):
-        resoRect = self.app.desktop().availableGeometry()
-        self.window.resize(resoRect.width()*0.8, resoRect.height()*0.9)
+        resoRect = self.app.primaryScreen().availableGeometry()
+        self.window.resize(resoRect.width() * 0.8, resoRect.height() * 0.9)
         # stack and individual traces
-        self.stackWidget = self.getStackGraphWidget(resoRect.width()*0.8, 180)
-        self.traceWidget = self.getTraceGraphWidget(resoRect.width()*0.8, resoRect.height()-200)
+        self.stackWidget = self.getStackGraphWidget(resoRect.width() * 0.8, 180)
+        self.traceWidget = self.getTraceGraphWidget(
+            resoRect.width() * 0.8, resoRect.height() - 200
+        )
         self.useScrollArea = False
         if self.useScrollArea:
-            self.stackScrollArea = QtGui.QScrollArea()
-            self.traceScrollArea = QtGui.QScrollArea()
+            self.stackScrollArea = QtWidgets.QScrollArea()
+            self.traceScrollArea = QtWidgets.QScrollArea()
             self.stackScrollArea.setWidget(self.stackWidget)
             self.traceScrollArea.setWidget(self.traceWidget)
             self.addLayoutWidget(self.stackScrollArea, 0, 3, xSpan=4, ySpan=20)
@@ -126,33 +138,33 @@ class mainGUI(object):
         self.addButtons()
         self.addCursorLine()
         self.addParaTree()
-        xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
-        self.stackPlotItem.setLabel('bottom', text=xlabel)
-        self.tracePlotItem.setLabel('bottom', text=xlabel)
+        xlabel = f"Time - T{self.opts.reltime:d} [s]"
+        self.stackPlotItem.setLabel("bottom", text=xlabel)
+        self.tracePlotItem.setLabel("bottom", text=xlabel)
         self.getXLimit()
         self.setXYRange()
 
     def addButtons(self):
-        'Create and connect buttons'
+        "Create and connect buttons"
         hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
         ipick = self.opts.mcpara.ipick
         wpick = self.opts.mcpara.wpick
-        tccim = 'Align\nICCS {:s}-->{:s}'.format(hdrini.upper(), hdrmed.upper())
-        tsync = 'Sync\n{:s} and Time Window'.format(hdrfin.upper())
-        tccff = 'Refine\nICCS {:s}-->{:s}'.format(hdrfin.upper(), hdrfin.upper())
-        tmccc = 'Finalize \nMCCC {:s}-->{:s}'.format(ipick.upper(), wpick.upper())
-        ccimButton = QtGui.QPushButton(tccim)
-        syncButton = QtGui.QPushButton(tsync)
-        ccffButton = QtGui.QPushButton(tccff)
-        mcccButton = QtGui.QPushButton(tmccc)
-        saveButton = QtGui.QPushButton('Save')
-        quitButton = QtGui.QPushButton('Quit')
-        sac1Button = QtGui.QPushButton('Sac P1')
-        sac2Button = QtGui.QPushButton('Sac P2')
-        pmorButton = QtGui.QPushButton('Plot More Traces')
-        tmapButton = QtGui.QPushButton('Map Delay Times')
-        sortButton = QtGui.QPushButton('Sort\n by Name/Qual/Hdr')
-        filtButton = QtGui.QPushButton('Filter\n on Stack/Traces')
+        tccim = f"Align\nICCS {hdrini.upper():s}-->{hdrmed.upper():s}"
+        tsync = f"Sync\n{hdrfin.upper():s} and Time Window"
+        tccff = f"Refine\nICCS {hdrfin.upper():s}-->{hdrfin.upper():s}"
+        tmccc = f"Finalize \nMCCC {ipick.upper():s}-->{wpick.upper():s}"
+        ccimButton = QtWidgets.QPushButton(tccim)
+        syncButton = QtWidgets.QPushButton(tsync)
+        ccffButton = QtWidgets.QPushButton(tccff)
+        mcccButton = QtWidgets.QPushButton(tmccc)
+        saveButton = QtWidgets.QPushButton("Save")
+        quitButton = QtWidgets.QPushButton("Quit")
+        sac1Button = QtWidgets.QPushButton("Sac P1")
+        sac2Button = QtWidgets.QPushButton("Sac P2")
+        pmorButton = QtWidgets.QPushButton("Plot More Traces")
+        tmapButton = QtWidgets.QPushButton("Map Delay Times")
+        sortButton = QtWidgets.QPushButton("Sort\n by Name/Qual/Hdr")
+        filtButton = QtWidgets.QPushButton("Filter\n on Stack/Traces")
         # connect:
         ccimButton.clicked.connect(self.ccimButtonClicked)
         syncButton.clicked.connect(self.syncButtonClicked)
@@ -176,7 +188,7 @@ class mainGUI(object):
             self.addLayoutWidget(btns1[i], i, 1)
 
     def addParaTree(self):
-        'Add parameter tree for filter and sort'
+        "Add parameter tree for filter and sort"
         self.ptreeItem = pplot.ParaTreeItem(self.opts.filterParameters)
         ptree = ParameterTree()
         ptree.setParameters(self.ptreeItem.paraTree, showTop=False)
@@ -192,7 +204,7 @@ class mainGUI(object):
         self.xLimit = pdata.axLimit([min(b), max(e)], 0.05)
 
     def setXYLimit(self):
-        'Set X and Y axis limits that constrain the possible view ranges'
+        "Set X and Y axis limits that constrain the possible view ranges"
         xmin, xmax = self.xLimit
         symin, symax = self.yLimitStack
         tymin = -len(self.gsac.selist)
@@ -201,7 +213,7 @@ class mainGUI(object):
         self.stackPlotItem.setLimits(xMin=xmin, xMax=xmax, yMin=symin, yMax=symax)
 
     def setXYRange(self):
-        'Set X and Y axis ranges'
+        "Set X and Y axis ranges"
         self.setXYLimit()
         self.getXYRange()
         xrange0, xrange1 = self.opts.xRange
@@ -211,27 +223,28 @@ class mainGUI(object):
             shx = self.traceScrollArea.sizeHint().width()
             ssy = self.traceScrollArea.size().height()
             shy = self.traceScrollArea.sizeHint().height()
-            xrange1 = xrange0 + (xrange1-xrange0)*ssx/shx
-            yrange0 = yrange1 - (yrange1-yrange0)*ssy/shy
+            xrange1 = xrange0 + (xrange1 - xrange0) * ssx / shx
+            yrange0 = yrange1 - (yrange1 - yrange0) * ssy / shy
         self.tracePlotItem.setYRange(yrange0, yrange1)
         self.tracePlotItem.setXRange(xrange0, xrange1)
         self.tracePlotItem.setYRange(yrange0, yrange1)
-#        print('viewRange: ',self.tracePlotItem.viewRange())
+
+    #        print('viewRange: ',self.tracePlotItem.viewRange())
 
     def getXYRange(self):
-        'Get x and y ranges (relative to reference time)'
+        "Get x and y ranges (relative to reference time)"
         maxsel, maxdel = self.opts.maxnum
         self.opts.nsel = min(maxsel, len(self.gsac.selist))
         self.opts.ndel = min(maxdel, len(self.gsac.delist))
-        self.opts.yRange = -self.opts.nsel, self.opts.ndel+1
+        self.opts.yRange = -self.opts.nsel, self.opts.ndel + 1
         self.opts.xRange = self.opts.xlimit
 
     def getStackGraphWidget(self, xSize, ySize):
-        'Get graphics widget for stack'
+        "Get graphics widget for stack"
         stackWidget = pg.GraphicsLayoutWidget()
         stackWidget.resize(xSize, ySize)
         stackWidget.ci.setSpacing(0)
-        stackPlotItem = stackWidget.addPlot(title='Stack')
+        stackPlotItem = stackWidget.addPlot(title="Stack")
         stackPlotItem.titleLabel.font().setPointSize(20)
         stackPlotItem.addLegend(offset=[-1, 1])
         stackPlotItem.setAutoVisible(y=True)
@@ -243,11 +256,11 @@ class mainGUI(object):
         return stackWidget
 
     def getTraceGraphWidget(self, xSize, ySize):
-        'Get graphics widget for traces'
+        "Get graphics widget for traces"
         traceWidget = pg.GraphicsLayoutWidget()
         traceWidget.resize(xSize, ySize)
         traceWidget.ci.setSpacing(0)
-        tracePlotItem = traceWidget.addPlot(title='Traces')
+        tracePlotItem = traceWidget.addPlot(title="Traces")
         tracePlotItem.titleLabel.font().setPointSize(20)
         tracePlotItem.setXLink(self.stackPlotItem)
         tracePlotItem.addLegend(offset=[-1, 1])
@@ -269,45 +282,56 @@ class mainGUI(object):
         return traceWidget
 
     def getTraceWaveItemListPlotted(self, indmin=None, indmax=None):
-        'Get the list of plotted traceWaveItem by indices of traceWaveItemList'
+        "Get the list of plotted traceWaveItem by indices of traceWaveItemList"
         if indmin is None:
             nsel = self.opts.nsel
             ndel = self.opts.ndel
             ndelist = len(self.gsac.delist)
-            indmin = ndelist-ndel
-            indmax = ndelist+nsel
+            indmin = ndelist - ndel
+            indmax = ndelist + nsel
         for twi in self.traceWaveItemList[indmin:indmax]:
             if twi not in self.traceWaveItemListPlotted:
                 self.traceWaveItemListPlotted.append(twi)
         self.getTracePlottedNumbers()
 
     def getTracePlottedNumbers(self):
-        self.opts.nselplt = len([twi for twi in self.traceWaveItemListPlotted if twi.sacdh.selected])
+        self.opts.nselplt = len(
+            [twi for twi in self.traceWaveItemListPlotted if twi.sacdh.selected]
+        )
         self.opts.ndelplt = len(self.traceWaveItemListPlotted) - self.opts.nselplt
-        out = '--> Plot {:d}/{:d} deselected and {:d}/{:d} selected traces'
-        print(out.format(self.opts.ndelplt, len(self.gsac.delist), self.opts.nselplt, len(self.gsac.selist)))
+        out = "--> Plot {:d}/{:d} deselected and {:d}/{:d} selected traces"
+        print(
+            out.format(
+                self.opts.ndelplt,
+                len(self.gsac.delist),
+                self.opts.nselplt,
+                len(self.gsac.selist),
+            )
+        )
 
     def getLabelTrace(self, waveItem):
-        'Get station label for each trace'
+        "Get station label for each trace"
         sacdh = waveItem.sacdh
         if self.opts.nlab_on:
-            slab = '{0:<8s}'.format(sacdh.netsta)
+            slab = f"{sacdh.netsta:<8s}"
         else:
-            slab = sacdh.filename.split('/')[-1]
+            slab = sacdh.filename.split("/")[-1]
         if self.opts.labelqual:
             hdrcc, hdrsn, hdrco = self.opts.qheaders[:3]
             cc = sacdh.gethdr(hdrcc)
             sn = sacdh.gethdr(hdrsn)
             co = sacdh.gethdr(hdrco)
-            slab += 'qual={0:4.2f}/{1:.1f}/{2:4.2f}'.format(cc, sn, co)
+            slab += f"qual={cc:4.2f}/{sn:.1f}/{co:4.2f}"
         waveItem.waveLabelText = slab
 
     def addLabelTrace(self, waveItem, plotItem):
-        'Add station label for each trace'
+        "Add station label for each trace"
         fillBrush = self.opts.colorwaves[int(waveItem.sacdh.selected)]
         self.getLabelTrace(waveItem)
         sacdh = waveItem.sacdh
-        waveLabel = pg.TextItem(waveItem.waveLabelText, color=fillBrush[:3], anchor=(0, 0.5))
+        waveLabel = pg.TextItem(
+            waveItem.waveLabelText, color=fillBrush[:3], anchor=(0, 0.5)
+        )
         font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
         waveLabel.setFont(font)
         plotItem.addItem(waveLabel)
@@ -319,7 +343,7 @@ class mainGUI(object):
         waveItem.waveLabel = waveLabel
 
     def addWaveFill(self, waveItem, plotItem):
-        'Add waveform fill for each trace'
+        "Add waveform fill for each trace"
         fillBrush = self.opts.colorwaves[int(waveItem.sacdh.selected)]
         # plotDataItem:
         sacdh = waveItem.sacdh
@@ -331,18 +355,22 @@ class mainGUI(object):
         waveItem.waveCurve.curve.setClickable(True)
 
     def addStackCurve(self, waveItem, plotItem):
-        'Add original and filtered waveforms for a (stack) seismogram'
+        "Add original and filtered waveforms for a (stack) seismogram"
         sacdh = waveItem.sacdh
         xx = sacdh.time - sacdh.reftime
         yo = sacdh.data * sacdh.datnorm + sacdh.datbase
         ym = sacdh.datamem * sacdh.datnorm + sacdh.datbase
-        waveItem.waveCurveOri = plotItem.plot(xx, yo, name='Original', pen=self.opts.oripen)
-        waveItem.waveCurveMem = plotItem.plot(xx, ym, name='Filtered', pen=self.opts.mempen)
+        waveItem.waveCurveOri = plotItem.plot(
+            xx, yo, name="Original", pen=self.opts.oripen
+        )
+        waveItem.waveCurveMem = plotItem.plot(
+            xx, ym, name="Filtered", pen=self.opts.mempen
+        )
         waveItem.waveCurveOri.curve.setClickable(False)
         waveItem.waveCurveMem.curve.setClickable(False)
 
     def addWaveStack(self, waveItem, plotItem):
-        'Add waveform, time picks, and time window for stack'
+        "Add waveform, time picks, and time window for stack"
         self.addWaveFill(waveItem, plotItem)
         self.addStackCurve(waveItem, plotItem)
         waveItem.waveCurve.curve.setClickable(False)  # disable click
@@ -350,7 +378,7 @@ class mainGUI(object):
         self.addWindStack(waveItem, plotItem)
 
     def addWaveTrace(self, waveItem, plotItem):
-        'Add waveform, time picks, and time window for trace'
+        "Add waveform, time picks, and time window for trace"
         self.addWaveFill(waveItem, plotItem)
         # connect waveCurve (plotDataItem) to mouse click events for selection change
         waveItem.waveCurve.sigClicked.connect(self.waveClicked)
@@ -363,7 +391,7 @@ class mainGUI(object):
         self.addWindTrace(waveItem, plotItem)
 
     def addWindStack(self, waveItem, plotItem):
-        'Add an interactive time window for stack using LinearRegion for user to change'
+        "Add an interactive time window for stack using LinearRegion for user to change"
         sacdh = waveItem.sacdh
         twin = tuple(np.array(sacdh.twindow) - sacdh.reftime)
         twinRegion = pg.LinearRegionItem(twin)
@@ -376,7 +404,7 @@ class mainGUI(object):
         waveItem.twinRegion = twinRegion
 
     def addWindTrace(self, waveItem, plotItem):
-        'Add a fixed time winow for each trace'
+        "Add a fixed time winow for each trace"
         sacdh = waveItem.sacdh
         t0, t1 = tuple(np.array(sacdh.twindow) - sacdh.reftime)
         yy = [sacdh.datbase - 0.5, sacdh.datbase + 0.5]
@@ -387,36 +415,44 @@ class mainGUI(object):
         waveItem.twinFill = ff
         waveItem.twinCurves = [c0, c1]
 
-    def addPick(self, waveItem, plotItem, pickNames=[None,]*4):
-        'Add time picks for a seismogram/waveItem'
+    def addPick(
+        self,
+        waveItem,
+        plotItem,
+        pickNames=[
+            None,
+        ]
+        * 4,
+    ):
+        "Add time picks for a seismogram/waveItem"
         sacdh = waveItem.sacdh
-        yp = [sacdh.datbase-0.5, sacdh.datbase+0.5]
+        yp = [sacdh.datbase - 0.5, sacdh.datbase + 0.5]
         for i in range(self.opts.pppara.npick):
             th = sacdh.thdrs[i]
-            xp = [th-sacdh.reftime, th-sacdh.reftime]
+            xp = [th - sacdh.reftime, th - sacdh.reftime]
             tpick = plotItem.plot(xp, yp, pen=self.opts.pickpens[i], name=pickNames[i])
             waveItem.tpickCurves.append(tpick)
 
     def waveClicked(self, waveCurve):
-        'Change seismogram selection status and color by mouse click'
+        "Change seismogram selection status and color by mouse click"
         # find waveItem by waveform index in the list
         ind = self.traceWaveformList.index(waveCurve)
         sacdh = self.traceWaveItemList[ind].sacdh
         sacdh.selected = not sacdh.selected
         # for bytes!=str in py3
         if sacdh.selected:
-            sacdh.sethdr(self.opts.hdrsel, 'True')
+            sacdh.sethdr(self.opts.hdrsel, "True")
             brush = self.opts.colorwave
-            print('Seismogram selected: {:s} '.format(sacdh.filename))
+            print(f"Seismogram selected: {sacdh.filename:s} ")
         else:
-            sacdh.sethdr(self.opts.hdrsel, 'False')
+            sacdh.sethdr(self.opts.hdrsel, "False")
             brush = self.opts.colorwavedel
-            print('Seismogram deselected: {:s} '.format(sacdh.filename))
+            print(f"Seismogram deselected: {sacdh.filename:s} ")
         waveCurve.curve.setBrush(brush)
         self.traceWaveItemList[ind].waveLabel.setColor(brush[:3])
 
     def addCursorLine(self):
-        'Add an active vertical line for time pick'
+        "Add an active vertical line for time pick"
         vCursorLine = pg.InfiniteLine(angle=90, movable=False, pen=self.opts.cursorpen)
         self.stackPlotItem.addItem(vCursorLine, ignoreBounds=True)
         # pg.SignalProxy(self.stackPlotItem.scene().sigMouseMoved, rateLimit=60, slot=mouseMoved)
@@ -434,12 +470,12 @@ class mainGUI(object):
     def updateMouseLabel(self):
         yt = self.tracePlotItem.viewRange()[1][1]
         xx = self.window.mousePoint[0]
-        tt = 'T={:.1f}'.format(xx)
+        tt = f"T={xx:.1f}"
         self.stackPlotItem.mouseLabel.setPos(xx, yt)
         self.stackPlotItem.mouseLabel.setText(tt)
 
     def mouseMoved(self, event, plotItem):
-        'Mouse moved events. Set mouse position and find waveItem by ybase'
+        "Mouse moved events. Set mouse position and find waveItem by ybase"
         mousePoint = plotItem.vb.mapSceneToView(event)
         mpx, mpy = [mousePoint.x(), mousePoint.y()]
         # if plotItem.sceneBoundingRect().contains(event):
@@ -467,14 +503,13 @@ class mainGUI(object):
         """Get time window twcorr (relative to hdr) from array stack, which is from last run."""
         tw0, tw1 = self.gsac.stkdh.twindow
         t0 = self.gsac.stkdh.gethdr(hdr)
-        if t0 == -12345.:
-            print(('Header {0:s} not defined'.format(hdr)))
+        if t0 == -12345.0:
+            print(f"Header {hdr:s} not defined")
             return
-        self.opts.ccpara.twcorr = [tw0-t0, tw1-t0]
+        self.opts.ccpara.twcorr = [tw0 - t0, tw1 - t0]
 
     def getPickStack(self):
-        """ Get time picks of stack
-        """
+        """Get time picks of stack"""
         hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
         self.tini = self.gsac.stkdh.gethdr(hdrini)
         self.tmed = self.gsac.stkdh.gethdr(hdrmed)
@@ -509,10 +544,10 @@ class mainGUI(object):
             sacdh.twindow = [th0, th1]
 
     def resetWind(self, waveItemList):
-        'Reset time window with new twindow, reftime, and/or datbases'
+        "Reset time window with new twindow, reftime, and/or datbases"
         _, _ = self.opts.qcpara.twhdrs
         for waveItem in waveItemList:
-            yy = [waveItem.sacdh.datbase-0.5, waveItem.sacdh.datbase+0.5]
+            yy = [waveItem.sacdh.datbase - 0.5, waveItem.sacdh.datbase + 0.5]
             th0 = waveItem.sacdh.twindow[0] - waveItem.sacdh.reftime
             th1 = waveItem.sacdh.twindow[1] - waveItem.sacdh.reftime
             # only update traces already plotted:
@@ -521,7 +556,7 @@ class mainGUI(object):
                 waveItem.twinCurves[1].setData([th1, th1], yy)
 
     def resetWindStack(self):
-        'Reset time window (LinearRegion) for stack'
+        "Reset time window (LinearRegion) for stack"
         _, _ = self.opts.qcpara.twhdrs
         waveItem = self.stackWaveItem
         th0 = waveItem.sacdh.twindow[0] - waveItem.sacdh.reftime
@@ -529,9 +564,9 @@ class mainGUI(object):
         waveItem.twinRegion.setRegion([th0, th1])
 
     def resetPick(self, waveItemList, ipicklist=[0, 1, 2, 3]):
-        'Reset time picks with new tpicks, reftime, and/or datbases'
+        "Reset time picks with new tpicks, reftime, and/or datbases"
         for waveItem in waveItemList:
-            yy = [waveItem.sacdh.datbase-0.5, waveItem.sacdh.datbase+0.5]
+            yy = [waveItem.sacdh.datbase - 0.5, waveItem.sacdh.datbase + 0.5]
             for ipick in ipicklist:
                 tpick = waveItem.sacdh.thdrs[ipick] - waveItem.sacdh.reftime
                 # only update traces already plotted:
@@ -539,7 +574,7 @@ class mainGUI(object):
                     waveItem.tpickCurves[ipick].setData([tpick, tpick], yy)
 
     def resetWaveCurve(self, waveItemList):
-        'Reset waveCurve with new reftime and/or datbases'
+        "Reset waveCurve with new reftime and/or datbases"
         # wh0, wh1 = self.opts.qcpara.twhdrs
         for waveItem in waveItemList:
             sacdh = waveItem.sacdh
@@ -551,7 +586,7 @@ class mainGUI(object):
             waveItem.waveCurve.setFillBrush(fbrush)
 
     def resetWaveLabel(self, waveItemList):
-        'Reset waveLabel with new reftime and/or datbases'
+        "Reset waveLabel with new reftime and/or datbases"
         for waveItem in waveItemList:
             sacdh = waveItem.sacdh
             fbrush = self.opts.colorwaves[int(sacdh.selected)]
@@ -567,12 +602,12 @@ class mainGUI(object):
         for waveItem in self.traceWaveItemList:
             if waveItem.waveLabel is None:
                 continue
-            yw = waveItem.waveLabel.pos()[1]
+            yw = waveItem.waveLabel.pos().y()
             xw = self.tracePlotItem.viewRange()[0][0]
             waveItem.waveLabel.setPos(xw, yw)
 
     def resetAllPlots(self):
-        print('--> Reset all plots')
+        print("--> Reset all plots")
         self.setupData()
         self.setXYRange()
         self.resetTraceWaveItemList()
@@ -580,9 +615,9 @@ class mainGUI(object):
         self.resetTracePlot()
         self.getTraceWaveItemListPlotted()
         self.addTraceMissing()
-        xlabel = 'Time - T{:d} [s]'.format(self.opts.reltime)
-        self.stackPlotItem.setLabel('bottom', text=xlabel)
-        self.tracePlotItem.setLabel('bottom', text=xlabel)
+        xlabel = f"Time - T{self.opts.reltime:d} [s]"
+        self.stackPlotItem.setLabel("bottom", text=xlabel)
+        self.tracePlotItem.setLabel("bottom", text=xlabel)
 
     def addTraceMissing(self):
         # add traces that are in the list but not yet plotted
@@ -595,11 +630,11 @@ class mainGUI(object):
                 self.traceWaveformList[ind] = traceWaveItem.waveCurve
                 addList.append(traceWaveItem.sacdh.netsta)
         if len(addList) > 0:
-            print('Add {:d} more traces to the plot'.format(len(addList)))
+            print(f"Add {len(addList):d} more traces to the plot")
             print(addList)
 
     def resetStackCurve(self, waveItem):
-        'Reset filtered waveforms for a (stack) seismogram'
+        "Reset filtered waveforms for a (stack) seismogram"
         sacdh = waveItem.sacdh
         xx = sacdh.time - sacdh.reftime
         yo = sacdh.data * sacdh.datnorm + sacdh.datbase
@@ -620,11 +655,11 @@ class mainGUI(object):
         self.resetPick(self.traceWaveItemListPlotted, self.picklist)
 
     def initStack(self):
-        'Create stack by ICCS if not existing'
+        "Create stack by ICCS if not existing"
         gsac = self.gsac
         opts = self.opts
-        if not hasattr(gsac, 'stkdh'):
-            if opts.filemode == 'sac' and os.path.isfile(opts.fstack):
+        if not hasattr(gsac, "stkdh"):
+            if opts.filemode == "sac" and os.path.isfile(opts.fstack):
                 gsac.stkdh = pdata.prepStack(opts)
             else:
                 hdrini, hdrmed, _ = opts.qcpara.ichdrs
@@ -646,15 +681,17 @@ class mainGUI(object):
         wpint = int(wpick[1])  # integer number of the time pick header.
         stkdh, _, _ = iccs.ccWeightStack(self.gsac.selist, self.opts)
         stkdh.selected = True
-        stkdh.sethdr(self.opts.qcpara.hdrsel, 'True')
+        stkdh.sethdr(self.opts.qcpara.hdrsel, "True")
         stkdh.reftime = stkdh.gethdr(wpick)
         if self.opts.reltime != wpint:
-            out = '\n--> change opts.reltime from %i to %i'
+            out = "\n--> change opts.reltime from %i to %i"
             print(out % (self.opts.reltime, wpint))
         self.opts.reltime = wpint
-        pdata.seisTimeRefr(self.gsac.saclist, self.opts)  # update reftime for all traces
+        pdata.seisTimeRefr(
+            self.gsac.saclist, self.opts
+        )  # update reftime for all traces
         self.gsac.stkdh = stkdh
-        if hasattr(self, 'stackWaveItem'):
+        if hasattr(self, "stackWaveItem"):
             self.stackWaveItem.sacdh = stkdh
 
     def ccimButtonClicked(self):
@@ -676,14 +713,23 @@ class mainGUI(object):
         """
         _, _, hdrfin = self.opts.qcpara.ichdrs
         ifin = int(hdrfin[1])
-        if self.gsac.stkdh.gethdr(hdrfin) == -12345.:
-            print('*** hfinal %s is not defined. Pick at array stack first! ***' % hdrfin)
+        if self.gsac.stkdh.gethdr(hdrfin) == -12345.0:
+            print(
+                "*** hfinal %s is not defined. Pick at array stack first! ***" % hdrfin
+            )
             return
         self.syncPickTrace()
         self.syncWindTrace()
         self.resetWind(self.traceWaveItemList)
-        self.resetPick(self.traceWaveItemList, [ifin,])
-        print('--> Sync final time picks and time window... You can now click Refine button to refine final picks.')
+        self.resetPick(
+            self.traceWaveItemList,
+            [
+                ifin,
+            ],
+        )
+        print(
+            "--> Sync final time picks and time window... You can now click Refine button to refine final picks."
+        )
 
     def ccffButtonClicked(self):
         """
@@ -691,8 +737,8 @@ class mainGUI(object):
         Refine: T2 --> T2
         """
         hdrini, hdrmed, hdrfin = self.opts.qcpara.ichdrs
-        if self.gsac.stkdh.gethdr(hdrfin) == -12345.:
-            print('*** hfinal %s is not defined. Sync first! ***' % hdrfin)
+        if self.gsac.stkdh.gethdr(hdrfin) == -12345.0:
+            print("*** hfinal %s is not defined. Sync first! ***" % hdrfin)
             return
         self.opts.ccpara.cchdrs = hdrfin, hdrfin
         self.getWindStack(self.opts.ccpara.cchdrs[0])
@@ -709,7 +755,9 @@ class mainGUI(object):
         No new stack is created.
         """
         self.getWindStack(self.opts.mcpara.ipick)
-        taperwindow = sacpkl.taperWindow(self.opts.ccpara.twcorr, self.opts.mcpara.taperwidth)
+        taperwindow = sacpkl.taperWindow(
+            self.opts.ccpara.twcorr, self.opts.mcpara.taperwidth
+        )
         self.opts.mcpara.timewindow = self.opts.ccpara.twcorr
         self.opts.mcpara.taperwindow = taperwindow
         evline, mcname = mccc.eventListName(self.gsac.event, self.opts.mcpara.phase)
@@ -722,28 +770,32 @@ class mainGUI(object):
         self.gsac.delay_times = delay_times
         wpint = int(self.opts.mcpara.wpick[1])
         if self.opts.reltime != wpint:
-            out = '\n--> change opts.reltime from %i to %i'
+            out = "\n--> change opts.reltime from %i to %i"
             print(out % (self.opts.reltime, wpint))
         self.opts.reltime = wpint
-        pdata.seisTimeRefr(self.gsac.saclist, self.opts)  # update reftime for all traces
+        pdata.seisTimeRefr(
+            self.gsac.saclist, self.opts
+        )  # update reftime for all traces
         self.resetAllPlots()
 
     def saveButtonClicked(self):
-        'Save SAC headers'
+        "Save SAC headers"
         sacpkl.saveData(self.gsac, self.opts)
 
     def quitButtonClicked(self):
         self.app.closeAllWindows()
 
     def filtButtonClicked(self):
-        print('Filter with parameters and change sac header')
+        print("Filter with parameters and change sac header")
         if self.ptreeItem.onStack:
-            saclist = [self.gsac.stkdh,]
+            saclist = [
+                self.gsac.stkdh,
+            ]
         else:
             saclist = self.gsac.saclist
         for sacdh in saclist:
             pdata.setFilterPara(sacdh, self.opts.pppara, self.opts.filterParameters)
-        if self.opts.filterParameters['apply']:
+        if self.opts.filterParameters["apply"]:
             pdata.seisApplyFilter(saclist, self.opts.filterParameters)
         else:
             pdata.seisUnApplyFilter(saclist)
@@ -754,7 +806,7 @@ class mainGUI(object):
 
     def sortButtonClicked(self):
         self.opts.sortby = self.ptreeItem.sortby
-        print('Sort seismograms by: ', self.opts.sortby)
+        print("Sort seismograms by: ", self.opts.sortby)
         self.setupData()
         self.resetTraceWaveItemList()
         self.resetTracePlot()
@@ -762,7 +814,7 @@ class mainGUI(object):
         self.addTraceMissing()
 
     def resetTraceWaveItemList(self):
-        'Reset traceWaveItemList after sorting'
+        "Reset traceWaveItemList after sorting"
         newlist = self.gsac.delist + self.gsac.selist
         oldlist = [twi.sacdh for twi in self.traceWaveItemList]
         inds = [oldlist.index(sacdh) for sacdh in newlist]
@@ -781,39 +833,45 @@ class mainGUI(object):
             self.addTraceMissing()
 
     def sac2ButtonClicked(self):
-        resoRect = self.app.desktop().availableGeometry()
-        resoRect.setWidth(resoRect.width()*0.5)
-        resoRect.setHeight(resoRect.height()*0.7)
+        resoRect = self.app.primaryScreen().availableGeometry()
+        resoRect.setWidth(resoRect.width() * 0.5)
+        resoRect.setHeight(resoRect.height() * 0.7)
         hdrList = list(self.opts.qcpara.ichdrs) + [self.opts.mcpara.wpick]
-        selTraceWaveItemList = [item for item in self.traceWaveItemList if item.sacdh.selected]
+        selTraceWaveItemList = [
+            item for item in self.traceWaveItemList if item.sacdh.selected
+        ]
         self.sacp2Window = sacp2GUI(selTraceWaveItemList, hdrList, resoRect, self.opts)
 
     def sac1ButtonClicked(self):
-        resoRect = self.app.desktop().availableGeometry()
-        resoRect.setWidth(resoRect.width()*0.5)
-        resoRect.setHeight(resoRect.height()*0.7)
+        resoRect = self.app.primaryScreen().availableGeometry()
+        resoRect.setWidth(resoRect.width() * 0.5)
+        resoRect.setHeight(resoRect.height() * 0.7)
         hdrList = list(self.opts.qcpara.ichdrs) + [self.opts.mcpara.wpick]
-        selTraceWaveItemList = [item for item in self.traceWaveItemList if item.sacdh.selected]
+        selTraceWaveItemList = [
+            item for item in self.traceWaveItemList if item.sacdh.selected
+        ]
         self.sacp1Window = sacp1GUI(selTraceWaveItemList, hdrList, resoRect, self.opts)
 
     def tmapButtonClicked(self):
         self.usegmt = False
         if self.usegmt:
             from stationmapping import StationMapper
+
             mapper = StationMapper(self.gsac)
             mapper.start()
         else:
             from pysmo.aimbat import plotutils as putil
+
             try:
                 lalo = np.array(self.gsac.solist_LonLat)
                 dt = np.array(self.gsac.delay_times)
             except AttributeError:
-                print('Run mccc to Finalize first...')
+                print("Run mccc to Finalize first...")
                 return
             lo = lalo[:, 0]
             la = lalo[:, 1]
 
-            if self.opts.phase == 'P':
+            if self.opts.phase == "P":
                 self.opts.vminmax = [-1, 1]
             else:
                 self.opts.vminmax = [-3, 3]
@@ -829,18 +887,19 @@ class mainGUI(object):
 
 
 ###################################################################################################
-class sacp1GUI(object):
+class sacp1GUI:
     """
     Plot each seismogram in the given waveItemList in SAC P1 style.
     Relative time picks are given in hdrList.
     """
+
     def __init__(self, waveItemList, hdrList, resoRect, opts):
         self.opts = opts
         self.hdrList = hdrList
-        sacp1Window = QtGui.QWidget()
-        sacp1Window.setWindowTitle('SAC P2')
+        sacp1Window = QtWidgets.QWidget()
+        sacp1Window.setWindowTitle("SAC P2")
         sacp1Window.show()
-        sacp1Layout = QtGui.QGridLayout(sacp1Window)
+        sacp1Layout = QtWidgets.QGridLayout(sacp1Window)
         sacp1Widget = pg.GraphicsLayoutWidget()
         sacp1Window.resize(resoRect.width(), resoRect.height())
         # create plotItems for each header in hdrList
@@ -851,8 +910,8 @@ class sacp1GUI(object):
             self.plotItemList.append(plotItem)
             sacp1Widget.nextCol()
             # plotItem.hideAxis('left')
-            xlabel = 'Time - {:s} [s]'.format(self.hdrList[i].upper())
-            plotItem.setLabel('bottom', text=xlabel)
+            xlabel = f"Time - {self.hdrList[i].upper():s} [s]"
+            plotItem.setLabel("bottom", text=xlabel)
             vline = pg.InfiniteLine(angle=90, movable=False, pen=zeropen)
             plotItem.addItem(vline, ignorebounds=True)
         # link x axis
@@ -868,34 +927,37 @@ class sacp1GUI(object):
         self.sacp1Widget = sacp1Widget
 
     def addWave(self, waveItem):
-        'Add waveform relative to time picks'
+        "Add waveform relative to time picks"
         sacdh = waveItem.sacdh
         yy = sacdh.datamem * sacdh.datnorm + sacdh.datbase
         fb = self.opts.colorwave
         for i in range(len(self.plotItemList)):
             xx = sacdh.time - sacdh.gethdr(self.hdrList[i])
-            waveCurve = self.plotItemList[i].plot(xx, yy, fillLevel=sacdh.datbase, fillBrush=fb)
+            waveCurve = self.plotItemList[i].plot(
+                xx, yy, fillLevel=sacdh.datbase, fillBrush=fb
+            )
             waveCurve.curve.setClickable(True)
-            waveCurve.curve.opts['name'] = sacdh.filename
+            waveCurve.curve.opts["name"] = sacdh.filename
             waveCurve.curve.sigClicked.connect(self.mouseClickEvents)
 
     def mouseClickEvents(self, event):
-        print('Clicked seismogram: ', event.name())
+        print("Clicked seismogram: ", event.name())
 
 
 ###################################################################################################
-class sacp2GUI(object):
+class sacp2GUI:
     """
     Plot each seismogram in the given waveItemList in SAC P2 overlay style.
     Relative time picks are given in hdrList.
     """
+
     def __init__(self, waveItemList, hdrList, resoRect, opts):
         self.opts = opts
         self.hdrList = hdrList
-        sacp2Window = QtGui.QWidget()
-        sacp2Window.setWindowTitle('SAC P2')
+        sacp2Window = QtWidgets.QWidget()
+        sacp2Window.setWindowTitle("SAC P2")
         sacp2Window.show()
-        sacp2Layout = QtGui.QGridLayout(sacp2Window)
+        sacp2Layout = QtWidgets.QGridLayout(sacp2Window)
         sacp2Widget = pg.GraphicsLayoutWidget()
         sacp2Window.resize(resoRect.width(), resoRect.height())
         # create plotItems for each header in hdrList
@@ -906,8 +968,8 @@ class sacp2GUI(object):
             self.plotItemList.append(plotItem)
             sacp2Widget.nextRow()
             # plotItem.hideAxis('left')
-            xlabel = 'Time - {:s} [s]'.format(self.hdrList[i].upper())
-            plotItem.setLabel('bottom', text=xlabel)
+            xlabel = f"Time - {self.hdrList[i].upper():s} [s]"
+            plotItem.setLabel("bottom", text=xlabel)
             vline = pg.InfiniteLine(angle=90, movable=False, pen=zeropen)
             plotItem.addItem(vline, ignorebounds=True)
         # link x axis
@@ -923,30 +985,31 @@ class sacp2GUI(object):
         self.sacp2Widget = sacp2Widget
 
     def addWave(self, waveItem):
-        'Add waveform relative to time picks'
+        "Add waveform relative to time picks"
         sacdh = waveItem.sacdh
         yy = sacdh.datamem
         for i in range(len(self.plotItemList)):
             xx = sacdh.time - sacdh.gethdr(self.hdrList[i])
             waveCurve = self.plotItemList[i].plot(xx, yy, pen=self.opts.colorwave)
             waveCurve.curve.setClickable(True)
-            waveCurve.curve.opts['name'] = sacdh.filename
+            waveCurve.curve.opts["name"] = sacdh.filename
             waveCurve.curve.sigClicked.connect(self.mouseClickEvents)
 
     def mouseClickEvents(self, event):
-        print('Clicked seismogram: ', event.name())
+        print("Clicked seismogram: ", event.name())
+
 
 ###################################################################################################
 
 
 def getOptions():
-    """ Parse arguments and options. """
+    """Parse arguments and options."""
     parser = ttconfig.getParser()
     maxsel = 37
     maxdel = 3
     maxnum = maxsel, maxdel
     twcorr = -15, 15
-    sortby = '1'
+    sortby = "1"
     fill = 1
     reltime = 0
     xlimit = -40, 40
@@ -956,20 +1019,53 @@ def getOptions():
     parser.set_defaults(maxnum=maxnum)
     parser.set_defaults(sortby=sortby)
     parser.set_defaults(fill=fill)
-    parser.add_option('-b', '--boundlines', action="store_true", dest='boundlines_on',
-                      help='Plot bounding lines to separate seismograms.')
-    parser.add_option('-n', '--netsta', action="store_true", dest='nlab_on',
-                      help='Label seismogram by net.sta code instead of SAC file name.')
-    parser.add_option('-m', '--maxnum',  dest='maxnum', type='int', nargs=2,
-                      help='Maximum number of selected and deleted seismograms to plot. Defaults: {0:d} and {1:d}.'.format(maxsel, maxdel))
-    parser.add_option('-p', '--phase',  dest='phase', type='str',
-                      help='Seismic phase name: P/S .')
-    parser.add_option('-s', '--sortby', type='str', dest='sortby',
-                      help='Sort seismograms by i (file indices), or 0/1/2/3 (quality factor all/ccc/snr/coh), or t (time pick diff), or a given header (az/baz/dist..). Append - for decrease order, otherwise increase. Default is {:s}.'.format(sortby))
-    parser.add_option('-t', '--twcorr', dest='twcorr', type='float', nargs=2,
-                      help='Time window for cross-correlation. Default is [{:.1f}, {:.1f}] s'.format(twcorr[0], twcorr[1]))
-    parser.add_option('-g', '--savefig', action="store_true", dest='savefig',
-                      help='Save figure instead of showing.')
+    parser.add_option(
+        "-b",
+        "--boundlines",
+        action="store_true",
+        dest="boundlines_on",
+        help="Plot bounding lines to separate seismograms.",
+    )
+    parser.add_option(
+        "-n",
+        "--netsta",
+        action="store_true",
+        dest="nlab_on",
+        help="Label seismogram by net.sta code instead of SAC file name.",
+    )
+    parser.add_option(
+        "-m",
+        "--maxnum",
+        dest="maxnum",
+        type="int",
+        nargs=2,
+        help=f"Maximum number of selected and deleted seismograms to plot. Defaults: {maxsel:d} and {maxdel:d}.",
+    )
+    parser.add_option(
+        "-p", "--phase", dest="phase", type="str", help="Seismic phase name: P/S ."
+    )
+    parser.add_option(
+        "-s",
+        "--sortby",
+        type="str",
+        dest="sortby",
+        help=f"Sort seismograms by i (file indices), or 0/1/2/3 (quality factor all/ccc/snr/coh), or t (time pick diff), or a given header (az/baz/dist..). Append - for decrease order, otherwise increase. Default is {sortby:s}.",
+    )
+    parser.add_option(
+        "-t",
+        "--twcorr",
+        dest="twcorr",
+        type="float",
+        nargs=2,
+        help=f"Time window for cross-correlation. Default is [{twcorr[0]:.1f}, {twcorr[1]:.1f}] s",
+    )
+    parser.add_option(
+        "-g",
+        "--savefig",
+        action="store_true",
+        dest="savefig",
+        help="Save figure instead of showing.",
+    )
     opts, files = parser.parse_args(sys.argv[1:])
     if len(files) == 0:
         print(parser.usage)
@@ -978,7 +1074,8 @@ def getOptions():
 
 
 def getDataOpts():
-    'Get SAC Data and Options'
+    "Get SAC Data and Options"
+    cli_deprecation_notice()
     opts, ifiles = getOptions()
     gsac, opts = pdata.paraDataOpts(opts, ifiles)
     # more options:
@@ -998,22 +1095,22 @@ def getDataOpts():
 
 def main():
     gsac, opts = getDataOpts()
-    pg.setConfigOption('background', 'w')
-    pg.setConfigOption('foreground', 'k')
+    pg.setConfigOption("background", "w")
+    pg.setConfigOption("foreground", "k")
     gui = mainGUI(gsac, opts)
     # Start Qt event loop unless running in interactive mode or using pyside.
-    if sys.flags.interactive != 1 or not hasattr(QtCore, 'PYQT_VERSION'):
+    if sys.flags.interactive != 1 or not hasattr(QtCore, "PYQT_VERSION"):
         # pg.QtGui.QApplication.exec_()
         gui.app.exec_()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # main()
     gsac, opts = getDataOpts()
-    pg.setConfigOption('background', 'w')
-    pg.setConfigOption('foreground', 'k')
+    pg.setConfigOption("background", "w")
+    pg.setConfigOption("foreground", "k")
     gui = mainGUI(gsac, opts)
     # Start Qt event loop unless running in interactive mode or using pyside.
-    if sys.flags.interactive != 1 or not hasattr(QtCore, 'PYQT_VERSION'):
+    if sys.flags.interactive != 1 or not hasattr(QtCore, "PYQT_VERSION"):
         # pg.QtGui.QApplication.exec_()
         gui.app.exec_()

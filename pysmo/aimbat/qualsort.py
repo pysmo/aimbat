@@ -18,8 +18,9 @@ Python module for selecting and sorting seismograms by quality factors and other
     http://www.gnu.org/licenses/gpl.html
 """
 
-from numpy import array, argsort, mean, sum
 import sys
+
+from numpy import argsort, array, mean, sum
 
 
 def initQual(saclist, hdrsel, qheaders):
@@ -28,10 +29,10 @@ def initQual(saclist, hdrsel, qheaders):
     """
     for sacdh in saclist:
         sel = sacdh.gethdr(hdrsel)
-        if sel == '-1234567':
-            sacdh.sethdr(hdrsel, 'True')
+        if sel == "-1234567":
+            sacdh.sethdr(hdrsel, "True")
             sacdh.selected = True
-        elif sel[0] == 'T' or sel[0] == b'T':  # for bytes in py3
+        elif sel[0] == "T" or sel[0] == b"T":  # for bytes in py3
             sacdh.selected = True
         else:
             sacdh.selected = False
@@ -52,7 +53,7 @@ def sortQual(saclist, qheaders, qweights, increase=True):
         qvalues.append([sacdh.gethdr(hdr) for hdr in qheaders])
     qvalues = array(qvalues)
     qweights = array(qweights)
-    qsum = sum(qvalues*qweights, 1)
+    qsum = sum(qvalues * qweights, 1)
     indsort = argsort(qsum)
     qmeans = mean(qvalues, 0)
     if not increase:
@@ -95,18 +96,18 @@ def sortSeisQual(saclist, qheaders, qweights, qfactors, increase=True):
     if len(selelist) > 0:
         sorselist, qmeans = sortQual(selelist, qheaders, qweights, increase)
     else:
-        print('Zero sacdh selected. Exit')
+        print("Zero sacdh selected. Exit")
         sys.exit()
-    out1 = '  Average '
-    out2 = '  Weighted average quality: '
+    out1 = "  Average "
+    out2 = "  Weighted average quality: "
     for i in range(len(qweights)):
         qf = qfactors[i]
         # qw = qweights[i]
         qm = qmeans[i]
-        out1 += '%s=%.2f, ' % (qf, qm)
-        out2 += '%s*1/3+' % qf
+        out1 += "%s=%.2f, " % (qf, qm)
+        out2 += "%s*1/3+" % qf
     out1 = out1[:-2]
-    out2 = out2[:-1] + ' = %.2f' % mean(qmeans)
+    out2 = out2[:-1] + " = %.2f" % mean(qmeans)
     print(out1)
     print(out2)
     return sorselist, sordelist
@@ -118,14 +119,14 @@ def sortSeisHeaderDiff(saclist, hdr0, hdr1, increase=True):
     Limited to t_n, user_n and kuser_n headers.
     """
     if increase:
-        print('Sort by header diff ({0:s}-{1:s}) in increase order.'.format(hdr1, hdr0))
+        print(f"Sort by header diff ({hdr1:s}-{hdr0:s}) in increase order.")
     else:
-        print('Sort by header diff ({0:s}-{1:s}) in decrease order.'.format(hdr1, hdr0))
+        print(f"Sort by header diff ({hdr1:s}-{hdr0:s}) in decrease order.")
     selelist, delelist = seleSeis(saclist)
     sortlist = []
     for slist in selelist, delelist:
         if len(slist) > 1:
-            val = [sacdh.gethdr(hdr1)-sacdh.gethdr(hdr0) for sacdh in slist]
+            val = [sacdh.gethdr(hdr1) - sacdh.gethdr(hdr0) for sacdh in slist]
             if increase:
                 indsort = argsort(val)
             else:
@@ -138,29 +139,29 @@ def sortSeisHeaderDiff(saclist, hdr0, hdr1, increase=True):
 
 
 def hdrtype(sacdh, hdr):
-    'Indentify type of a header'
-    if hdr[0] == 't' or hdr[:4] == 'user' or hdr[:5] == 'kuser':
-        htype = 'array'
+    "Indentify type of a header"
+    if hdr[0] == "t" or hdr[:4] == "user" or hdr[:5] == "kuser":
+        htype = "array"
     elif hdr in sacdh.__dict__:
-        htype = 'other'
+        htype = "other"
     else:
-        print('{:s} is not a valid header for {:s}. Exit..'.format(hdr, sacdh.filename))
+        print(f"{hdr:s} is not a valid header for {sacdh.filename:s}. Exit..")
         sys.exit()
     return htype
 
 
 def sortSeisHeader(saclist, hdr, increase=True):
-    """ Sort saclist by a header value. """
+    """Sort saclist by a header value."""
     if increase:
-        print('Sort by header {0:s} in increase order.'.format(hdr))
+        print(f"Sort by header {hdr:s} in increase order.")
     else:
-        print('Sort by header {0:s} in decrease order.'.format(hdr))
+        print(f"Sort by header {hdr:s} in decrease order.")
     selelist, delelist = seleSeis(saclist)
     htype = hdrtype(selelist[0], hdr)
     sortlist = []
     for slist in selelist, delelist:
         if len(slist) > 1:
-            if htype == 'array':
+            if htype == "array":
                 val = [sacdh.gethdr(hdr) for sacdh in slist]  # for t_n/user_n
             else:
                 val = [sacdh.__dict__[hdr] for sacdh in slist]  # for az/baz/dist...
@@ -176,7 +177,7 @@ def sortSeisHeader(saclist, hdr, increase=True):
 
 
 def getOptions():
-    """ Parse arguments and options. """
+    """Parse arguments and options."""
     usage = "Usage: %prog [options] <sacfile(s) or a picklefile>"
     parser = OptionParser(usage=usage)
     opts, files = parser.parse_args(sys.argv[1:])
@@ -184,10 +185,11 @@ def getOptions():
 
 
 # for testing
-if __name__ == '__main__':
-    from ttconfig import QCConfig
-    from sacpickle import loadData
+if __name__ == "__main__":
     from optparse import OptionParser
+
+    from sacpickle import loadData
+    from ttconfig import QCConfig
 
     opts, ifiles = getOptions()
     qcpara = QCConfig()

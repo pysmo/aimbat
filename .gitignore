@@ -16,3 +16,11 @@ pysmo.aimbat.egg-info/
 .python-version
 .vscode/settings.json
 coverage.xml
+.venv/
+.ruff_cache/
+
+# test-run artefacts
+tests/temp-test-bhz.pkl
+tests/test-save-data.bhz.pkl
+tests/sac2pkl_files/**/*.pkl
+tests/sac/**/*.pkl

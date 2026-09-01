@@ -18,11 +18,24 @@ Python module for plotting seismograms:
     http://www.gnu.org/licenses/gpl.html
 """
 
-import matplotlib.pyplot as plt
-from matplotlib.widgets import SpanSelector
-from matplotlib._pylab_helpers import Gcf
-from numpy import sign
 import os
+import subprocess
+import sys
+
+import matplotlib.pyplot as plt
+from matplotlib._pylab_helpers import Gcf
+from matplotlib.widgets import SpanSelector
+from numpy import sign
+
+
+def openFile(path):
+    "Open a file with the platform's default application."
+    if sys.platform == "darwin":
+        subprocess.call(["open", path])
+    elif sys.platform == "win32":
+        os.startfile(path)
+    else:
+        subprocess.call(["xdg-open", path])
 
 
 def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
@@ -34,16 +47,30 @@ def pickLegend(ax, npick, pickcolors, pickstyles, left=True):
     lss = pickstyles
     ncol = len(cols)
     for i in range(npick):
-        ipk = 't' + str(i)
+        ipk = "t" + str(i)
         ia = int(i % ncol)
         ib = int(i / ncol)
         col = cols[ia]
         ls = lss[ib]
         ax.axvline(x=tpk, color=col, ls=ls, lw=1.5, label=ipk.upper())
     if left:
-        ax.legend(bbox_to_anchor=(-.027, 1), loc=1, borderaxespad=0., shadow=True, fancybox=True, handlelength=3)
+        ax.legend(
+            bbox_to_anchor=(-0.027, 1),
+            loc=1,
+            borderaxespad=0.0,
+            shadow=True,
+            fancybox=True,
+            handlelength=3,
+        )
     else:
-        ax.legend(bbox_to_anchor=(1.02, 0), loc=3, borderaxespad=0., shadow=True, fancybox=True, handlelength=3)
+        ax.legend(
+            bbox_to_anchor=(1.02, 0),
+            loc=3,
+            borderaxespad=0.0,
+            shadow=True,
+            fancybox=True,
+            handlelength=3,
+        )
 
 
 class TimeSelector(SpanSelector):
@@ -51,12 +78,13 @@ class TimeSelector(SpanSelector):
     To disable SpanSelector when pan, zoom or other interactive/navigation modes are active.
     Also disable it when event is out of axes, which is needed to avoid error interfering with pick_event.
     """
+
     def ignore(self, event):
         if event.inaxes != self.ax:
             return True
-        elif 'zoom' in Gcf.get_active().toolbar.mode:
+        elif "zoom" in Gcf.get_active().toolbar.mode:
             return True
-        elif event.name == 'pick_event':
+        elif event.name == "pick_event":
             return True
         return False
 
@@ -67,7 +95,7 @@ def dataNorm(d, w=0.05):
     Extra white space is added.
     """
     dmin, dmax = d.min(), d.max()
-    dnorm = max(-dmin, dmax) * (1+w)
+    dnorm = max(-dmin, dmax) * (1 + w)
     return dnorm
 
 
@@ -77,7 +105,7 @@ def axLimit(minmax, w=0.05):
     """
     ymin, ymax = minmax
     dy = ymax - ymin
-    ylim = [ymin-w*dy, ymax+w*dy]
+    ylim = [ymin - w * dy, ymax + w * dy]
     return ylim
 
 
@@ -119,21 +147,21 @@ def indexBaseTick(na, nb, pagesize, pna):
     mb = nb - pnb
     npagea, npageb = 0, 0
     if ma > 0:
-        npagea = ma//pagesize + sign(ma % pagesize)
+        npagea = ma // pagesize + sign(ma % pagesize)
     if mb > 0:
-        npageb = mb//pagesize + sign(mb % pagesize)
-    ipages = list(range(-npageb, npagea+1))
+        npageb = mb // pagesize + sign(mb % pagesize)
+    ipages = list(range(-npageb, npagea + 1))
     # yindex for page 0:
     yindex = {}
     ybases = {}
     yticks = {}
     ia1 = min(pna, na)
-    ib0 = max(0, nb-pnb)
+    ib0 = max(0, nb - pnb)
     inda = list(range(ia1))
     indb = list(range(ib0, nb))
     yindex[0] = [inda, indb]
     # positive page:
-    for ipage in range(1, npagea+1):
+    for ipage in range(1, npagea + 1):
         i1 = pna + ipage * pagesize
         i0 = i1 - pagesize
         inda = list(range(i0, min(i1, na)))
@@ -141,67 +169,75 @@ def indexBaseTick(na, nb, pagesize, pna):
     # negative page:
     for ipage in range(-npageb, 0):
         i1 = ib0 + ipage * pagesize + pagesize
-        i0 = max(0, i1-pagesize)
+        i0 = max(0, i1 - pagesize)
         indb = list(range(i0, i1))
         yindex[ipage] = [[], indb]
-    for ipage in range(-npageb, npagea+1):
+    for ipage in range(-npageb, npagea + 1):
         # print 'page ', ipage, yindex[ipage]
         ybases[ipage] = [[], []]
         yticks[ipage] = [[], []]
     # ybases and yticks
-    for ipage in range(0, npagea+1):
-        ybases[ipage][0] = [-1-ind for ind in yindex[ipage][0]]
-        yticks[ipage][0] = [1+ind for ind in yindex[ipage][0]]
+    for ipage in range(0, npagea + 1):
+        ybases[ipage][0] = [-1 - ind for ind in yindex[ipage][0]]
+        yticks[ipage][0] = [1 + ind for ind in yindex[ipage][0]]
     for ipage in range(-npageb, 1):
-        ybases[ipage][1] = [nb-ind for ind in yindex[ipage][1]]
-        yticks[ipage][1] = [ind-nb for ind in yindex[ipage][1]]
+        ybases[ipage][1] = [nb - ind for ind in yindex[ipage][1]]
+        yticks[ipage][1] = [ind - nb for ind in yindex[ipage][1]]
     return ipages, yindex, ybases, yticks
 
 
 def getAxes(opts):
-    """ Get axes for pickphase """
+    """Get axes for pickphase"""
     fig = plt.figure(figsize=(13, 11))
-    plt.rcParams['legend.fontsize'] = 11
+    plt.rcParams["legend.fontsize"] = 11
     if opts.sort_on:
         rectseis = [0.1, 0.06, 0.65, 0.85]
     else:
         rectseis = [0.1, 0.06, 0.75, 0.85]
     axpp = fig.add_axes(rectseis)
     axs = {}
-    axs['Seis'] = axpp
+    axs["Seis"] = axpp
     dx = 0.07
     x0 = rectseis[0] + rectseis[2] + 0.01
-    xq = x0 - dx*1
-    xs = x0 - dx*2
-    xn = x0 - dx*3
-    xp = x0 - dx*4
-#    xl = x0 - dx*5
+    xq = x0 - dx * 1
+    xs = x0 - dx * 2
+    xn = x0 - dx * 3
+    xp = x0 - dx * 4
+    #    xl = x0 - dx*5
     rectprev = [xp, 0.93, 0.06, 0.04]
     rectnext = [xn, 0.93, 0.06, 0.04]
     rectsave = [xs, 0.93, 0.06, 0.04]
     rectquit = [xq, 0.93, 0.06, 0.04]
-#    rectlast = [xl, 0.93, 0.06, 0.04]
-    axs['Prev'] = fig.add_axes(rectprev)
-    axs['Next'] = fig.add_axes(rectnext)
-#    axs['Last'] = fig.add_axes(rectlast)
-    axs['Save'] = fig.add_axes(rectsave)
-    axs['Quit'] = fig.add_axes(rectquit)
+    #    rectlast = [xl, 0.93, 0.06, 0.04]
+    axs["Prev"] = fig.add_axes(rectprev)
+    axs["Next"] = fig.add_axes(rectnext)
+    #    axs['Last'] = fig.add_axes(rectlast)
+    axs["Save"] = fig.add_axes(rectsave)
+    axs["Quit"] = fig.add_axes(rectquit)
     return axs
 
 
 def plotDelay(stalos, stalas, dtimes, opts):
     fig, ax = plt.subplots()
-    ckey = 'RdBu_r'
+    ckey = "RdBu_r"
     cmap = plt.get_cmap(ckey)
-    ss = ax.scatter(stalos, stalas, c=dtimes, cmap=cmap, marker='^', vmin=opts.vminmax[0], vmax=opts.vminmax[1])
+    ss = ax.scatter(
+        stalos,
+        stalas,
+        c=dtimes,
+        cmap=cmap,
+        marker="^",
+        vmin=opts.vminmax[0],
+        vmax=opts.vminmax[1],
+    )
     cbar = fig.colorbar(ss)
-    ax.set_xlabel('Longitude')
-    ax.set_ylabel('Longitude')
-    fmt = 'png'
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Longitude")
+    fmt = "png"
     if opts.savefig:
-        fignm = opts.mcpara.mcname+'.'+fmt
+        fignm = opts.mcpara.mcname + "." + fmt
         plt.savefig(fignm, format=fmt, dpi=300)
-        os.system('open '+fignm)
+        openFile(fignm)
     else:
         plt.show()
     return fig

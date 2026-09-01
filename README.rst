@@ -2,6 +2,13 @@
 AIMBAT
 ======
 
+.. warning::
+
+   ``pysmo.aimbat`` is the legacy AIMBAT 1 line and is no longer actively
+   developed. It has been superseded by **AIMBAT 2**, distributed as ``aimbat``
+   (``pip install aimbat``) and imported as ``aimbat``, no longer under the
+   ``pysmo`` namespace. See https://github.com/pysmo/aimbat.
+
 Overview
 --------
 AIMBAT (Automated and Interactive Measurement of Body wave Arrival Times) is an
