@@ -76,9 +76,6 @@ include = [
   "/Changelog.rst",
 ]
 
-[tool.uv.sources]
-pysmo = { path = "../pysmo-0.8.x", editable = true }
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["*_tests.py", "test_*.py"]

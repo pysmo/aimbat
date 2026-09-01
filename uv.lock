@@ -1035,7 +1035,8 @@ wheels = [
 
 [[package]]
 name = "pysmo"
-source = { editable = "../pysmo-0.8.x" }
+version = "0.8.4"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -1046,31 +1047,10 @@ dependencies = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "matplotlib", specifier = ">=3.9" },
-    { name = "numpy", specifier = ">=2.1" },
-    { name = "pyproj", specifier = ">=3.7" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=5.0" },
-    { name = "pytest-depends", marker = "extra == 'dev'", specifier = ">=1.0.1" },
-    { name = "pytest-depends", marker = "extra == 'test'", specifier = ">=1.0.1" },
-    { name = "pytest-mpl", marker = "extra == 'dev'", specifier = ">=0.17" },
-    { name = "pytest-mpl", marker = "extra == 'test'", specifier = ">=0.17" },
-    { name = "pyyaml", specifier = ">=6.0.1" },
-    { name = "requests", specifier = ">=2.32.4" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11" },
-    { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.11" },
-    { name = "scipy", specifier = ">=1.14" },
-    { name = "sphinx", marker = "extra == 'dev'", specifier = ">=7.4" },
-    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.4" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'dev'", specifier = ">=3.0" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=3.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/c8/42/41b9326779634b600d58f7ff55fb3ef19eb17f52fdd307494728659eb50d/pysmo-0.8.4.tar.gz", hash = "sha256:2ffc2e98f9bd51b0de33f9128a24a907e5867066b6336fd1c9f633f936b157c4", size = 813003, upload-time = "2026-09-01T21:17:55.419Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/2d/1f5d7ada5b6e0e98511f6d3b483de8e340af68b8042154acb8e2650abc96/pysmo-0.8.4-py3-none-any.whl", hash = "sha256:1c089a517a9e7f3ae6a41a5c305daf2d3d17965fc77991dc28f630669003c884", size = 33031, upload-time = "2026-09-01T21:17:53.882Z" },
 ]
-provides-extras = ["dev", "docs", "lint", "test"]
 
 [[package]]
 name = "pysmo-aimbat"
@@ -1116,7 +1096,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.1" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "pyside6", specifier = ">=6.7" },
-    { name = "pysmo", editable = "../pysmo-0.8.x" },
+    { name = "pysmo", specifier = ">=0.8.4,<0.9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
