@@ -513,9 +513,9 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
     def _toggle_seismogram_bool(self, item_id: str, param: SeismogramParameter) -> None:
         """Flip a boolean seismogram parameter (select or flip) and update the in-memory ICCS instance.
 
-        Persists the new value to the database, then updates the matching
-        seismogram in the live ICCS instance directly and refreshes only
-        the Live data table, without a full `refresh_all`.
+        Persists the new value to the database, mutates the matching
+        seismogram in the live ICCS instance directly so the Live data table
+        keeps its cross-correlation values, then refreshes every panel.
 
         Args:
             item_id: ID of the seismogram to update.
@@ -538,14 +538,13 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                         bound.iccs.clear_cache()
                         bound.created_at = Timestamp.now("UTC")
                         break
-            # Deliberately scoped: this only mutates the in-memory ICCS instance
-            # and clears its cache, without re-upserting iccs_cc, so no other
-            # panel's displayed data (quality panels, station cc_mean/cc_sem)
-            # changes here. Also repeated once per seismogram during QC review,
-            # so avoid the extra DB round trips a full refresh_all() would add.
-            self.query_one(SeismogramPanel).refresh_data(
-                self._current_event_id, self._iccs_lifecycle.bound
-            )
+            # A select/flip change fires the quality-invalidation triggers,
+            # nulling iccs_cc and the MCCC quality columns for the whole event
+            # - which the Project panel's event-quality and per-station
+            # cc_mean/cc_sem readouts display. Refresh everything so those
+            # panels drop the now-invalid values instead of showing them until
+            # the next unrelated refresh.
+            self.refresh_all()
             self.notify(f"{param} toggled", timeout=2)
         except Exception as exc:
             self.notify(str(exc), severity="error")

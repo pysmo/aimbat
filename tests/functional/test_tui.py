@@ -39,6 +39,7 @@ from aimbat._tui.modals import (
     SnapshotDetailsModal,
     ToolLaunchResult,
 )
+from aimbat._types import SeismogramParameter
 from aimbat.core import (
     BoundICCS,
     IccsLifecycle,
@@ -1402,6 +1403,51 @@ class TestRunToolRebuildsIccs:
         calls = self._prepare(monkeypatch, loaded_engine_from_file)
         self._run_with_tool(loaded_engine_from_file, monkeypatch, "stack", calls)
         assert calls == []
+
+
+@pytest.mark.slow
+class TestToggleSeismogramBoolRefresh:
+    """Toggling select/flip invalidates event-wide quality via triggers, so
+    every panel must refresh - not just the Live data table (findings-tui M3).
+    """
+
+    def test_toggle_select_triggers_full_refresh(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+            seis = session.exec(
+                select(AimbatSeismogram).where(AimbatSeismogram.event_id == event_id)
+            ).first()
+            assert seis is not None
+            seis_id = seis.id
+
+        calls: list[str] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await pilot.pause(delay=0.5)
+                app._current_event_id = event_id
+                monkeypatch.setattr(
+                    AimbatTUI,
+                    "refresh_all",
+                    lambda self: calls.append("refresh_all"),
+                )
+                app._toggle_seismogram_bool(str(seis_id), SeismogramParameter.SELECT)
+                await pilot.pause()
+
+        asyncio.run(_run())
+
+        assert calls == ["refresh_all"]
+        with Session(loaded_engine) as session:
+            refetched = session.get(AimbatSeismogram, seis_id)
+            assert refetched is not None
+            assert refetched.parameters.select is False
 
 
 # ===========================================================================
