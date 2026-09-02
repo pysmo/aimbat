@@ -625,6 +625,11 @@ class AimbatSnapshotRead(BaseModel):
         },
     )
 
+    sequence: int = Field(
+        title="Seq",
+        description="Monotonic per-event snapshot counter",
+    )
+
     automatic: bool = Field(
         title="Auto", description="Whether this snapshot was created automatically"
     )
@@ -717,6 +722,7 @@ class AimbatSnapshotRead(BaseModel):
         return cls(
             id=snapshot.id,
             short_id=short_id,
+            sequence=snapshot.sequence,
             time=snapshot.time,
             comment=snapshot.comment,
             automatic=snapshot.automatic,

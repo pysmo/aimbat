@@ -547,6 +547,37 @@ class TestGetSnapshots:
         assert len(get_snapshots(loaded_session, event_id=event.id)) == 2
 
 
+class TestSnapshotSequence:
+    """The per-event `sequence` counter, not the microsecond `time`, is the
+    definitive snapshot ordering."""
+
+    def test_back_to_back_snapshots_get_consecutive_sequences(
+        self, loaded_session: Session
+    ) -> None:
+        """Two `create_snapshot` calls in immediate succession must not collide
+        (the old microsecond-unique `time` column could)."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        for _ in range(5):
+            create_snapshot(loaded_session, event)
+        snaps = get_snapshots(loaded_session, event_id=event.id)
+        assert sorted(s.sequence for s in snaps) == [1, 2, 3, 4, 5]
+
+    def test_sequence_is_per_event(self, loaded_session: Session) -> None:
+        """Each event numbers its own snapshots from 1."""
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        assert len(events) >= 2
+        create_snapshot(loaded_session, events[0])
+        create_snapshot(loaded_session, events[0])
+        create_snapshot(loaded_session, events[1])
+        assert sorted(
+            s.sequence for s in get_snapshots(loaded_session, event_id=events[0].id)
+        ) == [1, 2]
+        assert [
+            s.sequence for s in get_snapshots(loaded_session, event_id=events[1].id)
+        ] == [1]
+
+
 class TestComputeHashes:
     """Tests for the ICCS and MCCC parameter hashing logic."""
 

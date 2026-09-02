@@ -403,12 +403,21 @@ class AimbatSnapshot(SQLModel, table=True):
         populate_by_name=True,
     )
 
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id", "sequence", name="uq_aimbatsnapshot_event_id_sequence"
+        ),
+    )
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
+    sequence: int = Field(
+        title="Sequence",
+        description="Monotonic per-event counter; the definitive snapshot order.",
+    )
     time: PydanticTimestamp = Field(
         default_factory=lambda: Timestamp.now("UTC"),
-        unique=True,
         sa_type=SAPandasTimestamp,
         title="Snapshot time",
         description="Timestamp when the snapshot was created.",

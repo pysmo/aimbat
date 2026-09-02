@@ -20,6 +20,7 @@ from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter
+from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
@@ -273,8 +274,15 @@ def create_snapshot(
                 )
             )
 
+    highest_sequence = session.exec(
+        select(func.max(col(AimbatSnapshot.sequence))).where(
+            col(AimbatSnapshot.event_id) == event.id
+        )
+    ).one()
+
     aimbat_snapshot = AimbatSnapshot(
         event=event,
+        sequence=(highest_sequence or 0) + 1,
         event_parameters_snapshot=event_parameters_snapshot,
         seismogram_parameters_snapshots=seismogram_parameter_snapshots,
         event_quality_snapshot=event_quality_snap,
@@ -390,7 +398,7 @@ def _pick_candidate(
     preferred = next((c for c in candidates if c.id == prefer_snapshot_id), None)
     if preferred is not None:
         return preferred
-    return max(candidates, key=lambda s: s.time)
+    return max(candidates, key=lambda s: s.sequence)
 
 
 def _live_seismogram_quality_map(
@@ -580,7 +588,9 @@ def get_snapshots(
     else:
         statement = select(AimbatSnapshot).where(AimbatSnapshot.event_id == event_id)
 
-    statement = statement.options(
+    statement = statement.order_by(
+        col(AimbatSnapshot.event_id), col(AimbatSnapshot.sequence)
+    ).options(
         selectinload(rel(AimbatSnapshot.event)),
         selectinload(rel(AimbatSnapshot.event_parameters_snapshot)),
         selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)),
