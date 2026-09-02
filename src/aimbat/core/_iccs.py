@@ -58,8 +58,8 @@ __all__ = [
 class BoundICCS:
     """An ICCS instance explicitly bound to a specific event.
 
-    Use `is_stale` to detect whether the event's parameters have been modified
-    (e.g. by a CLI command) since this instance was created.
+    Use `is_stale` to detect whether a stack-affecting parameter has been
+    modified (e.g. by a CLI command) since this instance was created.
     """
 
     iccs: ICCS
@@ -67,21 +67,22 @@ class BoundICCS:
     created_at: Timestamp
 
     def is_stale(self, event: AimbatEvent) -> bool:
-        """Return True if the event has been modified since this ICCS was created.
+        """Return True if this ICCS instance no longer matches the event.
 
         Args:
             event: The event to check against.
 
         Returns:
             True if `event.id` differs from the bound event, or if
-            `event.last_modified` has advanced since this instance was
-            created. False otherwise.
+            `event.stack_modified` has advanced since this instance was
+            created. An MCCC-only or `min_cc` change does not make it stale
+            (`run_iccs` refreshes `min_cc` on the instance per run).
         """
         if event.id != self.event_id:
             return True
-        if event.last_modified is None:
+        if event.stack_modified is None:
             return False
-        return event.last_modified > self.created_at
+        return event.stack_modified > self.created_at
 
 
 @dataclass
@@ -92,7 +93,7 @@ class IccsLifecycle:
     asynchronously without blocking a UI thread: an in-progress guard so
     overlapping creation attempts collapse into one, a one-shot retry flag
     for recovering from a transient failure, and a fallback staleness check
-    (`event.last_modified`) for the window before any instance exists yet.
+    (`event.stack_modified`) for the window before any instance exists yet.
 
     Callers own the actual I/O and threading (reading waveform data, running
     in a background thread, marshalling results back to a UI thread) and
@@ -102,7 +103,7 @@ class IccsLifecycle:
 
     bound: BoundICCS | None = None
     retry_pending: bool = False
-    last_modified_seen: Timestamp | None = None
+    stack_modified_seen: Timestamp | None = None
     _creating: bool = field(default=False, repr=False, init=False)
 
     @property
@@ -111,10 +112,10 @@ class IccsLifecycle:
         return self.bound is not None
 
     def is_stale(self, event: AimbatEvent) -> bool:
-        """Return True if the bound instance (or lack of one) needs refreshing.
+        """Return True if the bound instance (or lack of one) needs rebuilding.
 
         Delegates to `BoundICCS.is_stale` when an instance exists; otherwise
-        falls back to comparing `event.last_modified` against the value last
+        falls back to comparing `event.stack_modified` against the value last
         recorded via `note_checked`.
 
         Args:
@@ -122,7 +123,7 @@ class IccsLifecycle:
         """
         if self.bound is not None:
             return self.bound.is_stale(event)
-        return event.last_modified != self.last_modified_seen
+        return event.stack_modified != self.stack_modified_seen
 
     def start_creating(self) -> bool:
         """Begin a creation attempt, discarding any existing bound instance.
@@ -172,13 +173,13 @@ class IccsLifecycle:
         """
         self.bound = None
 
-    def note_checked(self, last_modified: Timestamp | None) -> None:
-        """Record the `last_modified` value observed at a staleness check.
+    def note_checked(self, stack_modified: Timestamp | None) -> None:
+        """Record the `stack_modified` value observed at a staleness check.
 
         Only meaningful while `bound` is `None`; used by `is_stale` to
         detect further changes before a new instance can be created.
         """
-        self.last_modified_seen = last_modified
+        self.stack_modified_seen = stack_modified
 
 
 @dataclass(frozen=True)
@@ -273,6 +274,9 @@ def _build_iccs(
         bandpass_fmin=p.bandpass_fmin,
         bandpass_fmax=p.bandpass_fmax,
         corners=p.corners,
+        # The autoselect threshold. Baked in here and refreshed per run in
+        # `run_iccs` - a bare `min_cc` change does not rebuild the instance
+        # (it does not touch the stack; see trigger 1b in core/_project.py).
         min_cc=p.min_cc,
         context_width=settings.context_width,
     )
@@ -281,7 +285,7 @@ def _build_iccs(
 def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     """Return a BoundICCS instance for the given event.
 
-    Returns the cached instance when it is still fresh (i.e. `event.last_modified`
+    Returns the cached instance when it is still fresh (i.e. `event.stack_modified`
     has not advanced since the instance was created). Otherwise builds a new one
     and updates the cache. ICCS CC values are written to the live quality table in
     a separate session so the caller's session is not affected.
@@ -338,7 +342,7 @@ def _find_seismogram_quality(
         select(AimbatSeismogramQuality).where(
             col(AimbatSeismogramQuality.seismogram_id) == seismogram_id
         )
-    ).first()
+    ).one_or_none()
 
 
 def _write_iccs_stats(event_id: UUID, iccs: ICCS) -> None:
@@ -418,7 +422,7 @@ def _write_mccc_quality(
             select(AimbatEventQuality).where(
                 col(AimbatEventQuality.event_id) == event_id
             )
-        ).first()
+        ).one_or_none()
         if existing_eq is None:
             eq = AimbatEventQuality(
                 id=uuid4(), event_id=event_id, mccc_rmse=result.rmse
@@ -672,6 +676,11 @@ def run_iccs(
 
     logger.info(f"Running ICCS (autoflip={autoflip}, autoselect={autoselect}).")
 
+    # `min_cc` is stored on the instance at construction and, unlike the MCCC
+    # parameters, is not re-read per call. A bare `min_cc` change does not
+    # rebuild the instance (it does not affect the stack), so refresh it here
+    # before an autoselect run picks up a stale threshold.
+    iccs.min_cc = event.parameters.min_cc
     result = iccs(autoflip=autoflip, autoselect=autoselect)
     n_iter = len(result.convergence)
     status = "converged" if result.converged else "did not converge"

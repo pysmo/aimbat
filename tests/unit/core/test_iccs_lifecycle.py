@@ -17,7 +17,7 @@ from aimbat.models import AimbatEvent
 
 
 def _make_event(
-    *, event_id: uuid.UUID | None = None, last_modified: Timestamp | None = None
+    *, event_id: uuid.UUID | None = None, stack_modified: Timestamp | None = None
 ) -> AimbatEvent:
     """Build a detached AimbatEvent with just the fields IccsLifecycle reads."""
     return AimbatEvent(
@@ -25,7 +25,7 @@ def _make_event(
         time=Timestamp("2020-01-01T00:00:00", tz="UTC"),
         latitude=0.0,
         longitude=0.0,
-        last_modified=last_modified,
+        stack_modified=stack_modified,
     )
 
 
@@ -53,18 +53,18 @@ class TestReady:
 class TestIsStale:
     """Tests for IccsLifecycle.is_stale."""
 
-    def test_no_bound_instance_falls_back_to_last_modified_seen(self) -> None:
+    def test_no_bound_instance_falls_back_to_stack_modified_seen(self) -> None:
         """With no bound instance, staleness compares against note_checked's value."""
         lifecycle = IccsLifecycle()
-        event = _make_event(last_modified=Timestamp("2020-01-01T00:00:00", tz="UTC"))
+        event = _make_event(stack_modified=Timestamp("2020-01-01T00:00:00", tz="UTC"))
 
         # Nothing recorded yet -> considered stale.
         assert lifecycle.is_stale(event) is True
 
-        lifecycle.note_checked(event.last_modified)
+        lifecycle.note_checked(event.stack_modified)
         assert lifecycle.is_stale(event) is False
 
-        event.last_modified = Timestamp("2020-01-02T00:00:00", tz="UTC")
+        event.stack_modified = Timestamp("2020-01-02T00:00:00", tz="UTC")
         assert lifecycle.is_stale(event) is True
 
     def test_bound_instance_delegates_to_bound_is_stale(self) -> None:
@@ -73,11 +73,11 @@ class TestIsStale:
         created_at = Timestamp("2020-01-01T00:00:00", tz="UTC")
         lifecycle = IccsLifecycle(bound=_make_bound(event_id, created_at))
 
-        fresh_event = _make_event(event_id=event_id, last_modified=None)
+        fresh_event = _make_event(event_id=event_id, stack_modified=None)
         assert lifecycle.is_stale(fresh_event) is False
 
         modified_event = _make_event(
-            event_id=event_id, last_modified=created_at + Timedelta(seconds=1)
+            event_id=event_id, stack_modified=created_at + Timedelta(seconds=1)
         )
         assert lifecycle.is_stale(modified_event) is True
 
@@ -181,11 +181,11 @@ class TestClear:
 class TestNoteChecked:
     """Tests for IccsLifecycle.note_checked."""
 
-    def test_updates_last_modified_seen(self) -> None:
+    def test_updates_stack_modified_seen(self) -> None:
         """The observed timestamp is recorded verbatim."""
         lifecycle = IccsLifecycle()
         ts = Timestamp("2020-01-01T00:00:00", tz="UTC")
 
         lifecycle.note_checked(ts)
 
-        assert lifecycle.last_modified_seen == ts
+        assert lifecycle.stack_modified_seen == ts

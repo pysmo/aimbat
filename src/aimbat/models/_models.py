@@ -110,6 +110,14 @@ class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
         populate_by_name=True,
     )
 
+    __table_args__ = (
+        Index(
+            "ix_aimbatseismogramparameters_seismogram_id",
+            "seismogram_id",
+            unique=True,
+        ),
+    )
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -184,6 +192,10 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
     model_config = SQLModelConfig(
         alias_generator=to_camel,
         populate_by_name=True,
+    )
+
+    __table_args__ = (
+        Index("ix_aimbateventparameters_event_id", "event_id", unique=True),
     )
 
     id: uuid.UUID = Field(
@@ -263,6 +275,14 @@ class AimbatSeismogramQuality(AimbatSeismogramQualityBase, table=True):
         populate_by_name=True,
     )
 
+    __table_args__ = (
+        Index(
+            "ix_aimbatseismogramquality_seismogram_id",
+            "seismogram_id",
+            unique=True,
+        ),
+    )
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
@@ -335,6 +355,8 @@ class AimbatEventQuality(AimbatEventQualityBase, table=True):
         alias_generator=to_camel,
         populate_by_name=True,
     )
+
+    __table_args__ = (Index("ix_aimbateventquality_event_id", "event_id", unique=True),)
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
@@ -670,6 +692,18 @@ class AimbatEvent(SQLModel, table=True):
         sa_type=SAPandasTimestamp,
         title="Last modified",
         description="Timestamp of the last parameter modification.",
+    )
+    stack_modified: PydanticTimestamp | None = Field(
+        default=None,
+        sa_type=SAPandasTimestamp,
+        title="Stack modified",
+        description=(
+            "Timestamp of the last change to a parameter that requires the "
+            "ICCS instance to be rebuilt (event window, ramp, bandpass, "
+            "corners; per-seismogram t1, flip, select). Drives "
+            "`BoundICCS.is_stale`. Unlike `last_modified`, an MCCC-only or "
+            "`min_cc` change does not bump it."
+        ),
     )
     seismograms: list[AimbatSeismogram] = Relationship(
         back_populates="event", cascade_delete=True

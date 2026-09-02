@@ -646,3 +646,60 @@ class TestUniqueConstraints:
 
         events = patched_session.exec(select(AimbatEvent)).all()
         assert len(events) == 2
+
+
+class TestOneToOneLinkConstraints:
+    """The parameters/quality tables are one row per parent - a unique index
+    on the link column enforces it."""
+
+    def test_second_seismogram_parameters_rejected(
+        self, patched_session: Session
+    ) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        ev = _make_event(patched_session)
+        sta = _make_station(patched_session)
+        seis = _make_seismogram(patched_session, ev, sta)
+        patched_session.commit()
+
+        patched_session.add(AimbatSeismogramParameters(seismogram=seis))
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_second_seismogram_quality_rejected(self, patched_session: Session) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        ev = _make_event(patched_session)
+        sta = _make_station(patched_session)
+        seis = _make_seismogram(patched_session, ev, sta)
+        patched_session.add(AimbatSeismogramQuality(seismogram=seis, iccs_cc=0.8))
+        patched_session.commit()
+
+        patched_session.add(AimbatSeismogramQuality(seismogram=seis, iccs_cc=0.5))
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_second_event_parameters_rejected(self, patched_session: Session) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        ev = _make_event(patched_session)
+        patched_session.commit()
+
+        patched_session.add(AimbatEventParameters(event=ev))
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_second_event_quality_rejected(self, patched_session: Session) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        ev = _make_event(patched_session)
+        patched_session.add(
+            AimbatEventQuality(event=ev, mccc_rmse=Timedelta(milliseconds=1))
+        )
+        patched_session.commit()
+
+        patched_session.add(
+            AimbatEventQuality(event=ev, mccc_rmse=Timedelta(milliseconds=2))
+        )
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
