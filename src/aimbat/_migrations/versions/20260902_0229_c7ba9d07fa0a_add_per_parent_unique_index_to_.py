@@ -30,7 +30,32 @@ depends_on: str | Sequence[str] | None = None
 _FK_COLUMNS = ("event_id", "station_id", "seismogram_id", "snapshot_id")
 
 
+def _reject_existing_duplicates() -> None:
+    """Fail with a clear message if the project already has duplicate notes.
+
+    `CREATE UNIQUE INDEX` on a table that already violates the constraint
+    raises an opaque "UNIQUE constraint failed" with no indication of which
+    rows are at fault - surface the offending parents instead.
+    """
+    bind = op.get_bind()
+    for column in _FK_COLUMNS:
+        rows = bind.execute(
+            sa.text(
+                f"SELECT {column} FROM aimbatnote WHERE {column} IS NOT NULL "
+                f"GROUP BY {column} HAVING COUNT(*) > 1"
+            )
+        ).fetchall()
+        if rows:
+            offenders = ", ".join(str(row[0]) for row in rows)
+            raise RuntimeError(
+                f"aimbatnote has more than one row for the same {column} "
+                f"({offenders}). Delete the duplicate note rows, keeping one "
+                f"per parent, then re-run `aimbat db upgrade`."
+            )
+
+
 def upgrade() -> None:
+    _reject_existing_duplicates()
     for column in _FK_COLUMNS:
         op.create_index(
             f"ix_aimbatnote_{column}",
