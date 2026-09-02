@@ -8,6 +8,10 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 - Add stale management workflow
 
+### ⚡ Performance Improvements
+
+- **(snapshot)** Backfill sequence in one window-function pass
+
 ### 🐛 Bug Fixes
 
 - Set explicit permissions on workflow-calling jobs
@@ -42,6 +46,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 - **(tui)** Split app.py god object, dedupe core/_iccs helpers
 - **(models)** [**breaking**] Narrow AimbatSeismogram to the pysmo Seismogram interface
+- **(snapshot)** Split the parameter hash into iccs_hash and mccc_hash
 
 ### 🚀 New Features
 
@@ -49,6 +54,8 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Integrate pysmo causal-filter, persist ICCS.corners, harden schema checks
 - **(tui)** Table-aware footer, causal toggle, and station dimming
 - **(data)** Add near-duplicate event detection to `data add`
+- **(snapshot)** Keep snapshots when the rows they froze are deleted
+- **(snapshot)** Number snapshots per event instead of by unique timestamp
 
 ### 🧪 Testing
 
