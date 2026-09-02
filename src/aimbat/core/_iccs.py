@@ -674,6 +674,9 @@ def run_iccs(
     n_iter = len(result.convergence)
     status = "converged" if result.converged else "did not converge"
     logger.info(f"ICCS {status} after {n_iter} iterations.")
+    # `write_back_seismograms` commits the picks and nulls `iccs_cc` via the
+    # invalidation triggers; `_write_iccs_stats` must run after it to
+    # repopulate `iccs_cc` (see `run_mccc` for the fuller ordering note).
     write_back_seismograms(session, iccs)
     _write_iccs_stats(event.id, iccs)
     return result
@@ -703,6 +706,13 @@ def run_mccc(
         min_cc=event.parameters.mccc_min_cc,
         damping=event.parameters.mccc_damp,
     )
+    # Order is load-bearing. `write_back_seismograms` commits `t1`/`flip`/
+    # `select`, firing the quality-invalidation triggers that null `iccs_cc`
+    # and every MCCC quality column for this event. `_write_iccs_stats` must
+    # then repopulate `iccs_cc`, and `_write_mccc_quality` the MCCC columns,
+    # in that sequence. Reordering the calls (or a failure between them)
+    # leaves the quality tables half-nulled with no way to recover the
+    # missing half short of re-running the algorithm.
     write_back_seismograms(session, iccs)
     _write_iccs_stats(event.id, iccs)
     _write_mccc_quality(event.id, iccs, result, all_seismograms)
