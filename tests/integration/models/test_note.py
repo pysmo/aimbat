@@ -100,6 +100,47 @@ class TestAimbatNoteExactlyOneParent:
             patched_session.flush()
 
 
+class TestAimbatNoteOnePerParent:
+    """At most one note may exist per parent record (per-FK partial unique index)."""
+
+    def test_second_note_for_same_event_is_rejected(
+        self, patched_session: Session
+    ) -> None:
+        ev = _make_event(patched_session)
+        patched_session.add(AimbatNote(content="first", event_id=ev.id))
+        patched_session.flush()
+
+        patched_session.add(AimbatNote(content="second", event_id=ev.id))
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_notes_for_different_parents_are_allowed(
+        self, patched_session: Session
+    ) -> None:
+        ev = _make_event(patched_session)
+        sta = _make_station(patched_session)
+
+        patched_session.add(AimbatNote(content="event note", event_id=ev.id))
+        patched_session.add(AimbatNote(content="station note", station_id=sta.id))
+        patched_session.commit()
+
+    def test_notes_for_two_events_are_allowed(self, patched_session: Session) -> None:
+        ev1 = _make_event(patched_session)
+        ev2 = AimbatEvent(
+            time=Timestamp("2011-03-11T05:46:24", tz=timezone.utc),
+            latitude=38.3,
+            longitude=142.4,
+        )
+        patched_session.add(ev2)
+        patched_session.flush()
+        patched_session.add(AimbatEventParameters(event=ev2))
+        patched_session.flush()
+
+        patched_session.add(AimbatNote(content="note 1", event_id=ev1.id))
+        patched_session.add(AimbatNote(content="note 2", event_id=ev2.id))
+        patched_session.commit()
+
+
 class TestNoteCore:
     """Tests for get_note_content and save_note at the core layer."""
 

@@ -9,7 +9,7 @@ import numpy.typing as npt
 from pandas import Timestamp
 from pydantic import model_validator
 from pydantic.alias_generators import to_camel
-from sqlalchemy import CheckConstraint, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func, text
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel._compat import SQLModelConfig
@@ -731,8 +731,10 @@ AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assig
 class AimbatNote(SQLModel, table=True):
     """Free-text Markdown note attached to an event, station, seismogram, or snapshot.
 
-    Exactly one of the four FK fields is set per row. Deletion of the parent
-    record cascades to delete the note via the DB-level foreign key constraint.
+    Exactly one of the four FK fields is set per row, and at most one note
+    exists per parent record (enforced by the per-FK partial unique indexes).
+    Deletion of the parent record cascades to delete the note via the DB-level
+    foreign key constraint.
     """
 
     model_config = SQLModelConfig(
@@ -747,6 +749,30 @@ class AimbatNote(SQLModel, table=True):
             " + CASE WHEN seismogram_id IS NOT NULL THEN 1 ELSE 0 END"
             " + CASE WHEN snapshot_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
             name="aimbat_note_exactly_one_parent",
+        ),
+        Index(
+            "ix_aimbatnote_event_id",
+            "event_id",
+            unique=True,
+            sqlite_where=text("event_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_aimbatnote_station_id",
+            "station_id",
+            unique=True,
+            sqlite_where=text("station_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_aimbatnote_seismogram_id",
+            "seismogram_id",
+            unique=True,
+            sqlite_where=text("seismogram_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_aimbatnote_snapshot_id",
+            "snapshot_id",
+            unique=True,
+            sqlite_where=text("snapshot_id IS NOT NULL"),
         ),
     )
 
