@@ -11,6 +11,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 ### ⚡ Performance Improvements
 
 - **(snapshot)** Backfill sequence in one window-function pass
+- **(io)** Bound the waveform cache with an LRU cap
 
 ### 🐛 Bug Fixes
 
@@ -30,6 +31,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core)** Stop write_back_seismograms from committing the caller's session
 - **(core)** Dump_event_table always returns list[dict]
 - Address PR #256 review feedback
+- **(io)** Read JSON sources as UTF-8 and name the file on a parse error
 
 ### 📚 Documentation
 
@@ -57,6 +59,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(snapshot)** Keep snapshots when the rows they froze are deleted
 - **(snapshot)** Number snapshots per event instead of by unique timestamp
 - **(iccs)** Separate stack-affecting changes and tighten the 1:1 links
+- **(event)** Add set_event_parameters for validated batch updates
 
 ### 🧪 Testing
 
