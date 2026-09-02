@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import uuid
 
+from pandas import Timestamp
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session
 from textual import work
@@ -34,6 +35,11 @@ class _IccsLifecycleMixin(App[None]):
 
     _iccs_lifecycle: IccsLifecycle
 
+    # `event.last_modified` observed at the last staleness check, used to
+    # repaint panels (without rebuilding ICCS) after a non-stack parameter
+    # change (MCCC parameters or `min_cc`) made in another process.
+    _ui_last_modified_seen: Timestamp | None
+
     # Provided by AimbatTUI; declared here only so the type checker accepts
     # the calls below - the host class's own definitions take precedence.
     _current_event_id: uuid.UUID | None
@@ -47,6 +53,7 @@ class _IccsLifecycleMixin(App[None]):
     def _init_iccs_lifecycle(self) -> None:
         """Reset ICCS lifecycle state and start the periodic staleness check."""
         self._iccs_lifecycle = IccsLifecycle()
+        self._ui_last_modified_seen = None
         self.set_interval(5, self._check_iccs_staleness)
 
     def _create_iccs(self, *, is_retry: bool = False) -> None:
@@ -54,9 +61,10 @@ class _IccsLifecycleMixin(App[None]):
 
         ICCS construction reads waveform data, so it must not block the asyncio event loop.
         Concurrent calls are ignored — only one worker runs at a time. Also records the
-        current event's `last_modified` via `IccsLifecycle.note_checked`, so that a later
-        staleness poll correctly falls through to the one-shot retry branch instead of
-        treating the still-in-progress attempt as newly detected staleness.
+        current event's `stack_modified` via `IccsLifecycle.note_checked` (and its
+        `last_modified` for the UI-repaint check), so that a later staleness poll
+        correctly falls through to the one-shot retry branch instead of treating the
+        still-in-progress attempt as newly detected staleness.
 
         Args:
             is_retry: Whether this call is the one-shot retry made in
@@ -73,7 +81,8 @@ class _IccsLifecycleMixin(App[None]):
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
-                self._iccs_lifecycle.note_checked(event.last_modified)
+                self._iccs_lifecycle.note_checked(event.stack_modified)
+                self._ui_last_modified_seen = event.last_modified
         except Exception:
             # Best-effort bookkeeping only — any failure here (no event
             # selected, a locked DB, ...) must not prevent the worker below
@@ -142,13 +151,16 @@ class _IccsLifecycleMixin(App[None]):
         self.refresh_all()
 
     def _check_iccs_staleness(self) -> None:
-        """Trigger ICCS recreation if the current event has been modified externally.
+        """React to an external change to the current event.
 
-        When ICCS creation previously failed (e.g. due to an invalid parameter set via
-        the CLI), retries once, then waits for `event.last_modified` to change again
-        before retrying further — this avoids retrying forever against a persistently
-        failing event. On any detected change the full UI is refreshed so panels
-        reflect the new DB state immediately.
+        A change to a stack-affecting parameter (`event.stack_modified`)
+        rebuilds the ICCS instance; any other parameter change
+        (`event.last_modified`, e.g. an MCCC-only tweak made via the CLI)
+        only repaints the panels so they reflect the new DB state. When ICCS
+        creation previously failed (e.g. an invalid parameter set via the
+        CLI), retries once, then waits for a further change before retrying
+        again — this avoids retrying forever against a persistently failing
+        event.
         """
         if self._current_event_id is None:
             return
@@ -156,8 +168,11 @@ class _IccsLifecycleMixin(App[None]):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 stale = self._iccs_lifecycle.is_stale(event)
+                last_modified = event.last_modified
         except (NoResultFound, RuntimeError):
             return
+        ui_changed = last_modified != self._ui_last_modified_seen
+        self._ui_last_modified_seen = last_modified
         if stale:
             logger.debug(
                 "ICCS staleness detected; recreating instance and refreshing UI."
@@ -167,6 +182,9 @@ class _IccsLifecycleMixin(App[None]):
         elif self._iccs_lifecycle.retry_pending:
             logger.debug("Retrying ICCS creation after a previous failure.")
             self._create_iccs(is_retry=True)
+            self.refresh_all()
+        elif ui_changed:
+            logger.debug("Event modified without a stack change; refreshing UI only.")
             self.refresh_all()
 
     def _require_iccs(self) -> bool:

@@ -408,9 +408,10 @@ def _live_seismogram_quality_map(
 
     Keyed on the `seismogram_id` stored on each quality snapshot rather than
     its (possibly NULL) FK to the live quality row, so a snapshot still resolves
-    to the live records after the source quality row has been recreated. Relies
-    on the one-quality-row-per-seismogram invariant that
-    `AimbatSeismogram.quality` (a scalar relationship) assumes everywhere.
+    to the live records after the source quality row has been recreated. The
+    one-quality-row-per-seismogram invariant (`AimbatSeismogram.quality` is a
+    scalar relationship) is enforced by a unique index on
+    `AimbatSeismogramQuality.seismogram_id`.
     """
     seismogram_ids = {
         q.seismogram_id

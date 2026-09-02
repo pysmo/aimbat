@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import Engine, create_engine, event, inspect, text
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 import aimbat._migrations
@@ -541,6 +542,182 @@ class TestUpgradeProject:
                 ).scalar()
                 == 1
             )
+
+    def test_one_to_one_link_index_rejects_duplicate_after_migration(
+        self, engine_from_file: Engine
+    ) -> None:
+        """`CREATE UNIQUE INDEX` on the link column makes a second row for one
+        parent fail at write time (checked on `aimbatseismogramquality`; the
+        four columns share one migration)."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "4386151d11e2")
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatstation (id, name, network, location, channel, "
+                    "latitude, longitude) VALUES "
+                    "('st1', 'AAK', 'II', '00', 'BHZ', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogram "
+                    "(id, begin_time, delta, t0, event_id, station_id) VALUES "
+                    "('se1', '2020-01-01 00:00:00', 50000000, "
+                    "'2020-01-01 00:00:00', 'ev1', 'st1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramquality (id, seismogram_id) "
+                    "VALUES ('sq1', 'se1')"
+                )
+            )
+
+        with pytest.raises(IntegrityError):
+            with engine_from_file.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO aimbatseismogramquality (id, seismogram_id) "
+                        "VALUES ('sq2', 'se1')"
+                    )
+                )
+
+    def test_one_to_one_link_migration_fails_clearly_on_existing_duplicate(
+        self, engine_from_file: Engine
+    ) -> None:
+        """A project that already has two quality rows for one seismogram
+        must get a message naming the seismogram, not a bare
+        "UNIQUE constraint failed"."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "d52a54a8a665")  # one revision before the index
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatstation (id, name, network, location, channel, "
+                    "latitude, longitude) VALUES "
+                    "('st1', 'AAK', 'II', '00', 'BHZ', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogram "
+                    "(id, begin_time, delta, t0, event_id, station_id) VALUES "
+                    "('se1', '2020-01-01 00:00:00', 50000000, "
+                    "'2020-01-01 00:00:00', 'ev1', 'st1')"
+                )
+            )
+            for row_id in ("sq1", "sq2"):
+                connection.execute(
+                    text(
+                        "INSERT INTO aimbatseismogramquality (id, seismogram_id) "
+                        f"VALUES ('{row_id}', 'se1')"
+                    )
+                )
+
+        with pytest.raises(
+            RuntimeError, match="more than one row for the same seismogram_id"
+        ):
+            command.upgrade(config, "4386151d11e2")
+
+    def test_stack_modified_seeded_from_last_modified(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The new `stack_modified` column is backfilled from `last_modified`."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "4386151d11e2")  # one revision before stack_modified
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent "
+                    "(id, time, latitude, longitude, last_modified) VALUES "
+                    "('ev1', '2020-01-01 00:00:00', 0.0, 0.0, '2021-06-01 12:00:00'), "
+                    "('ev2', '2020-02-01 00:00:00', 0.0, 0.0, NULL)"
+                )
+            )
+
+        command.upgrade(config, "2baa7d628f32")
+
+        with engine_from_file.begin() as connection:
+            rows = {
+                row[0]: (row[1], row[2])
+                for row in connection.execute(
+                    text("SELECT id, last_modified, stack_modified FROM aimbatevent")
+                ).all()
+            }
+        assert rows["ev1"][1] == rows["ev1"][0]
+        assert rows["ev2"][1] is None
+
+    def test_stack_modified_trigger_ignores_mccc_params_after_migration(
+        self, engine_from_file: Engine
+    ) -> None:
+        """Post-migration, an MCCC-only parameter change bumps `last_modified`
+        but not `stack_modified`."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "2baa7d628f32")
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbateventparameters "
+                    "(id, event_id, completed, ramp_width, window_pre, window_post, "
+                    "bandpass_apply, bandpass_fmin, bandpass_fmax, min_cc, mccc_damp, "
+                    "mccc_min_cc, corners) VALUES "
+                    "('ep1', 'ev1', 0, 0.1, -1000000000, 1000000000, 0, 0.1, 1.0, "
+                    "0.5, 1.0, 0.5, 2)"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE aimbateventparameters SET mccc_damp = 5.0 WHERE id = 'ep1'"
+                )
+            )
+            row = connection.execute(
+                text(
+                    "SELECT last_modified, stack_modified FROM aimbatevent "
+                    "WHERE id = 'ev1'"
+                )
+            ).one()
+
+        assert row.last_modified is not None
+        assert row.stack_modified is None
 
     def test_upgrade_rejects_stamped_database_with_unrecognised_revision(
         self, engine_from_file: Engine

@@ -159,6 +159,31 @@ class TestIccsMcccInterplay:
                 assert s.quality is not None
                 assert s.quality.iccs_cc is None
 
+    def test_run_iccs_refreshes_min_cc_from_db(self, loaded_session: Session) -> None:
+        """A `min_cc` change does not rebuild the ICCS instance (it is not a
+        stack change), so `run_iccs` must refresh the autoselect threshold on
+        the instance before running - otherwise an autoselect run uses the
+        stale value baked in at construction."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        iccs_bound = create_iccs_instance(loaded_session, event)
+        assert iccs_bound.iccs.min_cc == event.parameters.min_cc
+
+        event.parameters.min_cc = 0.123
+        loaded_session.add(event.parameters)
+        loaded_session.commit()
+
+        # The instance is unchanged by the bare threshold edit...
+        assert not iccs_bound.is_stale(event)
+        assert iccs_bound.iccs.min_cc != 0.123
+
+        # ...but run_iccs picks it up.
+        run_iccs(
+            loaded_session, event, iccs_bound.iccs, autoflip=False, autoselect=True
+        )
+        assert iccs_bound.iccs.min_cc == 0.123
+
 
 class TestCcStats:
     """Tests for `core.cc_stats`."""

@@ -4,6 +4,7 @@ from pandas import Timedelta, Timestamp
 from sqlmodel import Session, select
 
 from aimbat.models import (
+    AimbatEvent,
     AimbatEventQuality,
     AimbatSeismogram,
     AimbatSeismogramQuality,
@@ -230,3 +231,57 @@ def test_trigger_null_event_quality_on_select_change(loaded_session: Session) ->
     assert event_quality.mccc_rmse is None
 
     # TODO: Add application-level logic to null seismogram quality metrics
+
+
+def _event_with_params(session: Session) -> AimbatEvent:
+    seis = session.exec(select(AimbatSeismogram)).first()
+    assert seis is not None
+    return seis.event
+
+
+def test_trigger_stack_modified_bumped_by_window_change(
+    loaded_session: Session,
+) -> None:
+    """A window change alters the aligned signal, so it bumps `stack_modified`."""
+    event = _event_with_params(loaded_session)
+    assert event.stack_modified is None
+
+    event.parameters.window_pre = event.parameters.window_pre - Timedelta(seconds=1)
+    loaded_session.add(event.parameters)
+    loaded_session.commit()
+
+    loaded_session.refresh(event)
+    assert event.stack_modified is not None
+
+
+def test_trigger_stack_modified_not_bumped_by_mccc_param_change(
+    loaded_session: Session,
+) -> None:
+    """An MCCC-only parameter leaves the ICCS stack unchanged: `last_modified`
+    bumps (general repaint signal) but `stack_modified` does not."""
+    event = _event_with_params(loaded_session)
+    assert event.stack_modified is None
+
+    event.parameters.mccc_damp = event.parameters.mccc_damp + 0.5
+    loaded_session.add(event.parameters)
+    loaded_session.commit()
+
+    loaded_session.refresh(event)
+    assert event.last_modified is not None
+    assert event.stack_modified is None
+
+
+def test_trigger_stack_modified_bumped_by_seismogram_t1_change(
+    loaded_session: Session,
+) -> None:
+    """A per-seismogram pick change alters the stack via that trace."""
+    seis = loaded_session.exec(select(AimbatSeismogram)).first()
+    assert seis is not None
+    assert seis.event.stack_modified is None
+
+    seis.parameters.t1 = Timestamp("2011-01-01T00:00:05", tz="UTC")
+    loaded_session.add(seis.parameters)
+    loaded_session.commit()
+
+    loaded_session.refresh(seis.event)
+    assert seis.event.stack_modified is not None

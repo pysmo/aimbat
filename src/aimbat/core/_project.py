@@ -82,9 +82,10 @@ def create_project(engine: Engine) -> None:
             # Trigger 1: Track last modification time when event parameters change.
             # Lists every event parameter except `completed`, which is bookkeeping
             # with no effect on ICCS/MCCC processing (it is likewise excluded from
-            # the snapshot parameter hashes in core/_snapshot.py). NB this is a
-            # superset of either hash's inputs — an MCCC-only parameter change
-            # bumps `last_modified` even though the ICCS stack is unchanged.
+            # the snapshot parameter hashes in core/_snapshot.py). `last_modified`
+            # is the general "something changed, repaint" signal for the TUI; the
+            # narrower `stack_modified` (triggers 1b/2b) is what drives ICCS
+            # staleness.
             connection.execute(
                 text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_params_update
@@ -114,6 +115,51 @@ def create_project(engine: Engine) -> None:
                 BEGIN
                     UPDATE aimbatevent
                     SET last_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                    WHERE id = (
+                        SELECT event_id FROM aimbatseismogram
+                        WHERE id = NEW.seismogram_id
+                    );
+                END;
+            """)
+            )
+
+            # Trigger 1b: Track when an event parameter that changes the ICCS
+            # stack is modified. This is the subset of trigger 1's columns that
+            # actually alter the aligned signal - matching trigger 3's WHEN
+            # clause - so `stack_modified` (and therefore ICCS-instance
+            # staleness) is not bumped by an MCCC-only or `min_cc` change.
+            # `min_cc` only feeds the autoselect threshold, which `run_iccs`
+            # refreshes on the instance per run.
+            connection.execute(
+                text("""
+                CREATE TRIGGER IF NOT EXISTS event_stack_modified_on_params_update
+                AFTER UPDATE ON aimbateventparameters
+                WHEN (NEW.window_pre IS NOT OLD.window_pre)
+                  OR (NEW.window_post IS NOT OLD.window_post)
+                  OR (NEW.ramp_width IS NOT OLD.ramp_width)
+                  OR (NEW.bandpass_apply IS NOT OLD.bandpass_apply)
+                  OR (NEW.bandpass_fmin IS NOT OLD.bandpass_fmin)
+                  OR (NEW.bandpass_fmax IS NOT OLD.bandpass_fmax)
+                  OR (NEW.corners IS NOT OLD.corners)
+                BEGIN
+                    UPDATE aimbatevent SET stack_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                    WHERE id = NEW.event_id;
+                END;
+            """)
+            )
+
+            # Trigger 2b: Track when a per-seismogram parameter that changes the
+            # ICCS stack (t1, flip, select) is modified.
+            connection.execute(
+                text("""
+                CREATE TRIGGER IF NOT EXISTS event_stack_modified_on_seis_params_update
+                AFTER UPDATE ON aimbatseismogramparameters
+                WHEN (NEW.t1 IS NOT OLD.t1)
+                  OR (NEW.flip IS NOT OLD.flip)
+                  OR (NEW."select" IS NOT OLD."select")
+                BEGIN
+                    UPDATE aimbatevent
+                    SET stack_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
                     WHERE id = (
                         SELECT event_id FROM aimbatseismogram
                         WHERE id = NEW.seismogram_id

@@ -382,7 +382,7 @@ class TestICCSStalenessRetry:
     See `AimbatTUI._check_iccs_staleness` / `_create_iccs`: a fresh (non-retry)
     failure sets `IccsLifecycle.retry_pending`, which the staleness poller
     consumes at most once before falling silent again until
-    `event.last_modified` changes.
+    `event.stack_modified` changes.
     """
 
     def test_retries_once_then_stops_on_persistent_failure(
@@ -417,8 +417,8 @@ class TestICCSStalenessRetry:
                 assert event is not None
                 app._current_event_id = event.id
                 # Mirror what `_check_iccs_staleness` records before a fresh
-                # attempt, so later polls see an unchanged `last_modified`.
-                app._iccs_lifecycle.note_checked(event.last_modified)
+                # attempt, so later polls see an unchanged `stack_modified`.
+                app._iccs_lifecycle.note_checked(event.stack_modified)
 
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -473,7 +473,7 @@ class TestICCSStalenessRetry:
                     event = session.exec(select(AimbatEvent)).first()
                 assert event is not None
                 app._current_event_id = event.id
-                app._iccs_lifecycle.note_checked(event.last_modified)
+                app._iccs_lifecycle.note_checked(event.stack_modified)
 
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -507,7 +507,7 @@ class TestICCSStalenessRetry:
         class _SimulatedError(Exception):
             pass
 
-        def _always_raises(self: IccsLifecycle, last_modified: object) -> None:
+        def _always_raises(self: IccsLifecycle, stack_modified: object) -> None:
             raise _SimulatedError("simulated failure recording note_checked")
 
         monkeypatch.setattr(IccsLifecycle, "note_checked", _always_raises)
@@ -537,6 +537,59 @@ class TestICCSStalenessRetry:
 
 
 @pytest.mark.slow
+class TestStalenessUIRefresh:
+    """An external non-stack parameter change repaints the panels without
+    rebuilding the ICCS instance. See `_IccsLifecycleMixin._check_iccs_staleness`.
+    """
+
+    def test_mccc_param_change_refreshes_ui_without_rebuilding_iccs(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app._current_event_id = event.id
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                bound_before = app._iccs_lifecycle.bound
+                assert bound_before is not None
+
+                refreshes: list[str] = []
+                monkeypatch.setattr(
+                    AimbatTUI, "refresh_all", lambda self: refreshes.append("r")
+                )
+                rebuilds: list[str] = []
+                monkeypatch.setattr(
+                    AimbatTUI,
+                    "_create_iccs",
+                    lambda self, *, is_retry=False: rebuilds.append("c"),
+                )
+
+                # Another process bumps an MCCC-only parameter.
+                with Session(loaded_engine_from_file) as session:
+                    ev = session.get(AimbatEvent, event.id)
+                    assert ev is not None
+                    ev.parameters.mccc_damp = ev.parameters.mccc_damp + 0.5
+                    session.add(ev.parameters)
+                    session.commit()
+
+                app._check_iccs_staleness()
+                await pilot.pause()
+
+                assert refreshes == ["r"]
+                assert rebuilds == []
+                assert app._iccs_lifecycle.bound is bound_before
+
+        asyncio.run(_run())
+
+
 class TestIccsAssignmentRace:
     """A worker completing for an event that is no longer current is discarded.
 
