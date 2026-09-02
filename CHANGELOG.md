@@ -16,12 +16,22 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Refresh all TUI panels after mutations, not just the active one
 - Roll back session after failed automatic snapshot
 - Address findings from full-codebase review
+- **(types)** Read bare-number Timedeltas as seconds in SAPandasTimedelta
+- **(types)** Reject NaT in PydanticTimestamp/PydanticTimedelta
+- **(core)** Harden ICCS/MCCC quality writes
+- **(tui)** Rebuild ICCS after parameter-changing tools; crash-safe note autosave
+- **(models)** Enforce one note per parent record
+- **(tui)** Refresh every panel after a select/flip toggle
+- **(db)** Hold the staleness lock for the whole check, not just the flag
+- **(core)** Stop write_back_seismograms from committing the caller's session
+- **(core)** Dump_event_table always returns list[dict]
 
 ### 📚 Documentation
 
 - Overhaul documentation and enforce docstring linting
 - Scope --alias flag to CLI/shell in results export docs
 - Render settings defaults via zensical macros instead of hand-typing/shelling out
+- **(core)** Explain the load-bearing commit order in run_mccc / run_iccs
 
 ### 📦 Miscellaneous
 
@@ -30,6 +40,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 ### 🔧 Refactoring
 
 - **(tui)** Split app.py god object, dedupe core/_iccs helpers
+- **(models)** [**breaking**] Narrow AimbatSeismogram to the pysmo Seismogram interface
 
 ### 🚀 New Features
 
@@ -49,10 +60,6 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 - Artifact@v4
 - Use vcs versioning
-
-### 🎨 Styling
-
-- Switch to formatting with black
 
 ### 🐛 Bug Fixes
 
@@ -79,7 +86,6 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 ### 📦 Miscellaneous
 
-- Ignore black commit in git blame
 - Add py312 to matrix
 - Switch to uv
 - Rename some commands to group them a bit better
