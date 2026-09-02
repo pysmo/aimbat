@@ -1404,6 +1404,35 @@ class TestRunToolRebuildsIccs:
         self._run_with_tool(loaded_engine_from_file, monkeypatch, "stack", calls)
         assert calls == []
 
+    def test_view_only_tool_leaves_created_at_untouched(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Bumping created_at after a view-only tool would mask an external
+        commit made while the plot window was open, defeating the staleness
+        poller.
+        """
+        self._prepare(monkeypatch, loaded_engine_from_file)
+
+        async def _run() -> tuple[object, object]:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app._current_event_id = event.id
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                bound = app._iccs_lifecycle.bound
+                assert bound is not None
+                before = bound.created_at
+                app._run_tool("stack", True, False, None)
+                await pilot.pause()
+                return before, bound.created_at
+
+        before, after = asyncio.run(_run())
+        assert before == after
+
 
 @pytest.mark.slow
 class TestToggleSeismogramBoolRefresh:

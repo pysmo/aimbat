@@ -834,9 +834,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             return
 
         if tool in VIEW_ONLY_TOOLS:
-            # Nothing changed. suspend() is synchronous, so the staleness poller
-            # cannot fire between here and this assignment.
-            bound.created_at = Timestamp.now("UTC")
+            # A display-only tool changed nothing; just repaint. Deliberately
+            # leave bound.created_at alone - bumping it would mask an external
+            # commit (a CLI edit, an align worker) made while the plot window
+            # was open, so the staleness poller could no longer rebuild.
             self.refresh_all()
         else:
             # The tool persisted a parameter or pick change: the triggers have

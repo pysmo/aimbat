@@ -163,6 +163,15 @@ class TestSAPandasTimedelta:
             seconds=-12.5
         )
 
+    def test_process_bind_param_rejects_nat_string(
+        self, sa_timedelta: SAPandasTimedelta, mock_dialect: Dialect
+    ) -> None:
+        """The string "NaT" coerces to a Timedelta NaT; reject it rather than
+        storing the iNaT sentinel integer - matching `PydanticTimedelta`.
+        """
+        with pytest.raises(ValueError, match="NaT"):
+            sa_timedelta.process_bind_param("NaT", mock_dialect)
+
     def test_process_result_value_none(
         self, sa_timedelta: SAPandasTimedelta, mock_dialect: Dialect
     ) -> None:

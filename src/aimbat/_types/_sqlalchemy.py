@@ -107,12 +107,23 @@ class SAPandasTimedelta(TypeDecorator):
 
         Returns:
             Duration in nanoseconds, or `None` if `value` is null.
+
+        Raises:
+            ValueError: If `value` is a non-null input that coerces to `NaT`
+                (e.g. the string `"NaT"`), matching `PydanticTimedelta`.
         """
         if pd.isnull(value):
             return None
 
+        result = coerce_to_timedelta(value)
+        if pd.isnull(result):
+            # A string like "NaT" slips past the null check above, but pandas
+            # parses it to a Timedelta NaT that would otherwise be stored as
+            # the iNaT sentinel integer.
+            raise ValueError("Timedelta value cannot be NaT")
+
         # Explicit int cast for safety with some SQL drivers
-        return int(coerce_to_timedelta(value).value)
+        return int(result.value)
 
     def process_result_value(self, value: Any, dialect: Dialect) -> Timedelta | None:
         """Convert a stored nanosecond count back to a `Timedelta`.

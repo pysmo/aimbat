@@ -288,6 +288,40 @@ class TestUpgradeProject:
         with pytest.raises(SchemaMismatchError):
             upgrade_project(engine_from_file)
 
+    def test_upgrade_fails_clearly_on_pre_existing_duplicate_notes(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The per-parent-unique-index migration must name the offending
+        parent rather than raising a bare "UNIQUE constraint failed" when the
+        project already has two notes for the same event.
+        """
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "ca35a8b78a91")  # one revision before the index
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            for note_id in ("n1", "n2"):
+                connection.execute(
+                    text(
+                        "INSERT INTO aimbatnote (id, content, event_id) "
+                        f"VALUES ('{note_id}', 'dupe', 'ev1')"
+                    )
+                )
+
+        with pytest.raises(
+            RuntimeError, match="more than one row for the same event_id"
+        ):
+            command.upgrade(config, "c7ba9d07fa0a")
+
     def test_upgrade_rejects_stamped_database_with_unrecognised_revision(
         self, engine_from_file: Engine
     ) -> None:
