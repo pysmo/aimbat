@@ -278,10 +278,11 @@ class TestToggleEventCompleted:
     def test_toggle_does_not_clear_mccc_quality(self, loaded_session: Session) -> None:
         """Verifies toggling `completed` leaves MCCC quality untouched.
 
-        `completed` is deliberately excluded from the parameters hash used
-        for snapshot matching (see `compute_parameters_hash`), so this must
-        not go through `set_event_parameter`'s snapshot-sync/MCCC-invalidation
-        path the way real processing parameters do.
+        `completed` is deliberately excluded from both parameter hashes used
+        for snapshot matching (see `compute_iccs_hash` / `compute_mccc_hash`),
+        so this must not go through `set_event_parameter`'s
+        snapshot-sync/MCCC-invalidation path the way real processing
+        parameters do.
 
         Args:
             loaded_session: The database session.
@@ -304,9 +305,9 @@ class TestToggleEventCompleted:
         """Verifies toggling `completed` leaves `last_modified` untouched.
 
         Regression test: the `event_modified_on_params_update` trigger must
-        exclude `completed`, the same way `compute_parameters_hash` does, so
-        that a bookkeeping-only change does not force a live ICCS instance to
-        be treated as stale (see core/_project.py trigger 1).
+        exclude `completed`, the same way the parameter hashes do, so that a
+        bookkeeping-only change does not force a live ICCS instance to be
+        treated as stale (see core/_project.py trigger 1).
 
         Args:
             loaded_session: The database session.

@@ -361,7 +361,11 @@ def set_event_parameter(
             new value.
     """
     from ._iccs import clear_mccc_quality
-    from ._snapshot import compute_parameters_hash, sync_from_matching_hash
+    from ._snapshot import (
+        compute_iccs_hash,
+        compute_mccc_hash,
+        sync_from_matching_hash,
+    )
 
     logger.debug(f"Setting {name=} to {value} for event {event_id=}.")
 
@@ -387,8 +391,13 @@ def set_event_parameter(
 
     setattr(event.parameters, name, getattr(parameters, name))
     session.add(event)
-    parameters_hash = compute_parameters_hash(event)
-    if not sync_from_matching_hash(session, parameters_hash):
+    result = sync_from_matching_hash(
+        session,
+        event.id,
+        iccs_hash=compute_iccs_hash(event),
+        mccc_hash=compute_mccc_hash(event),
+    )
+    if not result.mccc_synced:
         clear_mccc_quality(session, event)
     session.commit()
 

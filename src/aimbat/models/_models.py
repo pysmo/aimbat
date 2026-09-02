@@ -387,10 +387,15 @@ class AimbatSnapshot(SQLModel, table=True):
         default=False,
         description="Whether this snapshot was created automatically, e.g. by `data add`.",
     )
-    parameters_hash: str | None = Field(
+    mccc_hash: str | None = Field(
         default=None,
-        title="Hash",
-        description="SHA-256 hash of event and seismogram parameters at creation time.",
+        title="MCCC hash",
+        description="SHA-256 hash of the parameters affecting MCCC output at creation time.",
+    )
+    iccs_hash: str | None = Field(
+        default=None,
+        title="ICCS hash",
+        description="SHA-256 hash of the parameters affecting ICCS output at creation time.",
     )
     event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
         back_populates="snapshot", cascade_delete=True

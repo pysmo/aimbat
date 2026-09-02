@@ -322,6 +322,40 @@ class TestUpgradeProject:
         ):
             command.upgrade(config, "c7ba9d07fa0a")
 
+    def test_hash_split_renames_parameters_hash_and_adds_iccs_hash(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The column rename preserves the stored value; `iccs_hash` starts NULL."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "c7ba9d07fa0a")  # one revision before the split
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatsnapshot (id, time, event_id, parameters_hash) "
+                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1', 'frozen-digest')"
+                )
+            )
+
+        command.upgrade(config, "490f0a998ee3")
+
+        with engine_from_file.begin() as connection:
+            row = connection.execute(
+                text("SELECT mccc_hash, iccs_hash FROM aimbatsnapshot WHERE id = 'sn1'")
+            ).one()
+        assert row.mccc_hash == "frozen-digest"
+        assert row.iccs_hash is None
+
     def test_upgrade_rejects_stamped_database_with_unrecognised_revision(
         self, engine_from_file: Engine
     ) -> None:

@@ -17,11 +17,10 @@ down_revision: str | None = "72c6b97febca"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# `completed` is bookkeeping with no effect on ICCS/MCCC processing and is
-# excluded from compute_parameters_hash for the same reason
-# (core/_snapshot.py) - this WHEN clause must list the same columns as that
-# function's exclude set to stay consistent. See
-# core/_project.py::create_project() - this body must stay byte-for-byte
+# `completed` is bookkeeping with no effect on ICCS/MCCC processing (it is
+# likewise excluded from the snapshot parameter hashes in
+# core/_snapshot.py) - this WHEN clause lists every other event parameter.
+# See core/_project.py::create_project() - this body must stay byte-for-byte
 # (modulo whitespace) in sync with there, checked by
 # tests/integration/core/test_migrations.py::test_same_triggers.
 

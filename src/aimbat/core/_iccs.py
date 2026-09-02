@@ -602,9 +602,10 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     """Write t1, flip, and select from ICCS seismograms back to the database.
 
     Flushes but does not commit - the caller owns the transaction and must
-    commit it (the invalidation triggers only fire on commit, and callers
-    that repopulate quality afterwards depend on controlling when that
-    happens).
+    commit it. The flush fires the quality-invalidation triggers (SQLite
+    AFTER UPDATE triggers run at statement execution), but callers that
+    repopulate quality afterwards - some from their own separate sessions -
+    depend on controlling when that nulling becomes visible.
 
     Args:
         session: Database session.
@@ -676,9 +677,9 @@ def run_iccs(
     n_iter = len(result.convergence)
     status = "converged" if result.converged else "did not converge"
     logger.info(f"ICCS {status} after {n_iter} iterations.")
-    # Committing the picks nulls `iccs_cc` via the invalidation triggers, so
-    # `_write_iccs_stats` must run after the commit to repopulate it (see
-    # `run_mccc` for the fuller ordering note).
+    # Writing the picks back nulls `iccs_cc` via the invalidation triggers, so
+    # `_write_iccs_stats` - which runs in its own session - must come after the
+    # commit to repopulate it (see `run_mccc` for the fuller ordering note).
     write_back_seismograms(session, iccs)
     session.commit()
     _write_iccs_stats(event.id, iccs)
@@ -709,13 +710,14 @@ def run_mccc(
         min_cc=event.parameters.mccc_min_cc,
         damping=event.parameters.mccc_damp,
     )
-    # Order is load-bearing. Committing the written-back `t1`/`flip`/`select`
-    # fires the quality-invalidation triggers that null `iccs_cc` and every
-    # MCCC quality column for this event. `_write_iccs_stats` must then
-    # repopulate `iccs_cc`, and `_write_mccc_quality` the MCCC columns, in
-    # that sequence. Reordering the calls (or a failure between them) leaves
-    # the quality tables half-nulled with no way to recover the missing half
-    # short of re-running the algorithm.
+    # Order is load-bearing. Writing back `t1`/`flip`/`select` fires the
+    # quality-invalidation triggers that null `iccs_cc` and every MCCC quality
+    # column for this event; the commit makes that visible to other sessions.
+    # `_write_iccs_stats` must then repopulate `iccs_cc`, and
+    # `_write_mccc_quality` the MCCC columns, in that sequence - both run in
+    # their own sessions. Reordering the calls (or a failure between them)
+    # leaves the quality tables half-nulled with no way to recover the missing
+    # half short of re-running the algorithm.
     write_back_seismograms(session, iccs)
     session.commit()
     _write_iccs_stats(event.id, iccs)
