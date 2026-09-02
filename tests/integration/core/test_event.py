@@ -334,15 +334,16 @@ class TestToggleEventCompleted:
 class TestDumpEventTableToJson:
     """Tests for serialising the event table to JSON."""
 
-    def test_default_returns_string(self, loaded_session: Session) -> None:
-        """Verifies that a JSON string is returned by default.
+    def test_default_returns_list(self, loaded_session: Session) -> None:
+        """Verifies that a list of dicts is returned by default.
 
         Args:
             loaded_session: The database session.
         """
         result = dump_event_table(loaded_session)
-        assert isinstance(result, str)
-        assert '"id":' in result
+        assert isinstance(result, list)
+        assert len(result) > 0
+        assert "id" in result[0]
 
     def test_from_read_model_returns_list(self, loaded_session: Session) -> None:
         """Verifies that a list of dicts is returned when from_read_model=True.

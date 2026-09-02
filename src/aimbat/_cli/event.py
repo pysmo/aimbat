@@ -89,7 +89,7 @@ def cli_event_dump(
     from aimbat.db import engine
 
     with Session(engine) as session:
-        print_json(dump_event_table(session, by_alias=dump_parameters.by_alias))
+        print_json(data=dump_event_table(session, by_alias=dump_parameters.by_alias))
 
 
 @app.command(name="list")
