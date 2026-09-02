@@ -70,7 +70,7 @@ class TestPydanticTimestamp:
     def test_rejects_nat(self) -> None:
         """Verifies that `pd.NaT` is rejected (a nullable field should use `None`)."""
         with pytest.raises(ValidationError):
-            _TimestampModel(value=NaT)
+            _TimestampModel(value=NaT)  # type: ignore[arg-type]
 
 
 class TestPydanticTimedelta:
@@ -89,7 +89,7 @@ class TestPydanticTimedelta:
     def test_rejects_nat(self) -> None:
         """Verifies that `NaT` is rejected rather than passing every constraint."""
         with pytest.raises(ValidationError):
-            _TimedeltaModel(value=NaT)
+            _TimedeltaModel(value=NaT)  # type: ignore[arg-type]
         with pytest.raises(ValidationError):
             _TimedeltaModel(value="NaT")  # type: ignore[arg-type]
 
@@ -148,7 +148,7 @@ class TestPydanticNegativeTimedelta:
             value: PydanticNegativeTimedelta
 
         with pytest.raises(ValidationError):
-            M(value=NaT)
+            M(value=NaT)  # type: ignore[arg-type]
 
 
 class TestPydanticPositiveTimedelta:

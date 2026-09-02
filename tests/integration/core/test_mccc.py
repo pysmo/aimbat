@@ -90,7 +90,9 @@ class TestMccc:
             assert seis_to_deselect.quality.mccc_cc_mean is None
 
 
-def _fake_mccc_result(n: int, cc_means: list[float], cc_stds: list[float]) -> McccResult:
+def _fake_mccc_result(
+    n: int, cc_means: list[float], cc_stds: list[float]
+) -> McccResult:
     """Build an `McccResult` with `n` picks/errors and the given CC lists."""
     return McccResult(
         picks=[Timestamp("2010-02-27T06:40:00", tz="UTC")] * n,

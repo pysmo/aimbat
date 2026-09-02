@@ -502,7 +502,7 @@ class AimbatSeismogram(SQLModel, table=True):
         # `data` and `end_time` are provided at runtime by the properties in
         # the `else` branch; declared here so type checkers see them as
         # attributes of the model.
-        data: npt.NDArray[np.float64] = np.array([])
+        data: npt.NDArray[np.floating] = np.array([])
 
         @property
         def end_time(self) -> Timestamp: ...
@@ -522,7 +522,7 @@ class AimbatSeismogram(SQLModel, table=True):
             return self.begin_time + self.delta * (len(self.data) - 1)
 
         @property
-        def data(self) -> npt.NDArray[np.float64]:
+        def data(self) -> npt.NDArray[np.floating]:
             """Seismogram waveform data array."""
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")
@@ -531,7 +531,7 @@ class AimbatSeismogram(SQLModel, table=True):
             )
 
         @data.setter
-        def data(self, value: npt.NDArray[np.float64]) -> None:
+        def data(self, value: npt.NDArray[np.floating]) -> None:
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")
             write_seismogram_data(
