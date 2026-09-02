@@ -233,6 +233,59 @@ class TestSetEventParameter:
             assert event.last_modified is not None
 
 
+class TestSetEventParameters:
+    """Tests for the batched multi-parameter writer."""
+
+    def test_batch_crosses_the_fmax_over_fmin_boundary(
+        self, loaded_session: Session
+    ) -> None:
+        """A new fmin above the old fmax fails one field at a time but is fine
+        as a batch (validated against the merged state)."""
+        from aimbat.core import set_event_parameters
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        event.parameters.bandpass_fmin = 0.5
+        event.parameters.bandpass_fmax = 2.0
+        loaded_session.add(event.parameters)
+        loaded_session.commit()
+
+        # One field at a time: raising fmin to 5 fails against the old fmax=2.
+        with pytest.raises(ValueError):
+            set_event_parameter(
+                loaded_session, event.id, EventParameter.BANDPASS_FMIN, 5.0
+            )
+
+        # As a batch it validates against fmin=5, fmax=10 together.
+        set_event_parameters(
+            loaded_session,
+            event.id,
+            {
+                EventParameter.BANDPASS_FMIN: 5.0,
+                EventParameter.BANDPASS_FMAX: 10.0,
+            },
+        )
+        assert event.parameters.bandpass_fmin == 5.0
+        assert event.parameters.bandpass_fmax == 10.0
+
+    def test_empty_mapping_is_a_noop(self, loaded_session: Session) -> None:
+        from aimbat.core import set_event_parameters
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        set_event_parameters(loaded_session, event.id, {})
+        loaded_session.refresh(event)
+        assert event.last_modified is None
+
+    def test_unknown_event_raises_even_with_empty_mapping(
+        self, loaded_session: Session
+    ) -> None:
+        from aimbat.core import set_event_parameters
+
+        with pytest.raises(NoResultFound):
+            set_event_parameters(loaded_session, uuid.uuid4(), {})
+
+
 class TestToggleEventCompleted:
     """Tests for flipping an event's `completed` flag."""
 

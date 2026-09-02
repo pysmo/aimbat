@@ -110,6 +110,20 @@ class TestCreateStationFromJson:
         with pytest.raises(FileNotFoundError):
             create_station_from_json(tmp_path / "missing.json")
 
+    def test_malformed_json_names_the_file(self, tmp_path: Path) -> None:
+        """A parse error is wrapped with the offending path, not raised raw."""
+        path = tmp_path / "broken.json"
+        path.write_text("{not json")
+        with pytest.raises(ValueError, match="broken.json is not valid JSON"):
+            create_station_from_json(path)
+
+    def test_utf8_content_is_read(self, tmp_path: Path) -> None:
+        """Non-ASCII station names round-trip regardless of platform encoding."""
+        path = tmp_path / "utf8_station.json"
+        data = {**_STATION_DATA, "name": "ÑOÑÓ"}
+        path.write_text(json.dumps(data), encoding="utf-8")
+        assert create_station_from_json(path).name == "ÑOÑÓ"
+
 
 # ===================================================================
 # create_event_from_json

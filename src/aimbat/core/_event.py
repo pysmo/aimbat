@@ -1,6 +1,6 @@
 """Query, update, and delete AimbatEvent records, their parameters, and their quality statistics."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Literal, overload
 from uuid import UUID
 
@@ -30,6 +30,7 @@ __all__ = [
     "get_events_using_station",
     "resolve_event",
     "set_event_parameter",
+    "set_event_parameters",
     "toggle_event_completed",
     "dump_event_table",
     "dump_event_parameter_table",
@@ -360,6 +361,35 @@ def set_event_parameter(
             when `validate_iccs` is True, if ICCS construction fails with the
             new value.
     """
+    set_event_parameters(session, event_id, {name: value}, validate_iccs=validate_iccs)
+
+
+def set_event_parameters(
+    session: Session,
+    event_id: UUID,
+    values: Mapping[EventParameter, Timedelta | bool | float | int | str],
+    *,
+    validate_iccs: bool = False,
+) -> None:
+    """Set several event parameters at once, validated as a group.
+
+    The whole update is validated against the merged parameter state, so a
+    combination of values that no single-field order could reach (e.g. a new
+    `bandpass_fmin` above the old `bandpass_fmax` alongside the new
+    `bandpass_fmax`) is accepted.
+
+    Args:
+        session: Database session.
+        event_id: UUID of the event to update.
+        values: Parameter name -> new value. An empty mapping is a no-op.
+        validate_iccs: If True, attempt ICCS construction with the new values
+            before committing. Raises and leaves the database unchanged on failure.
+
+    Raises:
+        NoResultFound: If no event with the given ID is found.
+        ValidationError: If any value fails Pydantic validation, or, when
+            `validate_iccs` is True, if ICCS construction fails.
+    """
     from ._iccs import clear_mccc_quality
     from ._snapshot import (
         compute_iccs_hash,
@@ -367,7 +397,8 @@ def set_event_parameter(
         sync_from_matching_hash,
     )
 
-    logger.debug(f"Setting {name=} to {value} for event {event_id=}.")
+    updates = {str(name): value for name, value in values.items()}
+    logger.debug(f"Setting {updates} for event {event_id=}.")
 
     event = session.exec(
         select(AimbatEvent)
@@ -382,14 +413,17 @@ def set_event_parameter(
     if event is None:
         raise NoResultFound(f"No AimbatEvent found with id: {event_id}.")
 
-    # Perform Pydantic validation (including optional ICCS validation)
+    if not updates:
+        return
+
     parameters = AimbatEventParametersBase.model_validate(
         event.parameters,
-        update={name: value},
+        update=updates,
         context={"validate_iccs": validate_iccs, "event": event},
     )
 
-    setattr(event.parameters, name, getattr(parameters, name))
+    for name in updates:
+        setattr(event.parameters, name, getattr(parameters, name))
     session.add(event)
     result = sync_from_matching_hash(
         session,

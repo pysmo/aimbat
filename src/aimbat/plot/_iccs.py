@@ -33,7 +33,7 @@ from pysmo.tools.iccs import (
 )
 
 from aimbat._types import EventParameter
-from aimbat.core._event import set_event_parameter
+from aimbat.core._event import set_event_parameter, set_event_parameters
 from aimbat.core._iccs import write_back_seismograms
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
@@ -135,16 +135,16 @@ def update_bandpass(
             f"apply={iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, "
             f"fmax={iccs.bandpass_fmax}, corners={iccs.corners}"
         )
-        set_event_parameter(
-            session, event.id, EventParameter.BANDPASS_APPLY, iccs.bandpass_apply
+        set_event_parameters(
+            session,
+            event.id,
+            {
+                EventParameter.BANDPASS_APPLY: iccs.bandpass_apply,
+                EventParameter.BANDPASS_FMIN: iccs.bandpass_fmin,
+                EventParameter.BANDPASS_FMAX: iccs.bandpass_fmax,
+                EventParameter.CORNERS: iccs.corners,
+            },
         )
-        set_event_parameter(
-            session, event.id, EventParameter.BANDPASS_FMIN, iccs.bandpass_fmin
-        )
-        set_event_parameter(
-            session, event.id, EventParameter.BANDPASS_FMAX, iccs.bandpass_fmax
-        )
-        set_event_parameter(session, event.id, EventParameter.CORNERS, iccs.corners)
         return None
 
     logger.warning(_RETURN_FIG_WARNING)
@@ -227,11 +227,13 @@ def update_timewindow(
             f"Saving new time window for event {event.id}: "
             f"pre={iccs.window_pre}, post={iccs.window_post}"
         )
-        set_event_parameter(
-            session, event.id, EventParameter.WINDOW_PRE, iccs.window_pre
-        )
-        set_event_parameter(
-            session, event.id, EventParameter.WINDOW_POST, iccs.window_post
+        set_event_parameters(
+            session,
+            event.id,
+            {
+                EventParameter.WINDOW_PRE: iccs.window_pre,
+                EventParameter.WINDOW_POST: iccs.window_post,
+            },
         )
         return None
 

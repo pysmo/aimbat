@@ -12,8 +12,10 @@ automatically when imported.
 
 from __future__ import annotations
 
+from collections import OrderedDict
+from collections.abc import Callable
 from os import PathLike
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -51,9 +53,13 @@ __all__ = [
     "supports_seismogram_data_writing",
     "supports_station_creation",
     "write_seismogram_data",
+    "clear_seismogram_data_cache",
 ]
 
-_cache: dict[tuple[str, DataType], npt.NDArray[np.floating]] = {}
+# LRU cache of waveform arrays keyed by (datasource, datatype); evicting an
+# entry only costs a re-read.
+_CACHE_MAX_ENTRIES = 1024
+_cache: OrderedDict[tuple[str, DataType], npt.NDArray[np.floating]] = OrderedDict()
 
 # Per-capability registries — populated by data source modules (e.g. _sac)
 _station_creators: dict[DataType, Callable[[str | PathLike[str]], AimbatStation]] = {}
@@ -402,12 +408,15 @@ def read_seismogram_data(
             f"{datatype} does not support reading seismogram data."
         )
     key = (str(datasource), datatype)
-    if key not in _cache:
+    if key in _cache:
+        logger.debug(f"Retrieved seismogram data from cache for {datasource}.")
+        _cache.move_to_end(key)
+    else:
         arr = reader(datasource)
         arr.flags.writeable = False
         _cache[key] = arr
-    else:
-        logger.debug(f"Retrieved seismogram data from cache for {datasource}.")
+        if len(_cache) > _CACHE_MAX_ENTRIES:
+            _cache.popitem(last=False)
     return _cache[key]
 
 
@@ -436,3 +445,8 @@ def write_seismogram_data(
         )
     writer(datasource, data)
     _cache.pop((str(datasource), datatype), None)
+
+
+def clear_seismogram_data_cache() -> None:
+    """Drop every entry from the in-memory waveform cache."""
+    _cache.clear()

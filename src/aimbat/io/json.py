@@ -50,6 +50,15 @@ __all__ = [
 ]
 
 
+def _load_json(path: str | PathLike[str]) -> object:
+    """Read and parse a UTF-8 JSON file, naming the file on a parse error."""
+    with open(path, encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path} is not valid JSON: {exc}") from exc
+
+
 @station_creator(DataType.JSON_STATION)
 def create_station_from_json(path: str | PathLike[str]) -> AimbatStation:
     """Create an `AimbatStation` from a JSON file.
@@ -64,9 +73,7 @@ def create_station_from_json(path: str | PathLike[str]) -> AimbatStation:
 
     logger.debug(f"Reading station data from {path}.")
 
-    with open(path) as f:
-        data = json.load(f)
-    return AimbatStation.model_validate(data)
+    return AimbatStation.model_validate(_load_json(path))
 
 
 @event_creator(DataType.JSON_EVENT)
@@ -83,8 +90,6 @@ def create_event_from_json(path: str | PathLike[str]) -> AimbatEvent:
 
     logger.debug(f"Reading event data from {path}.")
 
-    with open(path) as f:
-        data = json.load(f)
-    event = AimbatEvent.model_validate(data)
+    event = AimbatEvent.model_validate(_load_json(path))
     event.parameters = AimbatEventParameters()
     return event
