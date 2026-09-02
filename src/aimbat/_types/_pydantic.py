@@ -8,7 +8,7 @@ values, and a non-negative float constraint.
 
 from typing import Annotated, Any, Callable, ClassVar, cast
 
-from pandas import Timedelta, Timestamp
+from pandas import Timedelta, Timestamp, isna
 from pydantic import AfterValidator, Field, PlainSerializer
 from pydantic_core.core_schema import CoreSchema, no_info_plain_validator_function
 
@@ -80,6 +80,11 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
                     raise ValueError(
                         f"Could not parse {cls.target_type.__name__}: {e}"
                     ) from e
+            if isna(result):
+                # `NaT` slips past the numeric comparisons in the constrained
+                # validators below (every `NaT >= 0` etc. is False), so reject
+                # it here; a nullable field should use `None`.
+                raise ValueError(f"{cls.target_type.__name__} value cannot be NaT")
             if cls.target_type is Timestamp and cast(Timestamp, result).tzinfo is None:
                 raise ValueError(
                     f"Timestamp value must be timezone-aware (UTC), got naive "
