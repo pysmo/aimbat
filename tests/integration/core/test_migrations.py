@@ -9,7 +9,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlmodel import Session, select
 
 import aimbat._migrations
@@ -322,6 +322,226 @@ class TestUpgradeProject:
         ):
             command.upgrade(config, "c7ba9d07fa0a")
 
+    def test_hash_split_renames_parameters_hash_and_adds_iccs_hash(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The column rename preserves the stored value; `iccs_hash` starts NULL."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "c7ba9d07fa0a")  # one revision before the split
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatsnapshot (id, time, event_id, parameters_hash) "
+                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1', 'frozen-digest')"
+                )
+            )
+
+        command.upgrade(config, "490f0a998ee3")
+
+        with engine_from_file.begin() as connection:
+            row = connection.execute(
+                text("SELECT mccc_hash, iccs_hash FROM aimbatsnapshot WHERE id = 'sn1'")
+            ).one()
+        assert row.mccc_hash == "frozen-digest"
+        assert row.iccs_hash is None
+
+    def test_snapshot_durability_backfills_seismogram_id(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The new `seismogram_id` column is filled from the live parameter /
+        quality row each snapshot record points at."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "490f0a998ee3")  # one revision before durability
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatstation "
+                    "(id, name, network, location, channel, latitude, longitude) "
+                    "VALUES ('st1', 'AAK', 'II', '00', 'BHZ', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogram "
+                    "(id, begin_time, delta, t0, event_id, station_id) "
+                    "VALUES ('se1', '2020-01-01 00:00:00', 20000000, "
+                    "'2020-01-01 00:00:10', 'ev1', 'st1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramparameters "
+                    '(id, "select", flip, seismogram_id) '
+                    "VALUES ('sp1', 1, 0, 'se1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramquality (id, iccs_cc, seismogram_id) "
+                    "VALUES ('sq1', 0.5, 'se1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatsnapshot (id, time, event_id) "
+                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramparameterssnapshot "
+                    '(id, "select", flip, seismogram_parameters_id, snapshot_id) '
+                    "VALUES ('pps1', 1, 0, 'sp1', 'sn1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramqualitysnapshot "
+                    "(id, iccs_cc, seismogram_quality_id, snapshot_id) "
+                    "VALUES ('qqs1', 0.5, 'sq1', 'sn1')"
+                )
+            )
+
+        command.upgrade(config, "d08f5f734f78")
+
+        with engine_from_file.begin() as connection:
+            pps = connection.execute(
+                text(
+                    "SELECT seismogram_id FROM aimbatseismogramparameterssnapshot "
+                    "WHERE id = 'pps1'"
+                )
+            ).one()
+            qqs = connection.execute(
+                text(
+                    "SELECT seismogram_id FROM aimbatseismogramqualitysnapshot "
+                    "WHERE id = 'qqs1'"
+                )
+            ).one()
+        assert pps.seismogram_id == "se1"
+        assert qqs.seismogram_id == "se1"
+
+    def test_sequence_backfill_numbers_snapshots_per_event_by_time(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The `sequence` backfill numbers each event's snapshots 1..N in
+        `time` order."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "d08f5f734f78")  # one revision before sequence
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) VALUES "
+                    "('ev1', '2019-01-01 00:00:00', 0.0, 0.0), "
+                    "('ev2', '2019-02-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatsnapshot (id, time, event_id) VALUES "
+                    "('a', '2020-03-01 00:00:00', 'ev1'), "
+                    "('b', '2020-01-01 00:00:00', 'ev1'), "
+                    "('c', '2020-02-01 00:00:00', 'ev1'), "
+                    "('d', '2020-01-15 00:00:00', 'ev2')"
+                )
+            )
+
+        command.upgrade(config, "d52a54a8a665")
+
+        with engine_from_file.begin() as connection:
+            rows = {
+                row[0]: row[1]
+                for row in connection.execute(
+                    text("SELECT id, sequence FROM aimbatsnapshot")
+                ).all()
+            }
+        assert rows == {"b": 1, "c": 2, "a": 3, "d": 1}
+
+    def test_sequence_migration_keeps_snapshot_detail_rows(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The batch rebuild of `aimbatsnapshot` must not cascade-delete the
+        four detail tables (it does if FK enforcement is left on)."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "d08f5f734f78")
+
+        base_params = (
+            "completed, ramp_width, window_pre, window_post, bandpass_apply, "
+            "bandpass_fmin, bandpass_fmax, min_cc, mccc_damp, mccc_min_cc, corners"
+        )
+        base_values = "0, 0.1, -1000000000, 1000000000, 0, 0.1, 1.0, 0.5, 1.0, 0.5, 2"
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatsnapshot (id, time, event_id) "
+                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1')"
+                )
+            )
+            connection.execute(
+                text(
+                    f"INSERT INTO aimbateventparameterssnapshot (id, snapshot_id, "
+                    f"{base_params}) VALUES ('eps1', 'sn1', {base_values})"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbateventqualitysnapshot (id, snapshot_id, mccc_rmse) "
+                    "VALUES ('eqs1', 'sn1', 1000000)"
+                )
+            )
+
+        command.upgrade(config, "d52a54a8a665")
+
+        with engine_from_file.begin() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT COUNT(*) FROM aimbateventparameterssnapshot")
+                ).scalar()
+                == 1
+            )
+            assert (
+                connection.execute(
+                    text("SELECT COUNT(*) FROM aimbateventqualitysnapshot")
+                ).scalar()
+                == 1
+            )
+
     def test_upgrade_rejects_stamped_database_with_unrecognised_revision(
         self, engine_from_file: Engine
     ) -> None:
@@ -363,6 +583,13 @@ class TestOldDatabaseRegressionFixture:
             db_path,
         )
         engine = create_engine(f"sqlite+pysqlite:///{db_path}")
+
+        @event.listens_for(engine, "connect")
+        def _fk_pragma(dbapi_connection: object, _: object) -> None:
+            cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
         yield engine
         engine.dispose()
 
@@ -376,16 +603,27 @@ class TestOldDatabaseRegressionFixture:
         assert get_current_revision(old_project_engine) == get_head_revision()
 
     def test_upgrade_preserves_existing_rows(self, old_project_engine: Engine) -> None:
+        with old_project_engine.connect() as connection:
+            snapshot_detail_before = connection.execute(
+                text("SELECT COUNT(*) FROM aimbatseismogramparameterssnapshot")
+            ).scalar()
+        assert snapshot_detail_before and snapshot_detail_before > 0
+
         upgrade_project(old_project_engine)
 
         with Session(old_project_engine) as session:
             events = session.exec(select(AimbatEvent)).all()
             seismograms = session.exec(select(AimbatSeismogram)).all()
             snapshots = session.exec(select(AimbatSnapshot)).all()
+        with old_project_engine.connect() as connection:
+            snapshot_detail_after = connection.execute(
+                text("SELECT COUNT(*) FROM aimbatseismogramparameterssnapshot")
+            ).scalar()
 
         assert len(events) == 1
         assert len(seismograms) == 3
         assert len(snapshots) == 1
+        assert snapshot_detail_after == snapshot_detail_before
 
 
 _FIRST_REVISION = """

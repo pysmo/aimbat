@@ -173,15 +173,25 @@ def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
 
     from ._iccs import clear_mccc_quality
-    from ._snapshot import compute_parameters_hash, sync_from_matching_hash
+    from ._snapshot import (
+        compute_iccs_hash,
+        compute_mccc_hash,
+        sync_from_matching_hash,
+    )
 
     defaults = AimbatSeismogramParametersBase()
     for field_name in AimbatSeismogramParametersBase.model_fields:
         setattr(seismogram.parameters, field_name, getattr(defaults, field_name))
     session.add(seismogram)
-    parameters_hash = compute_parameters_hash(seismogram.event)
-    if not sync_from_matching_hash(session, parameters_hash):
-        clear_mccc_quality(session, seismogram.event)
+    event = seismogram.event
+    result = sync_from_matching_hash(
+        session,
+        event.id,
+        iccs_hash=compute_iccs_hash(event),
+        mccc_hash=compute_mccc_hash(event),
+    )
+    if not result.mccc_synced:
+        clear_mccc_quality(session, event)
     session.commit()
 
 
@@ -231,7 +241,11 @@ def set_seismogram_parameter(
         ValidationError: If `value` fails Pydantic validation for `name`.
     """
     from ._iccs import clear_mccc_quality
-    from ._snapshot import compute_parameters_hash, sync_from_matching_hash
+    from ._snapshot import (
+        compute_iccs_hash,
+        compute_mccc_hash,
+        sync_from_matching_hash,
+    )
 
     logger.debug(
         f"Setting seismogram {name=} to {value=} in seismogram {seismogram_id=}."
@@ -258,9 +272,15 @@ def set_seismogram_parameter(
     )
     setattr(seismogram.parameters, name, getattr(parameters, name))
     session.add(seismogram)
-    parameters_hash = compute_parameters_hash(seismogram.event)
-    if not sync_from_matching_hash(session, parameters_hash):
-        clear_mccc_quality(session, seismogram.event)
+    event = seismogram.event
+    result = sync_from_matching_hash(
+        session,
+        event.id,
+        iccs_hash=compute_iccs_hash(event),
+        mccc_hash=compute_mccc_hash(event),
+    )
+    if not result.mccc_synced:
+        clear_mccc_quality(session, event)
     session.commit()
 
 

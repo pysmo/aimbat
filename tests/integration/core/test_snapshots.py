@@ -9,7 +9,8 @@ from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, col, select
 
 from aimbat.core._snapshot import (
-    compute_parameters_hash,
+    compute_iccs_hash,
+    compute_mccc_hash,
     create_snapshot,
     delete_snapshot,
     dump_event_parameter_snapshot_table,
@@ -26,6 +27,7 @@ from aimbat.models import (
     AimbatEvent,
     AimbatEventQuality,
     AimbatSeismogram,
+    AimbatSeismogramParametersSnapshot,
     AimbatSeismogramQuality,
     AimbatSnapshot,
 )
@@ -467,6 +469,30 @@ class TestRollbackToSnapshot:
         with pytest.raises(ValueError):
             rollback_to_snapshot(loaded_session, uuid.uuid4())
 
+    def test_rollback_skips_a_seismogram_deleted_after_the_snapshot(
+        self, loaded_session: Session
+    ) -> None:
+        """A snapshot's frozen row for a since-deleted seismogram has no live
+        parameter row to restore into; rollback must skip it, not crash."""
+        from aimbat.core import delete_seismogram
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        deleted_id = event.seismograms[0].id
+        delete_seismogram(loaded_session, deleted_id)
+
+        rollback_to_snapshot(loaded_session, snapshot.id)  # must not raise
+
+        orphan = loaded_session.exec(
+            select(AimbatSeismogramParametersSnapshot).where(
+                col(AimbatSeismogramParametersSnapshot.seismogram_id) == deleted_id
+            )
+        ).one()
+        assert orphan.seismogram_parameters_id is None
+
 
 class TestGetSnapshots:
     """Tests for retrieving snapshots from the database."""
@@ -521,59 +547,124 @@ class TestGetSnapshots:
         assert len(get_snapshots(loaded_session, event_id=event.id)) == 2
 
 
-class TestComputeParametersHash:
-    """Tests for the parameter hashing logic."""
+class TestSnapshotSequence:
+    """The per-event `sequence` counter, not the microsecond `time`, is the
+    definitive snapshot ordering."""
 
-    def test_hash_is_deterministic(self, loaded_session: Session) -> None:
-        """Verifies that the same parameters produce the same hash."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
-        h1 = compute_parameters_hash(event)
-        h2 = compute_parameters_hash(event)
-        assert h1 == h2
-
-    def test_hash_changes_with_event_parameters(self, loaded_session: Session) -> None:
-        """Verifies that changing an event parameter changes the hash."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
-        h1 = compute_parameters_hash(event)
-        event.parameters.min_cc += 0.1
-        h2 = compute_parameters_hash(event)
-        assert h1 != h2
-
-    def test_hash_changes_with_seismogram_parameters(
+    def test_back_to_back_snapshots_get_consecutive_sequences(
         self, loaded_session: Session
     ) -> None:
-        """Verifies that changing a seismogram parameter changes the hash."""
+        """Two `create_snapshot` calls in immediate succession must not collide
+        (the old microsecond-unique `time` column could)."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        h1 = compute_parameters_hash(event)
-        event.seismograms[0].parameters.flip = not event.seismograms[0].parameters.flip
-        h2 = compute_parameters_hash(event)
-        assert h1 != h2
+        for _ in range(5):
+            create_snapshot(loaded_session, event)
+        snaps = get_snapshots(loaded_session, event_id=event.id)
+        assert sorted(s.sequence for s in snaps) == [1, 2, 3, 4, 5]
 
-    def test_hash_ignores_excluded_fields(self, loaded_session: Session) -> None:
-        """Verifies that changing completed or select does not change the hash."""
+    def test_sequence_is_per_event(self, loaded_session: Session) -> None:
+        """Each event numbers its own snapshots from 1."""
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        assert len(events) >= 2
+        create_snapshot(loaded_session, events[0])
+        create_snapshot(loaded_session, events[0])
+        create_snapshot(loaded_session, events[1])
+        assert sorted(
+            s.sequence for s in get_snapshots(loaded_session, event_id=events[0].id)
+        ) == [1, 2]
+        assert [
+            s.sequence for s in get_snapshots(loaded_session, event_id=events[1].id)
+        ] == [1]
+
+
+class TestComputeHashes:
+    """Tests for the ICCS and MCCC parameter hashing logic."""
+
+    def test_hashes_are_deterministic(self, loaded_session: Session) -> None:
+        """The same parameters produce the same digests."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        h1 = compute_parameters_hash(event)
-        event.parameters.completed = not event.parameters.completed
+        assert compute_iccs_hash(event) == compute_iccs_hash(event)
+        assert compute_mccc_hash(event) == compute_mccc_hash(event)
+
+    def test_window_change_affects_both_hashes(self, loaded_session: Session) -> None:
+        """A window change alters the signal both algorithms see."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs_before, mccc_before = compute_iccs_hash(event), compute_mccc_hash(event)
+        event.parameters.window_post = event.parameters.window_post + Timedelta(
+            seconds=1
+        )
+        assert compute_iccs_hash(event) != iccs_before
+        assert compute_mccc_hash(event) != mccc_before
+
+    def test_seismogram_flip_affects_both_hashes(self, loaded_session: Session) -> None:
+        """`flip` changes the stack and the MCCC inputs."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs_before, mccc_before = compute_iccs_hash(event), compute_mccc_hash(event)
+        event.seismograms[0].parameters.flip = not event.seismograms[0].parameters.flip
+        assert compute_iccs_hash(event) != iccs_before
+        assert compute_mccc_hash(event) != mccc_before
+
+    def test_select_change_affects_iccs_hash_only(
+        self, loaded_session: Session
+    ) -> None:
+        """`select` changes the ICCS stack but not the MCCC computation."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs_before, mccc_before = compute_iccs_hash(event), compute_mccc_hash(event)
         event.seismograms[0].parameters.select = not event.seismograms[
             0
         ].parameters.select
-        h2 = compute_parameters_hash(event)
-        assert h1 == h2
+        assert compute_iccs_hash(event) != iccs_before
+        assert compute_mccc_hash(event) == mccc_before
+
+    def test_min_cc_change_affects_neither_hash(self, loaded_session: Session) -> None:
+        """`min_cc` only reaches `iccs_cc` via `select` on the next run, and
+        `select` is already hashed - a bare threshold change invalidates
+        nothing."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs_before, mccc_before = compute_iccs_hash(event), compute_mccc_hash(event)
+        event.parameters.min_cc = event.parameters.min_cc / 2 + 0.1
+        assert compute_iccs_hash(event) == iccs_before
+        assert compute_mccc_hash(event) == mccc_before
+
+    def test_mccc_damp_change_affects_mccc_hash_only(
+        self, loaded_session: Session
+    ) -> None:
+        """`mccc_damp` drives the MCCC inversion but not ICCS."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs_before, mccc_before = compute_iccs_hash(event), compute_mccc_hash(event)
+        event.parameters.mccc_damp = event.parameters.mccc_damp + 1.0
+        assert compute_iccs_hash(event) == iccs_before
+        assert compute_mccc_hash(event) != mccc_before
+
+    def test_completed_change_affects_neither_hash(
+        self, loaded_session: Session
+    ) -> None:
+        """`completed` is bookkeeping and excluded from both hashes."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs_before, mccc_before = compute_iccs_hash(event), compute_mccc_hash(event)
+        event.parameters.completed = not event.parameters.completed
+        assert compute_iccs_hash(event) == iccs_before
+        assert compute_mccc_hash(event) == mccc_before
 
 
 class TestSyncFromMatchingHash:
-    """Tests for syncing quality metrics from matching hashes."""
+    """Tests for syncing quality metrics from matching snapshots."""
 
-    def test_sync_from_matching_hash(self, loaded_session: Session) -> None:
-        """Verifies that quality is synced when the hash matches."""
+    def test_syncs_mccc_quality_on_mccc_hash_match(
+        self, loaded_session: Session
+    ) -> None:
+        """MCCC diagnostics are restored when the MCCC hash matches."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
-        # Write quality data and take snapshot
         seis_ids = [s.id for s in event.seismograms]
         select_flags = [s.parameters.select for s in event.seismograms]
         _write_mock_mccc_quality(
@@ -581,9 +672,8 @@ class TestSyncFromMatchingHash:
         )
         loaded_session.refresh(event)
         create_snapshot(loaded_session, event)
-        h = compute_parameters_hash(event)
+        mccc_hash = compute_mccc_hash(event)
 
-        # Clear live quality
         eq = loaded_session.exec(
             select(AimbatEventQuality).where(
                 col(AimbatEventQuality.event_id) == event.id
@@ -593,34 +683,34 @@ class TestSyncFromMatchingHash:
         loaded_session.add(eq)
         loaded_session.commit()
 
-        # Sync from hash
-        assert sync_from_matching_hash(loaded_session, parameters_hash=h) is True
+        result = sync_from_matching_hash(loaded_session, event.id, mccc_hash=mccc_hash)
+        loaded_session.commit()
+        assert result.mccc_synced is True
+        assert result.iccs_synced is False
         loaded_session.refresh(eq)
         assert eq.mccc_rmse is not None
 
-    def test_sync_no_match(self, loaded_session: Session) -> None:
-        """Verifies return False when no match is found."""
-        assert (
-            sync_from_matching_hash(loaded_session, parameters_hash="no-such-hash")
-            is False
+    def test_no_match_returns_unsynced_result(self, loaded_session: Session) -> None:
+        """No candidate snapshot leaves both flags False."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        result = sync_from_matching_hash(
+            loaded_session,
+            event.id,
+            iccs_hash="no-such-hash",
+            mccc_hash="no-such-hash",
         )
+        assert result == (False, False)
 
-    def test_sync_prefers_specified_snapshot_id_over_most_recent(
+    def test_prefers_specified_snapshot_over_most_recent(
         self, loaded_session: Session
     ) -> None:
-        """Verifies that sync_from_matching_hash prefers the snapshot whose ID
-        is given as a tie-breaker, even when a more recent candidate exists.
-
-        Args:
-            loaded_session: The database session with data loaded.
-        """
+        """`prefer_snapshot_id` wins the tie-break over the newest candidate."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         seis_ids = [s.id for s in event.seismograms]
         select_flags = [s.parameters.select for s in event.seismograms]
-
-        # Write MCCC quality (RMSE = 1 ms) and take first snapshot
         _write_mock_mccc_quality(
             loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
         )
@@ -636,9 +726,8 @@ class TestSyncFromMatchingHash:
 
         create_snapshot(loaded_session, event)
         snapshot1 = loaded_session.exec(select(AimbatSnapshot)).one()
-        parameters_hash = compute_parameters_hash(event)
+        mccc_hash = compute_mccc_hash(event)
 
-        # Change RMSE to 2 ms (no parameter change) and take a second snapshot
         loaded_session.refresh(eq)
         eq.mccc_rmse = pd.Timedelta(milliseconds=2)
         loaded_session.add(eq)
@@ -646,52 +735,41 @@ class TestSyncFromMatchingHash:
         loaded_session.refresh(event)
         create_snapshot(loaded_session, event)
 
-        # Clear live RMSE
         loaded_session.refresh(eq)
         eq.mccc_rmse = None
         loaded_session.add(eq)
         loaded_session.commit()
 
-        # Without a snapshot_id the most recent candidate wins (snapshot2, RMSE=2 ms)
-        sync_from_matching_hash(loaded_session, parameters_hash=parameters_hash)
+        # Newest candidate wins with no preference (snapshot2, RMSE = 2 ms).
+        sync_from_matching_hash(loaded_session, event.id, mccc_hash=mccc_hash)
+        loaded_session.commit()
         loaded_session.refresh(eq)
         assert eq.mccc_rmse == pd.Timedelta(milliseconds=2)
 
-        # With snapshot_id=snapshot1.id the older candidate is preferred (RMSE=1 ms)
+        # Preferring snapshot1 restores the older RMSE = 1 ms.
         eq.mccc_rmse = None
         loaded_session.add(eq)
         loaded_session.commit()
         sync_from_matching_hash(
             loaded_session,
-            parameters_hash=parameters_hash,
-            snapshot_id=snapshot1.id,
+            event.id,
+            mccc_hash=mccc_hash,
+            prefer_snapshot_id=snapshot1.id,
         )
+        loaded_session.commit()
         loaded_session.refresh(eq)
         assert eq.mccc_rmse == pd.Timedelta(milliseconds=1)
 
-    def test_sync_from_matching_hash_does_not_restore_iccs_cc_by_default(
+    def test_iccs_cc_not_restored_without_iccs_hash(
         self, loaded_session: Session
     ) -> None:
-        """A broad hash-based sync must not restore iccs_cc.
-
-        parameters_hash excludes `select`, which affects the ICCS stack that
-        iccs_cc is computed against, so restoring iccs_cc from an
-        arbitrary hash match could apply values computed against a different
-        stack composition. Only rollback_to_snapshot, which restores `select`
-        itself first, may request iccs_cc restoration.
-        """
+        """An MCCC-only sync leaves iccs_cc untouched."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         seis_ids = [s.id for s in event.seismograms]
 
         for seis_id in seis_ids:
-            sq = loaded_session.exec(
-                select(AimbatSeismogramQuality).where(
-                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
-                )
-            ).first()
-            if sq is None:
-                sq = AimbatSeismogramQuality(id=uuid.uuid4(), seismogram_id=seis_id)
+            sq = AimbatSeismogramQuality(id=uuid.uuid4(), seismogram_id=seis_id)
             sq.iccs_cc = 0.75
             loaded_session.add(sq)
         loaded_session.commit()
@@ -703,7 +781,7 @@ class TestSyncFromMatchingHash:
         )
         loaded_session.refresh(event)
         create_snapshot(loaded_session, event)
-        h = compute_parameters_hash(event)
+        mccc_hash = compute_mccc_hash(event)
 
         for seis_id in seis_ids:
             sq = loaded_session.exec(
@@ -715,8 +793,9 @@ class TestSyncFromMatchingHash:
             loaded_session.add(sq)
         loaded_session.commit()
 
-        assert sync_from_matching_hash(loaded_session, parameters_hash=h) is True
-
+        result = sync_from_matching_hash(loaded_session, event.id, mccc_hash=mccc_hash)
+        loaded_session.commit()
+        assert result.iccs_synced is False
         for seis_id in seis_ids:
             sq = loaded_session.exec(
                 select(AimbatSeismogramQuality).where(
@@ -725,34 +804,24 @@ class TestSyncFromMatchingHash:
             ).one()
             assert sq.iccs_cc is None
 
-    def test_sync_from_matching_hash_restores_iccs_cc_when_requested(
+    def test_iccs_cc_restored_from_iccs_only_snapshot(
         self, loaded_session: Session
     ) -> None:
-        """restore_iccs_cc=True restores iccs_cc from the matching snapshot."""
+        """A snapshot that froze only iccs_cc still repopulates it on an ICCS match."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         seis_ids = [s.id for s in event.seismograms]
 
         for seis_id in seis_ids:
-            sq = loaded_session.exec(
-                select(AimbatSeismogramQuality).where(
-                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
-                )
-            ).first()
-            if sq is None:
-                sq = AimbatSeismogramQuality(id=uuid.uuid4(), seismogram_id=seis_id)
+            sq = AimbatSeismogramQuality(id=uuid.uuid4(), seismogram_id=seis_id)
             sq.iccs_cc = 0.75
             loaded_session.add(sq)
         loaded_session.commit()
         loaded_session.refresh(event)
 
-        select_flags = [s.parameters.select for s in event.seismograms]
-        _write_mock_mccc_quality(
-            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
-        )
-        loaded_session.refresh(event)
+        # No MCCC run - this snapshot has no event quality snapshot at all.
         create_snapshot(loaded_session, event)
-        h = compute_parameters_hash(event)
+        iccs_hash = compute_iccs_hash(event)
 
         for seis_id in seis_ids:
             sq = loaded_session.exec(
@@ -764,13 +833,9 @@ class TestSyncFromMatchingHash:
             loaded_session.add(sq)
         loaded_session.commit()
 
-        assert (
-            sync_from_matching_hash(
-                loaded_session, parameters_hash=h, restore_iccs_cc=True
-            )
-            is True
-        )
-
+        result = sync_from_matching_hash(loaded_session, event.id, iccs_hash=iccs_hash)
+        loaded_session.commit()
+        assert result.iccs_synced is True
         for seis_id in seis_ids:
             sq = loaded_session.exec(
                 select(AimbatSeismogramQuality).where(
@@ -778,6 +843,80 @@ class TestSyncFromMatchingHash:
                 )
             ).one()
             assert sq.iccs_cc == 0.75
+
+    def test_iccs_cc_not_restored_from_hash_sibling_with_different_select(
+        self, loaded_session: Session
+    ) -> None:
+        """A snapshot taken with a different `select` set has a different ICCS
+        hash, so its iccs_cc is never applied to the live records."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seis_ids = [s.id for s in event.seismograms]
+
+        for seis_id in seis_ids:
+            sq = AimbatSeismogramQuality(id=uuid.uuid4(), seismogram_id=seis_id)
+            sq.iccs_cc = 0.9
+            loaded_session.add(sq)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+
+        # Snapshot B: one seismogram deselected.
+        event.seismograms[0].parameters.select = False
+        loaded_session.add(event.seismograms[0].parameters)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+
+        # Back to the original selection; capture its (different) ICCS hash.
+        event.seismograms[0].parameters.select = True
+        loaded_session.add(event.seismograms[0].parameters)
+        loaded_session.commit()
+        loaded_session.refresh(event)
+        iccs_hash = compute_iccs_hash(event)
+
+        for seis_id in seis_ids:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    col(AimbatSeismogramQuality.seismogram_id) == seis_id
+                )
+            ).one()
+            sq.iccs_cc = None
+            loaded_session.add(sq)
+        loaded_session.commit()
+
+        result = sync_from_matching_hash(loaded_session, event.id, iccs_hash=iccs_hash)
+        loaded_session.commit()
+        assert result.iccs_synced is False
+
+    def test_only_considers_this_events_snapshots(
+        self, loaded_session: Session
+    ) -> None:
+        """A matching hash on another event's snapshot is not used."""
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        assert len(events) >= 2
+        event, other = events[0], events[1]
+
+        seis_ids = [s.id for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
+        _write_mock_mccc_quality(
+            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
+        )
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        mccc_hash = compute_mccc_hash(event)
+
+        eq = loaded_session.exec(
+            select(AimbatEventQuality).where(
+                col(AimbatEventQuality.event_id) == event.id
+            )
+        ).one()
+        eq.mccc_rmse = None
+        loaded_session.add(eq)
+        loaded_session.commit()
+
+        # Ask on behalf of `other` with `event`'s hash - must not match.
+        result = sync_from_matching_hash(loaded_session, other.id, mccc_hash=mccc_hash)
+        assert result.mccc_synced is False
 
 
 class TestDumpSnapshotTable:

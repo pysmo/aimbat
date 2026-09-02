@@ -74,26 +74,52 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _set_sqlite_foreign_keys(connection: Connection, enabled: bool) -> None:
+    """Toggle SQLite's `foreign_keys` pragma on the raw DBAPI connection.
+
+    The pragma is a no-op while a transaction is open, so it must bypass
+    SQLAlchemy's transaction management by going straight to the DBAPI cursor.
+    """
+    cursor = connection.connection.cursor()
+    cursor.execute(f"PRAGMA foreign_keys={'ON' if enabled else 'OFF'}")
+    cursor.close()
+
+
 def do_run_migrations(connection: Connection) -> None:
     """Configure and run migrations against an already-open connection.
 
     Args:
         connection: Database connection to run migrations against.
     """
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        # SQLite has very limited native ALTER TABLE support, so Alembic
-        # rebuilds the table under the hood for column/constraint changes on
-        # that dialect. Keying this off the live connection (rather than
-        # hardcoding True) keeps a future non-SQLite backend from being
-        # wrapped in that rebuild-the-table workaround unnecessarily.
-        render_as_batch=connection.dialect.name == "sqlite",
-        render_item=render_item,
-    )
+    is_sqlite = connection.dialect.name == "sqlite"
 
-    with context.begin_transaction():
-        context.run_migrations()
+    if is_sqlite:
+        # Batch migrations rebuild a table by DROP + recreate. With foreign
+        # key enforcement on (AIMBAT's engine sets `PRAGMA foreign_keys=ON`),
+        # dropping a table that has `ON DELETE CASCADE` children - e.g.
+        # `aimbatsnapshot` - deletes every child row. Disable enforcement for
+        # the migration, and restore it afterwards so a pooled connection is
+        # never handed back with FK checks off.
+        _set_sqlite_foreign_keys(connection, False)
+
+    try:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            # SQLite has very limited native ALTER TABLE support, so Alembic
+            # rebuilds the table under the hood for column/constraint changes
+            # on that dialect. Keying this off the live connection (rather
+            # than hardcoding True) keeps a future non-SQLite backend from
+            # being wrapped in that rebuild-the-table workaround unnecessarily.
+            render_as_batch=is_sqlite,
+            render_item=render_item,
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+    finally:
+        if is_sqlite:
+            _set_sqlite_foreign_keys(connection, True)
 
 
 def run_migrations_online() -> None:

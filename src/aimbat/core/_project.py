@@ -80,10 +80,11 @@ def create_project(engine: Engine) -> None:
     if engine.name == "sqlite":
         with engine.begin() as connection:
             # Trigger 1: Track last modification time when event parameters change.
-            # `completed` is excluded: it is bookkeeping with no effect on ICCS/MCCC
-            # processing, and is excluded from compute_parameters_hash for the same
-            # reason (core/_snapshot.py) — this WHEN clause must list the same
-            # columns as that function's exclude set to stay consistent.
+            # Lists every event parameter except `completed`, which is bookkeeping
+            # with no effect on ICCS/MCCC processing (it is likewise excluded from
+            # the snapshot parameter hashes in core/_snapshot.py). NB this is a
+            # superset of either hash's inputs — an MCCC-only parameter change
+            # bumps `last_modified` even though the ICCS stack is unchanged.
             connection.execute(
                 text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_params_update

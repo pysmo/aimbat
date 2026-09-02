@@ -17,9 +17,12 @@ from aimbat.models import (
     AimbatEvent,
     AimbatEventParameters,
     AimbatEventParametersSnapshot,
+    AimbatEventQuality,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
+    AimbatSeismogramQuality,
+    AimbatSeismogramQualitySnapshot,
     AimbatSnapshot,
     AimbatStation,
 )
@@ -285,6 +288,43 @@ class TestCascadeDeleteSnapshot:
             len(patched_session.exec(select(AimbatSeismogramParametersSnapshot)).all())
             == 0
         )
+
+
+class TestSnapshotDurability:
+    """Snapshots are frozen history: deleting a live seismogram nulls the
+    references but leaves the frozen rows and their own `seismogram_id`."""
+
+    def test_delete_seismogram_keeps_snapshot_rows(
+        self, patched_session: Session
+    ) -> None:
+        ev = _make_event(patched_session)
+        sta = _make_station(patched_session)
+        seis = _make_seismogram(patched_session, ev, sta)
+        patched_session.add(AimbatSeismogramQuality(seismogram=seis, iccs_cc=0.8))
+        patched_session.add(
+            AimbatEventQuality(event=ev, mccc_rmse=Timedelta(milliseconds=1))
+        )
+        patched_session.commit()
+
+        from aimbat.core import create_snapshot, delete_seismogram
+
+        create_snapshot(patched_session, ev)
+        delete_seismogram(patched_session, seis.id)
+
+        param_snaps = patched_session.exec(
+            select(AimbatSeismogramParametersSnapshot)
+        ).all()
+        quality_snaps = patched_session.exec(
+            select(AimbatSeismogramQualitySnapshot)
+        ).all()
+
+        assert len(param_snaps) == 1
+        assert param_snaps[0].seismogram_id == seis.id
+        assert param_snaps[0].seismogram_parameters_id is None
+        assert len(quality_snaps) == 1
+        assert quality_snaps[0].seismogram_id == seis.id
+        assert quality_snaps[0].iccs_cc == 0.8
+        assert quality_snaps[0].seismogram_quality_id is None
 
 
 # ===================================================================
