@@ -1334,3 +1334,114 @@ class TestCausalZeroPhaseToggle:
         assert result is not None
         assert result.tool == "bandpass"
         assert result.causal is None
+
+
+# ===========================================================================
+# _run_tool: rebuild ICCS after a parameter-changing tool
+# ===========================================================================
+
+
+@contextmanager
+def _noop_suspend(
+    self: AimbatTUI, label: str | None = None
+) -> Generator[None, None, None]:
+    yield
+
+
+@pytest.mark.slow
+class TestRunToolRebuildsIccs:
+    """A parameter/pick-changing tool rebuilds ICCS (re-persisting iccs_cc);
+    a view-only tool (stack/image) leaves the instance untouched.
+    """
+
+    def _prepare(self, monkeypatch: pytest.MonkeyPatch, engine: Engine) -> list[str]:
+        _patch_engine(monkeypatch, engine)
+        monkeypatch.setattr(AimbatTUI, "_suspend", _noop_suspend)
+        monkeypatch.setattr(aimbat._tui._tools, "update_bandpass", lambda *a, **k: None)
+        monkeypatch.setattr(aimbat._tui._tools, "plot_stack", lambda *a, **k: None)
+        return []
+
+    def _run_with_tool(
+        self,
+        engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+        tool: str,
+        calls: list[str],
+    ) -> None:
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                with Session(engine) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+                app._current_event_id = event.id
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                assert app._iccs_lifecycle.bound is not None
+                monkeypatch.setattr(
+                    AimbatTUI,
+                    "_create_iccs",
+                    lambda self, **kw: calls.append("rebuild"),
+                )
+                app._run_tool(tool, True, False, None)
+                await pilot.pause()
+
+        asyncio.run(_run())
+
+    def test_param_changing_tool_rebuilds(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = self._prepare(monkeypatch, loaded_engine_from_file)
+        self._run_with_tool(loaded_engine_from_file, monkeypatch, "bandpass", calls)
+        assert calls == ["rebuild"]
+
+    def test_view_only_tool_does_not_rebuild(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = self._prepare(monkeypatch, loaded_engine_from_file)
+        self._run_with_tool(loaded_engine_from_file, monkeypatch, "stack", calls)
+        assert calls == []
+
+
+# ===========================================================================
+# NoteWidget auto-save is crash-safe
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestNoteWidgetAutoSave:
+    """A failing note save must be surfaced, not propagated out of the handler."""
+
+    def test_auto_save_swallows_write_error(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        from aimbat._tui._widgets import NoteWidget, _NoteTextArea
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("database is locked")
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await pilot.pause()
+                with Session(loaded_engine) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                assert event is not None
+
+                note = app.query_one("#project-note", NoteWidget)
+                note.set_entity("event", event.id)
+                await pilot.pause()
+                note.query_one("#note-textarea", _NoteTextArea).load_text("changed")
+
+                monkeypatch.setattr(aimbat._tui._widgets, "save_note", _boom)
+                # Must not raise.
+                note._auto_save()
+                await pilot.pause()
+
+                # Not marked saved, so the next trigger retries.
+                assert note._saved_content != "changed"
+
+        asyncio.run(_run())

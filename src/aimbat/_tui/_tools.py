@@ -145,3 +145,7 @@ CAUSAL_TOOL_REGISTRY: dict[str, tuple[str, CausalToolFn]] = {
     "window": ("Time window", _tool_window),
     "cc": ("Min CC", _tool_cc),
 }
+
+VIEW_ONLY_TOOLS: frozenset[str] = frozenset({"stack", "image"})
+"""Tools that only display; every other tool persists a parameter or pick change
+and so requires the ICCS instance (and its `iccs_cc` quality) to be rebuilt."""

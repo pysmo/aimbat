@@ -203,13 +203,24 @@ class NoteWidget(Widget):
                 )
 
     def _auto_save(self) -> None:
-        """Persist the edit area's content to the current entity if it has changed."""
+        """Persist the edit area's content to the current entity if it has changed.
+
+        Runs on every blur / tab switch / entity change, so a transient write
+        failure (e.g. the database briefly locked by an alignment worker) must
+        not propagate out of the event handler and crash the app - it is
+        surfaced as a notification and retried on the next trigger.
+        """
         if self._target_type is None or self._target_id is None:
             return
         content = self._saved_content
         with suppress(NoMatches):
             content = self.query_one("#note-textarea", _NoteTextArea).text
-        if content != self._saved_content:
+        if content == self._saved_content:
+            return
+        try:
             with Session(engine) as session:
                 save_note(session, self._target_type, self._target_id, content)
-            self._saved_content = content
+        except Exception as exc:
+            self.app.notify(f"Could not save note: {exc}", severity="error")
+            return
+        self._saved_content = content

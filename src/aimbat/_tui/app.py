@@ -32,7 +32,7 @@ from textual_fspicker import FileOpen, FileSave, Filters
 from aimbat import settings
 from aimbat._tui._iccs_lifecycle import _IccsLifecycleMixin
 from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
-from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY
+from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY, VIEW_ONLY_TOOLS
 from aimbat._tui.modals import (
     ActionMenuModal,
     AlignModal,
@@ -834,10 +834,17 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             self.notify(str(exc), severity="error")
             return
 
-        # suspend() is synchronous, so the staleness poller cannot fire
-        # between the session commit and this assignment.
-        bound.created_at = Timestamp.now("UTC")
-        self.refresh_all()
+        if tool in VIEW_ONLY_TOOLS:
+            # Nothing changed. suspend() is synchronous, so the staleness poller
+            # cannot fire between here and this assignment.
+            bound.created_at = Timestamp.now("UTC")
+            self.refresh_all()
+        else:
+            # The tool persisted a parameter or pick change: the triggers have
+            # nulled iccs_cc and the in-memory instance is now stale. Rebuild it
+            # (which re-persists iccs_cc and refreshes every panel), matching the
+            # Parameters modal's on-close behaviour.
+            self._create_iccs()
         self.notify("Done", timeout=2)
 
     def action_open_align(self) -> None:
