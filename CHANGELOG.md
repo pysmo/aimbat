@@ -25,6 +25,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(db)** Hold the staleness lock for the whole check, not just the flag
 - **(core)** Stop write_back_seismograms from committing the caller's session
 - **(core)** Dump_event_table always returns list[dict]
+- Address PR #256 review feedback
 
 ### 📚 Documentation
 
