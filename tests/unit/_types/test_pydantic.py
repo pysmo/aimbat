@@ -1,7 +1,7 @@
 """Tests for aimbat._types._pydantic custom Pydantic types."""
 
 import pytest
-from pandas import Timedelta, Timestamp
+from pandas import NaT, Timedelta, Timestamp
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from aimbat._types import (
@@ -67,6 +67,11 @@ class TestPydanticTimestamp:
         with pytest.raises(ValidationError):
             _TimestampModel(value="2020-01-01T00:00:00")  # type: ignore[arg-type]
 
+    def test_rejects_nat(self) -> None:
+        """Verifies that `pd.NaT` is rejected (a nullable field should use `None`)."""
+        with pytest.raises(ValidationError):
+            _TimestampModel(value=NaT)  # type: ignore[arg-type]
+
 
 class TestPydanticTimedelta:
     """Tests for PydanticTimedelta custom type."""
@@ -80,6 +85,13 @@ class TestPydanticTimedelta:
         """Verifies that None is rejected."""
         with pytest.raises(ValidationError):
             _TimedeltaModel(value=None)  # type: ignore[arg-type]
+
+    def test_rejects_nat(self) -> None:
+        """Verifies that `NaT` is rejected rather than passing every constraint."""
+        with pytest.raises(ValidationError):
+            _TimedeltaModel(value=NaT)  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):
+            _TimedeltaModel(value="NaT")  # type: ignore[arg-type]
 
     def test_accepts_bare_number_as_seconds(self) -> None:
         """Verifies that a bare int/float is interpreted as a count of seconds."""
@@ -128,6 +140,15 @@ class TestPydanticNegativeTimedelta:
 
         with pytest.raises(ValidationError):
             M(value=Timedelta(0))
+
+    def test_rejects_nat(self) -> None:
+        """`NaT` must not slip past: `NaT >= 0` is False, so the negative check alone misses it."""
+
+        class M(BaseModel):
+            value: PydanticNegativeTimedelta
+
+        with pytest.raises(ValidationError):
+            M(value=NaT)  # type: ignore[arg-type]
 
 
 class TestPydanticPositiveTimedelta:

@@ -183,6 +183,7 @@ def update_pick(
 
     if not return_fig:
         write_back_seismograms(session, iccs)
+        session.commit()
         return None
 
     logger.warning(_RETURN_FIG_WARNING)

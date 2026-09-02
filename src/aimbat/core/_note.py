@@ -24,7 +24,7 @@ def get_note_content(session: Session, target: NoteTarget, target_id: uuid.UUID)
         Markdown note content, or an empty string if no note exists yet.
     """
     attr = getattr(AimbatNote, f"{target}_id")
-    note = session.exec(select(AimbatNote).where(attr == target_id)).first()
+    note = session.exec(select(AimbatNote).where(attr == target_id)).one_or_none()
     return note.content if note is not None else ""
 
 
@@ -40,7 +40,7 @@ def save_note(
         content: Markdown note content to save.
     """
     attr = getattr(AimbatNote, f"{target}_id")
-    note = session.exec(select(AimbatNote).where(attr == target_id)).first()
+    note = session.exec(select(AimbatNote).where(attr == target_id)).one_or_none()
     if note is None:
         note = AimbatNote(**{f"{target}_id": target_id, "content": content})
     else:

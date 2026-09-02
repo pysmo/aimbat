@@ -257,9 +257,9 @@ def _build_iccs(
             delta=seis.delta,
             data=seis.data,
             t0=seis.t0,
-            t1=seis.t1,
-            flip=seis.flip,
-            select=seis.select,
+            t1=seis.parameters.t1,
+            flip=seis.parameters.flip,
+            select=seis.parameters.select,
             extra={"id": seis.id},
         )
         for seis in event.seismograms
@@ -303,6 +303,11 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
         logger.debug(f"Returning cached BoundICCS for event {event.id}.")
         return cached
 
+    # Stamp before reading the event's parameters and waveforms below, so a
+    # modification committed while this instance is being built is caught as
+    # stale on the next check rather than silently baked in.
+    created_at = Timestamp.now("UTC")
+
     event = session.exec(
         select(AimbatEvent)
         .where(AimbatEvent.id == event.id)
@@ -315,7 +320,6 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     ).one()
 
     logger.debug(f"Creating ICCS instance for event {event.id}.")
-    created_at = Timestamp.now("UTC")
     bound = BoundICCS(
         iccs=_build_iccs(event),
         event_id=event.id,
@@ -398,6 +402,15 @@ def _write_mccc_quality(
         else [s for s in iccs.seismograms if s.select]
     )
 
+    n_used = len(used_seis)
+    if not len(result.errors) == len(result.cc_means) == len(result.cc_stds) == n_used:
+        raise RuntimeError(
+            f"MCCC returned {len(result.errors)} error / {len(result.cc_means)} "
+            f"cc_mean / {len(result.cc_stds)} cc_std values for {n_used} "
+            "seismograms; per-seismogram metrics cannot be attributed. The "
+            "pysmo MCCC result is expected to align 1:1 with the used seismograms."
+        )
+
     logger.debug(f"Writing MCCC quality for event {event_id}.")
     with Session(_engine) as write_session:
         # Event quality
@@ -425,25 +438,30 @@ def _write_mccc_quality(
                 sq.mccc_cc_std = None
                 write_session.add(sq)
 
-        # Write MCCC metrics for used seismograms
+        # Write MCCC metrics for used seismograms. CC values are clamped to
+        # their valid ranges (mean [0, 1], std >= 0) to absorb floating-point
+        # overshoot, matching `_write_iccs_stats` — table models skip the
+        # Pydantic bounds so nothing else enforces them here.
         for iccs_seis, error, cc_mean, cc_std in zip(
-            used_seis, result.errors, result.cc_means, result.cc_stds
+            used_seis, result.errors, result.cc_means, result.cc_stds, strict=True
         ):
             seis_id = iccs_seis.extra["id"]
+            cc_mean_val = max(0.0, min(1.0, float(cc_mean)))
+            cc_std_val = max(0.0, float(cc_std))
             sq = _find_seismogram_quality(write_session, seis_id)
             if sq is None:
                 sq = AimbatSeismogramQuality(
                     id=uuid4(),
                     seismogram_id=seis_id,
                     mccc_error=error,
-                    mccc_cc_mean=float(cc_mean),
-                    mccc_cc_std=float(cc_std),
+                    mccc_cc_mean=cc_mean_val,
+                    mccc_cc_std=cc_std_val,
                 )
                 write_session.add(sq)
             else:
                 sq.mccc_error = error
-                sq.mccc_cc_mean = float(cc_mean)
-                sq.mccc_cc_std = float(cc_std)
+                sq.mccc_cc_mean = cc_mean_val
+                sq.mccc_cc_std = cc_std_val
                 write_session.add(sq)
 
         write_session.commit()
@@ -583,8 +601,10 @@ def validate_iccs_construction(
 def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     """Write t1, flip, and select from ICCS seismograms back to the database.
 
-    Calls `session.commit()` after writing; any other pending changes on
-    `session` are also committed.
+    Flushes but does not commit - the caller owns the transaction and must
+    commit it (the invalidation triggers only fire on commit, and callers
+    that repopulate quality afterwards depend on controlling when that
+    happens).
 
     Args:
         session: Database session.
@@ -598,7 +618,7 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
             db_seis.parameters.t1 = seis.t1
             db_seis.parameters.flip = seis.flip
             db_seis.parameters.select = seis.select
-    session.commit()
+    session.flush()
 
 
 def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
@@ -656,7 +676,11 @@ def run_iccs(
     n_iter = len(result.convergence)
     status = "converged" if result.converged else "did not converge"
     logger.info(f"ICCS {status} after {n_iter} iterations.")
+    # Committing the picks nulls `iccs_cc` via the invalidation triggers, so
+    # `_write_iccs_stats` must run after the commit to repopulate it (see
+    # `run_mccc` for the fuller ordering note).
     write_back_seismograms(session, iccs)
+    session.commit()
     _write_iccs_stats(event.id, iccs)
     return result
 
@@ -685,7 +709,15 @@ def run_mccc(
         min_cc=event.parameters.mccc_min_cc,
         damping=event.parameters.mccc_damp,
     )
+    # Order is load-bearing. Committing the written-back `t1`/`flip`/`select`
+    # fires the quality-invalidation triggers that null `iccs_cc` and every
+    # MCCC quality column for this event. `_write_iccs_stats` must then
+    # repopulate `iccs_cc`, and `_write_mccc_quality` the MCCC columns, in
+    # that sequence. Reordering the calls (or a failure between them) leaves
+    # the quality tables half-nulled with no way to recover the missing half
+    # short of re-running the algorithm.
     write_back_seismograms(session, iccs)
+    session.commit()
     _write_iccs_stats(event.id, iccs)
     _write_mccc_quality(event.id, iccs, result, all_seismograms)
     return result

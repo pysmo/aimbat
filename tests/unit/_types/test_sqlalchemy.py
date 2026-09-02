@@ -123,14 +123,45 @@ class TestSAPandasTimedelta:
         assert isinstance(result, int)
         assert result == 10 * 1_000_000_000  # nanoseconds
 
-    def test_process_bind_param_converts_other_types(
+    def test_process_bind_param_duration_string(
         self, sa_timedelta: SAPandasTimedelta, mock_dialect: Dialect
     ) -> None:
-        """Test that other types (like strings) are converted to nanoseconds."""
-        # String conversion
+        """Test that a pandas duration string is converted to nanoseconds."""
         result = sa_timedelta.process_bind_param("1 days", mock_dialect)
         assert isinstance(result, int)
         assert result == 86400 * 1_000_000_000
+
+    @pytest.mark.parametrize("value", [10, -3, 0.05])
+    def test_process_bind_param_bare_number_is_seconds(
+        self,
+        sa_timedelta: SAPandasTimedelta,
+        mock_dialect: Dialect,
+        value: float,
+    ) -> None:
+        """A bare number reaching the column is seconds, not nanoseconds.
+
+        Table models skip Pydantic validation, so a bare number can reach
+        `process_bind_param` directly; it must use the same seconds convention
+        as `PydanticTimedelta` rather than pandas' nanosecond default.
+        """
+        result = sa_timedelta.process_bind_param(value, mock_dialect)
+        assert result == int(pd.Timedelta(seconds=value).value)
+
+    def test_process_bind_param_numeric_string_is_seconds(
+        self, sa_timedelta: SAPandasTimedelta, mock_dialect: Dialect
+    ) -> None:
+        """A numeric string is seconds, matching `PydanticTimedelta`."""
+        result = sa_timedelta.process_bind_param("15", mock_dialect)
+        assert result == 15 * 1_000_000_000
+
+    def test_bind_then_result_round_trips_bare_seconds(
+        self, sa_timedelta: SAPandasTimedelta, mock_dialect: Dialect
+    ) -> None:
+        """bind(bare seconds) -> result() reproduces the same duration."""
+        stored = sa_timedelta.process_bind_param(-12.5, mock_dialect)
+        assert sa_timedelta.process_result_value(stored, mock_dialect) == pd.Timedelta(
+            seconds=-12.5
+        )
 
     def test_process_result_value_none(
         self, sa_timedelta: SAPandasTimedelta, mock_dialect: Dialect

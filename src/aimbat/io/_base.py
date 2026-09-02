@@ -53,7 +53,7 @@ __all__ = [
     "write_seismogram_data",
 ]
 
-_cache: dict[tuple[str, DataType], npt.NDArray[np.float64]] = {}
+_cache: dict[tuple[str, DataType], npt.NDArray[np.floating]] = {}
 
 # Per-capability registries — populated by data source modules (e.g. _sac)
 _station_creators: dict[DataType, Callable[[str | PathLike[str]], AimbatStation]] = {}
@@ -62,10 +62,10 @@ _seismogram_creators: dict[
     DataType, Callable[[str | PathLike[str]], AimbatSeismogram]
 ] = {}
 _seismogram_data_readers: dict[
-    DataType, Callable[[str | PathLike[str]], npt.NDArray[np.float64]]
+    DataType, Callable[[str | PathLike[str]], npt.NDArray[np.floating]]
 ] = {}
 _seismogram_data_writers: dict[
-    DataType, Callable[[str | PathLike[str], npt.NDArray[np.float64]], None]
+    DataType, Callable[[str | PathLike[str], npt.NDArray[np.floating]], None]
 ] = {}
 
 
@@ -116,7 +116,7 @@ def register_seismogram_creator(
 
 def register_seismogram_data_reader(
     datatype: DataType,
-    fn: Callable[[str | PathLike[str]], npt.NDArray[np.float64]],
+    fn: Callable[[str | PathLike[str]], npt.NDArray[np.floating]],
 ) -> None:
     """Register a function that reads seismogram waveform data from a data source.
 
@@ -131,7 +131,7 @@ def register_seismogram_data_reader(
 
 def register_seismogram_data_writer(
     datatype: DataType,
-    fn: Callable[[str | PathLike[str], npt.NDArray[np.float64]], None],
+    fn: Callable[[str | PathLike[str], npt.NDArray[np.floating]], None],
 ) -> None:
     """Register a function that writes seismogram waveform data to a data source.
 
@@ -231,8 +231,8 @@ def seismogram_creator(
 def seismogram_data_reader(
     datatype: DataType,
 ) -> Callable[
-    [Callable[[str | PathLike[str]], npt.NDArray[np.float64]]],
-    Callable[[str | PathLike[str]], npt.NDArray[np.float64]],
+    [Callable[[str | PathLike[str]], npt.NDArray[np.floating]]],
+    Callable[[str | PathLike[str]], npt.NDArray[np.floating]],
 ]:
     """Decorator that registers a function as a seismogram data reader for `datatype`.
 
@@ -242,14 +242,14 @@ def seismogram_data_reader(
     Example:
         ```python
         @seismogram_data_reader(DataType.SAC)
-        def read_seismogram_data_from_sacfile(sacfile: str | PathLike[str]) -> npt.NDArray[np.float64]:
+        def read_seismogram_data_from_sacfile(sacfile: str | PathLike[str]) -> npt.NDArray[np.floating]:
             ...
         ```
     """
 
     def decorator(
-        fn: Callable[[str | PathLike[str]], npt.NDArray[np.float64]],
-    ) -> Callable[[str | PathLike[str]], npt.NDArray[np.float64]]:
+        fn: Callable[[str | PathLike[str]], npt.NDArray[np.floating]],
+    ) -> Callable[[str | PathLike[str]], npt.NDArray[np.floating]]:
         register_seismogram_data_reader(datatype, fn)
         return fn
 
@@ -259,8 +259,8 @@ def seismogram_data_reader(
 def seismogram_data_writer(
     datatype: DataType,
 ) -> Callable[
-    [Callable[[str | PathLike[str], npt.NDArray[np.float64]], None]],
-    Callable[[str | PathLike[str], npt.NDArray[np.float64]], None],
+    [Callable[[str | PathLike[str], npt.NDArray[np.floating]], None]],
+    Callable[[str | PathLike[str], npt.NDArray[np.floating]], None],
 ]:
     """Decorator that registers a function as a seismogram data writer for `datatype`.
 
@@ -271,15 +271,15 @@ def seismogram_data_writer(
         ```python
         @seismogram_data_writer(DataType.SAC)
         def write_seismogram_data_to_sacfile(
-            sacfile: str | PathLike[str], data: npt.NDArray[np.float64]
+            sacfile: str | PathLike[str], data: npt.NDArray[np.floating]
         ) -> None:
             ...
         ```
     """
 
     def decorator(
-        fn: Callable[[str | PathLike[str], npt.NDArray[np.float64]], None],
-    ) -> Callable[[str | PathLike[str], npt.NDArray[np.float64]], None]:
+        fn: Callable[[str | PathLike[str], npt.NDArray[np.floating]], None],
+    ) -> Callable[[str | PathLike[str], npt.NDArray[np.floating]], None]:
         register_seismogram_data_writer(datatype, fn)
         return fn
 
@@ -377,7 +377,7 @@ def create_seismogram(
 
 def read_seismogram_data(
     datasource: str | PathLike[str], datatype: DataType
-) -> npt.NDArray[np.float64]:
+) -> npt.NDArray[np.floating]:
     """Read seismogram waveform data from a data source.
 
     Results are cached in memory by `(datasource, datatype)` key. The returned
@@ -414,7 +414,7 @@ def read_seismogram_data(
 def write_seismogram_data(
     datasource: str | PathLike[str],
     datatype: DataType,
-    data: npt.NDArray[np.float64],
+    data: npt.NDArray[np.floating],
 ) -> None:
     """Write seismogram waveform data to a data source.
 

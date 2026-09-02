@@ -90,7 +90,7 @@ def station_seismograms(
             seismogram ID for each seismogram.
     """
     data = [
-        (_prepare_seismogram_for_plotting(s), s.event, s.t1 or s.t0, s.id)
+        (_prepare_seismogram_for_plotting(s), s.event, s.parameters.t1 or s.t0, s.id)
         for s in station.seismograms
     ]
     data.sort(key=lambda x: x[2])

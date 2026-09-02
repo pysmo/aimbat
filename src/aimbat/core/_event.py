@@ -217,34 +217,14 @@ def get_event_quality(session: Session, event_id: UUID) -> SeismogramQualityStat
     return SeismogramQualityStats.from_event(event)
 
 
-@overload
-def dump_event_table(
-    session: Session,
-    from_read_model: Literal[False] = ...,
-    by_alias: bool = ...,
-    by_title: bool = ...,
-    exclude: set[str] | None = ...,
-) -> str: ...
-
-
-@overload
-def dump_event_table(
-    session: Session,
-    from_read_model: Literal[True],
-    by_alias: bool = ...,
-    by_title: bool = ...,
-    exclude: set[str] | None = ...,
-) -> list[dict[str, Any]]: ...
-
-
 def dump_event_table(
     session: Session,
     from_read_model: bool = False,
     by_alias: bool = False,
     by_title: bool = False,
     exclude: set[str] | None = None,
-) -> list[dict[str, Any]] | str:
-    """Dump the table data to json serialisable list of dicts.
+) -> list[dict[str, Any]]:
+    """Dump the table data to a JSON-serialisable list of dicts.
 
     Args:
         session: Database session.
@@ -256,9 +236,7 @@ def dump_event_table(
         exclude: Set of field names to exclude from the output.
 
     Returns:
-        A JSON string of the ORM model data when `from_read_model` is False,
-        or a list of dicts built from the read model when `from_read_model`
-        is True.
+        A list of dicts, one per event.
 
     Raises:
         ValueError: If both `by_alias` and `by_title` are True.
@@ -300,7 +278,7 @@ def dump_event_table(
         return data
 
     adapter: TypeAdapter[Sequence[AimbatEvent]] = TypeAdapter(Sequence[AimbatEvent])
-    return adapter.dump_json(events, exclude=exclude, by_alias=by_alias).decode()
+    return adapter.dump_python(events, mode="json", exclude=exclude, by_alias=by_alias)
 
 
 @overload

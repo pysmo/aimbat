@@ -13,6 +13,8 @@ from pandas import Timedelta, Timestamp
 from sqlalchemy.engine import Dialect
 from sqlalchemy.types import BigInteger, DateTime, TypeDecorator
 
+from ._coerce import coerce_to_timedelta
+
 __all__ = [
     "SAPandasTimestamp",
     "SAPandasTimedelta",
@@ -93,6 +95,11 @@ class SAPandasTimedelta(TypeDecorator):
     def process_bind_param(self, value: Any, dialect: Dialect) -> int | None:
         """Convert a value to an integer count of nanoseconds for storage.
 
+        A bare number (or numeric string) is interpreted as **seconds**, via
+        `coerce_to_timedelta` - the same rule `PydanticTimedelta` uses - so a
+        value reaching this column without going through Pydantic validation
+        (table models skip it) is not silently misread as nanoseconds.
+
         Args:
             value: Value to store. `None` and pandas null values are passed
                 through unchanged.
@@ -104,9 +111,8 @@ class SAPandasTimedelta(TypeDecorator):
         if pd.isnull(value):
             return None
 
-        td = value if isinstance(value, Timedelta) else Timedelta(value)
         # Explicit int cast for safety with some SQL drivers
-        return int(td.value)
+        return int(coerce_to_timedelta(value).value)
 
     def process_result_value(self, value: Any, dialect: Dialect) -> Timedelta | None:
         """Convert a stored nanosecond count back to a `Timedelta`.

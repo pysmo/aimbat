@@ -126,32 +126,35 @@ if engine.name == "sqlite":
                 when `AIMBAT_STRICT_SCHEMA_CHECK` is enabled.
         """
         global _schema_staleness_checked
+        # Hold the lock for the whole body, not just the flag flip: the check
+        # must run exactly once even if this listener is ever re-registered on
+        # `connect` (which fires per connection) instead of `first_connect`.
         with _schema_staleness_lock:
             if _schema_staleness_checked:
                 return
             _schema_staleness_checked = True
 
-        cursor = dbapi_connection.cursor()
-        try:
-            no_project = (
-                cursor.execute("PRAGMA table_info(aimbatevent)").fetchall() == []
-            )
-            if no_project:
-                # No project at all - the handle_error listener above already
-                # covers this with its own friendly message.
-                return
-
+            cursor = dbapi_connection.cursor()
             try:
-                cursor.execute("SELECT version_num FROM alembic_version")
-                row = cursor.fetchone()
-                current_revision: str | None = row[0] if row else None
-            except sqlite3.OperationalError:
-                current_revision = None  # pre-Alembic database
-        finally:
-            cursor.close()
+                no_project = (
+                    cursor.execute("PRAGMA table_info(aimbatevent)").fetchall() == []
+                )
+                if no_project:
+                    # No project at all - the handle_error listener above
+                    # already covers this with its own friendly message.
+                    return
 
-        from aimbat.core._migrations import _build_staleness_warning
+                try:
+                    cursor.execute("SELECT version_num FROM alembic_version")
+                    row = cursor.fetchone()
+                    current_revision: str | None = row[0] if row else None
+                except sqlite3.OperationalError:
+                    current_revision = None  # pre-Alembic database
+            finally:
+                cursor.close()
 
-        warning = _build_staleness_warning(current_revision)
-        if warning is not None:
-            warnings.warn(warning, stacklevel=1)
+            from aimbat.core._migrations import _build_staleness_warning
+
+            warning = _build_staleness_warning(current_revision)
+            if warning is not None:
+                warnings.warn(warning, stacklevel=1)

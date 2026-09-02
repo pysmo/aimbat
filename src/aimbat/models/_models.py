@@ -2,16 +2,14 @@
 
 import os
 import uuid
-from collections.abc import Hashable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
 from pandas import Timestamp
-from pydantic import computed_field, model_validator
+from pydantic import model_validator
 from pydantic.alias_generators import to_camel
-from sqlalchemy import CheckConstraint, Column, PickleType, func
-from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func, text
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel._compat import SQLModelConfig
@@ -69,6 +67,13 @@ class AimbatDataSource(SQLModel, table=True):
         populate_by_name=True,
     )
 
+    # Named explicitly so `create_all` (via `create_project`) and the Alembic
+    # migration that added it (`72c6b97febca`) produce an identically-named
+    # constraint, keeping the two schema-creation paths in sync.
+    __table_args__ = (
+        UniqueConstraint("sourcename", name="uq_aimbatdatasource_sourcename"),
+    )
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -77,7 +82,6 @@ class AimbatDataSource(SQLModel, table=True):
         schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
     )
     sourcename: str = Field(
-        unique=True,
         title="Source name",
         description="Path or name of the data source.",
     )
@@ -427,6 +431,11 @@ class AimbatSeismogram(SQLModel, table=True):
     Holds timing information (`begin_time`, `delta`, `t0`) and a reference to
     the waveform data source; the waveform samples themselves are not stored
     on this model but are read from and written to that data source on demand.
+
+    Exposes the pysmo [`Seismogram`][pysmo.Seismogram] interface directly
+    (`begin_time`, `delta`, `data`, `end_time`). ICCS working state (`t1`,
+    `flip`, `select`) is not on this model - it lives on the linked
+    `AimbatSeismogramParameters` and is reached via `seismogram.parameters`.
     """
 
     model_config = SQLModelConfig(
@@ -476,12 +485,6 @@ class AimbatSeismogram(SQLModel, table=True):
         title="Event ID",
         description="Foreign key referencing the parent event.",
     )
-    extra: dict[Hashable, Any] = Field(
-        default_factory=dict,
-        sa_column=Column(MutableDict.as_mutable(PickleType)),
-        title="Extra metadata",
-        description="Dictionary to store any additional metadata for the seismogram.",
-    )
     event: "AimbatEvent" = Relationship(back_populates="seismograms")
     "The event this seismogram belongs to."
     parameters: "AimbatSeismogramParameters" = Relationship(
@@ -496,54 +499,30 @@ class AimbatSeismogram(SQLModel, table=True):
     "Live quality metrics for this seismogram."
 
     if TYPE_CHECKING:
-        # Add same default values for type checking purposes
-        # as in AimbatSeismogramParametersBase
-        flip: bool = False
-        select: bool = True
-        t1: Timestamp | None = None
-        data: npt.NDArray[np.float64] = np.array([])
+        # `data` and `end_time` are provided at runtime by the properties in
+        # the `else` branch; declared here so type checkers see them as
+        # attributes of the model.
+        data: npt.NDArray[np.floating] = np.array([])
 
         @property
         def end_time(self) -> Timestamp: ...
 
     else:
 
-        @computed_field
-        def end_time(self) -> PydanticTimestamp:
-            """End time of the seismogram, derived from begin_time, delta, and data length."""
+        @property
+        def end_time(self) -> Timestamp:
+            """End time of the seismogram, derived from begin_time, delta, and data length.
+
+            A plain property rather than a `computed_field`: evaluating it reads
+            the full waveform to count samples, so it must not be pulled into
+            `model_dump()` / serialisation. Matches `pysmo.Seismogram.end_time`.
+            """
             if len(self.data) == 0:
                 return self.begin_time
             return self.begin_time + self.delta * (len(self.data) - 1)
 
         @property
-        def flip(self) -> bool:
-            """Whether the seismogram should be flipped."""
-            return self.parameters.flip
-
-        @flip.setter
-        def flip(self, value: bool) -> None:
-            self.parameters.flip = value
-
-        @property
-        def select(self) -> bool:
-            """Whether this seismogram should be used for processing."""
-            return self.parameters.select
-
-        @select.setter
-        def select(self, value: bool) -> None:
-            self.parameters.select = value
-
-        @property
-        def t1(self) -> Timestamp | None:
-            """Working phase arrival pick."""
-            return self.parameters.t1
-
-        @t1.setter
-        def t1(self, value: Timestamp | None) -> None:
-            self.parameters.t1 = value
-
-        @property
-        def data(self) -> npt.NDArray[np.float64]:
+        def data(self) -> npt.NDArray[np.floating]:
             """Seismogram waveform data array."""
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")
@@ -552,7 +531,7 @@ class AimbatSeismogram(SQLModel, table=True):
             )
 
         @data.setter
-        def data(self, value: npt.NDArray[np.float64]) -> None:
+        def data(self, value: npt.NDArray[np.floating]) -> None:
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")
             write_seismogram_data(
@@ -752,8 +731,10 @@ AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assig
 class AimbatNote(SQLModel, table=True):
     """Free-text Markdown note attached to an event, station, seismogram, or snapshot.
 
-    Exactly one of the four FK fields is set per row. Deletion of the parent
-    record cascades to delete the note via the DB-level foreign key constraint.
+    Exactly one of the four FK fields is set per row, and at most one note
+    exists per parent record (enforced by the per-FK partial unique indexes).
+    Deletion of the parent record cascades to delete the note via the DB-level
+    foreign key constraint.
     """
 
     model_config = SQLModelConfig(
@@ -768,6 +749,30 @@ class AimbatNote(SQLModel, table=True):
             " + CASE WHEN seismogram_id IS NOT NULL THEN 1 ELSE 0 END"
             " + CASE WHEN snapshot_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
             name="aimbat_note_exactly_one_parent",
+        ),
+        Index(
+            "ix_aimbatnote_event_id",
+            "event_id",
+            unique=True,
+            sqlite_where=text("event_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_aimbatnote_station_id",
+            "station_id",
+            unique=True,
+            sqlite_where=text("station_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_aimbatnote_seismogram_id",
+            "seismogram_id",
+            unique=True,
+            sqlite_where=text("seismogram_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_aimbatnote_snapshot_id",
+            "snapshot_id",
+            unique=True,
+            sqlite_where=text("snapshot_id IS NOT NULL"),
         ),
     )
 

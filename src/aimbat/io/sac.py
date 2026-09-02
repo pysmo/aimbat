@@ -46,7 +46,7 @@ __all__ = [
 @seismogram_data_reader(DataType.SAC)
 def read_seismogram_data_from_sacfile(
     sacfile: str | PathLike[str],
-) -> npt.NDArray[np.float64]:
+) -> npt.NDArray[np.floating]:
     """Read seismogram waveform data from a SAC file.
 
     Args:
@@ -63,7 +63,7 @@ def read_seismogram_data_from_sacfile(
 
 @seismogram_data_writer(DataType.SAC)
 def write_seismogram_data_to_sacfile(
-    sacfile: str | PathLike[str], data: npt.NDArray[np.float64]
+    sacfile: str | PathLike[str], data: npt.NDArray[np.floating]
 ) -> None:
     """Write seismogram waveform data to a SAC file.
 

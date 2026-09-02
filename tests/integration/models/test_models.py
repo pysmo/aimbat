@@ -523,6 +523,46 @@ class TestTimedeltaRoundTrip:
         assert isinstance(seis.delta, Timedelta)
         assert seis.delta == Timedelta(seconds=0.05)
 
+    def test_explicit_window_values_round_trip(self, patched_session: Session) -> None:
+        """An explicitly-set window Timedelta survives write→read unchanged.
+
+        Args:
+            patched_session (Session): Database session.
+        """
+        ev = _make_event(patched_session)
+        ev.parameters.window_pre = Timedelta(seconds=-12.5)
+        ev.parameters.window_post = Timedelta(seconds=17.25)
+        patched_session.commit()
+
+        patched_session.expire_all()
+        params = patched_session.exec(select(AimbatEventParameters)).one()
+        assert params.window_pre == Timedelta(seconds=-12.5)
+        assert params.window_post == Timedelta(seconds=17.25)
+
+    def test_timedelta_column_reads_bare_number_as_seconds(
+        self, patched_session: Session
+    ) -> None:
+        """A bare number written straight to a Timedelta column is seconds.
+
+        Table models skip Pydantic validation, so a bare number can be
+        assigned directly and reaches `SAPandasTimedelta` unconverted. It must
+        be stored as seconds (matching `PydanticTimedelta`), not as pandas'
+        nanosecond default - the 1e9 mismatch this guards against.
+
+        Args:
+            patched_session (Session): Database session.
+        """
+        ev = _make_event(patched_session)
+        sta = _make_station(patched_session)
+        seis = _make_seismogram(patched_session, ev, sta)
+        seis.delta = 0.05  # type: ignore[assignment]  # bare seconds, no validation
+        patched_session.commit()
+
+        patched_session.expire_all()
+        reloaded = patched_session.get(AimbatSeismogram, seis.id)
+        assert reloaded is not None
+        assert reloaded.delta == Timedelta(seconds=0.05)
+
 
 # ===================================================================
 # Unique constraints
