@@ -12,6 +12,8 @@ from pandas import Timedelta, Timestamp
 from pydantic import AfterValidator, Field, PlainSerializer
 from pydantic_core.core_schema import CoreSchema, no_info_plain_validator_function
 
+from ._coerce import coerce_to_timedelta
+
 __all__ = [
     "PydanticTimestamp",
     "PydanticTimedelta",
@@ -64,25 +66,20 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
                 raise ValueError(f"{cls.target_type.__name__} value cannot be None")
             if isinstance(value, cls.target_type):
                 result = cast(T, value)
+            elif cls.target_type is Timedelta:
+                # Bare numbers are seconds (see `_coerce`), so a value that has
+                # been serialised to seconds round-trips unchanged.
+                try:
+                    result = cast(T, coerce_to_timedelta(value))
+                except Exception as e:
+                    raise ValueError(f"Could not parse Timedelta: {e}") from e
             else:
                 try:
-                    # Interpret bare numbers (and numeric strings) as seconds
-                    # for Timedelta, matching the seconds-based serialisation.
-                    if cls.target_type is Timedelta and isinstance(value, str):
-                        try:
-                            result = cast(T, Timedelta(seconds=float(value)))
-                        except ValueError:
-                            result = cast(T, cls.target_type(value))
-                    elif (
-                        cls.target_type is Timedelta
-                        and isinstance(value, int | float)
-                        and not isinstance(value, bool)
-                    ):
-                        result = cast(T, Timedelta(seconds=float(value)))
-                    else:
-                        result = cast(T, cls.target_type(value))
+                    result = cast(T, cls.target_type(value))
                 except Exception as e:
-                    raise ValueError(f"Could not parse {cls.target_type.__name__}: {e}")
+                    raise ValueError(
+                        f"Could not parse {cls.target_type.__name__}: {e}"
+                    ) from e
             if cls.target_type is Timestamp and cast(Timestamp, result).tzinfo is None:
                 raise ValueError(
                     f"Timestamp value must be timezone-aware (UTC), got naive "
