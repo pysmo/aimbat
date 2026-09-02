@@ -1,7 +1,10 @@
 """Integration tests for MCCC alignment in aimbat.core."""
 
-from pandas import Timedelta
+import pytest
+from pandas import Timedelta, Timestamp
 from sqlmodel import Session, select
+
+from pysmo.tools.iccs import ICCS, McccResult
 
 from aimbat.core import (
     create_iccs_instance,
@@ -85,3 +88,69 @@ class TestMccc:
         loaded_session.refresh(seis_to_deselect)
         if seis_to_deselect.quality:
             assert seis_to_deselect.quality.mccc_cc_mean is None
+
+
+def _fake_mccc_result(n: int, cc_means: list[float], cc_stds: list[float]) -> McccResult:
+    """Build an `McccResult` with `n` picks/errors and the given CC lists."""
+    return McccResult(
+        picks=[Timestamp("2010-02-27T06:40:00", tz="UTC")] * n,
+        errors=[Timedelta(seconds=0.1)] * n,
+        rmse=Timedelta(seconds=0.2),
+        cc_means=cc_means,
+        cc_stds=cc_stds,
+    )
+
+
+class TestWriteMcccQualityGuards:
+    """`_write_mccc_quality` hardening: 1:1 length check and CC clamping."""
+
+    def test_clamps_out_of_range_cc_values(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CC mean is clamped to [0, 1] and CC std to >= 0 before storage."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs = create_iccs_instance(loaded_session, event).iccs
+        n = sum(1 for s in iccs.seismograms if s.select)
+        assert n >= 2
+
+        cc_means = [1.5, -0.3] + [0.8] * (n - 2)
+        cc_stds = [-0.1] + [0.05] * (n - 1)
+        monkeypatch.setattr(
+            ICCS,
+            "run_mccc",
+            lambda self, **kw: _fake_mccc_result(n, cc_means, cc_stds),
+        )
+        run_mccc(loaded_session, event, iccs, all_seismograms=False)
+
+        loaded_session.expire_all()
+        stored = loaded_session.exec(
+            select(AimbatSeismogramQuality).where(
+                AimbatSeismogramQuality.mccc_cc_mean != None  # noqa: E711
+            )
+        ).all()
+        assert stored
+        for sq in stored:
+            assert sq.mccc_cc_mean is not None and 0.0 <= sq.mccc_cc_mean <= 1.0
+            assert sq.mccc_cc_std is not None and sq.mccc_cc_std >= 0.0
+
+    def test_raises_on_result_length_mismatch(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A result that does not align 1:1 with the used seismograms raises."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs = create_iccs_instance(loaded_session, event).iccs
+        n = sum(1 for s in iccs.seismograms if s.select)
+
+        short = McccResult(
+            picks=[Timestamp("2010-02-27T06:40:00", tz="UTC")] * n,
+            errors=[Timedelta(seconds=0.1)] * (n - 1),  # one short
+            rmse=Timedelta(seconds=0.2),
+            cc_means=[0.8] * n,
+            cc_stds=[0.05] * n,
+        )
+        monkeypatch.setattr(ICCS, "run_mccc", lambda self, **kw: short)
+
+        with pytest.raises(RuntimeError, match="cannot be attributed"):
+            run_mccc(loaded_session, event, iccs, all_seismograms=False)

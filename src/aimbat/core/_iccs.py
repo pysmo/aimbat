@@ -303,6 +303,11 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
         logger.debug(f"Returning cached BoundICCS for event {event.id}.")
         return cached
 
+    # Stamp before reading the event's parameters and waveforms below, so a
+    # modification committed while this instance is being built is caught as
+    # stale on the next check rather than silently baked in.
+    created_at = Timestamp.now("UTC")
+
     event = session.exec(
         select(AimbatEvent)
         .where(AimbatEvent.id == event.id)
@@ -315,7 +320,6 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     ).one()
 
     logger.debug(f"Creating ICCS instance for event {event.id}.")
-    created_at = Timestamp.now("UTC")
     bound = BoundICCS(
         iccs=_build_iccs(event),
         event_id=event.id,
@@ -398,6 +402,15 @@ def _write_mccc_quality(
         else [s for s in iccs.seismograms if s.select]
     )
 
+    n_used = len(used_seis)
+    if not len(result.errors) == len(result.cc_means) == len(result.cc_stds) == n_used:
+        raise RuntimeError(
+            f"MCCC returned {len(result.errors)} error / {len(result.cc_means)} "
+            f"cc_mean / {len(result.cc_stds)} cc_std values for {n_used} "
+            "seismograms; per-seismogram metrics cannot be attributed. The "
+            "pysmo MCCC result is expected to align 1:1 with the used seismograms."
+        )
+
     logger.debug(f"Writing MCCC quality for event {event_id}.")
     with Session(_engine) as write_session:
         # Event quality
@@ -425,25 +438,30 @@ def _write_mccc_quality(
                 sq.mccc_cc_std = None
                 write_session.add(sq)
 
-        # Write MCCC metrics for used seismograms
+        # Write MCCC metrics for used seismograms. CC values are clamped to
+        # their valid ranges (mean [0, 1], std >= 0) to absorb floating-point
+        # overshoot, matching `_write_iccs_stats` — table models skip the
+        # Pydantic bounds so nothing else enforces them here.
         for iccs_seis, error, cc_mean, cc_std in zip(
-            used_seis, result.errors, result.cc_means, result.cc_stds
+            used_seis, result.errors, result.cc_means, result.cc_stds, strict=True
         ):
             seis_id = iccs_seis.extra["id"]
+            cc_mean_val = max(0.0, min(1.0, float(cc_mean)))
+            cc_std_val = max(0.0, float(cc_std))
             sq = _find_seismogram_quality(write_session, seis_id)
             if sq is None:
                 sq = AimbatSeismogramQuality(
                     id=uuid4(),
                     seismogram_id=seis_id,
                     mccc_error=error,
-                    mccc_cc_mean=float(cc_mean),
-                    mccc_cc_std=float(cc_std),
+                    mccc_cc_mean=cc_mean_val,
+                    mccc_cc_std=cc_std_val,
                 )
                 write_session.add(sq)
             else:
                 sq.mccc_error = error
-                sq.mccc_cc_mean = float(cc_mean)
-                sq.mccc_cc_std = float(cc_std)
+                sq.mccc_cc_mean = cc_mean_val
+                sq.mccc_cc_std = cc_std_val
                 write_session.add(sq)
 
         write_session.commit()
