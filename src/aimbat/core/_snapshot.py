@@ -22,7 +22,7 @@ from uuid import UUID, uuid4
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from aimbat.logger import logger
 from aimbat.models import (
@@ -31,7 +31,6 @@ from aimbat.models import (
     AimbatEventQuality,
     AimbatEventQualitySnapshot,
     AimbatSeismogram,
-    AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
     AimbatSeismogramQuality,
     AimbatSeismogramQualitySnapshot,
@@ -47,6 +46,7 @@ from aimbat.models._parameters import (
 )
 from aimbat.models._quality import (
     AimbatEventQualityBase,
+    AimbatSeismogramQualityBase,
 )
 from aimbat.utils import get_title_map, rel
 
@@ -87,6 +87,11 @@ _MCCC_HASH_EVENT_EXCLUDE = {"completed", "min_cc"}
 # MCCC membership is recorded by the seismogram quality snapshot rows, so
 # changing `select` must not invalidate a prior MCCC result.
 _MCCC_HASH_SEISMOGRAM_EXCLUDE = {"select"}
+
+# Every seismogram-level quality field except `iccs_cc` is an MCCC diagnostic.
+_MCCC_SEISMOGRAM_QUALITY_FIELDS = tuple(
+    k for k in AimbatSeismogramQualityBase.model_fields if k != "iccs_cc"
+)
 
 
 def _compute_parameters_hash(
@@ -223,6 +228,7 @@ def create_snapshot(
             aimbat_seismogram.parameters,
             update={
                 "id": uuid4(),  # we don't want to carry over the id from the input seismogram parameters
+                "seismogram_id": aimbat_seismogram.id,
                 "seismogram_parameters_id": aimbat_seismogram.parameters.id,
             },
         )
@@ -261,6 +267,7 @@ def create_snapshot(
                     sq,
                     update={
                         "id": uuid4(),
+                        "seismogram_id": aimbat_seismogram.id,
                         "seismogram_quality_id": sq.id,
                     },
                 )
@@ -340,13 +347,18 @@ def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
     session.add(current_event_parameters)
 
     for seismogram_parameters_snapshot in snapshot.seismogram_parameters_snapshots:
+        current_seismogram_parameters = seismogram_parameters_snapshot.parameters
+        if current_seismogram_parameters is None:
+            # The seismogram was deleted after this snapshot was taken; its
+            # frozen row is kept as history but there is nothing live to
+            # roll back into.
+            continue
         rollback_seismogram_parameters = AimbatSeismogramParametersBase.model_validate(
             seismogram_parameters_snapshot
         )
         logger.debug(
             f"Using seismogram parameters snapshot with id={seismogram_parameters_snapshot.id} for rollback."
         )
-        current_seismogram_parameters = seismogram_parameters_snapshot.parameters
         for k in AimbatSeismogramParametersBase.model_fields.keys():
             v = getattr(rollback_seismogram_parameters, k)
             logger.debug(f"Setting seismogram parameter {k} to {v!r} for rollback.")
@@ -381,6 +393,32 @@ def _pick_candidate(
     return max(candidates, key=lambda s: s.time)
 
 
+def _live_seismogram_quality_map(
+    session: Session, snapshot: AimbatSnapshot
+) -> dict[UUID, AimbatSeismogramQuality]:
+    """Map `seismogram_id` -> live quality row for the snapshot's frozen seismograms.
+
+    Keyed on the `seismogram_id` stored on each quality snapshot rather than
+    its (possibly NULL) FK to the live quality row, so a snapshot still resolves
+    to the live records after the source quality row has been recreated. Relies
+    on the one-quality-row-per-seismogram invariant that
+    `AimbatSeismogram.quality` (a scalar relationship) assumes everywhere.
+    """
+    seismogram_ids = {
+        q.seismogram_id
+        for q in snapshot.seismogram_quality_snapshots
+        if q.seismogram_id is not None
+    }
+    if not seismogram_ids:
+        return {}
+    rows = session.exec(
+        select(AimbatSeismogramQuality).where(
+            col(AimbatSeismogramQuality.seismogram_id).in_(seismogram_ids)
+        )
+    ).all()
+    return {row.seismogram_id: row for row in rows}
+
+
 def _restore_mccc_quality(session: Session, snapshot: AimbatSnapshot) -> None:
     """Copy the frozen MCCC diagnostics from `snapshot` into the live records."""
     logger.info(f"Syncing MCCC quality from snapshot {snapshot.id}.")
@@ -388,28 +426,28 @@ def _restore_mccc_quality(session: Session, snapshot: AimbatSnapshot) -> None:
     event_quality_snap = snapshot.event_quality_snapshot
     assert event_quality_snap is not None  # guaranteed by the candidate filter
 
-    live_event_quality = session.get(
-        AimbatEventQuality, event_quality_snap.event_quality_id
-    )
+    live_event_quality = session.exec(
+        select(AimbatEventQuality).where(
+            col(AimbatEventQuality.event_id) == snapshot.event_id
+        )
+    ).one_or_none()
     if live_event_quality is None:
         logger.warning(
-            f"Live event quality record {event_quality_snap.event_quality_id} not found; skipping event quality sync."
+            f"No live event quality record for event {snapshot.event_id}; skipping event quality sync."
         )
     else:
         for k in AimbatEventQualityBase.model_fields:
             setattr(live_event_quality, k, getattr(event_quality_snap, k))
         session.add(live_event_quality)
 
+    live_quality = _live_seismogram_quality_map(session, snapshot)
     for seis_quality_snap in snapshot.seismogram_quality_snapshots:
-        live_seis_quality = session.get(
-            AimbatSeismogramQuality, seis_quality_snap.seismogram_quality_id
-        )
-        if live_seis_quality is None:
-            logger.warning(
-                f"Live seismogram quality record {seis_quality_snap.seismogram_quality_id} not found; skipping."
-            )
+        if seis_quality_snap.seismogram_id is None:
             continue
-        for k in ("mccc_cc_mean", "mccc_cc_std", "mccc_error"):
+        live_seis_quality = live_quality.get(seis_quality_snap.seismogram_id)
+        if live_seis_quality is None:
+            continue
+        for k in _MCCC_SEISMOGRAM_QUALITY_FIELDS:
             setattr(live_seis_quality, k, getattr(seis_quality_snap, k))
         session.add(live_seis_quality)
 
@@ -418,14 +456,12 @@ def _restore_iccs_cc(session: Session, snapshot: AimbatSnapshot) -> None:
     """Copy the frozen `iccs_cc` values from `snapshot` into the live records."""
     logger.info(f"Syncing iccs_cc from snapshot {snapshot.id}.")
 
+    live_quality = _live_seismogram_quality_map(session, snapshot)
     for seis_quality_snap in snapshot.seismogram_quality_snapshots:
-        live_seis_quality = session.get(
-            AimbatSeismogramQuality, seis_quality_snap.seismogram_quality_id
-        )
+        if seis_quality_snap.seismogram_id is None:
+            continue
+        live_seis_quality = live_quality.get(seis_quality_snap.seismogram_id)
         if live_seis_quality is None:
-            logger.warning(
-                f"Live seismogram quality record {seis_quality_snap.seismogram_quality_id} not found; skipping."
-            )
             continue
         live_seis_quality.iccs_cc = seis_quality_snap.iccs_cc
         session.add(live_seis_quality)
@@ -896,18 +932,8 @@ def dump_snapshot_results(
         .options(
             selectinload(rel(AimbatSnapshot.event)),
             selectinload(rel(AimbatSnapshot.event_quality_snapshot)),
-            selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)).options(
-                selectinload(
-                    rel(AimbatSeismogramParametersSnapshot.parameters)
-                ).options(
-                    selectinload(
-                        rel(AimbatSeismogramParameters.seismogram)
-                    ).selectinload(rel(AimbatSeismogram.station))
-                )
-            ),
-            selectinload(rel(AimbatSnapshot.seismogram_quality_snapshots)).selectinload(
-                rel(AimbatSeismogramQualitySnapshot.quality)
-            ),
+            selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)),
+            selectinload(rel(AimbatSnapshot.seismogram_quality_snapshots)),
         )
     ).one_or_none()
 
@@ -917,15 +943,43 @@ def dump_snapshot_results(
     eq = snapshot.event_quality_snapshot
     mccc_rmse = eq.mccc_rmse if eq is not None else None
 
-    # Build a lookup from seismogram_id → quality snapshot.
+    # Resolve the frozen seismograms against the live table by their stored id;
+    # some may have been deleted since the snapshot was taken.
+    frozen_ids = {
+        ps.seismogram_id
+        for ps in snapshot.seismogram_parameters_snapshots
+        if ps.seismogram_id is not None
+    }
+    live_seismograms: dict[UUID, AimbatSeismogram] = {}
+    if frozen_ids:
+        live_seismograms = {
+            s.id: s
+            for s in session.exec(
+                select(AimbatSeismogram)
+                .where(col(AimbatSeismogram.id).in_(frozen_ids))
+                .options(selectinload(rel(AimbatSeismogram.station)))
+            ).all()
+        }
+
     quality_map: dict[UUID, AimbatSeismogramQualitySnapshot] = {
-        sq.quality.seismogram_id: sq for sq in snapshot.seismogram_quality_snapshots
+        sq.seismogram_id: sq
+        for sq in snapshot.seismogram_quality_snapshots
+        if sq.seismogram_id is not None
     }
 
     seismograms = [
         SnapshotSeismogramResult.from_snapshot_records(
             param_snap=ps,
-            quality_snap=quality_map.get(ps.parameters.seismogram_id),
+            quality_snap=(
+                quality_map.get(ps.seismogram_id)
+                if ps.seismogram_id is not None
+                else None
+            ),
+            live_seismogram=(
+                live_seismograms.get(ps.seismogram_id)
+                if ps.seismogram_id is not None
+                else None
+            ),
         )
         for ps in snapshot.seismogram_parameters_snapshots
     ]

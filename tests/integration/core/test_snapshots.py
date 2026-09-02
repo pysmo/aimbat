@@ -27,6 +27,7 @@ from aimbat.models import (
     AimbatEvent,
     AimbatEventQuality,
     AimbatSeismogram,
+    AimbatSeismogramParametersSnapshot,
     AimbatSeismogramQuality,
     AimbatSnapshot,
 )
@@ -467,6 +468,30 @@ class TestRollbackToSnapshot:
         """
         with pytest.raises(ValueError):
             rollback_to_snapshot(loaded_session, uuid.uuid4())
+
+    def test_rollback_skips_a_seismogram_deleted_after_the_snapshot(
+        self, loaded_session: Session
+    ) -> None:
+        """A snapshot's frozen row for a since-deleted seismogram has no live
+        parameter row to restore into; rollback must skip it, not crash."""
+        from aimbat.core import delete_seismogram
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        deleted_id = event.seismograms[0].id
+        delete_seismogram(loaded_session, deleted_id)
+
+        rollback_to_snapshot(loaded_session, snapshot.id)  # must not raise
+
+        orphan = loaded_session.exec(
+            select(AimbatSeismogramParametersSnapshot).where(
+                col(AimbatSeismogramParametersSnapshot.seismogram_id) == deleted_id
+            )
+        ).one()
+        assert orphan.seismogram_parameters_id is None
 
 
 class TestGetSnapshots:

@@ -128,13 +128,18 @@ class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
     "The seismogram these parameters belong to."
 
     snapshots: list["AimbatSeismogramParametersSnapshot"] = Relationship(
-        back_populates="parameters", cascade_delete=True
+        back_populates="parameters", passive_deletes=True
     )
     "Parameter snapshots for this seismogram."
 
 
 class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=True):
-    """Snapshot of processing parameters for a single seismogram."""
+    """Snapshot of processing parameters for a single seismogram.
+
+    Frozen history: the record keeps its own `seismogram_id` and outlives the
+    seismogram it was taken from. `seismogram_parameters_id` is set to `NULL`
+    if that live parameter row is deleted.
+    """
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -144,14 +149,22 @@ class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=T
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
-    seismogram_parameters_id: uuid.UUID = Field(
-        foreign_key="aimbatseismogramparameters.id",
-        ondelete="CASCADE",
-        title="Seismogram parameters ID",
-        description="Foreign key referencing the source seismogram parameters.",
+    seismogram_id: uuid.UUID | None = Field(
+        default=None,
+        title="Seismogram ID",
+        description="ID of the seismogram this snapshot was taken from.",
     )
-    parameters: AimbatSeismogramParameters = Relationship(back_populates="snapshots")
-    "The seismogram parameters this snapshot was taken from."
+    seismogram_parameters_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="aimbatseismogramparameters.id",
+        ondelete="SET NULL",
+        title="Seismogram parameters ID",
+        description="Foreign key referencing the source seismogram parameters, or NULL if it has been deleted.",
+    )
+    parameters: AimbatSeismogramParameters | None = Relationship(
+        back_populates="snapshots"
+    )
+    "The seismogram parameters this snapshot was taken from, if still present."
     snapshot_id: uuid.UUID = Field(
         default=None,
         foreign_key="aimbatsnapshot.id",
@@ -195,13 +208,18 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
     event: "AimbatEvent" = Relationship(back_populates="parameters")
     "The event these parameters belong to."
     snapshots: list["AimbatEventParametersSnapshot"] = Relationship(
-        back_populates="parameters", cascade_delete=True
+        back_populates="parameters", passive_deletes=True
     )
     "Parameter snapshots for this event."
 
 
 class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
-    """Snapshot of processing parameters for a particular event."""
+    """Snapshot of processing parameters for a particular event.
+
+    Frozen history: the source event is still reachable via
+    `snapshot.event_id`, and `parameters_id` is set to `NULL` if the live
+    parameter row is deleted.
+    """
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -218,19 +236,19 @@ class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
         title="Snapshot ID",
         description="Foreign key referencing the parent snapshot.",
     )
-    parameters_id: uuid.UUID = Field(
+    parameters_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="aimbateventparameters.id",
-        ondelete="CASCADE",
+        ondelete="SET NULL",
         title="Event parameters ID",
-        description="Foreign key referencing the source event parameters.",
+        description="Foreign key referencing the source event parameters, or NULL if it has been deleted.",
     )
     snapshot: "AimbatSnapshot" = Relationship(
         back_populates="event_parameters_snapshot"
     )
     "The snapshot this record belongs to."
-    parameters: AimbatEventParameters = Relationship(back_populates="snapshots")
-    "The event parameters this snapshot was taken from."
+    parameters: AimbatEventParameters | None = Relationship(back_populates="snapshots")
+    "The event parameters this snapshot was taken from, if still present."
 
 
 class AimbatSeismogramQuality(AimbatSeismogramQualityBase, table=True):
@@ -258,13 +276,18 @@ class AimbatSeismogramQuality(AimbatSeismogramQualityBase, table=True):
     seismogram: "AimbatSeismogram" = Relationship(back_populates="quality")
     "The seismogram these quality metrics belong to."
     snapshots: list["AimbatSeismogramQualitySnapshot"] = Relationship(
-        back_populates="quality", cascade_delete=True
+        back_populates="quality", passive_deletes=True
     )
     "Quality snapshots taken from this live record."
 
 
 class AimbatSeismogramQualitySnapshot(AimbatSeismogramQualityBase, table=True):
-    """Snapshot of quality metrics for a single seismogram."""
+    """Snapshot of quality metrics for a single seismogram.
+
+    Frozen history: the record keeps its own `seismogram_id` and outlives the
+    seismogram it was taken from. `seismogram_quality_id` is set to `NULL` if
+    that live quality row is deleted.
+    """
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -274,15 +297,20 @@ class AimbatSeismogramQualitySnapshot(AimbatSeismogramQualityBase, table=True):
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
-    seismogram_quality_id: uuid.UUID = Field(
+    seismogram_id: uuid.UUID | None = Field(
+        default=None,
+        title="Seismogram ID",
+        description="ID of the seismogram this snapshot was taken from.",
+    )
+    seismogram_quality_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="aimbatseismogramquality.id",
-        ondelete="CASCADE",
+        ondelete="SET NULL",
         title="Seismogram quality ID",
-        description="Foreign key referencing the source seismogram quality.",
+        description="Foreign key referencing the source seismogram quality, or NULL if it has been deleted.",
     )
-    quality: AimbatSeismogramQuality = Relationship(back_populates="snapshots")
-    "The seismogram quality this snapshot was taken from."
+    quality: AimbatSeismogramQuality | None = Relationship(back_populates="snapshots")
+    "The seismogram quality this snapshot was taken from, if still present."
     snapshot_id: uuid.UUID = Field(
         default=None,
         foreign_key="aimbatsnapshot.id",
@@ -321,13 +349,18 @@ class AimbatEventQuality(AimbatEventQualityBase, table=True):
     event: "AimbatEvent" = Relationship(back_populates="quality")
     "The event these quality metrics belong to."
     snapshots: list["AimbatEventQualitySnapshot"] = Relationship(
-        back_populates="quality", cascade_delete=True
+        back_populates="quality", passive_deletes=True
     )
     "Quality snapshots taken from this live record."
 
 
 class AimbatEventQualitySnapshot(AimbatEventQualityBase, table=True):
-    """Snapshot of quality metrics for a seismic event."""
+    """Snapshot of quality metrics for a seismic event.
+
+    Frozen history: the source event is still reachable via
+    `snapshot.event_id`, and `event_quality_id` is set to `NULL` if the live
+    quality row is deleted.
+    """
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -337,15 +370,15 @@ class AimbatEventQualitySnapshot(AimbatEventQualityBase, table=True):
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
-    event_quality_id: uuid.UUID = Field(
+    event_quality_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="aimbateventquality.id",
-        ondelete="CASCADE",
+        ondelete="SET NULL",
         title="Event quality ID",
-        description="Foreign key referencing the source event quality.",
+        description="Foreign key referencing the source event quality, or NULL if it has been deleted.",
     )
-    quality: AimbatEventQuality = Relationship(back_populates="snapshots")
-    "The event quality this snapshot was taken from."
+    quality: AimbatEventQuality | None = Relationship(back_populates="snapshots")
+    "The event quality this snapshot was taken from, if still present."
     snapshot_id: uuid.UUID = Field(
         default=None,
         foreign_key="aimbatsnapshot.id",

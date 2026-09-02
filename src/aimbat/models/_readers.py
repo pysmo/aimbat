@@ -749,7 +749,8 @@ class SnapshotSeismogramResult(BaseModel):
         populate_by_name=True,
     )
 
-    seismogram_id: UUID = Field(
+    seismogram_id: UUID | None = Field(
+        default=None,
         title="Seismogram ID",
         json_schema_extra={
             "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False),  # type: ignore[dict-item]
@@ -796,29 +797,35 @@ class SnapshotSeismogramResult(BaseModel):
         cls,
         param_snap: "AimbatSeismogramParametersSnapshot",
         quality_snap: "AimbatSeismogramQualitySnapshot | None",
+        live_seismogram: "AimbatSeismogram | None",
     ) -> "SnapshotSeismogramResult":
         """Build a result record from pre-loaded snapshot records.
 
         Warning:
-            `param_snap.parameters.seismogram.station` must be loaded before
-            calling (e.g. via `selectinload`). `quality_snap.quality` must also
-            be loaded when `quality_snap` is not `None`.
+            `live_seismogram.station` must be loaded before calling (e.g. via
+            `selectinload`) when `live_seismogram` is not `None`.
 
         Args:
             param_snap: Seismogram parameters snapshot record.
             quality_snap: Matching seismogram quality snapshot, or `None` if
                 no quality data were captured for this seismogram.
+            live_seismogram: The live seismogram the snapshot was taken from,
+                or `None` if it has since been deleted.
 
         Returns:
             Assembled result record.
         """
-        seis = param_snap.parameters.seismogram
-        station = seis.station
-        name = (f"{station.network}." if station.network else "") + station.name
+        if live_seismogram is not None:
+            station = live_seismogram.station
+            name = (f"{station.network}." if station.network else "") + station.name
+            channel = station.channel
+        else:
+            name = "(deleted)"
+            channel = ""
         return cls(
-            seismogram_id=seis.id,
+            seismogram_id=param_snap.seismogram_id,
             name=name,
-            channel=station.channel,
+            channel=channel,
             select=param_snap.select,
             flip=param_snap.flip,
             t1=param_snap.t1,

@@ -356,6 +356,92 @@ class TestUpgradeProject:
         assert row.mccc_hash == "frozen-digest"
         assert row.iccs_hash is None
 
+    def test_snapshot_durability_backfills_seismogram_id(
+        self, engine_from_file: Engine
+    ) -> None:
+        """The new `seismogram_id` column is filled from the live parameter /
+        quality row each snapshot record points at."""
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        config = _alembic_config(engine_from_file)
+        command.upgrade(config, "490f0a998ee3")  # one revision before durability
+
+        with engine_from_file.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
+                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatstation "
+                    "(id, name, network, location, channel, latitude, longitude) "
+                    "VALUES ('st1', 'AAK', 'II', '00', 'BHZ', 0.0, 0.0)"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogram "
+                    "(id, begin_time, delta, t0, event_id, station_id) "
+                    "VALUES ('se1', '2020-01-01 00:00:00', 20000000, "
+                    "'2020-01-01 00:00:10', 'ev1', 'st1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramparameters "
+                    '(id, "select", flip, seismogram_id) '
+                    "VALUES ('sp1', 1, 0, 'se1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramquality (id, iccs_cc, seismogram_id) "
+                    "VALUES ('sq1', 0.5, 'se1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatsnapshot (id, time, event_id) "
+                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramparameterssnapshot "
+                    '(id, "select", flip, seismogram_parameters_id, snapshot_id) '
+                    "VALUES ('pps1', 1, 0, 'sp1', 'sn1')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO aimbatseismogramqualitysnapshot "
+                    "(id, iccs_cc, seismogram_quality_id, snapshot_id) "
+                    "VALUES ('qqs1', 0.5, 'sq1', 'sn1')"
+                )
+            )
+
+        command.upgrade(config, "d08f5f734f78")
+
+        with engine_from_file.begin() as connection:
+            pps = connection.execute(
+                text(
+                    "SELECT seismogram_id FROM aimbatseismogramparameterssnapshot "
+                    "WHERE id = 'pps1'"
+                )
+            ).one()
+            qqs = connection.execute(
+                text(
+                    "SELECT seismogram_id FROM aimbatseismogramqualitysnapshot "
+                    "WHERE id = 'qqs1'"
+                )
+            ).one()
+        assert pps.seismogram_id == "se1"
+        assert qqs.seismogram_id == "se1"
+
     def test_upgrade_rejects_stamped_database_with_unrecognised_revision(
         self, engine_from_file: Engine
     ) -> None:

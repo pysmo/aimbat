@@ -533,15 +533,14 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     ep = snapshot.event_parameters_snapshot
     snap_params = AimbatEventParametersBase.model_validate(ep)
 
-    # Build a map from seismogram_parameters_id → snapshot parameters
+    # Build a map from seismogram_id → snapshot parameters
     snap_seis_map = {
-        sp.seismogram_parameters_id: sp
-        for sp in snapshot.seismogram_parameters_snapshots
+        sp.seismogram_id: sp for sp in snapshot.seismogram_parameters_snapshots
     }
 
     seismograms = []
     for seis in snapshot.event.seismograms:
-        snap_sp = snap_seis_map.get(seis.parameters.id)
+        snap_sp = snap_seis_map.get(seis.id)
         if snap_sp is None:
             # Seismogram was added after the snapshot — use live parameters
             seis_params = AimbatSeismogramParametersBase.model_validate(seis.parameters)
