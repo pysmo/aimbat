@@ -9,8 +9,9 @@ Create Date: 2026-09-02 11:51:49.489713+00:00
 per-event `sequence`. `sequence` also gives `sync_from_matching_hash` and
 the snapshot listings an unambiguous ordering.
 
-The existing rows are numbered 1..N per event, ordered by `time` (then `id`
-to break exact ties). ``batch_alter_table`` is needed to make `sequence`
+The existing rows are numbered 1..N per event with a single-pass
+``ROW_NUMBER()`` window, ordered by `time` (then `id` to break exact
+ties). ``batch_alter_table`` is needed to make `sequence`
 NOT NULL and to swap the single-column ``UNIQUE(time)`` for
 ``UNIQUE(event_id, sequence)``; a naming convention lets the unnamed
 reflected constraint be dropped by name. `aimbatsnapshot` carries no
@@ -33,12 +34,15 @@ _NAMING_CONVENTION = {
 }
 
 _BACKFILL = """
-    UPDATE aimbatsnapshot SET sequence = (
-        SELECT COUNT(*) FROM aimbatsnapshot AS s2
-        WHERE s2.event_id = aimbatsnapshot.event_id
-          AND (s2.time < aimbatsnapshot.time
-               OR (s2.time = aimbatsnapshot.time AND s2.id <= aimbatsnapshot.id))
-    )
+    UPDATE aimbatsnapshot AS s
+    SET sequence = n.seq
+    FROM (
+        SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY event_id ORDER BY time, id
+        ) AS seq
+        FROM aimbatsnapshot
+    ) AS n
+    WHERE n.id = s.id
 """
 
 
