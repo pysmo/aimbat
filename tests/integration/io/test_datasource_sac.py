@@ -11,7 +11,6 @@ property correctly proxies through to the file on disk.
 """
 
 from collections.abc import Generator
-from datetime import timezone
 from pathlib import Path
 
 import numpy as np
@@ -278,26 +277,3 @@ class TestSacSeismogram:
         reread = SAC.from_file(sac_file_good).seismogram.data
         np.testing.assert_array_equal(reread, new_data)
         assert not np.array_equal(reread, original_data)
-
-    def test_proxy_properties(self, sac_file_good: Path, session: Session) -> None:
-        """Verifies that properties like flip, select, and t1 proxy through to parameters.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-            session (Session): Database session.
-        """
-        seis = _persist_sac(session, sac_file_good)
-        session.refresh(seis)
-
-        assert seis.select is True
-        seis.select = False
-        assert seis.parameters.select is False
-
-        assert seis.flip is False
-        seis.flip = True
-        assert seis.parameters.flip is True
-
-        assert seis.t1 is None
-        new_t1 = Timestamp("2011-09-15T19:42:25", tz=timezone.utc)
-        seis.t1 = new_t1
-        assert seis.parameters.t1 == new_t1

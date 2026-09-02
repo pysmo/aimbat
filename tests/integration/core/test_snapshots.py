@@ -377,7 +377,7 @@ class TestRollbackToSnapshot:
         assert event is not None
 
         seis_ids = [s.id for s in event.seismograms]
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -418,7 +418,7 @@ class TestRollbackToSnapshot:
         assert event is not None
 
         seis_ids = [s.id for s in event.seismograms]
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -575,7 +575,7 @@ class TestSyncFromMatchingHash:
 
         # Write quality data and take snapshot
         seis_ids = [s.id for s in event.seismograms]
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
         )
@@ -618,7 +618,7 @@ class TestSyncFromMatchingHash:
         assert event is not None
 
         seis_ids = [s.id for s in event.seismograms]
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
 
         # Write MCCC quality (RMSE = 1 ms) and take first snapshot
         _write_mock_mccc_quality(
@@ -697,7 +697,7 @@ class TestSyncFromMatchingHash:
         loaded_session.commit()
         loaded_session.refresh(event)
 
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
         )
@@ -746,7 +746,7 @@ class TestSyncFromMatchingHash:
         loaded_session.commit()
         loaded_session.refresh(event)
 
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
         )
@@ -1028,7 +1028,7 @@ class TestSnapshotMcccQualityRecords:
         loaded_session.commit()
 
         seis_ids = [s.id for s in event.seismograms]
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -1056,7 +1056,7 @@ class TestSnapshotMcccQualityRecords:
         loaded_session.commit()
 
         seis_ids = [s.id for s in event.seismograms]
-        select_flags = [s.select for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
         n_selected = sum(select_flags)
         _write_mock_mccc_quality(
             loaded_session,

@@ -48,7 +48,6 @@ erDiagram
         timestamp t0
         uuid station_id FK
         uuid event_id FK
-        dict extra
     }
 
     AimbatDataSource {

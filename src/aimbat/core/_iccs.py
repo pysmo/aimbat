@@ -257,9 +257,9 @@ def _build_iccs(
             delta=seis.delta,
             data=seis.data,
             t0=seis.t0,
-            t1=seis.t1,
-            flip=seis.flip,
-            select=seis.select,
+            t1=seis.parameters.t1,
+            flip=seis.parameters.flip,
+            select=seis.parameters.select,
             extra={"id": seis.id},
         )
         for seis in event.seismograms
