@@ -56,6 +56,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(data)** Add near-duplicate event detection to `data add`
 - **(snapshot)** Keep snapshots when the rows they froze are deleted
 - **(snapshot)** Number snapshots per event instead of by unique timestamp
+- **(iccs)** Separate stack-affecting changes and tighten the 1:1 links
 
 ### 🧪 Testing
 
