@@ -1,94 +1,73 @@
-# The ICCS Stack
+# The ICCS stack
 
-AIMBAT's ICCS instance for an event is a [`pysmo.tools.iccs.ICCS`][] object,
-holding the current state of every seismogram in that event — picks, select and
-flip flags — together with the stack and views derived from them. This page
-explains how that stack is assembled, and the seismogram views built from it.
+AIMBAT's ICCS instance for an event is a [`pysmo.tools.iccs.ICCS`][] object. It
+holds the current state of every seismogram in the event (picks, select and flip
+flags) together with the stack and the views derived from them. This page covers
+that state and those views. The algorithm that updates them is in
+[Aligning with ICCS](alignment.md).
 
 ## Live data
 
-"Live data" is the state of the event currently being worked on — picks, select
-and flip flags, and the values derived from them — as held by the in-memory ICCS
-instance. The CLI, shell, and TUI all read and write this same state, so it
-always reflects whatever was changed most recently, regardless of which
-interface changed it. The TUI additionally surfaces it as a table in its **Live
-data** tab.
+The live data are the state of the event currently being worked on: picks, the
+select and flip flags, and the values derived from them, as held by the
+in-memory ICCS instance. The CLI, shell, and TUI all read and write this same
+state, so it always reflects the most recent change, whichever interface made
+it. The TUI shows it as a table in its **Live data** tab.
 
-Concretely, this means:
+- **CC values** come from `ICCS.ccs`, a cached property that cross-correlates
+    each seismogram against the current stack on first access and clears when
+    parameters change. You do not need to run `align iccs` to see them; they
+    exist as soon as the seismograms are loaded.
+- **Picks (`t1`), select, and flip** reflect the database values loaded into the
+    instance. A change from any interface takes effect immediately, with no
+    restart.
 
-- **CC values** shown in the table come from `ICCS.ccs` — a cached property that
-    cross-correlates each seismogram against the current stack on first access
-    and clears automatically whenever parameters change. You do not need to run
-    `align iccs` to see CC values; they exist as soon as seismograms are loaded.
-- **Picks** (`t1`), **select** and **flip** flags all reflect the values stored
-    in the database and loaded into the ICCS instance. Any change made from the
-    CLI, shell, or TUI row-action menu is reflected immediately, without
-    restarting any interface.
-
-This is deliberately different from **Snapshots**, which capture a frozen copy
-of all parameters at a point in time. Live data are the working set you are
-actively adjusting; snapshots are the checkpoints you save along the way.
-
-The TUI polls the database every five seconds to detect changes made externally
-(e.g. from the CLI or shell) and silently rebuilds the ICCS instance if
-necessary, keeping the Live data tab in sync.
+Live data are the working set under active adjustment. **Snapshots** are the
+frozen checkpoints saved along the way. The TUI polls the database every five
+seconds and rebuilds the ICCS instance if an external change (from the CLI or
+shell) is detected.
 
 ## How the stack is assembled
 
-Each seismogram is windowed around its current phase pick (`t1`, or `t0` if `t1`
-has not yet been set) and tapered at both ends to suppress edge effects. These
-windowed, tapered copies — the **CC seismograms** — are summed to form the
-**stack**, using only seismograms with `select = True`. This assembly is not
-tied to running ICCS: the stack, and the correlation coefficient of each
-seismogram against it, are built lazily and cached as soon as the ICCS instance
-exists, from whatever picks are currently set — which is why CC values are
-already visible in the Live data tab before ICCS has ever run.
+Each seismogram is windowed around its current pick (`t1`, or `t0` if `t1` is not
+yet set) and tapered at both ends to suppress edge effects. These windowed,
+tapered copies, the **CC seismograms**, are averaged into the **stack**, using
+only seismograms with `select = True`.
 
-Running ICCS repeats this correlation step iteratively: each seismogram is
-cross-correlated against the *current* stack to find the time shift that aligns
-it most closely, picks (`t1`) are updated with these shifts, and the stack is
-rebuilt from the newly aligned seismograms. This repeats — each new stack better
-aligned than the last — until the picks converge.
+This does not require running ICCS. The stack, and each seismogram's correlation
+with it, are built lazily and cached as soon as the instance exists, from
+whatever picks are currently set. Running ICCS then iterates on it: see
+[Aligning with ICCS](alignment.md).
 
-Because every seismogram is correlated against the stack rather than against
-every other seismogram, ICCS is substantially faster than MCCC — and it is
-designed to be run first, to prepare well-aligned data for a final MCCC pass.
+## Seismogram representations
 
-## Seismogram types
-
-Every ICCS instance maintains four representations of each seismogram, all
-derived from the original data but never modifying it: **CC** and **Context**
+Every ICCS instance keeps four representations of each seismogram, all derived
+from the original data and never modifying it: **CC** and **context**
 seismograms, each with a zero-phase (default) and a causally filtered variant.
 
-**CC seismograms** — the windowed, tapered copies used in the actual
-cross-correlation. The window is defined by `window_pre` and `window_post`
-relative to the pick. A cosine taper (width controlled by `ramp_width`) is
-applied just outside the window to bring the signal smoothly to zero. This is
-what the algorithm operates on, and what is shown when `context` is off.
+- **CC seismograms** are the windowed, tapered copies used in the
+    cross-correlation. The window is `window_pre` to `window_post` relative to
+    the pick; a cosine taper (width `ramp_width`) just outside the window brings
+    the signal smoothly to zero. This is what the algorithm operates on, and
+    what is shown with `--no-context`.
+- **Context seismograms** are a broader view around the same pick, extended by
+    `context_width` on each side, untapered. They exist only for display and
+    interactive picking: seeing the waveform beyond the taper edges makes it
+    easier to place the window boundaries. This is the default view.
+- **Causal variants** exist when a bandpass filter is applied, viewed with
+    `--causal`. They are for picking-oriented display only. The algorithm always
+    uses the zero-phase CC seismograms.
 
-**Context seismograms** — a broader view around the same pick, extended by
-`context_width` on each side, without any tapering. These exist purely for
-display and interactive picking: seeing the waveform beyond the taper edges
-makes it much easier to judge where the window boundaries should be placed. This
-is the default view.
-
-The time window region is highlighted in the plots so the boundary between the
-two representations is always visible.
-
-**Causal variants** — when a bandpass filter is applied, CC and Context
-seismograms each have a causally filtered (single-pass) counterpart, viewed with
-`--causal`. These exist only for picking-oriented display; the ICCS algorithm
-itself always cross-correlates and stacks the zero-phase CC seismograms, never
-the causal variant.
+The time window is highlighted in the plots, so the boundary between the two
+representations is always visible.
 
 ## Viewing the stack
 
-The **stack view** overlays all individual seismograms as thin lines on top of
-the bold stack waveform. Lines are coloured by their CC on a light-blue-to-pink
-scale using a power-law normalisation (γ = 2), which compresses the low end and
-spreads out the high end. Differences among well-aligned seismograms are
-therefore more visually distinct than differences among poorly-matching ones,
-making it easy to identify which traces are contributing most to the stack.
+The stack view overlays all individual seismograms as thin lines over the bold
+stack waveform. Lines are coloured by CC on a light-blue-to-pink scale with a
+power-law normalisation (γ = 2), which spreads out the high end so that
+differences among well-aligned traces are more visible than differences among
+poor ones.
 
 === "CLI"
 
@@ -108,19 +87,16 @@ making it easy to identify which traces are contributing most to the stack.
 
 === "TUI"
 
-    Press `t` to open the Tools menu and choose **Plot stack**. Before launching,
-    the options **context** and **all seismograms** can be toggled in the menu.
+    Press `t` for the Tools menu and choose **Plot stack**. Toggle **context**
+    and **all seismograms** in the menu before launching.
 
 ## Viewing the matrix image
 
-The **matrix image** plots each seismogram as a horizontal row in a 2-D colour
-image, with time on the x-axis and one row per seismogram. Rows are sorted by
-CC, so the best-aligned seismograms appear at the top and the worst at the
-bottom. This layout makes it easy to spot systematic misalignment or outlier
-traces that stand out from the rest of the array.
+The matrix image plots each seismogram as one horizontal row in a 2-D colour
+image, time on the x-axis, rows sorted by CC (best-aligned at the top). This
+makes systematic misalignment and outlier traces easy to spot.
 
-The same time window highlight and `context` / `--no-context` toggle apply as in
-the stack view.
+The same time-window highlight and `context` / `--no-context` toggle apply.
 
 === "CLI"
 
@@ -146,35 +122,26 @@ the stack view.
 
 The two views complement each other:
 
-- **Stack view** is best for assessing overall alignment and picking a new phase
-    arrival — the waveform shape of the stack and its coherence with individual
-    traces is immediately apparent.
-- **Matrix image** is better for spotting patterns: a cluster of rows at the
-    bottom with poor CCs, a seismogram whose polarity is inverted (shows as an
-    opposite-coloured band), or a group of traces that are consistently shifted
-    in one direction.
+- **Stack view** is best for assessing overall alignment and picking a new
+    arrival: the stack's shape and its coherence with individual traces are
+    immediately apparent.
+- **Matrix image** is best for spotting patterns: a cluster of poor CCs at the
+    bottom, an inverted-polarity trace (an opposite-coloured band), or a group
+    of traces shifted consistently in one direction.
 
-Using both views together, especially after adjusting parameters, gives the most
-complete picture of alignment quality.
+Using both after a parameter change gives the most complete picture.
 
-## Use in interactive adjustment
+## Interactive adjustment
 
-These two views are not just for passive inspection — they are the same plots
-used when interactively adjusting the phase pick, time window, and minimum CC
-threshold. Which view is presented depends on the tool and can usually be
-chosen before launching it.
-
-During interactive adjustment of the minimum CC, the matrix image gains an
-additional behaviour: scrolling the mouse wheel removes rows from the top,
-progressively revealing where the well-aligned seismograms end and the poor ones
-begin. The point where the remaining rows stop looking coherent is a natural
-place to set the threshold.
+These two plots are also the surface for interactively adjusting the pick, time
+window, and minimum CC. During min-CC adjustment the matrix image gains an extra
+behaviour: scrolling removes rows from the top, revealing where the well-aligned
+seismograms end. See [Parameters](parameters.md) for the tools.
 
 ## The `--all` flag
 
-By default, only seismograms with `select = True` appear in the plots. Passing
-`--all` (or toggling **all seismograms** in the TUI) also shows deselected
-seismograms. This is useful for checking whether deselected traces could recover
-if parameters are adjusted — recall that deselected seismograms are still
-cross-correlated against the stack and can be re-selected automatically by
-autoselect in a subsequent ICCS run.
+By default the plots show only `select = True` seismograms. `--all` (or the TUI
+toggle) adds the deselected ones, useful for checking whether they would recover
+under different parameters. Deselected seismograms are still cross-correlated
+against the stack and can be re-selected by autoselect; see
+[Aligning with ICCS](alignment.md).

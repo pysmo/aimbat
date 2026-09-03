@@ -3,7 +3,7 @@
 Unlike a typical Alembic setup, this does *not* read `sqlalchemy.url` from
 `alembic.ini`. In 'online' mode it prefers an `Engine`/`Connection` passed in
 via `config.attributes["connection"]` (the standard Alembic pattern for
-connection sharing — see `aimbat.core._migrations._alembic_config`), falling
+connection sharing; see `aimbat.core._migrations._alembic_config`), falling
 back to `aimbat.db.engine` when nothing is supplied (e.g. bare
 `uv run alembic ...` on the command line). Either way the actual URL
 ultimately traces back to `aimbat.settings.db_url`, so

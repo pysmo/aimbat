@@ -175,7 +175,7 @@ class NoteWidget(Widget):
             self.query_one("#note-tabs", TabbedContent).active = "note-tab-view"
 
     def clear(self) -> None:
-        """Clear the note display — call when no entity is selected."""
+        """Clear the note display; call when no entity is selected."""
         self._auto_save()  # Flush any unsaved edit before clearing
         self._target_type = None
         self._target_id = None

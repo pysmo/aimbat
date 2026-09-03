@@ -444,7 +444,7 @@ def _write_mccc_quality(
 
         # Write MCCC metrics for used seismograms. CC values are clamped to
         # their valid ranges (mean [0, 1], std >= 0) to absorb floating-point
-        # overshoot, matching `_write_iccs_stats` — table models skip the
+        # overshoot, matching `_write_iccs_stats`: table models skip the
         # Pydantic bounds so nothing else enforces them here.
         for iccs_seis, error, cc_mean, cc_std in zip(
             used_seis, result.errors, result.cc_means, result.cc_stds, strict=True
@@ -503,7 +503,7 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
 
     Uses the snapshot's event and seismogram parameters (window, t1, flip, select,
     bandpass, etc.) but reads waveform data from the live datasources. Seismograms
-    added after the snapshot was taken are not included in the snapshot — their live
+    added after the snapshot was taken are not included in the snapshot; their live
     parameters are used instead. No DB writes occur at any point.
 
     Args:
@@ -546,7 +546,7 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     for seis in snapshot.event.seismograms:
         snap_sp = snap_seis_map.get(seis.id)
         if snap_sp is None:
-            # Seismogram was added after the snapshot — use live parameters
+            # Seismogram was added after the snapshot: use live parameters
             seis_params = AimbatSeismogramParametersBase.model_validate(seis.parameters)
         else:
             seis_params = AimbatSeismogramParametersBase.model_validate(snap_sp)
@@ -604,10 +604,10 @@ def validate_iccs_construction(
 def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     """Write t1, flip, and select from ICCS seismograms back to the database.
 
-    Flushes but does not commit - the caller owns the transaction and must
+    Flushes but does not commit; the caller owns the transaction and must
     commit it. The flush fires the quality-invalidation triggers (SQLite
     AFTER UPDATE triggers run at statement execution), but callers that
-    repopulate quality afterwards - some from their own separate sessions -
+    repopulate quality afterwards (some from their own separate sessions)
     depend on controlling when that nulling becomes visible.
 
     Args:

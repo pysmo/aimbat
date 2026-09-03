@@ -161,7 +161,7 @@ def json_to_table(
                 label = field.title if field.title else name
             table.add_row(label, _fmt_val(name, data[name]))
     else:
-        # Horizontal table — restrict to fields present in data.
+        # Horizontal table: restrict to fields present in data.
         data_keys: set[str] = set()
         for item in data_list:
             data_keys.update(item.keys())

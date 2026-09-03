@@ -60,7 +60,7 @@ class _IccsLifecycleMixin(App[None]):
         """Discard the existing ICCS instance and create a new one in a background worker.
 
         ICCS construction reads waveform data, so it must not block the asyncio event loop.
-        Concurrent calls are ignored — only one worker runs at a time. Also records the
+        Concurrent calls are ignored: only one worker runs at a time. Also records the
         current event's `stack_modified` via `IccsLifecycle.note_checked` (and its
         `last_modified` for the UI-repaint check), so that a later staleness poll
         correctly falls through to the one-shot retry branch instead of treating the
@@ -84,7 +84,7 @@ class _IccsLifecycleMixin(App[None]):
                 self._iccs_lifecycle.note_checked(event.stack_modified)
                 self._ui_last_modified_seen = event.last_modified
         except Exception:
-            # Best-effort bookkeeping only — any failure here (no event
+            # Best-effort bookkeeping only: any failure here (no event
             # selected, a locked DB, ...) must not prevent the worker below
             # from running, since it alone resets `start_creating()`'s guard.
             pass
@@ -127,7 +127,7 @@ class _IccsLifecycleMixin(App[None]):
 
         Discards the instance instead if the selected event changed while
         the worker was building it (e.g. the event was deleted, or a
-        different event was selected, before this call ran) — otherwise a
+        different event was selected, before this call ran); otherwise a
         slow, stale worker could bind an instance for an event that is no
         longer current. When an event is still selected, immediately starts
         a fresh attempt for it.
@@ -159,7 +159,7 @@ class _IccsLifecycleMixin(App[None]):
         only repaints the panels so they reflect the new DB state. When ICCS
         creation previously failed (e.g. an invalid parameter set via the
         CLI), retries once, then waits for a further change before retrying
-        again — this avoids retrying forever against a persistently failing
+        again. This avoids retrying forever against a persistently failing
         event.
         """
         if self._current_event_id is None:
@@ -197,12 +197,12 @@ class _IccsLifecycleMixin(App[None]):
             return True
         if self._current_event_id is not None:
             self.notify(
-                "ICCS not ready — check event parameters (Parameters tab)",
+                "ICCS not ready: check event parameters (Parameters tab)",
                 severity="warning",
             )
         else:
             self.notify(
-                "No event selected — select one on the Project tab",
+                "No event selected: select one on the Project tab",
                 severity="warning",
             )
         return False

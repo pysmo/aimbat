@@ -68,11 +68,11 @@ class Settings(BaseSettings):
             "this value to an existing event's time, adding it raises an "
             "error unconditionally (even during `--dry-run`), since a gap this "
             "size is too large to be ordinary timestamp precision noise but "
-            "too small to confidently be two unrelated events — it usually "
+            "too small to confidently be two unrelated events. It usually "
             "signals a timing problem in the source data that needs "
             "investigating before import. Ignored entirely when "
             "`event_duplicate_strict` is True. This check compares origin "
-            "times only, not location — two genuinely distinct, "
+            "times only, not location: two genuinely distinct, "
             "geographically unrelated events whose times happen to land "
             "within this tolerance of each other would still be flagged."
         ),
@@ -81,14 +81,14 @@ class Settings(BaseSettings):
     event_duplicate_strict: bool = Field(
         default=False,
         description=(
-            "If True, skip near-duplicate event detection entirely — both "
+            "If True, skip near-duplicate event detection entirely: both "
             "`event_duplicate_tolerance` and `event_duplicate_raise_tolerance` "
             "are ignored, and events are only ever merged on an exact origin "
             "time match. Origin times are stored with microsecond precision, "
             "so this exact match is itself only accurate to the microsecond: "
             "two times less than a microsecond apart are always treated as "
-            "the same event, while any gap of a microsecond or more — however "
-            "small — creates a fully independent event with no warning at "
+            "the same event, while any gap of a microsecond or more, however "
+            "small, creates a fully independent event with no warning at "
             "all. Use only when the source data are trusted to already be "
             "free of timing problems at that precision (e.g. a catalogue "
             "known to contain legitimately close, but genuinely distinct, "

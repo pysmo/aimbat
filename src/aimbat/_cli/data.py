@@ -2,7 +2,7 @@
 
 A *data source* is a file that AIMBAT reads seismogram waveforms and metadata
 from. When a data source is added, AIMBAT extracts and stores the associated
-station, event, and seismogram records in the project database — provided the
+station, event, and seismogram records in the project database, provided the
 data type supports it.
 
 **Supported data types** (`--type`):
@@ -22,12 +22,12 @@ aimbat data add *.sac
 aimbat event list          # list events created from SAC headers
 ```
 
-Re-adding a data source that is already in the project is safe — existing
+Re-adding a data source that is already in the project is safe: existing
 records are reused rather than duplicated.
 
-Near-duplicate events — two files whose origin times differ by only a
-sliver, most often from precision loss upstream (e.g. SAC's `o`-header
-32-bit float) rather than genuinely distinct events — are flagged rather
+Near-duplicate events (two files whose origin times differ by only a
+sliver, most often from precision loss upstream such as SAC's `o`-header
+32-bit float, rather than genuinely distinct events) are flagged rather
 than silently merged. Resolving a flagged conflict is always first-wins:
 `--use-event <uuid>` links the new data to the pre-existing event's stored
 time and location exactly as they already are, it never merges, averages,
@@ -36,7 +36,7 @@ or recomputes from the new file. Detection is controlled by
 precision noise), `event_duplicate_raise_tolerance` (above
 `event_duplicate_tolerance` but below this, a gap is treated as a likely
 data problem and always raises, even during `--dry-run`), and
-`event_duplicate_strict` (skips both checks entirely — with it set, events
+`event_duplicate_strict` (skips both checks entirely; with it set, events
 are only ever merged on an exact origin-time match, which is itself only
 accurate to the microsecond AIMBAT stores timestamps at, so any gap of a
 microsecond or more silently creates a second event).

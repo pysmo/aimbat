@@ -1,8 +1,8 @@
 """Public I/O interface for AIMBAT data sources.
 
 Data source modules register their capabilities using the `register_*`
-functions. Not all data sources need to support all capabilities — for example,
-a source providing waveform data only would register
+functions. Not all data sources need to support all capabilities. A source
+providing waveform data only, for example, would register
 `register_seismogram_data_reader` and `register_seismogram_data_writer` but
 not the creator functions.
 
@@ -61,7 +61,7 @@ __all__ = [
 _CACHE_MAX_ENTRIES = 1024
 _cache: OrderedDict[tuple[str, DataType], npt.NDArray[np.floating]] = OrderedDict()
 
-# Per-capability registries — populated by data source modules (e.g. _sac)
+# Per-capability registries, populated by data source modules (e.g. _sac)
 _station_creators: dict[DataType, Callable[[str | PathLike[str]], AimbatStation]] = {}
 _event_creators: dict[DataType, Callable[[str | PathLike[str]], AimbatEvent]] = {}
 _seismogram_creators: dict[

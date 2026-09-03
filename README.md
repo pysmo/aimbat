@@ -30,9 +30,9 @@
 
 AIMBAT (Automated and Interactive Measurement of Body wave Arrival Times) is an
 open-source tool for measuring teleseismic body wave arrival times. Seismograms
-are automatically aligned using the ICCS [Iterative Cross-Correlation and Stack][^1]
-algorithm; picks are then reviewed and refined interactively before a final
-MCCC (Multi-Channel Cross-Correlation) [^2] pass computes the definitive
+are automatically aligned using the ICCS (Iterative Cross-Correlation and
+Stack) algorithm[^1]. Picks are then reviewed and refined interactively before a
+final MCCC (Multi-Channel Cross-Correlation) pass[^2] computes the definitive
 arrival times.
 
 ## Version 2
@@ -58,7 +58,7 @@ include:
   accessible through the Python API.
 
 
-## Authors' Contacts
+## Authors' contacts
 
 - Xiaoting Lou — xlou at u.northwestern.edu
 - Suzan van der Lee — suzan at northwestern.edu

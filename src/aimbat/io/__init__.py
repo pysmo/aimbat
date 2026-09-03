@@ -5,7 +5,7 @@
 Data source modules plug in by decorating their functions with the decorator
 factories from this package (`station_creator`, `event_creator`,
 `seismogram_creator`, `seismogram_data_reader`, `seismogram_data_writer`).
-Not every source needs to implement everything — a source that only provides
+Not every source needs to implement everything. A source that only provides
 waveform data would register a reader and writer but skip the creator
 functions.
 

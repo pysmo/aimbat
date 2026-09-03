@@ -125,7 +125,7 @@ def _check_iccs(
     except Exception as exc:
         if startup or prev is not None:
             # startup: always report; post-command: only report on transition
-            console.print(f"[yellow]ICCS not ready[/yellow] — {exc}")
+            console.print(f"[yellow]ICCS not ready[/yellow]: {exc}")
         return None
 
 
@@ -157,7 +157,7 @@ def cli_shell(
 
     console = Console()
 
-    # Shell-local event context — None if no event specified.
+    # Shell-local event context, None if no event specified.
     # Modified by `event switch`.
     shell_event_id: uuid.UUID | None = event_id
 
@@ -239,7 +239,7 @@ def cli_shell(
                 if not tokens:
                     continue
 
-            # Shell-only: event switch [id]  — changes context.
+            # Shell-only: "event switch [id]" changes context.
             if tokens[:2] == ["event", "switch"]:
                 if len(tokens) < 3:
                     # No argument: clear shell event context.

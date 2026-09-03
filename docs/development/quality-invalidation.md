@@ -1,4 +1,4 @@
-# Quality Metric Invalidation
+# Quality metric invalidation
 
 AIMBAT stores quality metrics in the database so they can be displayed without
 re-running expensive computations. Because those metrics depend on the current
@@ -105,7 +105,7 @@ MCCC stats**:
 **Trigger**: `null_quality_on_seis_t1_change`
 
 `t1` is the current arrival-time pick. ICCS invalidation depends on whether the
-seismogram is in the stack (`select`); MCCC invalidation depends on whether the
+seismogram is in the stack (`select`). MCCC invalidation depends on whether the
 seismogram was in the MCCC run (live stats).
 
 **ICCS:**

@@ -1,16 +1,13 @@
 # Python API
 
-After running ICCS and MCCC alignment across many events, the accumulated
-quality metrics span stations and events in ways that are natural to analyse
-with pandas and matplotlib but impossible from the CLI or TUI. The Python API is
-the primary interface for that kind of post-processing quality analysis: you
-query `AimbatSeismogram`, `AimbatStation`, and `AimbatEvent` records directly,
-build DataFrames, and apply whatever aggregation or visualisation you need.
+The same API drives the CLI, shell, and TUI, so it covers the whole workflow:
+data ingestion, parameter management, alignment, snapshots. It also enables
+analysis those interfaces cannot. Once ICCS and MCCC have run across many events,
+the accumulated quality metrics span stations and events in ways best handled
+with pandas and matplotlib: query `AimbatSeismogram`, `AimbatStation`, and
+`AimbatEvent` records directly, build DataFrames, aggregate and plot.
 
-The same API also drives the CLI and TUI internally, so it covers the full
-workflow — data ingestion, parameter management, alignment, snapshots — not just
-quality analysis. See the full [API reference](../api/aimbat.md) for a complete
-listing.
+See the [API reference](../api/aimbat.md) for the full listing.
 
 !!! note "Writing seismogram data"
 
@@ -27,32 +24,27 @@ listing.
     ```
 
     AIMBAT does not write seismogram data in normal usage. All processing results
-    are stored as parameters in the database; source files are treated as read-only.
+    are stored as parameters in the database. Source files are treated as
+    read-only.
 
-## Core Concepts
+## Components
 
-The API is built on three main components:
+The API has three:
 
-1. **Models**: [SQLModel](https://sqlmodel.tiangolo.com) classes that represent
-    the database schema (`aimbat.models`) as Python objects.
-2. **Core Functions**: High-level operations that manipulate those models
-    (`aimbat.core`).
-3. **Database Session**: A SQLAlchemy session used to track changes and interact
-    with the project database.
+1. **Models.** [SQLModel](https://sqlmodel.tiangolo.com) classes mirroring the
+    database schema (`aimbat.models`).
+2. **Core functions.** High-level operations on those models (`aimbat.core`).
+3. **Session.** A SQLAlchemy session tracking changes against the project
+    database.
 
-## Project Location
+## Project
 
-By default AIMBAT reads and writes `aimbat.db` in the current directory. Set
-`AIMBAT_PROJECT` to use a different path:
+`aimbat.db.engine` is a singleton that reads `AIMBAT_PROJECT` (or the default
+`aimbat.db`) exactly as the other interfaces do, so a script importing it uses
+the same database as the CLI. See [Project](project.md) for the configuration
+options.
 
-```bash
-export AIMBAT_PROJECT=/path/to/my/project.db
-```
-
-The `aimbat.db.engine` singleton picks this up automatically, so scripts that
-import it will use the same database as the CLI.
-
-## Session Management
+## Session management
 
 Every database operation requires a `Session`. Use it as a context manager so it
 is always closed cleanly:
@@ -66,12 +58,11 @@ with Session(engine) as session:
     pass
 ```
 
-Changes accumulate in the session and are written to disk only when
-`session.commit()` is called (or when you call a core function that commits
-internally). If an exception is raised before committing, the session is rolled
-back automatically.
+Changes accumulate in the session and reach disk only on `session.commit()`, or
+when a core function commits internally. An exception before the commit rolls the
+session back automatically.
 
-## Creating a Project
+## Creating a project
 
 ```python
 from aimbat.db import engine
@@ -84,7 +75,7 @@ This is a one-time operation that creates the schema and the SQLite triggers
 that enforce database constraints and track modification times. It raises
 `RuntimeError` if the schema already exists.
 
-## Adding Data
+## Adding data
 
 The central function is `add_data_to_project`:
 
@@ -101,10 +92,10 @@ with Session(engine) as session:
 !!! note "No automatic snapshots at this level"
 
     The `aimbat data add` CLI command snapshots each newly touched event after
-    importing (see [Adding Data](data.md#automatic-snapshots)), but that behaviour
-    lives in the CLI layer, not in `add_data_to_project` itself. Calling it directly
-    — as above — never creates a snapshot; call
-    [`create_snapshot`][aimbat.core.create_snapshot] yourself if you want one.
+    importing (see [Adding Data](data.md#automatic-snapshots)), but that lives in
+    the CLI layer, not in `add_data_to_project`. Calling it directly, as above,
+    never creates a snapshot. Call
+    [`create_snapshot`][aimbat.core.create_snapshot] separately for one.
 
 The `DataType` enum controls what is read from each source:
 
@@ -164,7 +155,7 @@ with Session(engine) as session:
     )
 ```
 
-## Quality Analysis
+## Quality analysis
 
 After alignment has been run across a set of events, each seismogram carries
 quality metrics that can be queried directly from the database. The sections
@@ -226,8 +217,8 @@ with Session(engine) as session:
 df = pd.DataFrame(rows)
 ```
 
-From here you can groupby station, pivot on event, filter by quality threshold,
-or feed the result directly into matplotlib.
+From here, group by station, pivot on event, filter by a quality threshold, or
+pass the frame straight to matplotlib.
 
 ### Station-level quality summary
 
@@ -274,18 +265,18 @@ with Session(engine) as session:
 `mccc_rmse` on each stats object is the global array fit for that event — useful
 for comparing event difficulty across a dataset.
 
-## Worked Example
+## Worked example
 
 The script below builds a complete project from scratch. It loads **3 events**,
 **10 stations**, and **20 seismograms** where the SAC files carry waveform data
-but no event or station headers — all metadata is provided via JSON — and takes
+but no event or station headers (all metadata is provided via JSON), and takes
 an initial snapshot of each event before any processing.
 
 ```python
 --8<-- "docs/snippets/api_load_project.py"
 ```
 
-## Querying the Database
+## Querying the database
 
 Models can be queried directly using SQLModel's `select`:
 
@@ -293,7 +284,7 @@ Models can be queried directly using SQLModel's `select`:
 --8<-- "docs/snippets/api_query.py"
 ```
 
-## Deduplicating Events
+## Deduplicating events
 
 `add_data_to_project` deduplicates stations automatically by SEED code
 `(network, name, location, channel)`, so importing the same station from
@@ -309,7 +300,7 @@ most data, averages the location and depth, and removes the extras.
 --8<-- "docs/snippets/api_deduplicate.py"
 ```
 
-## Running Alignment
+## Running alignment
 
 ```python
 --8<-- "docs/snippets/api_alignment.py"

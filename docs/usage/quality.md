@@ -1,138 +1,96 @@
-# Quality Assessment
+# Quality assessment
 
-## Overview
+AIMBAT records statistical metrics for judging how reliable the arrival-time
+picks are, from two sources:
 
-AIMBAT provides a suite of statistical metrics to help you assess the
-reliability of your arrival-time picks. Metrics come from two sources:
+- **ICCS CC.** Recorded whenever an ICCS instance is created, which happens on
+    any operation that touches an event. No explicit step.
+- **MCCC metrics.** Recorded only when MCCC is run.
 
-- **ICCS CC** — computed whenever an ICCS instance is created (i.e. on any
-    operation that touches the active event). No explicit run step is needed.
-- **MCCC metrics** — computed only when you explicitly run the MCCC pass.
+Both are captured in snapshots and shown in the event and station views.
 
-Both types are captured in snapshots and displayed in the Event and Station
-views.
+## ICCS cross-correlation
 
-## ICCS Cross-Correlation (Live)
+For every seismogram, AIMBAT records the Pearson cross-correlation coefficient
+between it and the current ICCS stack as `iccs_cc`.
 
-For every seismogram, AIMBAT records the **Pearson cross-correlation
-coefficient** between that seismogram and the current ICCS stack as `iccs_cc`.
+- **What it shows.** How closely the waveform matches the array stack under the
+    current window and filter. This is the value the autoselect threshold
+    (`min_cc`) is compared against.
+- **How to read it.** Near 1.0 means high similarity to the stack. Near zero or
+    negative suggests misalignment, poor signal-to-noise, or an unflipped
+    polarity.
 
-- **When it is computed**: automatically whenever AIMBAT loads or processes an
-    event — for example when running ICCS, displaying waveforms, or adjusting
-    the minimum CC threshold. You do not need to run any explicit step.
-- **What it tells you**: How closely the waveform matches the array stack under
-    the current window and filter settings. It is the basis for the
-    `--autoselect` threshold.
-- **Interpretation**: Values closer to 1.0 indicate high similarity to the
-    stack. Values near 0 or negative suggest misalignment, poor SNR, or a
-    polarity flip.
+Because it is computed automatically, `iccs_cc` is available for every event
+opened in the session and for any snapshot taken after the event was first
+opened. It does not need an MCCC run.
 
-Because ICCS CC is computed automatically, it is available for every event that
-has been opened in the current session — including events that are not currently
-active.
+## MCCC metrics
 
-## MCCC Metrics
+Computed for every participating seismogram when MCCC runs.
 
-When you run MCCC, the following statistics are calculated for every
-participating seismogram:
+### CC mean
 
-### CC Mean (Waveform Similarity)
+The mean of all pairwise cross-correlation coefficients involving a seismogram.
 
-The **CC Mean** is the arithmetic mean of all pairwise cross-correlation
-coefficients involving a specific seismogram.
+- **What it shows.** How similar a station's waveform is to the rest of the
+    array; a proxy for signal-to-noise.
+- **How to read it.** Near 1.0 is high similarity. Below about 0.6 often points
+    to a noisy site or an instrument problem.
 
-- **What it tells you**: How similar a station's waveform is to the rest of the
-    array. It serves as a proxy for the Signal-to-Noise Ratio (SNR).
-- **Interpretation**: Values closer to 1.0 indicate high similarity. Low
-    values (e.g., < 0.6) often suggest noisy sites or instrument issues.
+### CC standard deviation
 
-### CC Std (Waveform Consistency)
+The standard deviation of those same pairwise coefficients.
 
-The **CC Std** is the standard deviation of those same correlation coefficients.
+- **What it shows.** Whether the waveform matches the whole array consistently,
+    or only part of it.
+- **How to read it.** A high value means the shape changes as it crosses the
+    array, often from strong site effects or complex structure.
 
-- **What it tells you**: Whether the station's waveform matches the *entire*
-    array consistently, or only a subset of it.
-- **Interpretation**: A high CC Std indicates that the waveform shape is
-    evolving as it passes through the array, likely due to significant site
-    effects or complex geology (structural boundaries).
+### Timing error
 
-### Timing Error (Precision)
+The formal standard error of the arrival-time estimate, from the covariance
+matrix of the least-squares inversion.
 
-The **Timing Error** is the formal standard error of the arrival-time estimate,
-derived from the covariance matrix of the least-squares inversion.
+- **What it shows.** How stable the station's timing is, given the array geometry
+    and the correlation quality.
+- **How to read it.** The main quality-control metric. High values suggest
+    inconsistent relative delays, often from cycle skipping or severe noise.
 
-- **What it tells you**: How "stable" the station's timing is relative to the
-    network geometry and the quality of the correlations.
-- **Interpretation**: This is your primary metric for QC. High error values
-    suggest inconsistent relative delays, often caused by cycle skipping or
-    severe noise.
+### Global RMSE
 
-### Global RMSE (Network Fit)
+A single root-mean-square residual for the whole event.
 
-The **RMSE** (Root-Mean-Square Error) is a single value for the entire event.
+- **What it shows.** How tightly the inversion fits the array as a whole.
+- **How to read it.** A high value suggests the array is too large or too sparse
+    to be one coherent arrival, for example when the wavefront is distorted by a
+    major tectonic boundary.
 
-- **What it tells you**: The overall "tightness" of the mathematical fit for the
-    entire array.
-- **Interpretation**: A high global RMSE suggests the array may be too large or
-    sparse to be treated as a single coherent arrival (e.g., the wavefront is
-    distorted by a major tectonic boundary).
+## Quick reference
 
-## Quality Control Quick-Reference
+Use `iccs_cc`, CC mean, and timing error together to triage:
 
-Use the combination of **ICCS CC**, **CC Mean**, and **Timing Error** to triage
-your data:
+| ICCS CC | CC mean | Timing error | Reading | Action |
+| :--- | :--- | :--- | :--- | :--- |
+| High | High | Low | Reliable pick | Keep |
+| High | High | High | Likely cycle skip | Re-pick by hand or discard |
+| High | Low | Low | Noisy site, stable timing | Keep with caution |
+| Low | — | — | Poor waveform similarity | Review window or filter, or discard |
+| — | Low | High | Poor data quality | Discard the seismogram |
 
-| ICCS CC  | CC Mean  | Timing Error | Interpretation                 | Recommended Action               |
-| :------- | :------- | :----------- | :----------------------------- | :------------------------------- |
-| **High** | **High** | **Low**      | Robust pick.                   | Keep.                            |
-| **High** | **High** | **High**     | Likely **Cycle Skip**.         | Manually re-pick or discard.     |
-| **High** | **Low**  | **Low**      | Noisy site, but stable timing. | Keep with caution.               |
-| **Low**  | —        | —            | Poor waveform similarity.      | Review window/filter or discard. |
-| —        | **Low**  | **High**     | Poor data quality.             | Discard seismogram.              |
+## Aggregated statistics
 
-## Aggregated Statistics
+The event and station views also show aggregates across the seismograms in the
+most recent MCCC run, labelled "Averages across N seismograms" where N is the
+number with quality records in the active snapshot. The aggregates include the
+standard error of the mean.
 
-In the Event and Station views, AIMBAT provides aggregated statistics across the
-seismograms included in the most recent MCCC run. The label shows **"Averages
-across N seismograms"** where N is the count of seismograms that have quality
-records in the active snapshot.
+## Which metrics a snapshot shows
 
-These aggregates include the **SEM** (Standard Error of the Mean), which
-quantifies the uncertainty of the average itself.
-
-## Scope of Quality Data
-
-### ICCS CC
-
-ICCS CC is updated automatically each time AIMBAT processes an event, so it is
-available for all seismograms in any snapshot created after the event was first
-opened. It does not require an explicit MCCC run.
-
-### Rollback
-
-Rolling back to a snapshot restores the live quality metrics along with the
-parameters, so your quality view reflects the metrics that were valid for that
-parameter state without having to re-run MCCC. See
-[Rolling back](snapshots.md#rolling-back) for exactly which snapshot's quality
-data is used.
-
-### MCCC Metrics
-
-MCCC can be run in two mutually exclusive modes, controlled by the `--all` flag
-(see [`aimbat align mccc`][aimbat._cli.align.cli_mccc_run]):
-
-- **Selected only** (default, `--all` omitted): quality metrics are computed and
-    stored only for seismograms whose `select` flag is `True`.
-- **All seismograms** (`--all`): quality metrics are computed and stored for
-    every seismogram, regardless of selection state.
-
-The mode used is determined from the snapshot data itself: if any seismogram
-that was deselected at snapshot time has MCCC quality records, the run is
-treated as "all seismograms". In particular:
-
-- A **deselected seismogram** will show MCCC quality data only if it has a
-    record in the most recent MCCC snapshot — meaning MCCC was run with `--all`
-    at that time. If the most recent run used selected-only mode, its MCCC
-    quality view will be empty, even if an older snapshot contains data for it.
-- Running MCCC twice with the same parameters but different `--all` values
-    produces two snapshots; AIMBAT always reports from the most recent one.
+- Rolling back to a snapshot restores its quality metrics along with its
+    parameters, so the quality view matches that parameter state with no MCCC
+    re-run. See [Rolling back](snapshots.md#rolling-back).
+- An MCCC run in the default mode stores metrics for `select = True` seismograms
+    only; `--all` stores them for every seismogram. The mode is inferred from the
+    snapshot, and the view always reports the most recent MCCC run, so a
+    deselected seismogram shows MCCC data only if the last run used `--all`.

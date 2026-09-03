@@ -219,7 +219,7 @@ def create_project(engine: Engine) -> None:
             # Trigger 5a: Null quality when flip changes on a seismogram.
             # Flipping a trace only affects the ICCS stack if the seismogram is selected.
             # MCCC stats are invalidated if the seismogram was included in the last MCCC
-            # run, which is inferred from the presence of live mccc_cc_mean stats —
+            # run, which is inferred from the presence of live mccc_cc_mean stats,
             # not from select, because MCCC may have been run with --all.
             # The event-level UPDATE is ordered before the per-seismogram UPDATE so that
             # the EXISTS check sees the original (non-nulled) stats in both statements.
@@ -280,7 +280,7 @@ def create_project(engine: Engine) -> None:
             # ICCS: if selected, the stack is affected so iccs_cc is stale for all;
             # if deselected, only this seismogram's own iccs_cc is stale.
             # MCCC: invalidated whenever the seismogram was in the last MCCC run,
-            # inferred from live mccc_cc_mean — not select — because MCCC may have
+            # inferred from live mccc_cc_mean, not select, because MCCC may have
             # been run with --all, meaning a deselected seismogram could still be included.
             connection.execute(
                 text("""
@@ -338,7 +338,7 @@ def create_project(engine: Engine) -> None:
             # ICCS stack composition changes in both directions (select → deselect and
             # vice versa), so iccs_cc is always invalidated for the whole event.
             # MCCC stats are only invalidated if the seismogram was in the last MCCC run,
-            # inferred from live mccc_cc_mean — if MCCC was run with --all, changing
+            # inferred from live mccc_cc_mean. If MCCC was run with --all, changing
             # select does not change the MCCC set, so live stats remain valid.
             connection.execute(
                 text("""

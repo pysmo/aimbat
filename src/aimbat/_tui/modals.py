@@ -727,8 +727,8 @@ class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
 # ---------------------------------------------------------------------------
 
 _ALIGN_ALGORITHMS: list[tuple[str, str]] = [
-    ("iccs", "ICCS — Iterative Cross-Correlation and Stack"),
-    ("mccc", "MCCC — Multi-Channel Cross-Correlation"),
+    ("iccs", "ICCS (Iterative Cross-Correlation and Stack)"),
+    ("mccc", "MCCC (Multi-Channel Cross-Correlation)"),
 ]
 
 
