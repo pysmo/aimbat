@@ -61,6 +61,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(snapshot)** Number snapshots per event instead of by unique timestamp
 - **(iccs)** Separate stack-affecting changes and tighten the 1:1 links
 - **(event)** Add set_event_parameters for validated batch updates
+- **(data)** Reuse existing event within event_duplicate_tolerance
 
 ### 🧪 Testing
 
