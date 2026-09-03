@@ -1,17 +1,15 @@
-# Exporting Results
+# Exporting results
 
 ## Overview
 
-Any snapshot can be exported as a structured JSON document using
-`aimbat snapshot results`. The output contains everything needed to identify the
-snapshot, the source event, and the per-station arrival-time picks — including
-quality metrics from ICCS and, if MCCC has been run, formal timing standard
-errors.
+Any snapshot exports as a structured JSON document with `aimbat snapshot
+results`. It carries what is needed to identify the snapshot and its event, the
+per-station picks, ICCS correlation coefficients, and, if MCCC has run, formal
+timing standard errors.
 
-Exporting does not require MCCC to have been run. ICCS picks alone are
-sufficient for many workflows. MCCC adds formal per-station timing uncertainties
-and is worth running when those are required, but the output format is the same
-either way — MCCC fields are `null` in snapshots that pre-date any MCCC run.
+MCCC is not required. ICCS picks alone suffice for many workflows. The format is
+the same either way; MCCC fields are `null` in a snapshot that predates any MCCC
+run.
 
 ## Running the export
 
@@ -32,7 +30,7 @@ either way — MCCC fields are `null` in snapshots that pre-date any MCCC run.
 === "TUI"
 
     Press `Enter` on a snapshot row in the **Snapshots** tab and choose **Save
-    results to JSON**. A file-picker dialog opens; the suggested filename is
+    results to JSON**. A file-picker dialog opens. The suggested filename is
     `results_<short_id>.json`.
 
 The CLI and shell commands accept `--alias` to use camelCase field names (e.g.
@@ -85,8 +83,8 @@ on every seismogram row.
 | `event_time`       | ISO 8601       |      Yes       | Seismic event origin time                        |
 | `event_latitude`   | float          |      Yes       | Event latitude (degrees)                         |
 | `event_longitude`  | float          |      Yes       | Event longitude (degrees)                        |
-| `event_depth`      | float \| null  |      Yes       | Event depth in metres; null if not recorded      |
-| `mccc_rmse`        | float \| null  |      Yes       | Global MCCC RMSE (seconds); null if MCCC not run |
+| `event_depth`      | float \| null  |      Yes       | Event depth in metres, null if not recorded      |
+| `mccc_rmse`        | float \| null  |      Yes       | Global MCCC RMSE (seconds), null if MCCC not run |
 | `seismograms`      | array          |      Yes       | Per-seismogram entries (see below)               |
 
 ### Per-seismogram fields
@@ -150,14 +148,12 @@ for seis in data["seismograms"]:
 
 ## ICCS vs MCCC picks
 
-Picks exported from an ICCS-only snapshot have `t1` values refined by the
-iterative stack alignment. Picks from a post-MCCC snapshot have `t1` values
-replaced by the least-squares pairwise solution — slightly different in value,
-with the addition of formal standard errors in `mccc_error`.
+An ICCS-only snapshot has `t1` values from the iterative stack alignment. A
+post-MCCC snapshot has `t1` from the least-squares pairwise solution instead:
+slightly different in value, plus formal standard errors in `mccc_error`.
 
-The MCCC-derived `t1` values are generally preferred for applications that
-require formal uncertainties. For applications where only relative picks are
-needed and uncertainties are not, an ICCS-only snapshot is sufficient.
+Prefer the MCCC `t1` values where formal uncertainties matter. Where only
+relative picks are needed, an ICCS-only snapshot is enough.
 
-See [Aligning with ICCS](alignment.md) and [MCCC Alignment](mccc.md) for a full
-description of what each algorithm produces and when to use each one.
+See [Aligning with ICCS](alignment.md) and [MCCC Alignment](mccc.md) for what
+each algorithm produces and when to use it.

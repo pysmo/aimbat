@@ -1,17 +1,15 @@
-# Initial Data Inspection
+# Initial data inspection
 
-Before running any alignment, it is worth visually inspecting the imported
-seismograms to catch obvious problems: garbled waveforms, stations with
-excessive noise, flat traces, or data gaps. Catching these early avoids wasting
-time tuning parameters around fundamentally unusable data.
+Before aligning anything, inspect the imported seismograms visually to catch
+obvious problems: garbled waveforms, excessive noise, flat traces, data gaps.
+Catching these early avoids tuning parameters around unusable data.
 
-AIMBAT provides two complementary views for this purpose.
+Two views help.
 
-## By event — record section
+## By event
 
-Plots all seismograms for an event as a record section: waveforms sorted by
-epicentral distance, with absolute time on the x-axis. This gives an immediate
-overview of the array — coherent arrivals should appear as a roughly linear
+A record section: every seismogram for one event, sorted by epicentral distance,
+with absolute time on the x-axis. Coherent arrivals show as a roughly linear
 moveout across the traces.
 
 === "CLI"
@@ -28,30 +26,26 @@ moveout across the traces.
 
 === "TUI"
 
-    In the **Project** tab, navigate to the **Events** table, press `Enter` on a
-    row, and choose **View seismograms**.
+    In the **Project** tab, press `Enter` on an event row and choose **View
+    seismograms**.
 
-When there are many traces, only a subset is shown initially. Scroll the mouse
-wheel to pan through the remaining traces; hold **Shift** and scroll to pan
-along the time axis.
+With many traces, only a subset shows at first. Scroll to pan through the rest;
+hold **Shift** and scroll to pan the time axis.
 
-**What to look for:**
+Look for:
 
-- Traces that are flat, clipped, or visually incoherent with the rest of the
-    array
-- Stations with excessive noise relative to the signal
-- Traces where the arrival appears to arrive much earlier or later than expected
-    from moveout
-- Unusually large or small amplitudes after normalisation (can indicate a gain
-    issue in the original file)
+- traces that are flat, clipped, or incoherent with the array
+- stations with excessive noise relative to signal
+- arrivals much earlier or later than moveout predicts
+- unusually large or small amplitudes after normalisation, often a gain problem
+    in the original file
 
-## By station — across events
+## By station
 
-Plots all seismograms recorded at a single station across every event in the
-project, aligned on the initial pick (`t0`). The x-axis shows time relative to
-the pick; traces are stacked vertically in chronological order. This view is
-useful for checking whether a station is consistently problematic across
-multiple events, or whether an issue is isolated to one.
+Every seismogram recorded at one station across all events in the project,
+aligned on the initial pick (`t0`) and stacked vertically in time order. Useful
+for telling whether a station is consistently problematic or the issue is
+isolated to one event.
 
 === "CLI"
 
@@ -67,8 +61,8 @@ multiple events, or whether an issue is isolated to one.
 
 === "TUI"
 
-    In the **Project** tab, navigate to the **Stations** table, press `Enter` on a
-    row, and choose **View seismograms**.
+    In the **Project** tab, press `Enter` on a station row and choose **View
+    seismograms**.
 
 === "API"
 
@@ -83,38 +77,30 @@ multiple events, or whether an issue is isolated to one.
         plot_seismograms(session, station, return_fig=False)
     ```
 
-The same scroll behaviour applies: scroll to pan through traces, shift+scroll to
-pan the time axis.
+Same scroll behaviour: scroll to pan traces, shift+scroll to pan time.
 
 ## How the data are prepared
 
-Both plots apply the same preprocessing before displaying:
+Both plots apply the same in-memory preprocessing before display. The files are
+never modified.
 
-1. **Detrend** — removes the mean and linear trend
-2. **Bandpass filter** *(optional)* — applied if `bandpass_apply` is enabled in
-    the event parameters; uses the `bandpass_fmin` / `bandpass_fmax` values set
-    for that event. Filtering is **off by default**, so the initial inspection
-    shows the raw waveforms as imported. Users who pre-filter their data before
-    import can leave it disabled and work directly with the filtered waveforms
-    they already have
-3. **Resample** — resampled to a common 10 Hz sample rate for consistent display
-4. **Normalise** — each trace is normalised to unit amplitude so waveforms are
-    visually comparable regardless of original gain
+1. **Detrend.** Remove the mean and linear trend.
+2. **Bandpass filter** *(optional)*. Applied only if `bandpass_apply` is enabled
+    in the event parameters, using that event's `bandpass_fmin` /
+    `bandpass_fmax`. Off by default, so inspection shows the waveforms as
+    imported. Data pre-filtered before import can be inspected with it left off.
+3. **Resample.** To a common 10 Hz for consistent display.
+4. **Normalise.** Each trace to unit amplitude, so shapes are comparable
+    regardless of gain.
 
-The original files are never modified. These steps are applied in memory for
-display only.
+Because the filter follows the current event parameters, the plots change with
+it. Inspecting both filtered and unfiltered helps separate noise from signal.
 
-Because the bandpass filter uses the current event parameters, the inspection
-plots will look different depending on whether a filter is applied. It can be
-useful to inspect both with and without filtering to distinguish noise from
-signal.
+## Bad data
 
-## What to do with bad data
+To exclude a seismogram from processing, delete it: see
+[Removing data](data.md#removing-data). The file on disk is unaffected.
 
-If you identify a seismogram that should not be included in processing, see
-[Removing data](data.md#removing-data). Deleting a seismogram from the project
-does not affect the underlying file.
-
-For borderline cases — noisy but potentially usable traces — it is better to
-leave them in and rely on ICCS autoselect to exclude them based on
-cross-correlation quality rather than deleting them outright.
+For borderline traces, noisy but perhaps usable, leave them in and let ICCS
+autoselect exclude them on cross-correlation quality rather than deleting them
+outright.

@@ -746,7 +746,7 @@ class SnapshotSeismogramResult(BaseModel):
     snapshot was taken.
 
     Event- and snapshot-level scalars (`snapshot_id`, `event_id`, `mccc_rmse`)
-    are not repeated here — they live in the enclosing `SnapshotResults` envelope.
+    are not repeated here; they live in the enclosing `SnapshotResults` envelope.
     """
 
     model_config = ConfigDict(

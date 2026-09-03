@@ -68,7 +68,7 @@ def uuid_shortener[T: AimbatTypes](
     min_length: int = 2,
     str_uuid: str | None = None,
 ) -> str:
-    """Calculates the shortest unique prefix for a UUID, returning with dashes.
+    """Return the shortest unique prefix for a UUID, formatted with dashes.
 
     Args:
         session: An active SQLModel/SQLAlchemy session.

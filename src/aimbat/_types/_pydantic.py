@@ -1,7 +1,7 @@
 """Pydantic annotations for validating and serialising pandas time types.
 
-Provides `PydanticTimestamp` and `PydanticTimedelta` — pandas-native
-equivalents of Pydantic's own datetime/timedelta support — along with
+Provides `PydanticTimestamp` and `PydanticTimedelta` (pandas-native
+equivalents of Pydantic's own datetime/timedelta support), along with
 `Timedelta` variants constrained to negative, positive, or non-negative
 values, and a non-negative float constraint.
 """

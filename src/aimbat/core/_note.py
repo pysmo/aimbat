@@ -17,7 +17,7 @@ def get_note_content(session: Session, target: NoteTarget, target_id: uuid.UUID)
 
     Args:
         session: Active database session.
-        target: Entity type — one of `event`, `station`, `seismogram`, `snapshot`.
+        target: Entity type, one of `event`, `station`, `seismogram`, `snapshot`.
         target_id: UUID of the target entity.
 
     Returns:
@@ -35,7 +35,7 @@ def save_note(
 
     Args:
         session: Active database session.
-        target: Entity type — one of `event`, `station`, `seismogram`, `snapshot`.
+        target: Entity type, one of `event`, `station`, `seismogram`, `snapshot`.
         target_id: UUID of the target entity.
         content: Markdown note content to save.
     """

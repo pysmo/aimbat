@@ -302,8 +302,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """Suspend Textual and handle errors gracefully.
 
         If `label` is given, a panel is shown with a "close matplotlib to
-        return" hint.  Any exception raised inside the block — including
-        `KeyboardInterrupt` — is shown in the terminal while still suspended,
+        return" hint. Any exception raised inside the block (including
+        `KeyboardInterrupt`) is shown in the terminal while still suspended,
         then re-raised after Textual has fully resumed so callers can still
         react to it.
         """
@@ -388,10 +388,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 has_events = session.exec(select(AimbatEvent)).first() is not None
             if has_events:
                 bar.update(
-                    "[red]No event selected — select one on the Project tab[/red]"
+                    "[red]No event selected: select one on the Project tab[/red]"
                 )
             else:
-                bar.update("[red]No data in project — press i to add data[/red]")
+                bar.update("[red]No data in project: press i to add data[/red]")
         except RuntimeError as exc:
             bar.update(f"[red]{exc}[/red]")
 
@@ -718,7 +718,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 event_id = event.id
         except NoResultFound:
             self.notify(
-                "No event selected — select one on the Project tab",
+                "No event selected: select one on the Project tab",
                 severity="warning",
             )
             return
@@ -806,7 +806,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         )
         bound = self._iccs_lifecycle.bound
         if bound is None:
-            self.notify("ICCS not ready — please wait", severity="warning")
+            self.notify("ICCS not ready: please wait", severity="warning")
             return
         iccs = bound.iccs
         is_causal_tool = tool in CAUSAL_TOOL_REGISTRY

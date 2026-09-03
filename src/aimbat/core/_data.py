@@ -91,7 +91,7 @@ def _format_duplicate_event_message(
     """Build the noise-band near-duplicate-event message."""
     prefix = _format_gap_prefix(datasource, new_event, existing_event, gap)
     return (
-        f"Possible duplicate event: {prefix} — within the configured "
+        f"Possible duplicate event: {prefix}, within the configured "
         f"duplicate-detection tolerance ({fmt_timedelta(tolerance)}) but "
         f"not an exact match. If these are the same event, re-run with "
         f"'--use-event {existing_event.id}', or import an authoritative "
@@ -110,7 +110,7 @@ def _format_ambiguous_gap_message(
     """Build the ambiguous-gap-band event-time-conflict message."""
     prefix = _format_gap_prefix(datasource, new_event, existing_event, gap)
     return (
-        f"Event time conflict: {prefix} — too large a gap to be explained "
+        f"Event time conflict: {prefix}, too large a gap to be explained "
         f"by ordinary timestamp precision noise (tolerance "
         f"{fmt_timedelta(tolerance)}) but too small to confidently treat as "
         f"an unrelated event (raise threshold {fmt_timedelta(raise_tolerance)}"
@@ -132,8 +132,8 @@ def _create_event(
     If no exact time match is found, checks whether the new event's origin
     time is a near-duplicate of a known event's time, per
     `settings.event_duplicate_tolerance` / `event_duplicate_raise_tolerance`
-    / `event_duplicate_strict` — see the `data add` module docstring for the
-    three-tier model. `known_event_ids` is updated in place with the ID of
+    / `event_duplicate_strict` (see the `data add` module docstring for the
+    three-tier model). `known_event_ids` is updated in place with the ID of
     any newly created event, so later data sources in the same batch are
     checked against events created earlier in that batch too.
 
@@ -280,13 +280,13 @@ def _process_datasource(
             finds a near-duplicate event within
             `settings.event_duplicate_tolerance`, or if a near-duplicate
             event falls in the wider "ambiguous gap" band up to
-            `settings.event_duplicate_raise_tolerance` — the latter is
-            raised regardless of `dry_run`.
+            `settings.event_duplicate_raise_tolerance` (the latter is
+            raised regardless of `dry_run`).
     """
 
     duplicate_warning: str | None = None
 
-    # Resolve station — use the provided UUID, extract from the source, or skip
+    # Resolve station: use the provided UUID, extract from the source, or skip
     if station_id is not None:
         aimbat_station: AimbatStation | None = session.get(AimbatStation, station_id)
         if aimbat_station is None:
@@ -299,7 +299,7 @@ def _process_datasource(
     else:
         aimbat_station = None
 
-    # Resolve event — use the provided UUID, extract from the source, or skip
+    # Resolve event: use the provided UUID, extract from the source, or skip
     if event_id is not None:
         aimbat_event: AimbatEvent | None = session.get(AimbatEvent, event_id)
         if aimbat_event is None:
@@ -413,7 +413,7 @@ def add_data_to_project(
         near-duplicate raises instead of being collected).
 
     Raises:
-        ValueError: If a near-duplicate event is found — see above.
+        ValueError: If a near-duplicate event is found (see above).
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
@@ -430,7 +430,7 @@ def add_data_to_project(
     existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
 
     # Mutated in place as new events are created, so near-duplicate
-    # detection also covers events created earlier in this same batch —
+    # detection also covers events created earlier in this same batch,
     # unlike existing_event_ids, which stays a frozen pre-batch snapshot
     # for the return value's new-vs-reused semantics.
     known_event_ids = set(existing_event_ids)
@@ -487,7 +487,7 @@ def add_data_to_project(
 
 
 def get_data_for_event(session: Session, event_id: UUID) -> Sequence[AimbatDataSource]:
-    """Returns the data sources belonging to the given event.
+    """Return the data sources belonging to the given event.
 
     Args:
         session: Database session.

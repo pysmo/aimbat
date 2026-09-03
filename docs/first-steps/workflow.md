@@ -1,11 +1,13 @@
-# Workflow and Strategy
+# Workflow and strategy
+
+The AIMBAT workflow is easiest to understand next to the manual process it
+replaces.
 
 ## Without AIMBAT
 
-MCCC[^1] requires narrow time windows centred on the initial phase arrival to
-produce accurate results. Without a tool like AIMBAT, phase arrivals must be
-picked on each seismogram individually — a time-consuming task illustrated by
-the stacked steps in the flowchart below:
+MCCC[^1] needs a narrow time window centred on the arrival to give accurate
+results. Without a tool like AIMBAT, that means picking the phase arrival on
+every seismogram by hand:
 
 ```mermaid
 flowchart TD
@@ -19,14 +21,9 @@ flowchart TD
 
 ## With AIMBAT
 
-AIMBAT[^2] stacks all seismograms aligned on an initial pick, then
-cross-correlates each seismogram against that stack to refine arrivals
-simultaneously across the array. The diagram below reflects the original AIMBAT
-workflow. In modern AIMBAT, snapshots provide save points throughout the
-process, making the workflow more flexible: MCCC can be run at any point, not
-only as a final step, and ICCS and MCCC runs may alternate as parameters are
-refined. Results can be exported from any snapshot; running MCCC before the
-final export is usual but not required.
+AIMBAT[^2] replaces the manual middle of that process with ICCS. After import,
+the work is a loop: adjust parameters, run ICCS, inspect the alignment, repeat.
+MCCC is an optional final pass that adds formal timing errors.
 
 ```mermaid
 flowchart TD
@@ -43,59 +40,29 @@ flowchart TD
   H -->|No| E;
 ```
 
+The loop is not run once. Snapshots record the state at any point, so ICCS and
+MCCC can be repeated or reordered, and results exported from any snapshot.
+Running MCCC before the final export is usual but not required.
+
 ## Strategy
 
-1. Change one parameter at a time and run ICCS to observe the effect before
-    making further adjustments.
-2. Take snapshots often, with a comment describing the current state. They are
-    lightweight and easy to roll back to. There is no limit on how many
-    snapshots an event can have — use them as freely as version-control
-    commits.
-3. Do not focus too much on individual poorly-aligned seismograms — use autoflip
-    and autoselect to let the algorithm handle them.
-4. Export picks whenever the dataset is in a useful state — not only at the end.
-    ICCS picks are directly usable, and a snapshot taken at any stage is
-    sufficient to produce output.
+- **Change one parameter at a time.** Run ICCS after each change to see its
+    effect before adjusting anything else.
+- **Snapshot often.** Snapshots are lightweight and easy to roll back to.
+- **Let the algorithm handle outliers.** Use autoflip and autoselect rather than
+    hand-fixing individual seismograms. Delete one that stays poorly aligned
+    across many runs.
+- **Export from any useful state**, not only at the end. ICCS picks are usable
+    as they are; MCCC adds formal timing errors when they are needed.
 
-### ICCS running modes
+!!! tip "Keep notes while working"
 
-ICCS has two optional flags:
+    Events, stations, seismograms, and snapshots can each carry a freeform
+    Markdown note (`#!bash aimbat <target> note edit`). Recording what changed
+    and why makes a promising snapshot easy to find again later.
 
-- **Autoflip**: automatically toggles the `flip` parameter for seismograms whose
-    maximum absolute correlation with the stack is negative (i.e. inverted
-    polarity).
-- **Autoselect**: automatically sets `select=False` for seismograms poorly
-    correlated with the stack, and restores them to `select=True` if they
-    improve in a subsequent iteration.
-
-The `flip` parameter controls polarity when preparing seismograms for the stack.
-The `select` parameter controls whether a seismogram is included in the stack —
-but *all* seismograms are cross-correlated against the stack regardless of their
-`select` status. A deselected seismogram can therefore recover automatically if
-parameter changes bring it into alignment.
-
-!!! tip "Watch for rogue seismograms"
-
-    If a seismogram drifts far from the stack (large difference between initial and
-    revised pick across iterations), consider deleting it from the project. Rogue
-    seismograms can distort the valid ranges used when updating picks and time
-    windows.
-
-### MCCC running modes
-
-MCCC has one optional flag:
-
-- **`--all`**: includes deselected seismograms in the inversion. By default,
-    only seismograms with `select=True` participate. Passing `--all` computes
-    picks and quality metrics for every seismogram, regardless of selection
-    state, which is useful when you want timing estimates for all stations even
-    if some were excluded from the ICCS stack.
-
-!!! warning "Use `--all` with care"
-
-    Deselected seismograms are typically excluded because they are noisy or
-    misaligned, and including them may degrade the inversion for the rest of
-    the array.
+For the ICCS options (autoflip, autoselect) and the MCCC `--all` flag, see
+[Aligning with ICCS](../usage/alignment.md) and [MCCC Alignment](../usage/mccc.md).
 
 [^1]: VanDecar, J. C., and R. S. Crosson. "Determination of Teleseismic Relative
     Phase Arrival Times Using Multi-Channel Cross-Correlation and Least Squares."

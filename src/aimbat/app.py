@@ -9,7 +9,7 @@ commands is available by typing `aimbat COMMAND --help`.
 Every record in AIMBAT (event, seismogram, station, snapshot, …) has a UUID.
 Tables display each UUID truncated to the shortest prefix that is unique within
 that table. When a command asks for an ID you may supply any prefix long enough
-to identify the record unambiguously — from the shortest displayed prefix up to
+to identify the record unambiguously, from the shortest displayed prefix up to
 the full UUID. Dashes are optional.
 """
 

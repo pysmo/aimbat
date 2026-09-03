@@ -22,7 +22,7 @@ warning to a hard error, either with
 `AIMBAT_STRICT_SCHEMA_CHECK=true` (`PYTHONWARNINGS`/`-W` are not a reliable
 way to do this for this warning category; use `AIMBAT_STRICT_SCHEMA_CHECK`
 instead). AIMBAT's own CLI and TUI always treat a stale schema as a hard
-failure regardless of `AIMBAT_STRICT_SCHEMA_CHECK` — that setting only
+failure regardless of `AIMBAT_STRICT_SCHEMA_CHECK`; that setting only
 affects third-party code that imports `engine` from this module directly.
 """
 

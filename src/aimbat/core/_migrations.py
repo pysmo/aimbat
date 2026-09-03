@@ -113,13 +113,13 @@ def _build_staleness_warning(current_revision: str | None) -> SchemaStaleWarning
         )
     elif current_revision is None:
         message = (
-            "This project predates AIMBAT's schema versioning — run "
+            "This project predates AIMBAT's schema versioning; run "
             "`aimbat db upgrade` once to bring it up to date."
         )
     else:
         message = (
             f"This project's database schema is out of date (at "
-            f"{current_revision}, latest is {head_revision}) — run "
+            f"{current_revision}, latest is {head_revision}); run "
             "`aimbat db upgrade`."
         )
     logger.warning(message)
@@ -130,8 +130,8 @@ def _migrations_dir() -> Path:
     """Path to the installed `aimbat._migrations` package.
 
     Deliberately not read from `alembic.ini` on disk (that file is a
-    developer convenience for `uv run alembic ...` from a git checkout) —
-    resolving it via the installed package instead means everything in this
+    developer convenience for `uv run alembic ...` from a git checkout).
+    Resolving it via the installed package instead means everything in this
     module also works for a `pip`/`uv tool install`ed AIMBAT with no
     checkout on disk.
     """
@@ -243,8 +243,8 @@ def get_current_revision(engine: Engine) -> str | None:
 def get_head_revision() -> str | None:
     """Return the latest revision ID available in AIMBAT's migration scripts.
 
-    Reads `_migrations/versions/` on disk only — needs no database
-    connection, so it is safe to call from contexts where opening one would
+    Reads `_migrations/versions/` on disk only, so it needs no database
+    connection and is safe to call from contexts where opening one would
     be unsafe (e.g. from inside a SQLAlchemy `connect` event, before the
     connection being established has been returned to the pool).
 
@@ -260,7 +260,7 @@ def get_head_revision() -> str | None:
 def stamp_head(engine: Engine) -> None:
     """Mark `engine`'s database as being at the latest Alembic revision.
 
-    Writes Alembic's bookkeeping only — runs no migration DDL. Intended for
+    Writes Alembic's bookkeeping only, and runs no migration DDL. Intended for
     a database whose schema is already known to match `head`, e.g.
     immediately after `create_project()` creates a brand new one via
     `SQLModel.metadata.create_all()` rather than via a migration.
@@ -298,13 +298,13 @@ def upgrade_project(engine: Engine) -> None:
       revision is stamped at *that* revision and then upgraded the rest of
       the way, not rejected just because it isn't already at head. If it
       doesn't match any known revision at all, this raises
-      `SchemaMismatchError` rather than guessing — silently stamping a
+      `SchemaMismatchError` rather than guessing. Silently stamping a
       database whose schema doesn't actually match would tell Alembic's
       bookkeeping "this is up to date" while it is actually missing
       columns/tables, turning a loud, safe failure into a silent one.
     - If it has never been stamped *and* has no schema at all (a genuinely
       empty/new database), it is built from scratch by running the full
-      migration chain — no comparison or stamping shortcut needed, since
+      migration chain, with no comparison or stamping shortcut needed, since
       there is nothing pre-existing that could conflict.
 
     Args:

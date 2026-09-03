@@ -1,17 +1,27 @@
 # Aligning with ICCS
 
-## The process
+## The loop
 
-ICCS alignment is inherently exploratory. There is no fixed sequence of steps
-that works for every dataset — it is a feedback loop between adjusting
-parameters, running the algorithm, and examining the results. The goal is a
-stack that is coherent across the array and correlation coefficients that are
-high across most of the array.
+ICCS alignment is exploratory. There is no fixed sequence that works for every
+dataset. It is a feedback loop: adjust a parameter, run ICCS, examine the result,
+adjust again. The goal is a stack that is coherent across the array, with high
+correlation coefficients on most traces.
 
-Parameters interact: a filter that sharpens the waveform may allow a narrower
-time window, which in turn changes which seismograms align well. It is generally
-best to change one thing at a time and observe the effect before making further
-adjustments.
+Parameters interact. A filter that sharpens the waveform may allow a narrower
+window, which changes which traces align well. Change one thing at a time and
+watch the effect before the next change.
+
+## What one run does
+
+Each iteration within a run cross-correlates every seismogram against the current
+stack, shifts its pick (`t1`) by the lag that best aligns it, and rebuilds the
+stack from the newly aligned traces. This repeats, each stack better aligned than
+the last, until the stack stops changing (see [Convergence](#convergence)) or an
+iteration limit is reached.
+
+Because every seismogram is compared with the stack rather than with every other
+seismogram, ICCS is fast. It is meant to run first, preparing well-aligned data
+for a final [MCCC](mccc.md) pass.
 
 ## Running ICCS
 
@@ -19,114 +29,92 @@ adjustments.
 
     ```bash
     aimbat align iccs <ID>                          # basic run
-    aimbat align iccs <ID> --autoflip               # flip inverted polarity automatically
-    aimbat align iccs <ID> --autoselect             # deselect poor-quality seismograms automatically
+    aimbat align iccs <ID> --autoflip               # also correct inverted polarity
+    aimbat align iccs <ID> --autoselect             # also deselect poor traces
     aimbat align iccs <ID> --autoflip --autoselect  # both
     ```
 
 === "Shell"
 
     ```bash
-    align iccs                          # basic run
-    align iccs --autoflip               # flip inverted polarity automatically
-    align iccs --autoselect             # deselect poor-quality seismograms automatically
-    align iccs --autoflip --autoselect  # both
+    align iccs
+    align iccs --autoflip
+    align iccs --autoselect
+    align iccs --autoflip --autoselect
     ```
 
 === "TUI"
 
-    Press `a` to open the alignment menu and choose **ICCS**. Before running, toggle
-    **Autoflip** (`f`) and **Autoselect** (`s`) as needed.
+    Press `a` for the alignment menu and choose **ICCS**. Toggle **Autoflip**
+    (`f`) and **Autoselect** (`s`) before running.
 
-After each run, inspect the stack and matrix image to assess alignment quality
-before deciding what to change next.
-
-See [Parameters](parameters.md) for what each ICCS parameter controls and how
-to set it, including the interactive tools. See
-[`aimbat align iccs`][aimbat._cli.align.cli_iccs_run] for the exact flags.
+After each run, inspect the stack and matrix image before deciding what to
+change. See [Parameters](parameters.md) for what each one controls, and
+[`aimbat align iccs`][aimbat._cli.align.cli_iccs_run] for the flags.
 
 ## Running modes
 
 ### Basic
 
-Running without autoflip or autoselect leaves all decisions about which
-seismograms to include and whether to flip them up to the user. The stack and
-matrix views show the full result, and you can manually toggle `select` and
-`flip` on individual seismograms from the seismogram list.
+Without autoflip or autoselect, every decision about inclusion and polarity is
+manual. Toggle `select` and `flip` on individual seismograms from the seismogram
+list; the stack and matrix views show the full result.
 
 ### Autoflip
 
-Depending on the focal mechanism and a station's azimuth and take-off angle,
-some stations may record the target phase with opposite polarity to the rest of
-the array. These seismograms contribute destructively to the stack, degrading
-alignment for everything else. The `flip` flag multiplies a seismogram's data by
-−1 before it enters the stack and cross-correlation, correcting for this. With
-autoflip enabled, ICCS detects seismograms whose maximum absolute
-cross-correlation with the stack is negative and automatically toggles their
-`flip` parameter.
+Depending on the focal mechanism and a station's azimuth and take-off angle, some
+stations record the target phase with opposite polarity to the rest of the array.
+These traces contribute destructively to the stack. The `flip` flag multiplies a
+seismogram by −1 before it enters the stack and cross-correlation. With autoflip,
+ICCS detects traces whose maximum absolute correlation with the stack is negative
+and sets their `flip`.
 
-Autoflip can be run once early on to correct polarity issues, or left enabled
-throughout. It is safe to run repeatedly.
+Autoflip is safe to run repeatedly. Run it once early, or leave it on throughout.
 
 ### Autoselect
 
-With autoselect enabled, seismograms whose CC falls below `min_cc` are
-automatically set to `select = False` and excluded from the stack in subsequent
-iterations. They are still cross-correlated against the stack, however — so if
-parameters improve and they start to align better, they can be re-selected
-automatically in a later run.
+With autoselect, a seismogram whose CC falls below `min_cc` is set to
+`select = False` and excluded from the stack in later iterations. It is still
+cross-correlated against the stack, so it can be re-selected automatically in a
+later run if parameters improve and it aligns better.
 
-This means autoselect is not permanent. A seismogram deselected at an early
-stage may recover as parameters improve — and narrowing the time window tends to
-increase CC values across the board, which can bring previously deselected
-seismograms back above the threshold even without any change in alignment
-quality. This is worth keeping in mind when interpreting CC values after a
-window adjustment.
+Autoselect is therefore not permanent. Narrowing the time window also raises CC
+values across the board, which can bring deselected traces back above the
+threshold without any change in alignment quality. Keep that in mind when reading
+CC values after a window change.
 
 ## Convergence
 
-Within a single run, ICCS iterates — rebuilding the stack and re-correlating
-after each pass — until the stack stops changing meaningfully between iterations
-or a maximum number of iterations is reached. Convergence is assessed by
-comparing the current stack to the previous one: either by their correlation
-coefficient, or by the normalised change in stack shape. This happens
-automatically; there is no need to monitor it. Running ICCS again from AIMBAT's
-interface always starts a fresh run from the current picks.
+Within a run, ICCS iterates until the stack stops changing meaningfully between
+passes (compared by correlation coefficient or by normalised change in shape) or
+an iteration limit is reached. This is automatic and needs no monitoring. Running
+ICCS again always starts a fresh run from the current picks.
 
-What matters is the convergence of the *overall process*: across multiple runs
-with adjusted parameters, do the stack and correlation coefficients keep
-improving, or have they plateaued? When further adjustments produce no visible
-improvement in the stack, the data are ready — either for direct export, or as
-input to MCCC for formal timing uncertainties.
+What matters is the convergence of the *overall process*: across successive runs
+with adjusted parameters, do the stack and CC values keep improving, or have they
+plateaued? When further adjustment produces no visible improvement, the data are
+ready.
 
 ## Knowing when to stop
 
-There is no objective criterion for when ICCS alignment is "done". Practical
-signals that the dataset is ready:
+There is no objective criterion. Practical signals that the dataset is ready:
 
-- The stack is visually coherent — individual traces closely follow its shape
-- Correlation coefficients are high across most of the array
-- The time window highlights a clean, well-defined arrival
-- Running ICCS again with or without autoflip/autoselect produces no meaningful
-    change
+- the stack is visually coherent, and individual traces closely follow its shape
+- CC values are high across most of the array
+- the time window frames a clean, well-defined arrival
+- another ICCS run, with or without autoflip and autoselect, changes nothing
 
-At this point the ICCS picks can be exported directly from a snapshot — see
-[Exporting Results](results.md). If formal per-station timing standard errors
-are needed (for example, as input to tomographic inversion), continue to
-[MCCC alignment](mccc.md) before taking the final snapshot. Either way, it is
-worth taking a snapshot now before making any further changes.
+At this point the ICCS picks can be exported directly from a snapshot (see
+[Exporting Results](results.md)). For formal per-station timing errors, for
+example as input to tomographic inversion, continue to [MCCC](mccc.md) first.
+Either way, take a snapshot before any further change.
 
 ## Tips
 
-- **Change one parameter at a time.** It is easy to lose track of what caused an
-    improvement or regression if multiple things change at once.
-- **Take snapshots liberally.** They are lightweight and make it easy to
-    backtrack to a promising state.
-- **ICCS picks are directly usable.** For workflows that do not require formal
-    timing uncertainties, ICCS picks exported from a snapshot are suitable for
-    further analysis as-is. MCCC adds formal standard errors and a more rigorous
-    pairwise solution — run it when those are needed, but there is no obligation
-    to do so.
-- **Outlier seismograms.** If a seismogram consistently has a poor CC across
-    many runs and parameter combinations, it may be worth deleting it from the
-    project rather than letting it drag down the stack.
+- **Change one parameter at a time.** Tracking what caused an improvement or a
+    regression is hard when several things move at once.
+- **Snapshot before each experiment.** A different window or filter is easy to
+    back out of with a snapshot in place.
+- **Delete persistent outliers.** A seismogram with a poor CC across many runs
+    and parameter combinations is dragging the stack down; remove it from the
+    project.

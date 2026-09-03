@@ -1,23 +1,31 @@
-# Data
+# Data and conventions
 
-AIMBAT treats input data as read-only. Processing parameters and results are
-stored separately in a database. Once imported, data sources (e.g. SAC files)
-are only read for waveform data — all metadata (event and station information)
-is stored in the database.
+AIMBAT never changes the input data. After import, a data source such as a SAC or
+JSON file is read only for its waveform samples. Everything else lives in a
+database: event and station metadata, processing parameters, and results.
 
-!!! tip "There is no save button"
+## The project file
 
-    Changes to parameters (e.g. picks, filter settings, select/deselect flags) are
-    written to the database immediately — in both the CLI and the TUI. There is no
-    separate save step, and no undo. Use [snapshots](#snapshots) to capture a
-    point-in-time copy of the parameter state that you can roll back to later.
+That database is a single [SQLite](https://www.sqlite.org){ target="_blank" }
+file, created when a project is initialised. All project state lives in it.
+Normal use never requires understanding the schema, but a viewer like
+[DB Browser for SQLite](https://sqlitebrowser.org){ target="_blank" } is useful
+for inspecting the raw data when something behaves unexpectedly.
+
+![DB Browser](../images/sqlbrowser.png){ loading=lazy }
+
+!!! tip "Keeping the schema up to date"
+
+    AIMBAT occasionally changes the database schema between releases. If a
+    project's schema is out of date, the CLI refuses to run and the TUI blocks
+    with a modal until `#!bash aimbat db upgrade` is run. This is never
+    automatic, and no data are lost.
 
 ## Data hierarchy
 
-A seismogram in AIMBAT is a database object that links a data source, a station,
-and an event. Stations and events are shared across seismograms. This somewhat
-abstract concept is typically transparent to users, but it is important to
-understand the implications when deleting items from a project.
+A seismogram is a database record linking one data source to a station and an
+event. Stations and events are shared: many seismograms can reference the same
+event record. This matters when deleting items, below.
 
 ```mermaid
 ---
@@ -29,92 +37,80 @@ erDiagram
     SEISMOGRAM ||--|| "DATA SOURCE" : uses
 ```
 
-!!! tip "How are seismograms associated with events (and stations)?"
+!!! tip "Grouping is by metadata, not by file location"
 
-    Seismograms that belong together are identified solely by shared event and
-    station records in the database. You can organise data files freely on disk, but
-    the metadata must match exactly — small differences (e.g. rounding in
-    coordinates) may cause AIMBAT to treat seismograms as belonging to different
-    events or stations.
+    Seismograms are grouped into events and stations solely by matching records
+    in the database. Any on-disk layout works; the metadata must match exactly.
+    A small difference such as a rounded coordinate makes AIMBAT treat two
+    seismograms as belonging to different stations or events.
+
+A project can hold many events. ICCS, MCCC, and snapshots act on one event at a
+time, so the current event must be selected before running them. See
+[Selecting an Event](../usage/event-selection.md).
 
 ## Deleting items
 
-The relationships between events, stations, and seismograms determine what
-happens when you delete an item from a project:
+Deletion follows the hierarchy:
 
-- Deleting[^1] an event or station removes all associated seismograms.
-- Deleting a seismogram does *not* remove the event or station, even if they are
-    no longer referenced by any seismogram.
+- Deleting[^1] an event or station also deletes its seismograms.
+- Deleting a seismogram leaves its event and station in place, even if nothing
+    else references them.
 
-!!! tip "A real-world analogy"
+!!! tip "The logic behind the rules"
 
-    The above rules can be understood in terms of how these objects exist (or not)
-    in the real world. A station or event can exist independently of any
-    seismograms, but a seismogram cannot exist if an event never happened or a
-    station never recorded it.
+    An event or station can exist without any seismogram, but a seismogram
+    cannot exist without an event to record and a station to record it.
 
-## Project file
-
-An AIMBAT project is a single
-[SQLite](https://www.sqlite.org){ target="_blank" } file, created automatically
-when a new project is initialised. All project state lives in this file. You do
-not need to understand the database schema for normal use, but tools like
-[DB Browser for SQLite](https://sqlitebrowser.org){ target="_blank" } are useful
-for inspecting the raw data when debugging unexpected behaviour.
-
-![DB Browser](../images/sqlbrowser.png){ loading=lazy }
-
-!!! tip "Keeping the schema up to date"
-
-    AIMBAT occasionally changes the project database schema between releases. If an
-    existing project's schema is out of date, commands refuse to run (and the TUI
-    blocks with a modal) until you run `#!bash aimbat db upgrade` to bring the
-    project up to date. This never happens automatically, and existing data are
-    never lost.
+See [Removing data](../usage/data.md#removing-data) for the commands.
 
 ## Parameters
 
 Parameters are organised in three tiers:
 
-1. **AIMBAT defaults** — global settings that control application behaviour and
-    provide initial values for event and seismogram parameters. Listed with
-    `#!bash aimbat utils settings`. Stored outside the project file, since some
-    settings are needed before a project exists.
-2. **Event parameters** — shared across all seismograms of an event (e.g. time
-    window, filter settings, completed flag). Attributes of
+1. **AIMBAT defaults.** Global settings for application behaviour and the initial
+    values of event and seismogram parameters. Stored outside the project file,
+    since some are needed before a project exists. See
+    [Aimbat Defaults](../usage/defaults.md).
+2. **Event parameters.** Shared by every seismogram of an event, such as the time
+    window and filter settings. Attributes of
     [`AimbatEventParametersBase`][aimbat.models.AimbatEventParametersBase].
-3. **Seismogram parameters** — specific to a single seismogram (e.g. arrival
-    time pick, select/deselect flag). Attributes of
+3. **Seismogram parameters.** Specific to one seismogram, such as the
+    arrival-time pick and the select/deselect flag. Attributes of
     [`AimbatSeismogramParametersBase`][aimbat.models.AimbatSeismogramParametersBase].
+
+!!! tip "There is no save button"
+
+    Parameter changes (a pick, a filter setting, a select flag) are written to
+    the database immediately, in every interface. There is no save step and no
+    undo. [Snapshots](#snapshots) capture a state to roll back to.
 
 ## Snapshots
 
-Event and seismogram parameters can be captured in a snapshot at any point
-during processing. Snapshots are independent copies of the parameter state —
-rolling back to one restores parameters exactly without affecting other
-snapshots. Importing data automatically snapshots each event that received new
-seismograms, giving you a baseline to restore the original parameter state
-without any extra step.
+A snapshot is an independent copy of all event and seismogram parameters, taken
+at any point during processing. Rolling back restores those parameters exactly
+and leaves other snapshots untouched. Importing data snapshots each affected
+event automatically, so the imported state is always recoverable.
 
 !!! warning "Adding data after a snapshot"
 
-    Snapshots only capture the state of items that exist at the time they are taken.
-    Items added afterwards are not included. When previewing a rollback, AIMBAT
-    shows what the full dataset would look like after the rollback — items not in
-    the snapshot appear with their current live state.
+    A snapshot only captures items that exist when it is taken. Items added later
+    are not in it. A rollback preview shows the whole dataset as it would look
+    afterwards, with those newer items keeping their current live state.
+
+See [Snapshots](../usage/snapshots.md) for taking and comparing them.
 
 ## UUIDs
 
-All items in a project are identified internally by
-[UUIDs](https://en.wikipedia.org/wiki/Universally_unique_identifier):
+Every item in a project is identified internally by a
+[UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier):
 
 ```text
 37a8245f-c508-46a7-9bbc-d1c601e42983
 ```
 
-Full UUIDs are unwieldy to type, so AIMBAT presents truncated forms — using only
-as many characters as needed to be unambiguous within the project. For example,
-four seismograms with these IDs:
+Typing these in full is impractical, so AIMBAT displays and accepts truncated
+forms, using only as many leading characters as needed to be unambiguous within
+the project. Four seismograms with these IDs:
 
 ```text
 6a4acdf7-6c7b-4523-aaaa-0a674cdc5f2d
@@ -123,7 +119,7 @@ c980918d-106d-44d9-a3fa-5740f58edf4e
 5dcb5c4b-b416-4a7b-870f-9a8da42a7dd2
 ```
 
-can be unambiguously referenced as:
+can be referenced as:
 
 ```text
 6a
@@ -132,7 +128,7 @@ c9
 5d
 ```
 
-If two characters are insufficient, three are used, and so on.
+If two characters are not enough, three are used, and so on.
 
 [^1]: Deleting items from a project drops them from the database only. AIMBAT
     will *never* delete or modify any files.

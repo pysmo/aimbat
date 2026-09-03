@@ -1,7 +1,7 @@
 """Manage the AIMBAT project database schema.
 
 Schema changes are applied via [Alembic](https://alembic.sqlalchemy.org).
-Most users never need this command group — `aimbat project create` already
+Most users never need this command group: `aimbat project create` already
 creates a database with the current schema. It exists for bringing an
 *existing* project database up to date after an AIMBAT upgrade that changed
 the schema, including databases created before this command group existed.
