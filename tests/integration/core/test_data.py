@@ -394,10 +394,10 @@ class TestNearDuplicateEventDetection:
 
     # -- Noise band (within event_duplicate_tolerance) --------------------
 
-    def test_near_duplicate_event_raises_on_real_add(
+    def test_near_duplicate_event_reused_on_real_add(
         self, sac_file_good: Path, patched_session: Session, tmp_path: Path
     ) -> None:
-        """A real add raises when within event_duplicate_tolerance of an existing event.
+        """A real add reuses the existing event within event_duplicate_tolerance.
 
         Args:
             sac_file_good: Path to a valid SAC file.
@@ -405,17 +405,22 @@ class TestNearDuplicateEventDetection:
             tmp_path: Temporary directory for the shifted copy.
         """
         add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        existing = patched_session.exec(select(AimbatEvent)).one()
         near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
 
-        with pytest.raises(ValueError):
-            add_data_to_project(patched_session, [near_dup], data_type=DataType.SAC)
+        added_datasources, _, _, _, duplicate_warnings = add_data_to_project(
+            patched_session, [near_dup], data_type=DataType.SAC
+        )
 
         assert len(patched_session.exec(select(AimbatEvent)).all()) == 1
+        assert added_datasources[0].seismogram.event_id == existing.id
+        # A real add logs the reuse warning rather than returning it.
+        assert duplicate_warnings == []
 
-    def test_near_duplicate_event_warns_on_dry_run(
+    def test_near_duplicate_event_previews_reuse_on_dry_run(
         self, sac_file_good: Path, patched_session: Session, tmp_path: Path
     ) -> None:
-        """A dry run collects a warning instead of raising within the noise band.
+        """A dry run previews the near-duplicate as a reused, pre-existing event.
 
         Args:
             sac_file_good: Path to a valid SAC file.
@@ -423,6 +428,7 @@ class TestNearDuplicateEventDetection:
             tmp_path: Temporary directory for the shifted copy.
         """
         add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        existing = patched_session.exec(select(AimbatEvent)).one()
         near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
 
         (
@@ -437,11 +443,12 @@ class TestNearDuplicateEventDetection:
 
         assert len(duplicate_warnings) == 1
         assert str(near_dup) in duplicate_warnings[0]
+        assert str(existing.id) in duplicate_warnings[0]
 
-        # First-wins preview: the near-duplicate is still listed as a newly
-        # added event in the same call that produces the warning.
+        # The near-duplicate previews as a reused (pre-existing) event.
         assert len(added_datasources) == 1
-        assert added_datasources[0].seismogram.event_id not in existing_event_ids
+        assert added_datasources[0].seismogram.event_id == existing.id
+        assert added_datasources[0].seismogram.event_id in existing_event_ids
 
     # -- Ambiguous-gap band (between the two tolerances) -------------------
 
@@ -504,10 +511,10 @@ class TestNearDuplicateEventDetection:
 
         assert len(patched_session.exec(select(AimbatEvent)).all()) == 2
 
-    def test_same_batch_near_duplicates_are_flagged(
+    def test_same_batch_near_duplicates_are_merged(
         self, sac_file_good: Path, patched_session: Session, tmp_path: Path
     ) -> None:
-        """Near-duplicates within the same batch are compared against each other too.
+        """Near-duplicates within the same batch merge onto the first file's event.
 
         Args:
             sac_file_good: Path to a valid SAC file.
@@ -516,14 +523,13 @@ class TestNearDuplicateEventDetection:
         """
         near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
 
-        with pytest.raises(ValueError):
-            add_data_to_project(
-                patched_session, [sac_file_good, near_dup], data_type=DataType.SAC
-            )
+        added_datasources, _, _, _, _ = add_data_to_project(
+            patched_session, [sac_file_good, near_dup], data_type=DataType.SAC
+        )
 
-        # The whole batch shares one nested transaction, so the raise on the
-        # second file rolls back the first file's event too.
-        assert len(patched_session.exec(select(AimbatEvent)).all()) == 0
+        events = patched_session.exec(select(AimbatEvent)).all()
+        assert len(events) == 1
+        assert {ds.seismogram.event_id for ds in added_datasources} == {events[0].id}
 
     def test_gap_exactly_at_raise_tolerance_is_independent(
         self, event_json: Path, patched_session: Session
@@ -552,7 +558,7 @@ class TestNearDuplicateEventDetection:
     def test_multiple_near_duplicates_picks_closest(
         self, sac_file_good: Path, patched_session: Session
     ) -> None:
-        """The closest pre-existing near-duplicate is identified, not the first found.
+        """The closest pre-existing near-duplicate is the one reused.
 
         Args:
             sac_file_good: Path to a valid SAC file.
@@ -562,13 +568,13 @@ class TestNearDuplicateEventDetection:
         far = self._seed_event(patched_session, new_time - Timedelta(seconds=0.09))
         close = self._seed_event(patched_session, new_time + Timedelta(seconds=0.04))
 
-        with pytest.raises(ValueError) as excinfo:
-            add_data_to_project(
-                patched_session, [sac_file_good], data_type=DataType.SAC
-            )
+        added_datasources, _, _, _, _ = add_data_to_project(
+            patched_session, [sac_file_good], data_type=DataType.SAC
+        )
 
-        assert str(close.id) in str(excinfo.value)
-        assert str(far.id) not in str(excinfo.value)
+        assert len(patched_session.exec(select(AimbatEvent)).all()) == 2
+        assert added_datasources[0].seismogram.event_id == close.id
+        assert added_datasources[0].seismogram.event_id != far.id
 
     def test_closest_match_determines_band(
         self, sac_file_good: Path, patched_session: Session
@@ -585,13 +591,13 @@ class TestNearDuplicateEventDetection:
         )
         self._seed_event(patched_session, new_time - Timedelta(seconds=1))
 
-        with pytest.raises(ValueError) as excinfo:
-            add_data_to_project(
-                patched_session, [sac_file_good], data_type=DataType.SAC
-            )
+        # Closest match is in the noise band, so the event is reused rather
+        # than raising, despite an ambiguous-gap match also being in range.
+        added_datasources, _, _, _, _ = add_data_to_project(
+            patched_session, [sac_file_good], data_type=DataType.SAC
+        )
 
-        assert "--use-event" in str(excinfo.value)
-        assert str(noise_band_event.id) in str(excinfo.value)
+        assert added_datasources[0].seismogram.event_id == noise_band_event.id
 
     # -- strict mode ---------------------------------------------------
 

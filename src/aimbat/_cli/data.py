@@ -27,19 +27,21 @@ records are reused rather than duplicated.
 
 Near-duplicate events (two files whose origin times differ by only a
 sliver, most often from precision loss upstream such as SAC's `o`-header
-32-bit float, rather than genuinely distinct events) are flagged rather
-than silently merged. Resolving a flagged conflict is always first-wins:
-`--use-event <uuid>` links the new data to the pre-existing event's stored
-time and location exactly as they already are, it never merges, averages,
-or recomputes from the new file. Detection is controlled by
+32-bit float, rather than genuinely distinct events) are merged onto the
+pre-existing event rather than turned into a second one. Merging is always
+first-wins: the new data links to the pre-existing event's stored time and
+location exactly as they already are, never merging, averaging, or
+recomputing from the new file. Detection is controlled by
 `event_duplicate_tolerance` (below this, a gap is assumed to be ordinary
-precision noise), `event_duplicate_raise_tolerance` (above
-`event_duplicate_tolerance` but below this, a gap is treated as a likely
-data problem and always raises, even during `--dry-run`), and
-`event_duplicate_strict` (skips both checks entirely; with it set, events
-are only ever merged on an exact origin-time match, which is itself only
-accurate to the microsecond AIMBAT stores timestamps at, so any gap of a
-microsecond or more silently creates a second event).
+precision noise and the existing event is reused with a warning),
+`event_duplicate_raise_tolerance` (above `event_duplicate_tolerance` but
+below this, a gap is treated as a likely data problem and always raises,
+even during `--dry-run`; resolve it with `--use-event <uuid>` to link to
+the pre-existing event explicitly), and `event_duplicate_strict` (skips
+both checks entirely; with it set, events are only ever merged on an exact
+origin-time match, which is itself only accurate to the microsecond AIMBAT
+stores timestamps at, so any gap of a microsecond or more silently creates
+a second event).
 
 `data add` automatically creates a snapshot for each event that received new
 seismogram data, so there is no need to run `snapshot create` right after

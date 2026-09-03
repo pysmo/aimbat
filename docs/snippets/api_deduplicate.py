@@ -9,10 +9,13 @@ Background
 even with different coordinates, always reuses the existing record.  Station
 duplicates therefore cannot arise through the normal import path.
 
-Events are deduplicated by exact origin time.  When two data sources report
-the same earthquake with origin times that differ by a second or two, they are
-stored as *separate* ``AimbatEvent`` records. This script finds such
-near-duplicate events, merges their seismograms into the canonical record
+Events are reused on an exact origin-time match, or when the gap is within
+``event_duplicate_tolerance`` (default 0.1 s).  When two data sources report
+the same earthquake with origin times that differ by more than that, they are
+stored as *separate* ``AimbatEvent`` records (a gap in the "ambiguous gap"
+band raises instead; only a gap beyond ``event_duplicate_raise_tolerance``
+creates the separate record silently). This script finds such near-duplicate
+events, merges their seismograms into the canonical record
 (the one with the most seismograms), averages the location and depth, then
 removes the duplicates.
 
