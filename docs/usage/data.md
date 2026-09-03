@@ -82,16 +82,17 @@ AIMBAT links a SAC file to an existing event only if its origin time is
 AIMBAT stores timestamps at). Otherwise it does not reuse that event.
 
 A new origin time that nearly, but not exactly, matches an existing event's time
-is not silently turned into a second event. It is flagged as a possible
-near-duplicate. How close counts as "near" is controlled by
-`event_duplicate_tolerance` and `event_duplicate_raise_tolerance` (see
-[Aimbat Defaults](defaults.md)):
+is not silently turned into a second event. How close counts as "near" is
+controlled by `event_duplicate_tolerance` and `event_duplicate_raise_tolerance`
+(see [Aimbat Defaults](defaults.md)):
 
 - Within `event_duplicate_tolerance` (default {{ event_duplicate_tolerance }}),
-  a real import raises an error; a `--dry-run` reports a warning. A gap this
-  small is usually timestamp precision loss upstream, such as the classic v6 SAC
-  header's 32-bit float `o` field not round-tripping identically across files,
-  rather than a genuinely distinct event.
+  the existing event is reused, exactly as an exact time match is, with a
+  warning naming both origin times and the gap (a `--dry-run` reports the same
+  in its preview). A gap this small is usually timestamp precision loss
+  upstream, such as the classic v6 SAC header's 32-bit float `o` field not
+  round-tripping identically across files, rather than a genuinely distinct
+  event.
 - Beyond that but within `event_duplicate_raise_tolerance` (default
   {{ event_duplicate_raise_tolerance }}), import always raises, even during
   `--dry-run`. A gap this size usually signals a real timing problem in the
@@ -101,9 +102,10 @@ near-duplicate. How close counts as "near" is controlled by
 
 The check runs against every event AIMBAT already knows about when a file is
 processed, including events created earlier in the same `data add` call.
-Resolving a flag is always first-wins: re-run with `--use-event <ID>` to link
-the new file to the existing event's stored time and location exactly as they
-are. It never merges, averages, or recomputes from the new file.
+Reuse is always first-wins: the new file links to the existing event's stored
+time and location exactly as they are. It never merges, averages, or recomputes
+from the new file. In the ambiguous-gap band, re-run with `--use-event <ID>` to
+link explicitly to the existing event and get past the error.
 
 !!! warning "Use SAC header version 7, or provide the event explicitly"
 
@@ -130,14 +132,15 @@ aimbat data add --dry-run *.sac
 ```
 
 It prints which stations, events, and seismograms would be newly created versus
-already known, and shows any near-duplicate warnings a real run would raise. That
-makes it worth running as routine practice before a new batch: catching a flagged
-near-duplicate here means resolving it up front with `--use-event <ID>` rather
-than hitting it partway through a real import, which aborts the whole batch and
-rolls back everything already added in that call.
+already known (a near-duplicate within `event_duplicate_tolerance` shows as a
+reused event), and surfaces any ambiguous-gap conflict a real run would raise.
+That makes it worth running as routine practice before a new batch: catching an
+ambiguous-gap conflict here means resolving it up front with `--use-event <ID>`
+rather than hitting it partway through a real import, which aborts the whole
+batch and rolls back everything already added in that call.
 
-`--dry-run` only softens the outcome for gaps within the tighter
-`event_duplicate_tolerance` band. A gap in the wider band still raises.
+A gap in the ambiguous band raises during `--dry-run` just as it does on a real
+import.
 
 ## Automatic snapshots
 

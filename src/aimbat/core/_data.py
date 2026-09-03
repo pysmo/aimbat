@@ -81,22 +81,39 @@ def _format_gap_prefix(
     )
 
 
-def _format_duplicate_event_message(
+def _format_reused_near_duplicate_message(
     datasource: os.PathLike[str] | str,
     new_event: AimbatEvent,
     existing_event: AimbatEvent,
     gap: Timedelta,
     tolerance: Timedelta,
 ) -> str:
-    """Build the noise-band near-duplicate-event message."""
+    """Build the noise-band near-duplicate-event reuse message."""
     prefix = _format_gap_prefix(datasource, new_event, existing_event, gap)
     return (
-        f"Possible duplicate event: {prefix}, within the configured "
+        f"Near-duplicate event: {prefix}, within the configured "
         f"duplicate-detection tolerance ({fmt_timedelta(tolerance)}) but "
-        f"not an exact match. If these are the same event, re-run with "
-        f"'--use-event {existing_event.id}', or import an authoritative "
-        f"event record first using the 'json_event' data type."
+        f"not an exact match. Reusing the existing event; its stored time "
+        f"and location are kept unchanged. Set 'event_duplicate_strict' to "
+        f"treat close origin times as genuinely distinct events instead."
     )
+
+
+def _warn_on_event_location_mismatch(
+    datasource: os.PathLike[str] | str,
+    new_event: AimbatEvent,
+    existing_event: AimbatEvent,
+) -> None:
+    """Warn if the reused event's location metadata differs from the source's."""
+    if (
+        new_event.latitude != existing_event.latitude
+        or new_event.longitude != existing_event.longitude
+        or new_event.depth != existing_event.depth
+    ):
+        logger.warning(
+            f"Event at {existing_event.time} matched by time but has different "
+            f"location metadata in {datasource}. The existing record will be used."
+        )
 
 
 def _format_ambiguous_gap_message(
@@ -133,22 +150,23 @@ def _create_event(
     time is a near-duplicate of a known event's time, per
     `settings.event_duplicate_tolerance` / `event_duplicate_raise_tolerance`
     / `event_duplicate_strict` (see the `data add` module docstring for the
-    three-tier model). `known_event_ids` is updated in place with the ID of
-    any newly created event, so later data sources in the same batch are
-    checked against events created earlier in that batch too.
+    three-tier model). Within `event_duplicate_tolerance` the existing event
+    is reused (with a warning), exactly as an exact-time match is.
+    `known_event_ids` is updated in place with the ID of any newly created
+    event, so later data sources in the same batch are checked against
+    events created earlier in that batch too.
 
     Raises:
-        ValueError: If a real add (`dry_run=False`) finds a near-duplicate
-            within `event_duplicate_tolerance`, or if any near-duplicate
-            (regardless of `dry_run`) falls in the wider "ambiguous gap"
-            band up to `event_duplicate_raise_tolerance`.
+        ValueError: If a near-duplicate (regardless of `dry_run`) falls in
+            the wider "ambiguous gap" band between
+            `event_duplicate_tolerance` and
+            `event_duplicate_raise_tolerance`.
     """
 
     new_aimbat_event = create_event(datasource, datatype)
 
     statement = select(AimbatEvent).where(AimbatEvent.time == new_aimbat_event.time)
     aimbat_event = session.exec(statement).one_or_none()
-    duplicate_warning: str | None = None
 
     if aimbat_event is None:
         if not settings.event_duplicate_strict:
@@ -173,24 +191,24 @@ def _create_event(
                 # "closer than this value" description in _config.py).
                 if gap < raise_tolerance:
                     if gap <= tolerance:
-                        message = _format_duplicate_event_message(
+                        message = _format_reused_near_duplicate_message(
                             datasource, new_aimbat_event, closest, gap, tolerance
                         )
-                        if dry_run:
-                            duplicate_warning = message
-                        else:
-                            raise ValueError(message)
-                    else:
-                        raise ValueError(
-                            _format_ambiguous_gap_message(
-                                datasource,
-                                new_aimbat_event,
-                                closest,
-                                gap,
-                                tolerance,
-                                raise_tolerance,
-                            )
+                        logger.warning(message)
+                        _warn_on_event_location_mismatch(
+                            datasource, new_aimbat_event, closest
                         )
+                        return closest, message if dry_run else None
+                    raise ValueError(
+                        _format_ambiguous_gap_message(
+                            datasource,
+                            new_aimbat_event,
+                            closest,
+                            gap,
+                            tolerance,
+                            raise_tolerance,
+                        )
+                    )
         aimbat_event = new_aimbat_event
         logger.debug(f"Adding event {aimbat_event.time} to project.")
         session.add(aimbat_event)
@@ -199,17 +217,9 @@ def _create_event(
         logger.debug(
             f"Using existing event {aimbat_event.time} instead of adding new one."
         )
-        if (
-            new_aimbat_event.latitude != aimbat_event.latitude
-            or new_aimbat_event.longitude != aimbat_event.longitude
-            or new_aimbat_event.depth != aimbat_event.depth
-        ):
-            logger.warning(
-                f"Event at {aimbat_event.time} matched by time but has different "
-                f"location metadata in {datasource}. The existing record will be used."
-            )
+        _warn_on_event_location_mismatch(datasource, new_aimbat_event, aimbat_event)
 
-    return aimbat_event, duplicate_warning
+    return aimbat_event, None
 
 
 def _create_seismogram(
@@ -261,8 +271,9 @@ def _process_datasource(
         event_id: UUID of an existing event to link to instead of extracting
             one from `datasource`.
         dry_run: If True, a near-duplicate event within
-            `settings.event_duplicate_tolerance` is collected as a warning
-            instead of raising.
+            `settings.event_duplicate_tolerance` is surfaced as a preview
+            warning message (in addition to the log warning a real add
+            also emits).
         known_event_ids: IDs of events eligible for near-duplicate matching;
             updated in place as new events are created, so later data sources
             in the same batch are checked against earlier ones too.
@@ -270,18 +281,18 @@ def _process_datasource(
     Returns:
         A 2-tuple of the created or reused `AimbatDataSource` (or `None` if
         `datatype` does not support seismogram creation) and a near-duplicate
-        warning message (or `None` if no near-duplicate was found, or if the
-        one found was outside `settings.event_duplicate_tolerance`).
+        warning message for a dry run (or `None` if not a dry run, no
+        near-duplicate was found, or the one found was outside
+        `settings.event_duplicate_tolerance`).
 
     Raises:
         ValueError: If `event_id` is given but no matching event exists, if
             `datatype` does not support the station or event creation
-            required to link a seismogram, if a real add (`dry_run=False`)
-            finds a near-duplicate event within
-            `settings.event_duplicate_tolerance`, or if a near-duplicate
-            event falls in the wider "ambiguous gap" band up to
-            `settings.event_duplicate_raise_tolerance` (the latter is
-            raised regardless of `dry_run`).
+            required to link a seismogram, or if a near-duplicate event
+            falls in the "ambiguous gap" band between
+            `settings.event_duplicate_tolerance` and
+            `settings.event_duplicate_raise_tolerance` (raised regardless of
+            `dry_run`).
     """
 
     duplicate_warning: str | None = None
@@ -380,12 +391,12 @@ def add_data_to_project(
     from the data source and link to a pre-existing record instead.
 
     A new event whose origin time nearly, but not exactly, matches a
-    pre-existing event's time is flagged as a possible near-duplicate (see
+    pre-existing event's time is handled per
     `settings.event_duplicate_tolerance`, `event_duplicate_raise_tolerance`,
-    and `event_duplicate_strict`). Within the tighter tolerance, a real add
-    raises `ValueError` while a dry run collects a warning instead; within
-    the wider "ambiguous gap" band, a `ValueError` is raised unconditionally,
-    even during a dry run.
+    and `event_duplicate_strict`. Within the tighter tolerance the existing
+    event is reused, with a log warning (a dry run additionally returns the
+    message in `duplicate_warnings`). Within the wider "ambiguous gap" band,
+    a `ValueError` is raised unconditionally, even during a dry run.
 
     Args:
         session: The SQLModel database session.
@@ -408,12 +419,13 @@ def add_data_to_project(
         seismogram IDs that already existed in the database *before* this
         call, so callers can tell which entries in `added_datasources` are
         newly created versus reused by comparing IDs against these sets.
-        `duplicate_warnings` lists near-duplicate-event messages collected
-        during a dry run (always empty on a real-add call, since a real-add
-        near-duplicate raises instead of being collected).
+        `duplicate_warnings` lists near-duplicate-event reuse messages
+        collected during a dry run (always empty on a real-add call, which
+        logs the same message as a warning instead).
 
     Raises:
-        ValueError: If a near-duplicate event is found (see above).
+        ValueError: If a near-duplicate event falls in the "ambiguous gap"
+            band (see above).
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
