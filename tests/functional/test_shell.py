@@ -14,11 +14,18 @@ import pytest
 from aimbat._cli.shell import _build_completion_dict, _extract_event_flag
 from aimbat.app import app as aimbat_app
 
+_LOG_DIR = Path(__file__).parents[1] / ".logs"
+
 
 def _worker_logfile() -> str:
-    """Log file name unique per xdist worker (``"master"`` off a non-parallel run)."""
+    """Log file path unique per xdist worker (``"master"`` off a non-parallel run).
+
+    Written to the gitignored ``tests/.logs/`` directory to keep logs out of the
+    project root.
+    """
     worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-    return f"aimbat_test_{worker}.log"
+    _LOG_DIR.mkdir(exist_ok=True)
+    return str(_LOG_DIR / f"aimbat_test_{worker}.log")
 
 
 # ---------------------------------------------------------------------------
