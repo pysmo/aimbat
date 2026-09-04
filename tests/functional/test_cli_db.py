@@ -270,15 +270,17 @@ class TestStrictSchemaCheck:
                 "run",
                 "python",
                 "-c",
-                "from aimbat.db import engine\n"
-                "raised = []\n"
-                "for _ in range(3):\n"
-                "    try:\n"
-                "        with engine.connect():\n"
-                "            pass\n"
-                "    except Exception as e:\n"
-                "        raised.append(type(e).__name__)\n"
-                "print(len(raised))\n",
+                (
+                    "from aimbat.db import engine\n"
+                    "raised = []\n"
+                    "for _ in range(3):\n"
+                    "    try:\n"
+                    "        with engine.connect():\n"
+                    "            pass\n"
+                    "    except Exception as e:\n"
+                    "        raised.append(type(e).__name__)\n"
+                    "print(len(raised))\n"
+                ),
             ],
             capture_output=True,
             text=True,

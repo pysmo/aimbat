@@ -7,6 +7,7 @@ monkeypatched to the test fixture's in-memory database.
 from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import Engine
@@ -84,7 +85,7 @@ class TestDataManagement:
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that data can be added to the project."""
         files = " ".join(f.as_posix() for f in multi_event_data)
@@ -97,7 +98,7 @@ class TestDataManagement:
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """A fresh `data add` creates one automatic snapshot per touched event.
 
@@ -128,7 +129,7 @@ class TestDataManagement:
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """One event's automatic snapshot failing must not knock out the rest.
@@ -188,7 +189,7 @@ class TestDataManagement:
         patched_engine: Engine,
         sac_file_good: Path,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """A single new seismogram produces singular wording, not "1 seismograms"."""
         cli(f"data add {sac_file_good.as_posix()} --no-progress")
@@ -204,7 +205,7 @@ class TestDataManagement:
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """`--no-snapshot` suppresses automatic snapshot creation for this call."""
         files = " ".join(f.as_posix() for f in multi_event_data)
@@ -219,7 +220,7 @@ class TestDataManagement:
         loaded_engine: Engine,
         multi_event_data: Sequence[Path],
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Adding the same files twice does not duplicate data, nor snapshot."""
         events_before = cli_json("event dump")
@@ -243,7 +244,7 @@ class TestDataManagement:
     def test_data_dump(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that data dump returns a list of data items."""
         data = cli_json("data dump")
@@ -255,7 +256,7 @@ class TestDataManagement:
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that dry-run mode does not modify the database."""
         files = " ".join(f.as_posix() for f in multi_event_data)
@@ -274,15 +275,17 @@ class TestDataManagement:
         patched_engine: Engine,
         sac_file_good: Path,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies adding data using existing station and event IDs."""
         # 1. Add a station and event first
         cli(f"data add {sac_file_good.as_posix()} --no-progress")
-        station = cli_json("station dump")[0]
-        event = cli_json("event dump")[0]
-        station_id = station["id"]
-        event_id = event["id"]
+        stations = cli_json("station dump")
+        assert isinstance(stations, list)
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        station_id = stations[0]["id"]
+        event_id = events[0]["id"]
 
         # 2. Add another file (or same file) using these IDs
         # We'll use a different file if available, or just re-add to test the flags
@@ -293,6 +296,7 @@ class TestDataManagement:
 
         # 3. Verify it still works (idempotent in this case, but flags were exercised)
         data = cli_json("data dump")
+        assert isinstance(data, list)
         assert len(data) == 1
         assert data[0]["seismogram_id"] is not None
 
@@ -301,7 +305,7 @@ class TestDataManagement:
         patched_engine: Engine,
         tmp_path: Path,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies adding station and event data from JSON files via CLI."""
         # 1. Create a JSON station file
@@ -316,6 +320,7 @@ class TestDataManagement:
 
         # 3. Verify station was added
         stations = cli_json("station dump")
+        assert isinstance(stations, list)
         assert len(stations) == 1
         assert stations[0]["name"] == "STAT"
 
@@ -331,6 +336,7 @@ class TestDataManagement:
 
         # 6. Verify event was added
         events = cli_json("event dump")
+        assert isinstance(events, list)
         assert len(events) == 1
         assert events[0]["latitude"] == 30.0
 
@@ -353,7 +359,7 @@ class TestEventOperations:
     def test_event_dump(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that event dump returns a list of events."""
         events = cli_json("event dump")
@@ -383,15 +389,17 @@ class TestEventOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that an event can be deleted."""
         events_before = cli_json("event dump")
+        assert isinstance(events_before, list)
         target_id = events_before[0]["id"]
 
         cli(f"event delete {target_id} --yes")
 
         events_after = cli_json("event dump")
+        assert isinstance(events_after, list)
         remaining_ids = [e["id"] for e in events_after]
         assert target_id not in remaining_ids
         assert len(events_after) == len(events_before) - 1
@@ -410,7 +418,7 @@ class TestEventOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that an event can be deleted using a shortened ID.
 
@@ -420,12 +428,14 @@ class TestEventOperations:
             cli_json: The in-process CLI JSON dump callable.
         """
         events_before = cli_json("event dump")
+        assert isinstance(events_before, list)
         target_id = events_before[0]["id"]
         short_id = target_id[:8]
 
         cli(f"event delete {short_id} --yes")
 
         events_after = cli_json("event dump")
+        assert isinstance(events_after, list)
         remaining_ids = [e["id"] for e in events_after]
         assert target_id not in remaining_ids
         assert len(events_after) == len(events_before) - 1
@@ -434,11 +444,12 @@ class TestEventOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that deleting an event also deletes its seismograms."""
         seis_before = cli_json("seismogram dump")
         events = cli_json("event dump")
+        assert isinstance(events, list)
         target_id = events[0]["id"]
 
         cli(f"event delete {target_id} --yes")
@@ -460,21 +471,25 @@ class TestEventParameters:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that parameter list command runs successfully."""
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"event parameter list --event-id {event_id}")
 
     def test_parameter_get_and_set(
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Verifies getting and setting event parameters."""
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
 
         cli(f"event parameter get completed --event-id {event_id}")
         assert "False" in capsys.readouterr().out
@@ -487,7 +502,7 @@ class TestEventParameters:
     def test_parameter_dump(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that parameter dump returns parameter data."""
         data = cli_json("event parameter dump")
@@ -514,7 +529,7 @@ class TestStationOperations:
     def test_station_dump(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that station dump returns a list of stations."""
         stations = cli_json("station dump")
@@ -524,10 +539,11 @@ class TestStationOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that a station can be deleted."""
         stations = cli_json("station dump")
+        assert isinstance(stations, list)
         target_id = stations[0]["id"]
 
         cli(f"station delete {target_id} --yes")
@@ -539,7 +555,7 @@ class TestStationOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that a station can be deleted using a shortened ID.
 
@@ -549,6 +565,7 @@ class TestStationOperations:
             cli_json: The in-process CLI JSON dump callable.
         """
         stations = cli_json("station dump")
+        assert isinstance(stations, list)
         target_id = stations[0]["id"]
         short_id = target_id[:8]
 
@@ -571,16 +588,18 @@ class TestSeismogramOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that seismogram list command runs successfully."""
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"seismogram list --event-id {event_id}")
 
     def test_seismogram_dump(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that seismogram dump returns a list of seismograms."""
         data = cli_json("seismogram dump")
@@ -590,10 +609,11 @@ class TestSeismogramOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that a seismogram can be deleted."""
         seis = cli_json("seismogram dump")
+        assert isinstance(seis, list)
         target_id = seis[0]["id"]
 
         cli(f"seismogram delete {target_id} --yes")
@@ -605,7 +625,7 @@ class TestSeismogramOperations:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that a seismogram can be deleted using a shortened ID.
 
@@ -615,6 +635,7 @@ class TestSeismogramOperations:
             cli_json: The in-process CLI JSON dump callable.
         """
         seis = cli_json("seismogram dump")
+        assert isinstance(seis, list)
         target_id = seis[0]["id"]
         short_id = target_id[:8]
 
@@ -637,10 +658,12 @@ class TestSnapshotLifecycle:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that a snapshot can be created."""
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"snapshot create --event-id {event_id} --comment initial")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
@@ -654,10 +677,12 @@ class TestSnapshotLifecycle:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that multiple snapshots can be created."""
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"snapshot create --event-id {event_id} --comment first")
         cli(f"snapshot create --event-id {event_id} --comment second")
         data = cli_json("snapshot dump")
@@ -671,10 +696,12 @@ class TestSnapshotLifecycle:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that a snapshot can be deleted."""
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"snapshot create --event-id {event_id} --comment to-delete")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
@@ -691,7 +718,7 @@ class TestSnapshotLifecycle:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that a snapshot can be deleted using a shortened ID.
 
@@ -700,7 +727,9 @@ class TestSnapshotLifecycle:
             cli: The in-process CLI callable.
             cli_json: The in-process CLI JSON dump callable.
         """
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"snapshot create --event-id {event_id} --comment to-delete")
         data = cli_json("snapshot dump")
         assert isinstance(data, dict)
@@ -718,11 +747,13 @@ class TestSnapshotLifecycle:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Rollback restores parameter values from a snapshot."""
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"snapshot create --event-id {event_id} --comment before-change")
 
         cli(f"event parameter set completed true --event-id {event_id}")
@@ -740,7 +771,7 @@ class TestSnapshotLifecycle:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Verifies that rollback works with a shortened snapshot ID.
@@ -751,7 +782,9 @@ class TestSnapshotLifecycle:
             cli_json: The in-process CLI JSON dump callable.
             capsys: The pytest capsys fixture.
         """
-        event_id = cli_json("event dump")[0]["id"]
+        events = cli_json("event dump")
+        assert isinstance(events, list)
+        event_id = events[0]["id"]
         cli(f"snapshot create --event-id {event_id} --comment before-change")
 
         cli(f"event parameter set completed true --event-id {event_id}")
@@ -781,10 +814,11 @@ class TestDataReaddWorkflow:
         loaded_engine: Engine,
         multi_event_data: Sequence[Path],
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
         """Verifies that data can be re-added after deletion."""
         events_before = cli_json("event dump")
+        assert isinstance(events_before, list)
         assert len(events_before) > 0
 
         for event in events_before:

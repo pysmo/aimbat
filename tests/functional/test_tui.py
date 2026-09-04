@@ -1279,9 +1279,7 @@ class TestCausalZeroPhaseToggle:
         _patch_engine(monkeypatch, loaded_engine_from_file)
 
         @contextmanager
-        def _noop_suspend(
-            self: AimbatTUI, label: str | None = None
-        ) -> Generator[None, None, None]:
+        def _noop_suspend(self: AimbatTUI, label: str | None = None) -> Generator[None]:
             yield
 
         monkeypatch.setattr(AimbatTUI, "_suspend", _noop_suspend)
@@ -1331,9 +1329,7 @@ class TestCausalZeroPhaseToggle:
         _patch_engine(monkeypatch, loaded_engine_from_file)
 
         @contextmanager
-        def _noop_suspend(
-            self: AimbatTUI, label: str | None = None
-        ) -> Generator[None, None, None]:
+        def _noop_suspend(self: AimbatTUI, label: str | None = None) -> Generator[None]:
             yield
 
         monkeypatch.setattr(AimbatTUI, "_suspend", _noop_suspend)
@@ -1399,9 +1395,7 @@ class TestCausalZeroPhaseToggle:
 
 
 @contextmanager
-def _noop_suspend(
-    self: AimbatTUI, label: str | None = None
-) -> Generator[None, None, None]:
+def _noop_suspend(self: AimbatTUI, label: str | None = None) -> Generator[None]:
     yield
 
 

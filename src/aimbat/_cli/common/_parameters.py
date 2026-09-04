@@ -3,37 +3,32 @@
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Literal, overload
+from typing import Annotated, Literal, TypeIs, overload
 from uuid import UUID
 
 from cyclopts import Parameter, Token
 
 from aimbat import settings
 
-if sys.version_info >= (3, 13):
-    from typing import TypeIs
-else:
-    from typing_extensions import TypeIs
-
 __all__ = [
-    "id_parameter",
-    "event_parameter",
-    "event_parameter_with_all",
-    "event_parameter_is_all",
-    "station_parameter_with_all",
-    "station_parameter_is_all",
-    "use_station_parameter",
-    "use_event_parameter",
-    "use_matrix_image",
-    "causal",
     "CAUSAL_DEFAULTS",
-    "open_in_editor",
-    "DebugParameter",
     "ConfirmParameters",
+    "DebugParameter",
     "EventDebugParameters",
     "IccsPlotParameters",
-    "TableParameters",
     "JsonDumpParameters",
+    "TableParameters",
+    "causal",
+    "event_parameter",
+    "event_parameter_is_all",
+    "event_parameter_with_all",
+    "id_parameter",
+    "open_in_editor",
+    "station_parameter_is_all",
+    "station_parameter_with_all",
+    "use_event_parameter",
+    "use_matrix_image",
+    "use_station_parameter",
 ]
 
 
@@ -172,8 +167,10 @@ def use_station_parameter() -> Parameter:
 
     return Parameter(
         name="use-station",
-        help="UUID (or unique prefix) of an existing station to link to instead of"
-        " extracting one from each data source.",
+        help=(
+            "UUID (or unique prefix) of an existing station to link to instead of"
+            + " extracting one from each data source."
+        ),
         converter=_make_uuid_converter(AimbatStation),
     )
 
@@ -184,8 +181,10 @@ def use_event_parameter() -> Parameter:
 
     return Parameter(
         name="use-event",
-        help="UUID (or unique prefix) of an existing event to link to instead of"
-        " extracting one from each data source.",
+        help=(
+            "UUID (or unique prefix) of an existing event to link to instead of "
+            + "extracting one from each data source."
+        ),
         converter=_make_uuid_converter(AimbatEvent),
     )
 
@@ -260,7 +259,8 @@ def open_in_editor(initial_content: str) -> str:
             from aimbat.logger import logger
 
             logger.warning(
-                f"Editor '{editor}' exited with code {result.returncode}; discarding changes."
+                f"Editor '{editor}' exited with code {result.returncode}; discarding "
+                + "changes."
             )
             return initial_content
         with open(tmp_path, encoding="utf-8") as f:
@@ -378,7 +378,10 @@ class IccsPlotParameters:
     context: Annotated[
         bool,
         Parameter(
-            help="Plot seismograms with extra context instead of the short tapered ones used for cross-correlation"
+            help=(
+                "Plot seismograms with extra context instead of the short tapered "
+                + "ones used for cross-correlation"
+            )
         ),
     ] = True
     all_seismograms: Annotated[

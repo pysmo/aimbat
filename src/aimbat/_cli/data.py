@@ -124,11 +124,10 @@ def _print_dry_run_results(
     console = Console()
     console.print(
         f"\n{new_stations} station(s) added, "
-        f"{len(added_datasources) - new_stations} skipped. "
-        f"{new_events} event(s) added, "
-        f"{len(added_datasources) - new_events} skipped. "
-        f"{new_seismograms} seismogram(s) added, "
-        f"{len(added_datasources) - new_seismograms} skipped."
+        + f"{len(added_datasources) - new_stations} skipped. {new_events} "
+        + f"event(s) added, {len(added_datasources) - new_events} skipped. "
+        + f"{new_seismograms} seismogram(s) added, "
+        + f"{len(added_datasources) - new_seismograms} skipped."
     )
 
     for message in duplicate_warnings:
@@ -153,8 +152,10 @@ def cli_data_add(
         DataType,
         Parameter(
             name="type",
-            help="Format of the data sources. Determines which metadata"
-            " (station, event, seismogram) can be extracted automatically.",
+            help=(
+                "Format of the data sources. Determines which metadata (station, "
+                + "event, seismogram) can be extracted automatically."
+            ),
         ),
     ] = DataType.SAC,
     station_id: Annotated[uuid.UUID | None, use_station_parameter()] = None,
@@ -176,8 +177,10 @@ def cli_data_add(
         bool,
         Parameter(
             name="snapshot",
-            help="Automatically create a snapshot for each event that received "
-            "new seismogram data.",
+            help=(
+                "Automatically create a snapshot for each event that received new "
+                + "seismogram data."
+            ),
         ),
     ] = True,
     _: DebugParameter = DebugParameter(),

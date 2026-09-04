@@ -119,7 +119,7 @@ def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
 
-    @cursor.connect("add")
+    @cursor.connect("add")  # type: ignore[untyped-decorator]
     def on_add(sel: mplcursors.Selection) -> None:
         sel.annotation.set_text(sel.artist.get_label())
 
@@ -170,7 +170,7 @@ def _(station: AimbatStation, session: Session) -> tuple[plt.Figure, plt.Axes]:
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
 
-    @cursor.connect("add")
+    @cursor.connect("add")  # type: ignore[untyped-decorator]
     def on_add(sel: mplcursors.Selection) -> None:
         sel.annotation.set_text(sel.artist.get_label())
 

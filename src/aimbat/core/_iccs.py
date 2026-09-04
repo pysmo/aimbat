@@ -410,9 +410,9 @@ def _write_mccc_quality(
     if not len(result.errors) == len(result.cc_means) == len(result.cc_stds) == n_used:
         raise RuntimeError(
             f"MCCC returned {len(result.errors)} error / {len(result.cc_means)} "
-            f"cc_mean / {len(result.cc_stds)} cc_std values for {n_used} "
-            "seismograms; per-seismogram metrics cannot be attributed. The "
-            "pysmo MCCC result is expected to align 1:1 with the used seismograms."
+            + f"cc_mean / {len(result.cc_stds)} cc_std values for {n_used} "
+            + "seismograms; per-seismogram metrics cannot be attributed. The pysmo "
+            + "MCCC result is expected to align 1:1 with the used seismograms."
         )
 
     logger.debug(f"Writing MCCC quality for event {event_id}.")

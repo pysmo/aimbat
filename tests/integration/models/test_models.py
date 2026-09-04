@@ -4,7 +4,7 @@ Tests cover cascade deletes, the single-default-event constraint,
 type validation, and round-trip persistence of custom time types.
 """
 
-from datetime import timezone
+from datetime import UTC
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -71,7 +71,7 @@ def _make_event(
         AimbatEvent: The created event.
     """
     ev = AimbatEvent(
-        time=Timestamp(time, tz=timezone.utc),
+        time=Timestamp(time, tz=UTC),
         latitude=-36.12,
         longitude=-72.90,
         depth=22.9,
@@ -101,9 +101,9 @@ def _make_seismogram(
         AimbatSeismogram: The created seismogram.
     """
     seis = AimbatSeismogram(
-        begin_time=Timestamp("2010-02-27T06:30:00", tz=timezone.utc),
+        begin_time=Timestamp("2010-02-27T06:30:00", tz=UTC),
         delta=Timedelta(seconds=0.05),
-        t0=Timestamp("2010-02-27T06:40:00", tz=timezone.utc),
+        t0=Timestamp("2010-02-27T06:40:00", tz=UTC),
         event=event,
         station=station,
     )
@@ -484,9 +484,9 @@ class TestSeismogramParametersValidation:
         with pytest.raises(ValidationError):
             AimbatSeismogram.model_validate(
                 {
-                    "begin_time": Timestamp("2010-01-01", tz=timezone.utc),
+                    "begin_time": Timestamp("2010-01-01", tz=UTC),
                     "delta": Timedelta(seconds=-1),
-                    "t0": Timestamp("2010-01-01", tz=timezone.utc),
+                    "t0": Timestamp("2010-01-01", tz=UTC),
                 }
             )
 
@@ -505,7 +505,7 @@ class TestTimestampRoundTrip:
         Args:
             patched_session (Session): Database session.
         """
-        ts = Timestamp("2010-02-27T06:34:14", tz=timezone.utc)
+        ts = Timestamp("2010-02-27T06:34:14", tz=UTC)
         ev = _make_event(patched_session, time="2010-02-27T06:34:14")
         patched_session.commit()
 
@@ -626,7 +626,7 @@ class TestUniqueConstraints:
 
         # Manually insert a second event with the same time (bypass helper flush).
         ev2 = AimbatEvent(
-            time=Timestamp(same_time, tz=timezone.utc),
+            time=Timestamp(same_time, tz=UTC),
             latitude=0.0,
             longitude=0.0,
         )

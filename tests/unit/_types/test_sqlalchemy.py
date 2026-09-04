@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -35,7 +35,7 @@ class TestSAPandasTimestamp:
         ts_naive = pd.Timestamp("2023-01-01 12:00:00")
         result = sa_timestamp.process_bind_param(ts_naive, mock_dialect)
         assert isinstance(result, datetime)
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result.year == 2023
         assert result.hour == 12
 
@@ -47,7 +47,7 @@ class TestSAPandasTimestamp:
         ts_ny = pd.Timestamp("2023-01-01 12:00:00").tz_localize("America/New_York")
         result = sa_timestamp.process_bind_param(ts_ny, mock_dialect)
         assert isinstance(result, datetime)
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         # 12:00 NY is 17:00 UTC
         assert result.hour == 17
 
@@ -58,7 +58,7 @@ class TestSAPandasTimestamp:
         dt = datetime(2023, 1, 1, 12, 0, 0)
         result = sa_timestamp.process_bind_param(dt, mock_dialect)
         assert isinstance(result, datetime)
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_process_bind_param_truncates_nanoseconds(
         self, sa_timestamp: SAPandasTimestamp, mock_dialect: Dialect
@@ -87,17 +87,17 @@ class TestSAPandasTimestamp:
         dt_naive = datetime(2023, 1, 1, 12, 0, 0)
         result = sa_timestamp.process_result_value(dt_naive, mock_dialect)
         assert isinstance(result, pd.Timestamp)
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result.year == 2023
 
     def test_process_result_value_aware_datetime(
         self, sa_timestamp: SAPandasTimestamp, mock_dialect: Dialect
     ) -> None:
         """Test that an aware datetime from DB is converted to a UTC pandas Timestamp."""
-        dt_aware = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        dt_aware = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
         result = sa_timestamp.process_result_value(dt_aware, mock_dialect)
         assert isinstance(result, pd.Timestamp)
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
 
 class TestSAPandasTimedelta:

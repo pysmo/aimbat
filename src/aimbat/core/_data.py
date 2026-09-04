@@ -41,8 +41,8 @@ from aimbat.utils.formatters import fmt_timedelta
 __all__ = [
     "add_data_to_project",
     "add_seismograms_to_project",
-    "get_data_for_event",
     "dump_data_table",
+    "get_data_for_event",
 ]
 
 
@@ -61,12 +61,14 @@ def _link_station(session: Session, new_aimbat_station: AimbatStation) -> Aimbat
     if aimbat_station is None:
         aimbat_station = new_aimbat_station
         logger.debug(
-            f"Adding station {aimbat_station.name} - {aimbat_station.network} to project."
+            f"Adding station {aimbat_station.name} - {aimbat_station.network} to "
+            + "project."
         )
         session.add(aimbat_station)
     else:
         logger.debug(
-            f"Using existing station {aimbat_station.name} - {aimbat_station.network} instead of adding new one."
+            f"Using existing station {aimbat_station.name} - "
+            + f"{aimbat_station.network} instead of adding new one."
         )
     return aimbat_station
 
@@ -88,9 +90,8 @@ def _format_gap_prefix(
 ) -> str:
     """Build the shared origin-time/gap/existing-event sentence fragment."""
     return (
-        f"{label} has origin time {new_event.time}, "
-        f"{fmt_timedelta(gap)} from existing event {existing_event.id} "
-        f"({existing_event.time})"
+        f"{label} has origin time {new_event.time}, {fmt_timedelta(gap)} from "
+        + f"existing event {existing_event.id} ({existing_event.time})"
     )
 
 
@@ -105,10 +106,10 @@ def _format_reused_near_duplicate_message(
     prefix = _format_gap_prefix(label, new_event, existing_event, gap)
     return (
         f"Near-duplicate event: {prefix}, within the configured "
-        f"duplicate-detection tolerance ({fmt_timedelta(tolerance)}) but "
-        f"not an exact match. Reusing the existing event; its stored time "
-        f"and location are kept unchanged. Set 'event_duplicate_strict' to "
-        f"treat close origin times as genuinely distinct events instead."
+        + f"duplicate-detection tolerance ({fmt_timedelta(tolerance)}) but not "
+        + "an exact match. Reusing the existing event; its stored time and "
+        + "location are kept unchanged. Set 'event_duplicate_strict' to treat "
+        + "close origin times as genuinely distinct events instead."
     )
 
 
@@ -125,7 +126,7 @@ def _warn_on_event_location_mismatch(
     ):
         logger.warning(
             f"Event at {existing_event.time} matched by time but has different "
-            f"location metadata in {label}. The existing record will be used."
+            + f"location metadata in {label}. The existing record will be used."
         )
 
 
@@ -140,13 +141,13 @@ def _format_ambiguous_gap_message(
     """Build the ambiguous-gap-band event-time-conflict message."""
     prefix = _format_gap_prefix(label, new_event, existing_event, gap)
     return (
-        f"Event time conflict: {prefix}, too large a gap to be explained "
-        f"by ordinary timestamp precision noise (tolerance "
-        f"{fmt_timedelta(tolerance)}) but too small to confidently treat as "
-        f"an unrelated event (raise threshold {fmt_timedelta(raise_tolerance)}"
-        f"). This usually indicates a timing problem in the source data; "
-        f"check it before importing. If these are known to be genuinely "
-        f"distinct events, set 'event_duplicate_strict' to skip this check."
+        f"Event time conflict: {prefix}, too large a gap to be explained by "
+        + "ordinary timestamp precision noise (tolerance "
+        + f"{fmt_timedelta(tolerance)}) but too small to confidently treat as an"
+        + f" unrelated event (raise threshold {fmt_timedelta(raise_tolerance)})."
+        + " This usually indicates a timing problem in the source data; check "
+        + "it before importing. If these are known to be genuinely distinct "
+        + "events, set 'event_duplicate_strict' to skip this check."
     )
 
 
@@ -253,9 +254,9 @@ def _create_event(
 def _format_seismogram_collision_message(label: str, sourcename: str) -> str:
     """Build the message for a seismogram whose deterministic path collides with an already-ingested one."""
     return (
-        f"Seismogram collision for {label}: {sourcename} was already "
-        f"persisted by an earlier ingest. Keeping the existing waveform and "
-        f"database row; this triple's data was not written."
+        f"Seismogram collision for {label}: {sourcename} was already persisted"
+        + " by an earlier ingest. Keeping the existing waveform and database "
+        + "row; this triple's data was not written."
     )
 
 
@@ -277,7 +278,8 @@ def _link_seismogram(
         session.add(aimbat_seismogram)
     else:
         logger.debug(
-            f"Using existing seismogram with data source {sourcename} instead of adding new one."
+            f"Using existing seismogram with data source {sourcename} instead of "
+            + "adding new one."
         )
     return aimbat_seismogram
 
@@ -374,7 +376,8 @@ def _process_datasource(
         if aimbat_station is None:
             raise ValueError(f"No station found with ID={station_id}.")
         logger.debug(
-            f"Using station {getattr(aimbat_station, 'name', 'Unknown')} - {getattr(aimbat_station, 'network', 'Unknown')} (ID={station_id})."
+            f"Using station {getattr(aimbat_station, 'name', 'Unknown')} - "
+            + f"{getattr(aimbat_station, 'network', 'Unknown')} (ID={station_id})."
         )
     elif supports_station_creation(datatype):
         aimbat_station = _create_station(session, datasource, datatype)
@@ -401,13 +404,13 @@ def _process_datasource(
     # Seismogram creation requires both a station and an event to link to
     if aimbat_station is None:
         raise ValueError(
-            f"{datatype} does not support station creation. "
-            "Provide a station UUID via --use-station."
+            f"{datatype} does not support station creation. Provide a station UUID"
+            + " via --use-station."
         )
     if aimbat_event is None:
         raise ValueError(
-            f"{datatype} does not support event creation. "
-            "Provide an event UUID via --use-event."
+            f"{datatype} does not support event creation. Provide an event UUID "
+            + "via --use-event."
         )
 
     aimbat_seismogram = _create_seismogram(session, datasource, datatype)
@@ -416,8 +419,8 @@ def _process_datasource(
     aimbat_seismogram.event = aimbat_event
 
     logger.debug(
-        f"Linking seismogram from {datasource} to "
-        f"Station={aimbat_station.name} and EventTime={aimbat_event.time}."
+        f"Linking seismogram from {datasource} to Station="
+        + f"{aimbat_station.name} and EventTime={aimbat_event.time}."
     )
 
     aimbat_data_source = _link_datasource(
@@ -568,8 +571,8 @@ def _seismogram_path(
     """
 
     filename = (
-        f"{station.network}.{station.name}.{station.location}.{station.channel}"
-        f"__{seismogram.begin_time:%Y%m%dT%H%M%S%f}.mseed"
+        f"{station.network}.{station.name}.{station.location}."
+        + f"{station.channel}__{seismogram.begin_time:%Y%m%dT%H%M%S%f}.mseed"
     )
     return data_dir / filename
 
@@ -708,8 +711,8 @@ def add_seismograms_to_project(
                 aimbat_seismogram.event = aimbat_event
 
                 logger.debug(
-                    f"Linking seismogram from {sourcename} to "
-                    f"Station={aimbat_station.name} and EventTime={aimbat_event.time}."
+                    f"Linking seismogram from {sourcename} to Station="
+                    + f"{aimbat_station.name} and EventTime={aimbat_event.time}."
                 )
 
                 aimbat_data_source = _link_datasource(
@@ -812,7 +815,7 @@ def dump_data_table(
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     adapter: TypeAdapter[Sequence[AimbatDataSource]] = TypeAdapter(
         Sequence[AimbatDataSource]

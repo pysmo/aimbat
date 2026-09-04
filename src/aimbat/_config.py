@@ -36,12 +36,18 @@ class Settings(BaseSettings):
     bandpass_fmax: float = Field(
         default=2,
         gt=0,
-        description="Maximum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+        description=(
+            "Maximum frequency for bandpass filter (ignored if `bandpass_apply` "
+            + "is False)."
+        ),
     )
 
     bandpass_fmin: float = Field(
         default=0.05,
-        description="Minimum frequency for bandpass filter (ignored if `bandpass_apply` is False).",
+        description=(
+            "Minimum frequency for bandpass filter (ignored if `bandpass_apply` "
+            + "is False)."
+        ),
     )
 
     context_width: PydanticPositiveTimedelta = Field(
@@ -52,7 +58,10 @@ class Settings(BaseSettings):
     corners: int = Field(
         default=2,
         gt=0,
-        description="Number of corners (poles) for the bandpass filter (ignored if `bandpass_apply` is False).",
+        description=(
+            "Number of corners (poles) for the bandpass filter (ignored if "
+            + "`bandpass_apply` is False)."
+        ),
     )
 
     db_url: str = Field(
@@ -63,13 +72,13 @@ class Settings(BaseSettings):
     event_duplicate_raise_tolerance: PydanticPositiveTimedelta = Field(
         default=Timedelta(seconds=2),
         description=(
-            "Upper bound of the 'ambiguous gap' band. A new event whose "
-            "origin time is further than `event_duplicate_tolerance` but "
-            "closer than this to an existing event's time raises an error "
-            "unconditionally (even during `--dry-run`): the gap is too large "
-            "for timestamp precision noise, too small to be confidently "
-            "unrelated events. Compares origin times only, not location. "
-            "Ignored when `event_duplicate_strict` is True."
+            "Upper bound of the 'ambiguous gap' band. A new event whose origin "
+            + "time is further than `event_duplicate_tolerance` but closer than "
+            + "this to an existing event's time raises an error unconditionally "
+            + "(even during `--dry-run`): the gap is too large for timestamp "
+            + "precision noise, too small to be confidently unrelated events. "
+            + "Compares origin times only, not location. Ignored when "
+            + "`event_duplicate_strict` is True."
         ),
     )
 
@@ -77,27 +86,26 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "If True, skip near-duplicate detection entirely: "
-            "`event_duplicate_tolerance` and `event_duplicate_raise_tolerance` "
-            "are both ignored and events merge only on an exact origin-time "
-            "match (itself only microsecond-accurate, so any larger gap "
-            "silently creates a separate event). Use only for source data "
-            "trusted to be free of timing problems at that precision, e.g. a "
-            "catalogue of genuinely close but distinct events such as an "
-            "aftershock swarm."
+            + "`event_duplicate_tolerance` and `event_duplicate_raise_tolerance` "
+            + "are both ignored and events merge only on an exact origin-time match"
+            + " (itself only microsecond-accurate, so any larger gap silently "
+            + "creates a separate event). Use only for source data trusted to be "
+            + "free of timing problems at that precision, e.g. a catalogue of "
+            + "genuinely close but distinct events such as an aftershock swarm."
         ),
     )
 
     event_duplicate_tolerance: PydanticPositiveTimedelta = Field(
         default=Timedelta(seconds=0.1),
         description=(
-            "Maximum origin-time difference for a new event to be treated as "
-            "a duplicate of an existing one when there is no exact match. A "
-            "gap this small usually reflects upstream precision loss (e.g. "
-            "SAC's 32-bit float `o` header) rather than a distinct event, so "
-            "the existing event is reused with a warning, exactly as an exact "
-            "match is (its stored time and location are unchanged). Larger "
-            "gaps are handled by `event_duplicate_raise_tolerance`. Ignored "
-            "when `event_duplicate_strict` is True."
+            "Maximum origin-time difference for a new event to be treated as a "
+            + "duplicate of an existing one when there is no exact match. A gap "
+            + "this small usually reflects upstream precision loss (e.g. SAC's "
+            + "32-bit float `o` header) rather than a distinct event, so the "
+            + "existing event is reused with a warning, exactly as an exact match "
+            + "is (its stored time and location are unchanged). Larger gaps are "
+            + "handled by `event_duplicate_raise_tolerance`. Ignored when "
+            + "`event_duplicate_strict` is True."
         ),
     )
 
@@ -106,9 +114,8 @@ class Settings(BaseSettings):
     ] = Field(
         default="INFO",
         description=(
-            "Logging level. "
-            "Valid levels (from most to least verbose): "
-            "TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL."
+            "Logging level. Valid levels (from most to least verbose): TRACE, "
+            + "DEBUG, INFO, SUCCESS, WARNING, ERROR, CRITICAL."
         ),
     )
 
@@ -122,14 +129,20 @@ class Settings(BaseSettings):
         default=0.5,
         ge=0,
         le=1,
-        description="Minimum correlation coefficient required to include a pair in the MCCC inversion.",
+        description=(
+            "Minimum correlation coefficient required to include a pair in the "
+            + "MCCC inversion."
+        ),
     )
 
     min_cc: float = Field(
         default=0.5,
         ge=0,
         le=1,
-        description="Initial minimum cross correlation coefficient threshold for ICCS selection.",
+        description=(
+            "Initial minimum cross correlation coefficient threshold for ICCS "
+            + "selection."
+        ),
     )
 
     min_id_length: int = Field(
@@ -154,19 +167,22 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "Raise an error instead of a non-blocking warning when the project "
-            "database schema is out of date. Only affects third-party code using "
-            "aimbat.db.engine directly - AIMBAT's own CLI and TUI always treat a "
-            "stale schema as a hard failure regardless of this setting. Intended "
-            "for scripting: setting PYTHONWARNINGS/-W directly does not reliably "
-            "work for third-party warning categories, since Python resolves them "
-            "very early during interpreter startup, before the AIMBAT package is "
-            "reliably importable."
+            + "database schema is out of date. Only affects third-party code using "
+            + "aimbat.db.engine directly - AIMBAT's own CLI and TUI always treat a "
+            + "stale schema as a hard failure regardless of this setting. Intended "
+            + "for scripting: setting PYTHONWARNINGS/-W directly does not reliably "
+            + "work for third-party warning categories, since Python resolves them "
+            + "very early during interpreter startup, before the AIMBAT package is "
+            + "reliably importable."
         ),
     )
 
     ramp_width: PydanticNonNegativeFloat = Field(
         default=0.1,
-        description="Width of taper ramp as a multiple of the window length. Values greater than 1 are valid; the ramp extends outside the window.",
+        description=(
+            "Width of taper ramp as a multiple of the window length. Values "
+            + "greater than 1 are valid; the ramp extends outside the window."
+        ),
     )
 
     window_post: PydanticPositiveTimedelta = Field(
@@ -210,7 +226,7 @@ class Settings(BaseSettings):
         if self.event_duplicate_raise_tolerance <= self.event_duplicate_tolerance:
             raise ValueError(
                 "event_duplicate_raise_tolerance must be greater than "
-                "event_duplicate_tolerance."
+                + "event_duplicate_tolerance."
             )
         return self
 

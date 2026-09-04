@@ -25,6 +25,9 @@ from aimbat.utils import get_title_map, rel
 
 __all__ = [
     "delete_event",
+    "dump_event_parameter_table",
+    "dump_event_quality_table",
+    "dump_event_table",
     "get_completed_events",
     "get_event_quality",
     "get_events_using_station",
@@ -32,9 +35,6 @@ __all__ = [
     "set_event_parameter",
     "set_event_parameters",
     "toggle_event_completed",
-    "dump_event_table",
-    "dump_event_parameter_table",
-    "dump_event_quality_table",
 ]
 
 
@@ -252,7 +252,7 @@ def dump_event_table(
         raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     statement = select(AimbatEvent).options(
         selectinload(rel(AimbatEvent.seismograms)).selectinload(
@@ -464,7 +464,7 @@ def dump_event_parameter_table(
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     adapter: TypeAdapter[Sequence[AimbatEventParameters]] = TypeAdapter(
         Sequence[AimbatEventParameters]
@@ -518,7 +518,7 @@ def dump_event_quality_table(
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
     exclude = (exclude or set()) | {"station_id", "snapshot_id"}
-    exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+    exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     statement = select(AimbatEvent).options(
         selectinload(rel(AimbatEvent.seismograms)).selectinload(

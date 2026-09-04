@@ -38,7 +38,7 @@ from aimbat.models import (
 # ---------------------------------------------------------------------------
 
 
-_STATION_DATA: dict = {
+_STATION_DATA: dict[str, str | float] = {
     "name": "ANMO",
     "network": "IU",
     "location": "00",
@@ -48,7 +48,7 @@ _STATION_DATA: dict = {
     "elevation": 1820.0,
 }
 
-_EVENT_DATA: dict = {
+_EVENT_DATA: dict[str, str | float] = {
     "time": "2020-01-01T00:00:00Z",
     "latitude": 35.0,
     "longitude": -120.0,

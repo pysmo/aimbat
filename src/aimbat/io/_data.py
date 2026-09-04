@@ -8,8 +8,8 @@ along with the file suffixes associated with each type.
 from enum import StrEnum, auto
 
 __all__ = [
-    "DataType",
     "DATATYPE_SUFFIXES",
+    "DataType",
 ]
 
 

@@ -26,13 +26,15 @@ if TYPE_CHECKING:
 
 app = App(name="shell", help=__doc__, help_format="markdown")
 
+type _CompletionDict = dict[str, "_CompletionDict | None"]
 
-def _build_completion_dict(cyclopts_app: App) -> dict[str, dict | None]:
+
+def _build_completion_dict(cyclopts_app: App) -> _CompletionDict:
     """Recursively build a NestedCompleter dict from a cyclopts app tree."""
     skip: set[str] = set(cyclopts_app.help_flags)
     if hasattr(cyclopts_app, "version_flags"):
         skip.update(cyclopts_app.version_flags)
-    result: dict[str, dict | None] = {}
+    result: _CompletionDict = {}
 
     # Flags from this app's own default command.
     if cyclopts_app.default_command is not None:
@@ -135,8 +137,10 @@ def cli_shell(
     event_id: Annotated[
         uuid.UUID | None,
         event_parameter(
-            help="Start the shell in the context of a specific event. "
-            "Full UUID or any unique prefix as shown in the table. "
+            help=(
+                "Start the shell in the context of a specific event. Full UUID or any"
+                + " unique prefix as shown in the table. "
+            )
         ),
     ] = None,
     *,
@@ -196,7 +200,8 @@ def cli_shell(
         )
 
     console.print(
-        "[bold]AIMBAT shell[/bold]  (Tab to complete, Ctrl+D or [bold]exit[/bold] to quit)"
+        "[bold]AIMBAT shell[/bold]  (Tab to complete, Ctrl+D or "
+        + "[bold]exit[/bold] to quit)"
     )
 
     current_bound = _check_iccs(console, None, startup=True, event_id=shell_event_id)

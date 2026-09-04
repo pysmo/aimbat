@@ -34,12 +34,12 @@ if TYPE_CHECKING:
     from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
 
 __all__ = [
-    "read_seismogram_data_from_sacfile",
-    "write_seismogram_data_to_sacfile",
-    "create_station_from_sacfile",
     "create_event_from_sacfile",
     "create_seismogram_from_sacfile",
     "create_seismogram_from_sacfile_and_pick_header",
+    "create_station_from_sacfile",
+    "read_seismogram_data_from_sacfile",
+    "write_seismogram_data_to_sacfile",
 ]
 
 

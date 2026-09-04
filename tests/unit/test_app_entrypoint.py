@@ -32,11 +32,11 @@ def mock_raise(*args: list[Any], **kwargs: dict[str, Any]) -> None:
     raise Exception
 
 
-def test_cli_usage(capsys: pytest.CaptureFixture) -> None:
+def test_cli_usage(capsys: pytest.CaptureFixture[str]) -> None:
     """Test aimbat cli help output.
 
     Args:
-        capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
+        capsys (pytest.CaptureFixture[str]): Fixture to capture stdout/stderr.
     """
     from aimbat import app
 
@@ -50,12 +50,12 @@ def test_cli_usage(capsys: pytest.CaptureFixture) -> None:
 
 
 def test_cli_version(
-    capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test aimbat cli version flag.
 
     Args:
-        capsys (pytest.CaptureFixture): Fixture to capture stdout/stderr.
+        capsys (pytest.CaptureFixture[str]): Fixture to capture stdout/stderr.
         monkeypatch (pytest.MonkeyPatch): Fixture to mock objects/attributes.
     """
     from aimbat import app

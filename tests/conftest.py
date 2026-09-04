@@ -70,7 +70,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 @pytest.fixture(autouse=True)
-def patch_debug_setting(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def patch_debug_setting(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
     """Automatically patches settings to enable debug logging for tests.
 
     Args:
@@ -112,7 +112,7 @@ def mock_show(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def increase_columns(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def increase_columns(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
     """Increases the COLUMNS environment variable for wider output in tests.
 
     Args:
@@ -210,7 +210,7 @@ def multi_event_data(
 @pytest.fixture
 def engine_from_file(
     db_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Generator[Engine, None, None]:
+) -> Generator[Engine]:
     """Creates an empty project database backed by a file.
 
     Args:
@@ -239,7 +239,7 @@ def engine_from_file(
 
 
 @pytest.fixture
-def engine() -> Generator[Engine, None, None]:
+def engine() -> Generator[Engine]:
     """Creates an in memory database with a new project.
 
     Yields:
@@ -265,7 +265,7 @@ def engine() -> Generator[Engine, None, None]:
 @pytest.fixture
 def patched_engine(
     engine: Engine, monkeypatch: pytest.MonkeyPatch
-) -> Generator[Engine, None, None]:
+) -> Generator[Engine]:
     """Monkeypatches ``aimbat.db.engine`` so CLI functions use the test database.
 
     Args:
@@ -323,7 +323,7 @@ def loaded_engine_from_file(
 
 
 @pytest.fixture()
-def patched_session(patched_engine: Engine) -> Generator[Session, None, None]:
+def patched_session(patched_engine: Engine) -> Generator[Session]:
     """A session bound to the patched engine for CLI tests.
 
     Args:
@@ -337,7 +337,7 @@ def patched_session(patched_engine: Engine) -> Generator[Session, None, None]:
 
 
 @pytest.fixture()
-def loaded_session(loaded_engine: Engine) -> Generator[Session, None, None]:
+def loaded_session(loaded_engine: Engine) -> Generator[Session]:
     """A session pre-populated with multi-event data and an default event.
 
     Args:
@@ -378,7 +378,9 @@ def cli() -> Callable[[str | list[str]], None]:
 
 
 @pytest.fixture()
-def cli_json(capsys: pytest.CaptureFixture[str]) -> Callable[[str], list | dict]:
+def cli_json(
+    capsys: pytest.CaptureFixture[str],
+) -> Callable[[str], list[Any] | dict[str, Any]]:
     """Returns a callable that runs a ``dump`` sub-command and returns parsed JSON.
 
     Args:
@@ -388,7 +390,7 @@ def cli_json(capsys: pytest.CaptureFixture[str]) -> Callable[[str], list | dict]
         A callable that accepts a command string and returns the parsed JSON output.
     """
 
-    def _run(command: str) -> list | dict:
+    def _run(command: str) -> list[Any] | dict[str, Any]:
         capsys.readouterr()  # discard output from prior commands
         try:
             app(command)
@@ -402,7 +404,9 @@ def cli_json(capsys: pytest.CaptureFixture[str]) -> Callable[[str], list | dict]
 
 
 @pytest.fixture()
-def event_id(loaded_engine: Engine, cli_json: Callable[[str], list | dict]) -> str:
+def event_id(
+    loaded_engine: Engine, cli_json: Callable[[str], list[Any] | dict[str, Any]]
+) -> str:
     """Returns the ID of the first event from the loaded engine.
 
     Args:
@@ -413,6 +417,7 @@ def event_id(loaded_engine: Engine, cli_json: Callable[[str], list | dict]) -> s
         The ID string of the first event.
     """
     events = cli_json("event dump")
+    assert isinstance(events, list)
     return events[0]["id"]
 
 

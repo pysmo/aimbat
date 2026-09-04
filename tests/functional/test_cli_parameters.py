@@ -6,6 +6,7 @@ sub-commands are used as the source of truth for verifying parameter changes.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 from sqlalchemy import Engine
@@ -111,7 +112,7 @@ class TestEventParameterSetBool:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting completed=true is reflected in the dump.
@@ -122,12 +123,14 @@ class TestEventParameterSetBool:
             cli_json: The in-process CLI JSON dump callable.
         """
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         before = all_params[0]
         assert before["completed"] is False, "'completed' should default to False"
 
         cli(f"event parameter set --event-id {event_id} completed true")
 
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["completed"] is True, "'completed' should be True after being set"
 
@@ -135,7 +138,7 @@ class TestEventParameterSetBool:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting completed=false is reflected in the dump.
@@ -148,6 +151,7 @@ class TestEventParameterSetBool:
         cli(f"event parameter set --event-id {event_id} completed true")
         cli(f"event parameter set --event-id {event_id} completed false")
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["completed"] is False, (
             "'completed' should be False after being set back"
@@ -157,7 +161,7 @@ class TestEventParameterSetBool:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting bandpass_apply is reflected in the dump.
@@ -168,6 +172,7 @@ class TestEventParameterSetBool:
             cli_json: The in-process CLI JSON dump callable.
         """
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         before = all_params[0]
         original = before["bandpass_apply"]
 
@@ -176,6 +181,7 @@ class TestEventParameterSetBool:
         )
 
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["bandpass_apply"] is not original, (
             "'bandpassApply' should have toggled after set"
@@ -190,7 +196,7 @@ class TestEventParameterSetFloat:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting min_cc is reflected in the dump.
@@ -202,6 +208,7 @@ class TestEventParameterSetFloat:
         """
         cli(f"event parameter set --event-id {event_id} min_cc 0.42")
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["min_cc"] == pytest.approx(0.42), (
             "'minCc' should be 0.42 after being set"
@@ -211,7 +218,7 @@ class TestEventParameterSetFloat:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting bandpass_fmin is reflected in the dump.
@@ -223,6 +230,7 @@ class TestEventParameterSetFloat:
         """
         cli(f"event parameter set --event-id {event_id} bandpass_fmin 0.1")
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["bandpass_fmin"] == pytest.approx(0.1), (
             "'bandpassFmin' should be 0.1 after being set"
@@ -232,7 +240,7 @@ class TestEventParameterSetFloat:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting bandpass_fmax is reflected in the dump.
@@ -244,6 +252,7 @@ class TestEventParameterSetFloat:
         """
         cli(f"event parameter set --event-id {event_id} bandpass_fmax 2.0")
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["bandpass_fmax"] == pytest.approx(2.0), (
             "'bandpassFmax' should be 2.0 after being set"
@@ -263,7 +272,7 @@ class TestEventParameterSetTimedelta:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that a bare number is interpreted as seconds for window_pre.
@@ -275,6 +284,7 @@ class TestEventParameterSetTimedelta:
         """
         cli(f"event parameter set --event-id {event_id} window_pre -20")
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["window_pre"] == pytest.approx(-20.0), (
             "'windowPre' should be -20.0 seconds after being set with a bare number"
@@ -284,7 +294,7 @@ class TestEventParameterSetTimedelta:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that a bare number is interpreted as seconds for window_post.
@@ -296,6 +306,7 @@ class TestEventParameterSetTimedelta:
         """
         cli(f"event parameter set --event-id {event_id} window_post 30")
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["window_post"] == pytest.approx(30.0), (
             "'windowPost' should be 30.0 seconds after being set with a bare number"
@@ -305,7 +316,7 @@ class TestEventParameterSetTimedelta:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that a pandas-style unit string (e.g. '10s') is accepted for window_post.
@@ -317,6 +328,7 @@ class TestEventParameterSetTimedelta:
         """
         cli(f"event parameter set --event-id {event_id} window_post 20s")
         all_params = cli_json("event parameter dump")
+        assert isinstance(all_params, list)
         after = all_params[0]
         assert after["window_post"] == pytest.approx(20.0), (
             "'windowPost' should be 20.0 seconds after being set with '20s'"
@@ -335,7 +347,7 @@ class TestEventParameterDump:
     def test_default_event_returns_dict(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the default-event dump returns a dict.
@@ -351,7 +363,7 @@ class TestEventParameterDump:
     def test_default_event_contains_all_parameter_keys(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that all expected parameter keys are present in the dump.
@@ -361,6 +373,7 @@ class TestEventParameterDump:
             cli_json: The in-process CLI JSON dump callable.
         """
         all_data = cli_json("event parameter dump")
+        assert isinstance(all_data, list)
         data = all_data[0]
         for key in (
             "completed",
@@ -376,7 +389,7 @@ class TestEventParameterDump:
     def test_all_events_returns_list(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that `--all` returns a list of parameter dicts.
@@ -392,7 +405,7 @@ class TestEventParameterDump:
     def test_all_events_entries_contain_parameter_keys(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that each entry in the all-events dump has the expected keys.
@@ -411,7 +424,7 @@ class TestEventParameterDump:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that a parameter change to the default event appears in the all-events dump.
@@ -510,7 +523,7 @@ class TestSeismogramParameterGet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -539,7 +552,7 @@ class TestSeismogramParameterGet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -568,7 +581,7 @@ class TestSeismogramParameterGet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -581,6 +594,7 @@ class TestSeismogramParameterGet:
             capsys: The pytest capsys fixture.
         """
         seis = cli_json("seismogram dump")
+        assert isinstance(seis, list)
         target_id = seis[0]["id"]
 
         cli(f"seismogram parameter get flip --id {target_id}")
@@ -590,7 +604,7 @@ class TestSeismogramParameterGet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -603,6 +617,7 @@ class TestSeismogramParameterGet:
             capsys: The pytest capsys fixture.
         """
         seis = cli_json("seismogram dump")
+        assert isinstance(seis, list)
         target_id = seis[0]["id"]
 
         cli(f"seismogram parameter get select --id {target_id}")
@@ -622,7 +637,7 @@ class TestSeismogramParameterSet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting select=false is reflected in the dump.
@@ -651,7 +666,7 @@ class TestSeismogramParameterSet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting select=false via a shortened ID is reflected in the dump.
@@ -662,6 +677,7 @@ class TestSeismogramParameterSet:
             cli_json: The in-process CLI JSON dump callable.
         """
         seis = cli_json("seismogram dump")
+        assert isinstance(seis, list)
         target_id = seis[0]["id"]
         short_id = target_id[:8]
 
@@ -678,7 +694,7 @@ class TestSeismogramParameterSet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting flip=true is reflected in the dump.
@@ -689,6 +705,7 @@ class TestSeismogramParameterSet:
             cli_json: The in-process CLI JSON dump callable.
         """
         seis = cli_json("seismogram dump")
+        assert isinstance(seis, list)
         target_id = seis[0]["id"]
 
         cli(f"seismogram parameter set flip true --id {target_id}")
@@ -704,7 +721,7 @@ class TestSeismogramParameterSet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that setting flip=true via a shortened ID is reflected in the dump.
@@ -715,6 +732,7 @@ class TestSeismogramParameterSet:
             cli_json: The in-process CLI JSON dump callable.
         """
         seis = cli_json("seismogram dump")
+        assert isinstance(seis, list)
         target_id = seis[0]["id"]
         short_id = target_id[:8]
 
@@ -731,7 +749,7 @@ class TestSeismogramParameterSet:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that changing one seismogram's parameter does not affect others.
@@ -778,7 +796,7 @@ class TestSeismogramParameterDump:
     def test_returns_list(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the dump returns a list of parameter dicts.
@@ -794,7 +812,7 @@ class TestSeismogramParameterDump:
     def test_entries_contain_expected_keys(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that each entry contains the expected parameter keys.
@@ -814,7 +832,7 @@ class TestSeismogramParameterDump:
     def test_count_matches_seismogram_dump(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the parameter dump entry count matches the seismogram count.

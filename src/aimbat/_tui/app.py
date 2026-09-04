@@ -305,7 +305,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
     # ------------------------------------------------------------------
 
     @contextmanager
-    def _suspend(self, label: str | None = None) -> Generator[None, None, None]:
+    def _suspend(self, label: str | None = None) -> Generator[None]:
         """Suspend Textual and handle errors gracefully.
 
         If `label` is given, a panel is shown with a "close matplotlib to
@@ -321,8 +321,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if label is not None:
                 console.print(
                     Panel(
-                        f"[bold]{label}[/bold]\n\n"
-                        "Close the matplotlib window to return to AIMBAT.",
+                        f"[bold]{label}[/bold]\n\nClose the matplotlib window to return to AIMBAT.",
                         title="Interactive Tool Running",
                         border_style="bright_blue",
                         padding=(1, 4),
@@ -387,8 +386,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     else ""
                 )
                 bar.update(
-                    f"▶ {time_str}  |  {lat}, {lon}{modified}"
-                    f"  [dim]{iccs_status}  switch events on the Project tab[/dim]"
+                    f"▶ {time_str}  |  {lat}, {lon}{modified}  [dim]{iccs_status}  switch "
+                    + "events on the Project tab[/dim]"
                 )
         except NoResultFound:
             with Session(engine) as session:
@@ -781,8 +780,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                         )
                     for event_id, error in failures:
                         self.notify(
-                            f"Could not create an automatic snapshot for event "
-                            f"{event_id}: {error}",
+                            f"Could not create an automatic snapshot for event {event_id}: {error}",
                             severity="warning",
                         )
                     self.refresh_all()
@@ -835,8 +833,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 tools in `CAUSAL_TOOL_REGISTRY`, otherwise `None`.
         """
         logger.debug(
-            f"User launched interactive tool '{tool}' "
-            f"(context={context}, all_seis={all_seis}, causal={causal})."
+            f"User launched interactive tool '{tool}' (context={context}, "
+            + f"all_seis={all_seis}, causal={causal})."
         )
         bound = self._iccs_lifecycle.bound
         if bound is None:
@@ -914,7 +912,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 than only the selected ones.
         """
         logger.debug(
-            f"Alignment worker starting: {algorithm=}, {autoflip=}, {autoselect=}, {all_seis=}."
+            f"Alignment worker starting: algorithm={algorithm!r}, autoflip="
+            + f"{autoflip!r}, autoselect={autoselect!r}, all_seis={all_seis!r}."
         )
         notify_msg = "Alignment complete"
         notify_severity: Literal["information", "warning", "error"] = "information"
@@ -1009,8 +1008,8 @@ def main() -> None:
     app.run()
     if app.return_code:
         raise RuntimeError(
-            "AIMBAT TUI exited after an unhandled error - see the crash "
-            "report above for details."
+            "AIMBAT TUI exited after an unhandled error - see the crash report "
+            + "above for details."
         )
 
 

@@ -29,7 +29,6 @@ dependencies = [
     { name = "textual" },
     { name = "textual-fspicker" },
     { name = "textual-plotext" },
-    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -72,7 +71,6 @@ requires-dist = [
     { name = "textual", specifier = ">=8.0.0" },
     { name = "textual-fspicker", specifier = ">=1.0.0" },
     { name = "textual-plotext", specifier = ">=1.0.1" },
-    { name = "typing-extensions", specifier = ">=4.15.0" },
 ]
 
 [package.metadata.requires-dev]

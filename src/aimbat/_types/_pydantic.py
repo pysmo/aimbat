@@ -6,7 +6,8 @@ equivalents of Pydantic's own datetime/timedelta support), along with
 values, and a non-negative float constraint.
 """
 
-from typing import Annotated, Any, Callable, ClassVar, cast
+from collections.abc import Callable
+from typing import Annotated, Any, ClassVar, cast
 
 from pandas import Timedelta, Timestamp, isna
 from pydantic import AfterValidator, Field, PlainSerializer
@@ -15,12 +16,12 @@ from pydantic_core.core_schema import CoreSchema, no_info_plain_validator_functi
 from ._coerce import coerce_to_timedelta
 
 __all__ = [
-    "PydanticTimestamp",
-    "PydanticTimedelta",
     "PydanticNegativeTimedelta",
-    "PydanticPositiveTimedelta",
-    "PydanticNonNegativeTimedelta",
     "PydanticNonNegativeFloat",
+    "PydanticNonNegativeTimedelta",
+    "PydanticPositiveTimedelta",
+    "PydanticTimedelta",
+    "PydanticTimestamp",
 ]
 
 
@@ -87,21 +88,21 @@ class _PandasBaseAnnotation[T: Timestamp | Timedelta]:
                 raise ValueError(f"{cls.target_type.__name__} value cannot be NaT")
             if cls.target_type is Timestamp and cast(Timestamp, result).tzinfo is None:
                 raise ValueError(
-                    f"Timestamp value must be timezone-aware (UTC), got naive "
-                    f"value {result!r}"
+                    "Timestamp value must be timezone-aware (UTC), got naive value "
+                    + f"{result!r}"
                 )
             return result
 
         return no_info_plain_validator_function(validate)
 
 
-class _AnnotatedTimestamp(_PandasBaseAnnotation):
+class _AnnotatedTimestamp(_PandasBaseAnnotation[Timestamp]):
     """Pydantic core-schema provider for `pandas.Timestamp`."""
 
     target_type = Timestamp
 
 
-class _AnnotatedTimedelta(_PandasBaseAnnotation):
+class _AnnotatedTimedelta(_PandasBaseAnnotation[Timedelta]):
     """Pydantic core-schema provider for `pandas.Timedelta`."""
 
     target_type = Timedelta

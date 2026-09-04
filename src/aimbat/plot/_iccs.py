@@ -43,17 +43,18 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
 _RETURN_FIG_WARNING = (
-    "Returning figure and axes objects instead of showing the plot. "
-    "This is intended for testing purposes; in normal usage, return_fig should be False."
+    "Returning figure and axes objects instead of showing the plot. This "
+    + "is intended for testing purposes; in normal usage, return_fig should"
+    + " be False."
 )
 
 __all__ = [
-    "plot_stack",
     "plot_matrix_image",
+    "plot_stack",
     "update_bandpass",
+    "update_min_cc",
     "update_pick",
     "update_timewindow",
-    "update_min_cc",
 ]
 
 
@@ -131,9 +132,9 @@ def update_bandpass(
 
     if not return_fig:
         logger.debug(
-            f"Saving new bandpass filter parameters for event {event.id}: "
-            f"apply={iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, "
-            f"fmax={iccs.bandpass_fmax}, corners={iccs.corners}"
+            f"Saving new bandpass filter parameters for event {event.id}: apply="
+            + f"{iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, fmax="
+            + f"{iccs.bandpass_fmax}, corners={iccs.corners}"
         )
         set_event_parameters(
             session,
@@ -224,8 +225,8 @@ def update_timewindow(
 
     if not return_fig:
         logger.debug(
-            f"Saving new time window for event {event.id}: "
-            f"pre={iccs.window_pre}, post={iccs.window_post}"
+            f"Saving new time window for event {event.id}: pre={iccs.window_pre}, "
+            + f"post={iccs.window_post}"
         )
         set_event_parameters(
             session,
@@ -273,7 +274,8 @@ def update_min_cc(
 
     if not return_fig:
         logger.debug(
-            f"Saving new minimum cross-correlation threshold for event {event.id}: {iccs.min_cc}"
+            f"Saving new minimum cross-correlation threshold for event {event.id}:"
+            + f" {iccs.min_cc}"
         )
         set_event_parameter(
             session, event.id, EventParameter.MIN_CC, float(iccs.min_cc)

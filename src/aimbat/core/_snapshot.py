@@ -53,23 +53,23 @@ from aimbat.models._quality import (
 from aimbat.utils import get_title_map, rel
 
 __all__ = [
+    "SyncResult",
     "compute_iccs_hash",
     "compute_mccc_hash",
-    "SyncResult",
     "create_snapshot",
     "create_snapshots_for_added_data",
-    "rollback_to_snapshot",
-    "sync_from_matching_hash",
     "delete_snapshot",
-    "get_snapshots",
-    "get_snapshot_quality",
-    "dump_snapshot_table",
+    "dump_event_parameter_snapshot_table",
+    "dump_event_quality_snapshot_table",
+    "dump_seismogram_parameter_snapshot_table",
+    "dump_seismogram_quality_snapshot_table",
     "dump_snapshot_quality_table",
     "dump_snapshot_results",
-    "dump_event_parameter_snapshot_table",
-    "dump_seismogram_parameter_snapshot_table",
-    "dump_event_quality_snapshot_table",
-    "dump_seismogram_quality_snapshot_table",
+    "dump_snapshot_table",
+    "get_snapshot_quality",
+    "get_snapshots",
+    "rollback_to_snapshot",
+    "sync_from_matching_hash",
 ]
 
 
@@ -713,7 +713,7 @@ def dump_snapshot_table(
         raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     snapshots = get_snapshots(session, event_id)
 
@@ -803,7 +803,7 @@ def dump_snapshot_quality_table(
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
     exclude = (exclude or set()) | {"station_id"}
-    exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+    exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     snapshots = get_snapshots(session, event_id)
     stats = [SeismogramQualityStats.from_snapshot(s) for s in snapshots]
@@ -852,7 +852,7 @@ def _dump_snapshot_related_table(
     """
     logger.debug(f"Dumping {model_name} table to json.")
 
-    exclude_spec: dict[str, set] | None = {"__all__": exclude} if exclude else None
+    exclude_spec: dict[str, set[str]] | None = {"__all__": exclude} if exclude else None
 
     snapshots = get_snapshots(session, event_id)
 

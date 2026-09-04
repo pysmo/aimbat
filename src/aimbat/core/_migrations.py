@@ -15,12 +15,12 @@ if TYPE_CHECKING:
     from alembic.config import Config
 
 __all__ = [
-    "upgrade_project",
+    "SchemaMismatchError",
+    "SchemaStaleWarning",
     "get_current_revision",
     "get_head_revision",
     "stamp_head",
-    "SchemaMismatchError",
-    "SchemaStaleWarning",
+    "upgrade_project",
 ]
 
 
@@ -104,23 +104,21 @@ def _build_staleness_warning(current_revision: str | None) -> SchemaStaleWarning
         and current_revision not in _known_ancestors_of_head()
     ):
         message = (
-            f"This project's database is stamped at schema version "
-            f"'{current_revision}', which this AIMBAT installation doesn't "
-            "recognise - it may have been created by a different or newer "
-            "AIMBAT release, or the version record may be corrupted. "
-            "`aimbat db upgrade` cannot resolve this automatically; manual "
-            "inspection is required."
+            "This project's database is stamped at schema version '"
+            + f"{current_revision}', which this AIMBAT installation doesn't "
+            + "recognise - it may have been created by a different or newer AIMBAT "
+            + "release, or the version record may be corrupted. `aimbat db upgrade`"
+            + " cannot resolve this automatically; manual inspection is required."
         )
     elif current_revision is None:
         message = (
-            "This project predates AIMBAT's schema versioning; run "
-            "`aimbat db upgrade` once to bring it up to date."
+            "This project predates AIMBAT's schema versioning; run `aimbat db "
+            + "upgrade` once to bring it up to date."
         )
     else:
         message = (
-            f"This project's database schema is out of date (at "
-            f"{current_revision}, latest is {head_revision}); run "
-            "`aimbat db upgrade`."
+            f"This project's database schema is out of date (at {current_revision}"
+            + f", latest is {head_revision}); run `aimbat db upgrade`."
         )
     logger.warning(message)
     return SchemaStaleWarning(message, current_revision, head_revision)
@@ -328,11 +326,11 @@ def upgrade_project(engine: Engine) -> None:
         and current_revision not in _known_ancestors_of_head()
     ):
         raise SchemaMismatchError(
-            f"The database at {engine.url} is stamped at schema version "
-            f"'{current_revision}', which this AIMBAT installation doesn't "
-            "recognise - it may have been created by a different or newer "
-            "AIMBAT release, or the version record may be corrupted. This "
-            "can't be resolved automatically. Manual intervention is required."
+            f"The database at {engine.url} is stamped at schema version '"
+            + f"{current_revision}', which this AIMBAT installation doesn't "
+            + "recognise - it may have been created by a different or newer AIMBAT "
+            + "release, or the version record may be corrupted. This can't be "
+            + "resolved automatically. Manual intervention is required."
         )
 
     if current_revision is None:
@@ -344,17 +342,17 @@ def upgrade_project(engine: Engine) -> None:
 
             if matched_revision is None:
                 raise SchemaMismatchError(
-                    f"The database at {engine.url} has no Alembic version "
-                    "history, and its schema doesn't match any known AIMBAT "
-                    "schema version, so it can't be upgraded automatically. "
-                    "This usually means the project was created by a very "
-                    "old version of AIMBAT. Manual intervention is required."
+                    f"The database at {engine.url} has no Alembic version history, and its"
+                    + " schema doesn't match any known AIMBAT schema version, so it can't "
+                    + "be upgraded automatically. This usually means the project was "
+                    + "created by a very old version of AIMBAT. Manual intervention is "
+                    + "required."
                 )
 
             logger.info(
-                f"No Alembic history found for {engine.url}, but its schema "
-                f"matches revision {matched_revision!r} exactly - stamping "
-                "at that revision before upgrading the rest of the way."
+                f"No Alembic history found for {engine.url}, but its schema matches "
+                + f"revision {matched_revision!r} exactly - stamping at that revision "
+                + "before upgrading the rest of the way."
             )
             command.stamp(config, matched_revision)
         # else: genuinely empty database - fall through to `command.upgrade`

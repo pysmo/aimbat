@@ -1,7 +1,8 @@
 from contextlib import suppress
+from typing import Any
 
 
-def export_module_names(globals_dict: dict, module_name: str) -> None:
+def export_module_names(globals_dict: dict[str, Any], module_name: str) -> None:
     """Update the __module__ attribute of all objects in __all__.
 
     Sets it to match the current module name.
