@@ -46,10 +46,10 @@ aimbat-tui = "aimbat._cli.tui:app"
 test = [
   "pytest>=8.4.2",
   "pytest-cov>=7.0.0",
-  "pytest-dependency>=0.6.0",
   "pytest-mpl>=0.17.0",
   "pytest-mypy>=1.0.1",
   "pytest-sugar>=1.1.1",
+  "pytest-xdist>=3.8.0",
   "ruff>=0.13.0",
   "testkit",
 ]

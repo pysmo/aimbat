@@ -30,8 +30,18 @@ from aimbat.logger import configure_logging
 # Constants
 # ---------------------------------------------------------------------------
 
-_AIMBAT_LOGFILE = "aimbat_test.log"
 _AIMBAT_LOG_LEVEL: Literal["DEBUG"] = "DEBUG"
+
+
+def _worker_logfile() -> str:
+    """Log file name for the current test session, unique per xdist worker.
+
+    Under ``pytest-xdist`` every worker runs in its own process but shares the
+    working directory, so a fixed name would have all workers appending to one
+    file. ``PYTEST_XDIST_WORKER`` is unset on a non-parallel run (``"master"``).
+    """
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    return f"aimbat_test_{worker}.log"
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +59,7 @@ def patch_debug_setting(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None
     Yields:
         None
     """
-    monkeypatch.setattr(aimbat.settings, "logfile", _AIMBAT_LOGFILE)
+    monkeypatch.setattr(aimbat.settings, "logfile", _worker_logfile())
     monkeypatch.setattr(aimbat.settings, "log_level", _AIMBAT_LOG_LEVEL)
     configure_logging()
 
@@ -402,7 +412,7 @@ def aimbat_subprocess(
     def _run(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env["AIMBAT_DB_URL"] = f"sqlite+pysqlite:///{db_path}"
-        env["AIMBAT_LOGFILE"] = _AIMBAT_LOGFILE
+        env["AIMBAT_LOGFILE"] = _worker_logfile()
         env["AIMBAT_LOG_LEVEL"] = _AIMBAT_LOG_LEVEL
         env["COLUMNS"] = "1000"
         return subprocess.run(
