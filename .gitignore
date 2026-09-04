@@ -33,7 +33,7 @@ junit.xml
 .envrc
 aimbat.log
 .env
-aimbat_test*.log
+tests/.logs/
 scratch/
 aimbat.db-shm
 aimbat.db-wal

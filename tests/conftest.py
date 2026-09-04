@@ -33,15 +33,35 @@ from aimbat.logger import configure_logging
 _AIMBAT_LOG_LEVEL: Literal["DEBUG"] = "DEBUG"
 
 
+_LOG_DIR = Path(__file__).parent / ".logs"
+
+
 def _worker_logfile() -> str:
-    """Log file name for the current test session, unique per xdist worker.
+    """Log file path for the current test session, unique per xdist worker.
 
     Under ``pytest-xdist`` every worker runs in its own process but shares the
     working directory, so a fixed name would have all workers appending to one
     file. ``PYTEST_XDIST_WORKER`` is unset on a non-parallel run (``"master"``).
+
+    Logs are written to the gitignored ``tests/.logs/`` directory to keep them
+    out of the project root.
     """
     worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-    return f"aimbat_test_{worker}.log"
+    _LOG_DIR.mkdir(exist_ok=True)
+    return str(_LOG_DIR / f"aimbat_test_{worker}.log")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Wipe the test log directory at the start of each session.
+
+    Runs only on the xdist controller (``workerinput`` is absent), before any
+    worker boots, so ``tests/.logs/`` never accumulates more than one session's
+    worth of logs.
+    """
+    if hasattr(config, "workerinput"):
+        return
+    if _LOG_DIR.is_dir():
+        shutil.rmtree(_LOG_DIR)
 
 
 # ---------------------------------------------------------------------------
