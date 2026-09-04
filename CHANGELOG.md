@@ -68,6 +68,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Use testkit for shared pytest fixtures
 - Add old-DB regression fixture and CI migration/wheel gates
 - Parallelise the non-slow test suite with pytest-xdist
+- Write per-worker log files to gitignored tests/.logs/
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
