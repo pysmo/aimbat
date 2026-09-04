@@ -25,9 +25,13 @@ class DataType(StrEnum):
     JSON_STATION = auto()
     """JSON file containing a single seismic station record."""
 
+    MSEED = auto()
+    """miniSEED waveform file. Waveform data only - no station or event data."""
+
 
 DATATYPE_SUFFIXES: dict[DataType, list[str]] = {
     DataType.SAC: [".sac", ".bhz", ".bhn", ".bhe"],
     DataType.JSON_EVENT: [".json"],
     DataType.JSON_STATION: [".json"],
+    DataType.MSEED: [".mseed", ".miniseed", ".ms"],
 }

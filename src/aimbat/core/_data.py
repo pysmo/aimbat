@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -9,6 +10,10 @@ from pandas import Timedelta
 from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
+
+from pysmo import Event, MiniStationCode, Station
+from pysmo.lib.io import write_mseed
+from pysmo.tools.iccs import IccsSeismogram
 
 from aimbat import settings
 from aimbat.io import (
@@ -24,7 +29,9 @@ from aimbat.logger import logger
 from aimbat.models._models import (
     AimbatDataSource,
     AimbatEvent,
+    AimbatEventParameters,
     AimbatSeismogram,
+    AimbatSeismogramParameters,
     AimbatStation,
     _AimbatDataSourceCreate,
 )
@@ -33,17 +40,14 @@ from aimbat.utils.formatters import fmt_timedelta
 
 __all__ = [
     "add_data_to_project",
+    "add_seismograms_to_project",
     "get_data_for_event",
     "dump_data_table",
 ]
 
 
-def _create_station(
-    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
-) -> AimbatStation:
-    """Create a new AimbatStation if it doesn't exist yet, or use existing one."""
-
-    new_aimbat_station = create_station(datasource, datatype)
+def _link_station(session: Session, new_aimbat_station: AimbatStation) -> AimbatStation:
+    """Dedup an already-built AimbatStation against the project, or add it."""
 
     statement = (
         select(AimbatStation)
@@ -67,29 +71,38 @@ def _create_station(
     return aimbat_station
 
 
+def _create_station(
+    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
+) -> AimbatStation:
+    """Create a new AimbatStation if it doesn't exist yet, or use existing one."""
+
+    new_aimbat_station = create_station(datasource, datatype)
+    return _link_station(session, new_aimbat_station)
+
+
 def _format_gap_prefix(
-    datasource: os.PathLike[str] | str,
+    label: str,
     new_event: AimbatEvent,
     existing_event: AimbatEvent,
     gap: Timedelta,
 ) -> str:
     """Build the shared origin-time/gap/existing-event sentence fragment."""
     return (
-        f"{datasource} has origin time {new_event.time}, "
+        f"{label} has origin time {new_event.time}, "
         f"{fmt_timedelta(gap)} from existing event {existing_event.id} "
         f"({existing_event.time})"
     )
 
 
 def _format_reused_near_duplicate_message(
-    datasource: os.PathLike[str] | str,
+    label: str,
     new_event: AimbatEvent,
     existing_event: AimbatEvent,
     gap: Timedelta,
     tolerance: Timedelta,
 ) -> str:
     """Build the noise-band near-duplicate-event reuse message."""
-    prefix = _format_gap_prefix(datasource, new_event, existing_event, gap)
+    prefix = _format_gap_prefix(label, new_event, existing_event, gap)
     return (
         f"Near-duplicate event: {prefix}, within the configured "
         f"duplicate-detection tolerance ({fmt_timedelta(tolerance)}) but "
@@ -100,7 +113,7 @@ def _format_reused_near_duplicate_message(
 
 
 def _warn_on_event_location_mismatch(
-    datasource: os.PathLike[str] | str,
+    label: str,
     new_event: AimbatEvent,
     existing_event: AimbatEvent,
 ) -> None:
@@ -112,12 +125,12 @@ def _warn_on_event_location_mismatch(
     ):
         logger.warning(
             f"Event at {existing_event.time} matched by time but has different "
-            f"location metadata in {datasource}. The existing record will be used."
+            f"location metadata in {label}. The existing record will be used."
         )
 
 
 def _format_ambiguous_gap_message(
-    datasource: os.PathLike[str] | str,
+    label: str,
     new_event: AimbatEvent,
     existing_event: AimbatEvent,
     gap: Timedelta,
@@ -125,7 +138,7 @@ def _format_ambiguous_gap_message(
     raise_tolerance: Timedelta,
 ) -> str:
     """Build the ambiguous-gap-band event-time-conflict message."""
-    prefix = _format_gap_prefix(datasource, new_event, existing_event, gap)
+    prefix = _format_gap_prefix(label, new_event, existing_event, gap)
     return (
         f"Event time conflict: {prefix}, too large a gap to be explained "
         f"by ordinary timestamp precision noise (tolerance "
@@ -137,14 +150,14 @@ def _format_ambiguous_gap_message(
     )
 
 
-def _create_event(
+def _link_event(
     session: Session,
-    datasource: os.PathLike[str] | str,
-    datatype: DataType,
+    new_aimbat_event: AimbatEvent,
     dry_run: bool,
     known_event_ids: set[UUID],
+    label: str,
 ) -> tuple[AimbatEvent, str | None]:
-    """Create a new AimbatEvent if it doesn't exist yet, or use existing one.
+    """Dedup an already-built AimbatEvent against the project, or add it.
 
     If no exact time match is found, checks whether the new event's origin
     time is a near-duplicate of a known event's time, per
@@ -153,8 +166,10 @@ def _create_event(
     three-tier model). Within `event_duplicate_tolerance` the existing event
     is reused (with a warning), exactly as an exact-time match is.
     `known_event_ids` is updated in place with the ID of any newly created
-    event, so later data sources in the same batch are checked against
-    events created earlier in that batch too.
+    event, so later entries in the same batch are checked against events
+    created earlier in that batch too. `label` identifies `new_aimbat_event`
+    in log/warning messages (a data source path, or e.g. a
+    `f"{network}.{station}"` for an object-based entry with no path).
 
     Raises:
         ValueError: If a near-duplicate (regardless of `dry_run`) falls in
@@ -162,8 +177,6 @@ def _create_event(
             `event_duplicate_tolerance` and
             `event_duplicate_raise_tolerance`.
     """
-
-    new_aimbat_event = create_event(datasource, datatype)
 
     statement = select(AimbatEvent).where(AimbatEvent.time == new_aimbat_event.time)
     aimbat_event = session.exec(statement).one_or_none()
@@ -192,16 +205,16 @@ def _create_event(
                 if gap < raise_tolerance:
                     if gap <= tolerance:
                         message = _format_reused_near_duplicate_message(
-                            datasource, new_aimbat_event, closest, gap, tolerance
+                            label, new_aimbat_event, closest, gap, tolerance
                         )
                         logger.warning(message)
                         _warn_on_event_location_mismatch(
-                            datasource, new_aimbat_event, closest
+                            label, new_aimbat_event, closest
                         )
                         return closest, message if dry_run else None
                     raise ValueError(
                         _format_ambiguous_gap_message(
-                            datasource,
+                            label,
                             new_aimbat_event,
                             closest,
                             gap,
@@ -217,9 +230,56 @@ def _create_event(
         logger.debug(
             f"Using existing event {aimbat_event.time} instead of adding new one."
         )
-        _warn_on_event_location_mismatch(datasource, new_aimbat_event, aimbat_event)
+        _warn_on_event_location_mismatch(label, new_aimbat_event, aimbat_event)
 
     return aimbat_event, None
+
+
+def _create_event(
+    session: Session,
+    datasource: os.PathLike[str] | str,
+    datatype: DataType,
+    dry_run: bool,
+    known_event_ids: set[UUID],
+) -> tuple[AimbatEvent, str | None]:
+    """Create a new AimbatEvent if it doesn't exist yet, or use existing one."""
+
+    new_aimbat_event = create_event(datasource, datatype)
+    return _link_event(
+        session, new_aimbat_event, dry_run, known_event_ids, str(datasource)
+    )
+
+
+def _format_seismogram_collision_message(label: str, sourcename: str) -> str:
+    """Build the message for a seismogram whose deterministic path collides with an already-ingested one."""
+    return (
+        f"Seismogram collision for {label}: {sourcename} was already "
+        f"persisted by an earlier ingest. Keeping the existing waveform and "
+        f"database row; this triple's data was not written."
+    )
+
+
+def _link_seismogram(
+    session: Session, new_aimbat_seismogram: AimbatSeismogram, sourcename: str
+) -> AimbatSeismogram:
+    """Dedup an already-built AimbatSeismogram against the project, or add it."""
+
+    statement = (
+        select(AimbatSeismogram)
+        .join(AimbatDataSource)
+        .where(AimbatDataSource.sourcename == sourcename)
+    )
+
+    aimbat_seismogram = session.exec(statement).one_or_none()
+    if aimbat_seismogram is None:
+        logger.debug(f"Adding seismogram with data source {sourcename} to project.")
+        aimbat_seismogram = new_aimbat_seismogram
+        session.add(aimbat_seismogram)
+    else:
+        logger.debug(
+            f"Using existing seismogram with data source {sourcename} instead of adding new one."
+        )
+    return aimbat_seismogram
 
 
 def _create_seismogram(
@@ -228,23 +288,34 @@ def _create_seismogram(
     """Create a new AimbatSeismogram if it doesn't exist yet, or use existing one."""
 
     new_aimbat_seismogram = create_seismogram(datasource, datatype)
+    return _link_seismogram(session, new_aimbat_seismogram, str(datasource))
 
-    statement = (
-        select(AimbatSeismogram)
-        .join(AimbatDataSource)
-        .where(AimbatDataSource.sourcename == str(datasource))
+
+def _link_datasource(
+    session: Session,
+    sourcename: str,
+    datatype: DataType,
+    aimbat_seismogram: AimbatSeismogram,
+) -> AimbatDataSource:
+    """Dedup an AimbatDataSource by sourcename, or add one linking to `aimbat_seismogram`."""
+
+    statement = select(AimbatDataSource).where(
+        AimbatDataSource.sourcename == sourcename
     )
-
-    aimbat_seismogram = session.exec(statement).one_or_none()
-    if aimbat_seismogram is None:
-        logger.debug(f"Adding seismogram with data source {datasource} to project.")
-        aimbat_seismogram = new_aimbat_seismogram
-        session.add(aimbat_seismogram)
+    aimbat_data_source = session.exec(statement).one_or_none()
+    if aimbat_data_source is None:
+        logger.debug(f"Adding data source {sourcename} to project.")
+        aimbat_data_source = AimbatDataSource.model_validate(
+            _AimbatDataSourceCreate(sourcename=sourcename, datatype=datatype),
+            update={"seismogram": aimbat_seismogram},
+        )
     else:
         logger.debug(
-            f"Using existing seismogram with data source {datasource} instead of adding new one."
+            f"Using existing data source {sourcename} instead of adding new one."
         )
-    return aimbat_seismogram
+        aimbat_data_source.seismogram = aimbat_seismogram
+    session.add(aimbat_data_source)
+    return aimbat_data_source
 
 
 def _process_datasource(
@@ -349,22 +420,9 @@ def _process_datasource(
         f"Station={aimbat_station.name} and EventTime={aimbat_event.time}."
     )
 
-    statement = select(AimbatDataSource).where(
-        AimbatDataSource.sourcename == str(datasource)
+    aimbat_data_source = _link_datasource(
+        session, str(datasource), datatype, aimbat_seismogram
     )
-    aimbat_data_source = session.exec(statement).one_or_none()
-    if aimbat_data_source is None:
-        logger.debug(f"Adding data source {datasource} to project.")
-        aimbat_data_source = AimbatDataSource.model_validate(
-            _AimbatDataSourceCreate(sourcename=str(datasource), datatype=datatype),
-            update={"seismogram": aimbat_seismogram},
-        )
-    else:
-        logger.debug(
-            f"Using existing data source {datasource} instead of adding new one."
-        )
-        aimbat_data_source.seismogram = aimbat_seismogram
-    session.add(aimbat_data_source)
     return aimbat_data_source, duplicate_warning
 
 
@@ -482,6 +540,215 @@ def add_data_to_project(
                     existing_seismogram_ids,
                     duplicate_warnings,
                 )
+
+        session.commit()
+        logger.info("Data added successfully.")
+        return (
+            added_datasources,
+            existing_station_ids,
+            existing_event_ids,
+            existing_seismogram_ids,
+            duplicate_warnings,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to add data. Rolling back changes. Error: {e}")
+        raise
+
+
+def _seismogram_path(
+    seismogram: IccsSeismogram, station: Station, data_dir: Path
+) -> Path:
+    """Compute the deterministic miniSEED path for a seismogram.
+
+    The filename is derived from the station identity and the seismogram's
+    begin time, so re-ingesting the same triple again resolves to the same
+    `sourcename` and is deduped by `_link_seismogram`/`_link_datasource`
+    rather than creating a duplicate.
+    """
+
+    filename = (
+        f"{station.network}.{station.name}.{station.location}.{station.channel}"
+        f"__{seismogram.begin_time:%Y%m%dT%H%M%S%f}.mseed"
+    )
+    return data_dir / filename
+
+
+def _persist(seismogram: IccsSeismogram, station: Station, path: Path) -> None:
+    """Write a seismogram's waveform to `path` as miniSEED."""
+
+    write_mseed(
+        [
+            (
+                MiniStationCode(
+                    network=station.network,
+                    name=station.name,
+                    location=station.location,
+                    channel=station.channel,
+                ),
+                seismogram,
+            )
+        ],
+        path,
+    )
+
+
+def add_seismograms_to_project(
+    session: Session,
+    items: Sequence[tuple[IccsSeismogram, Station, Event]],
+    *,
+    data_dir: str | os.PathLike[str],
+    dry_run: bool = False,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> tuple[list[AimbatDataSource], set[UUID], set[UUID], set[UUID], list[str]]:
+    """Ingest already-built (seismogram, station, event) triples directly.
+
+    The general-purpose counterpart to `add_data_to_project` for a caller
+    that already has pysmo `Seismogram`/`Station`/`Event`-shaped objects in
+    memory - fetched from a web service, built in a notebook, or produced by
+    a library such as `pysmo.tools.project.PysmoProject` - with no file
+    round-trip through a `DataType` AIMBAT already understands. Each
+    seismogram's waveform is persisted as a miniSEED file under `data_dir`
+    so it can be read back later like any other data source; station and
+    event metadata are taken directly from the objects given.
+
+    Every triple must carry a real `Event`: `AimbatSeismogram.event_id` is a
+    required foreign key, and AIMBAT's processing model (ICCS, MCCC,
+    snapshots, the active-event mechanism) is per-event throughout, so an
+    event-less seismogram would have nothing to attach to. Reuse the same
+    `Event` object across several triples to link them to one event -
+    `_link_event`'s near-duplicate detection still applies, so a second,
+    slightly different `Event` object (e.g. from a re-run) resolves to the
+    same row rather than duplicating it.
+
+    Args:
+        session: The SQLModel database session.
+        items: Sequence of `(seismogram, station, event)` triples to add.
+        data_dir: Directory the persisted miniSEED files are written to.
+            Created (with any missing parents) if it does not exist yet.
+        dry_run: If True, do not commit changes to the database.
+        on_progress: Optional callback invoked as `on_progress(done, total)`
+            after each triple is processed, for callers that want to
+            display progress.
+
+    Returns:
+        Same 5-tuple shape as `add_data_to_project`:
+        `(added_datasources, existing_station_ids, existing_event_ids,
+        existing_seismogram_ids, duplicate_warnings)`.
+
+    Raises:
+        ValueError: If a near-duplicate event falls in the "ambiguous gap"
+            band (see `add_data_to_project`).
+    """
+
+    logger.info(f"Adding {len(items)} seismogram(s) to project directly.")
+
+    data_dir = Path(data_dir)
+
+    existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
+    existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
+    existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
+
+    known_event_ids = set(existing_event_ids)
+
+    try:
+        added_datasources: list[AimbatDataSource] = []
+        duplicate_warnings: list[str] = []
+        pending_writes: list[tuple[IccsSeismogram, Station, Path]] = []
+        total = len(items)
+        with session.begin_nested() as nested:
+            for done, (seismogram, station, event) in enumerate(items, start=1):
+                aimbat_station = _link_station(
+                    session, AimbatStation.model_validate(station)
+                )
+
+                new_aimbat_event = AimbatEvent.model_validate(
+                    event, update={"parameters": AimbatEventParameters()}
+                )
+                label = f"{station.network}.{station.name}"
+                aimbat_event, duplicate_warning = _link_event(
+                    session, new_aimbat_event, dry_run, known_event_ids, label
+                )
+                if duplicate_warning is not None:
+                    duplicate_warnings.append(duplicate_warning)
+
+                path = _seismogram_path(seismogram, station, data_dir)
+                sourcename, datatype = str(path), DataType.MSEED
+                already_persisted = (
+                    session.exec(
+                        select(AimbatDataSource.id).where(
+                            AimbatDataSource.sourcename == sourcename
+                        )
+                    ).first()
+                    is not None
+                )
+                if already_persisted:
+                    message = _format_seismogram_collision_message(label, sourcename)
+                    logger.warning(message)
+                    if dry_run:
+                        duplicate_warnings.append(message)
+                else:
+                    # Writing is deferred until the whole batch has been
+                    # validated and linked, so a later triple's failure (e.g.
+                    # an ambiguous-gap event) never leaves earlier triples'
+                    # files orphaned on disk with no committed DB row.
+                    pending_writes.append((seismogram, station, path))
+
+                new_aimbat_seismogram = AimbatSeismogram.model_validate(
+                    seismogram,
+                    update={
+                        "t0": seismogram.t0,
+                        "parameters": AimbatSeismogramParameters(),
+                    },
+                )
+                aimbat_seismogram = _link_seismogram(
+                    session, new_aimbat_seismogram, sourcename
+                )
+                aimbat_seismogram.station = aimbat_station
+                aimbat_seismogram.event = aimbat_event
+
+                logger.debug(
+                    f"Linking seismogram from {sourcename} to "
+                    f"Station={aimbat_station.name} and EventTime={aimbat_event.time}."
+                )
+
+                aimbat_data_source = _link_datasource(
+                    session, sourcename, datatype, aimbat_seismogram
+                )
+                added_datasources.append(aimbat_data_source)
+
+                if on_progress is not None:
+                    on_progress(done, total)
+
+            if dry_run:
+                logger.info("Dry run: displaying data that would be added.")
+                if added_datasources:
+                    session.flush()
+                nested.rollback()
+                logger.info("Dry run complete. Rolling back changes.")
+                return (
+                    added_datasources,
+                    existing_station_ids,
+                    existing_event_ids,
+                    existing_seismogram_ids,
+                    duplicate_warnings,
+                )
+
+            if pending_writes:
+                data_dir.mkdir(parents=True, exist_ok=True)
+                written: list[Path] = []
+                try:
+                    for (
+                        pending_seismogram,
+                        pending_station,
+                        pending_path,
+                    ) in pending_writes:
+                        _persist(pending_seismogram, pending_station, pending_path)
+                        written.append(pending_path)
+                except Exception:
+                    for written_path in written:
+                        written_path.unlink(missing_ok=True)
+                    raise
 
         session.commit()
         logger.info("Data added successfully.")

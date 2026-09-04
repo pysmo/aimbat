@@ -53,6 +53,7 @@ from aimbat.core import (
     build_iccs_from_snapshot,
     create_project,
     create_snapshot,
+    create_snapshots_for_added_data,
     delete_event,
     delete_seismogram,
     delete_snapshot,
@@ -70,7 +71,13 @@ from aimbat.core import (
 from aimbat.core._migrations import SchemaMismatchError, _build_staleness_warning
 from aimbat.core._project import _project_exists
 from aimbat.db import engine
-from aimbat.io import DATATYPE_SUFFIXES, DataType
+from aimbat.io import (
+    DATATYPE_SUFFIXES,
+    DataType,
+    supports_event_creation,
+    supports_seismogram_creation,
+    supports_station_creation,
+)
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
@@ -733,7 +740,13 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 
     def action_add_data(self) -> None:
         """Prompt for a data type, then a data source, and add it to the project."""
-        actions = [(dt.value, dt.name.replace("_", " ")) for dt in DataType]
+        actions = [
+            (dt.value, dt.name.replace("_", " "))
+            for dt in DataType
+            if supports_station_creation(dt)
+            or supports_event_creation(dt)
+            or supports_seismogram_creation(dt)
+        ]
 
         def on_type(selected: str | None) -> None:
             if selected is None:
@@ -747,10 +760,31 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     return
                 try:
                     with Session(engine) as session:
-                        add_data_to_project(session, [path], data_type)
+                        (
+                            added_datasources,
+                            _existing_station_ids,
+                            _existing_event_ids,
+                            existing_seismogram_ids,
+                            _duplicate_warnings,
+                        ) = add_data_to_project(session, [path], data_type)
                         session.commit()
+                        snapshotted, failures = create_snapshots_for_added_data(
+                            session, added_datasources, existing_seismogram_ids
+                        )
                     logger.info(f"User added data file: {path}.")
                     self.notify(f"Added: {path.name}", severity="information")
+                    if snapshotted:
+                        n = len(snapshotted)
+                        self.notify(
+                            f"Snapshotted {n} event{'' if n == 1 else 's'}",
+                            severity="information",
+                        )
+                    for event_id, error in failures:
+                        self.notify(
+                            f"Could not create an automatic snapshot for event "
+                            f"{event_id}: {error}",
+                            severity="warning",
+                        )
                     self.refresh_all()
                 except Exception as exc:
                     logger.exception(f"Failed to add data file {path}: {exc}")

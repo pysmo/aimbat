@@ -134,17 +134,17 @@ class TestDataManagement:
         """One event's automatic snapshot failing must not knock out the rest.
 
         Regression test: a failed `create_snapshot` call leaves the session
-        unusable until rolled back. If `_create_snapshots_for_touched_events`
+        unusable until rolled back. If `create_snapshots_for_added_data`
         doesn't roll back after catching the exception, every event
         processed after the failing one silently fails too, even though
         nothing is wrong with them.
         """
         from sqlmodel import Session
 
-        import aimbat.core as core
+        from aimbat.core import _snapshot
         from aimbat.models import AimbatEvent
 
-        real_create_snapshot = core.create_snapshot
+        real_create_snapshot = _snapshot.create_snapshot
         calls = {"n": 0}
 
         def flaky_create_snapshot(
@@ -164,7 +164,10 @@ class TestDataManagement:
                 )
             return real_create_snapshot(session, event, comment=comment, **kwargs)  # type: ignore[arg-type]
 
-        monkeypatch.setattr(core, "create_snapshot", flaky_create_snapshot)
+        # create_snapshots_for_added_data calls create_snapshot as a module-local
+        # name, so the patch target is _snapshot itself, not the re-exported
+        # aimbat.core.create_snapshot.
+        monkeypatch.setattr(_snapshot, "create_snapshot", flaky_create_snapshot)
 
         files = " ".join(f.as_posix() for f in multi_event_data)
         cli(f"data add {files} --no-progress")

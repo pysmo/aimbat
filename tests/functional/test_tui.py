@@ -15,8 +15,9 @@ monkeypatched to the test fixture's database:
 
 import asyncio
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -24,6 +25,7 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 from textual.binding import Binding
 from textual.widgets import DataTable, Static, TabbedContent, TabPane
+from textual_fspicker import FileOpen
 
 import aimbat._tui._iccs_lifecycle
 import aimbat._tui._panels
@@ -34,6 +36,7 @@ import aimbat._tui.modals
 import aimbat.db
 from aimbat._tui.app import AimbatTUI
 from aimbat._tui.modals import (
+    ActionMenuModal,
     InteractiveToolsModal,
     SchemaStaleModal,
     SnapshotDetailsModal,
@@ -48,7 +51,7 @@ from aimbat.core import (
     get_head_revision,
 )
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
-from aimbat.models import AimbatEvent, AimbatSeismogram
+from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 
 _TUI_SIZE = (120, 40)
 
@@ -1573,3 +1576,111 @@ class TestNoteWidgetAutoSave:
                 assert note._saved_content != "changed"
 
         asyncio.run(_run())
+
+
+# ===========================================================================
+# TUI data import auto-snapshots the touched event
+# ===========================================================================
+
+
+@pytest.mark.slow
+class TestAddDataAutoSnapshot:
+    """The TUI's own data import (`i`) auto-snapshots the touched event.
+
+    Regression coverage for the pre-existing CLI/TUI inconsistency: the CLI's
+    `data add` always auto-snapshots, but `action_add_data` used to discard
+    its `add_data_to_project` return value and never snapshot at all.
+    """
+
+    def test_import_creates_snapshot(
+        self, engine: Engine, sac_file_good: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Importing a SAC file via `i` creates an automatic snapshot for its event."""
+        _patch_engine(monkeypatch, engine)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await pilot.pause(delay=0.5)
+
+                # The real FileOpen picker browses the filesystem interactively,
+                # which nothing here needs to exercise; short-circuit just that
+                # one push_screen call to hand back a known file directly, while
+                # every other screen (the real ActionMenuModal type picker
+                # included) still goes through the normal, key-driven path.
+                real_push_screen = app.push_screen
+
+                def fake_push_screen(
+                    screen: object,
+                    callback: Callable[[object], object] | None = None,
+                    **kwargs: object,
+                ) -> object:
+                    if isinstance(screen, FileOpen):
+                        if callback is not None:
+                            callback(sac_file_good)
+                        return None
+                    return real_push_screen(screen, callback, **kwargs)  # type: ignore[call-overload]
+
+                monkeypatch.setattr(app, "push_screen", fake_push_screen)
+
+                await pilot.press("i")  # open the "Add Data" menu
+                await pilot.pause()
+                await pilot.press("enter")  # first data type: SAC
+                await pilot.pause(delay=0.5)
+
+        asyncio.run(_run())
+
+        with Session(engine) as session:
+            event = session.exec(select(AimbatEvent)).one()
+            snapshot = session.exec(
+                select(AimbatSnapshot).where(AimbatSnapshot.event_id == event.id)
+            ).one()
+            assert snapshot.automatic is True
+            assert snapshot.comment == "Added 1 seismogram"
+
+
+@pytest.mark.slow
+class TestAddDataTypeMenuExcludesUncreatableTypes:
+    """The "Add Data" type menu only offers types with a registered creator.
+
+    Regression coverage: `DataType.MSEED` registers a reader/writer but no
+    station, event, or seismogram creator (miniSEED carries no such
+    metadata), so it cannot do anything useful through this file-picker
+    flow - `add_data_to_project` silently adds nothing for it. It must not
+    appear as a selectable type here.
+    """
+
+    def test_mseed_not_offered(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, patched_engine)
+
+        captured: list[ActionMenuModal] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await pilot.pause()
+
+                real_push_screen = app.push_screen
+
+                def fake_push_screen(
+                    screen: object,
+                    callback: Callable[[object], object] | None = None,
+                    **kwargs: object,
+                ) -> object:
+                    if isinstance(screen, ActionMenuModal):
+                        captured.append(screen)
+                    return real_push_screen(screen, callback, **kwargs)  # type: ignore[call-overload]
+
+                monkeypatch.setattr(app, "push_screen", fake_push_screen)
+
+                await pilot.press("i")  # open the "Add Data" menu
+                await pilot.pause()
+
+        asyncio.run(_run())
+
+        assert len(captured) == 1
+        offered_types = {key for key, _ in captured[0]._actions}
+        assert "mseed" not in offered_types
+        assert "sac" in offered_types

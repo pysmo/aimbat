@@ -99,11 +99,12 @@ with Session(engine) as session:
 
 The `DataType` enum controls what is read from each source:
 
-| `DataType`     | What is created              |
-| -------------- | ---------------------------- |
-| `SAC`          | Event + Station + Seismogram |
-| `JSON_EVENT`   | Event only (no seismogram)   |
-| `JSON_STATION` | Station only (no seismogram) |
+| `DataType`     | What is created                                                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SAC`          | Event + Station + Seismogram                                                                                                                   |
+| `JSON_EVENT`   | Event only (no seismogram)                                                                                                                      |
+| `JSON_STATION` | Station only (no seismogram)                                                                                                                     |
+| `MSEED`        | Waveform read/write only - no station/event metadata; supply those separately (e.g. via JSON, or a triple's own objects - see [Ingesting seismograms directly](#ingesting-seismograms-directly) below) |
 
 ### JSON formats
 
@@ -154,6 +155,34 @@ with Session(engine) as session:
         station_id=station.id,
     )
 ```
+
+## Ingesting seismograms directly
+
+`add_data_to_project` reads from a file AIMBAT already understands (`SAC`,
+`JSON_STATION`, `JSON_EVENT`). `add_seismograms_to_project` is the
+counterpart for a caller that already has pysmo objects in memory - fetched
+from a web service, built in a notebook, or produced by a library such as
+[`pysmo.tools.project.PysmoProject`][] - with no file round-trip required.
+It takes a list of `(seismogram, station, event)` triples, built from
+anything shaped like pysmo's
+[`IccsSeismogram`][pysmo.tools.iccs.IccsSeismogram],
+[`Station`][pysmo.Station], and [`Event`][pysmo.Event] protocols:
+
+```python
+--8<-- "docs/snippets/api_ingest_seismograms.py"
+```
+
+Each seismogram's waveform is persisted as a miniSEED file under `data_dir`
+(created automatically if it doesn't exist) so it can be read back later
+like any other data source; station and event metadata come directly from
+the objects given. `PysmoProject` is just one possible producer - any
+object with the right shape works identically, including one built by hand.
+
+Every triple must carry a real `Event`: as with `add_data_to_project`, a
+seismogram cannot exist in AIMBAT without one. Reuse the same `Event`
+object across several triples to link them to a single `AimbatEvent`; the
+same near-duplicate detection described in
+[Deduplicating events](#deduplicating-events) below applies.
 
 ## Quality analysis
 
