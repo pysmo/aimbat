@@ -19,6 +19,7 @@ pysmo.aimbat.egg-info/
 coverage.xml
 old
 .coverage
+.coverage.*
 sample-data
 aimbat.db
 .check-migrations.db

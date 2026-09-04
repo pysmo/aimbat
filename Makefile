@@ -10,6 +10,10 @@ else
   PYTHON_VERSION := python3
 endif
 
+# Number of pytest-xdist workers for the non-slow test pass. Override on a
+# constrained machine, e.g. `make tests PYTEST_WORKERS=4`.
+PYTEST_WORKERS ?= auto
+
 help: ## List all commands.
 	@echo -e "\nThis makefile executes mostly uv commands. To view all uv commands available run 'uv help'."
 	@echo -e "\n\033[1mAVAILABLE COMMANDS\033[0m"
@@ -73,10 +77,14 @@ test-figs: check-uv ## Generate baseline figures for testing (then manually move
 	uv run py.test --mpl-generate-path=baseline
 
 tests: check-uv mypy ## Run tests with pytest (excludes slow functional tests).
-	uv run pytest --cov --cov-report=term-missing --cov-report=html --mpl -m "not slow"
+	uv run pytest -n $(PYTEST_WORKERS) --dist worksteal --cov --cov-report=term-missing --cov-report=html --mpl -m "not slow"
 
+# The slow functional tests shell out to `uv run`, which is not safe to invoke
+# concurrently against the shared project .venv - they run serially after the
+# parallel non-slow pass, appending to the same coverage data.
 tests-full: check-uv mypy ## Run all tests including slow functional tests.
-	uv run pytest --cov --cov-report=term-missing --cov-report=html --mpl
+	uv run pytest -n $(PYTEST_WORKERS) --dist worksteal --cov --mpl -m "not slow"
+	uv run pytest --cov --cov-append --cov-report=term-missing --cov-report=html --mpl -m "slow"
 
 upgrade: check-uv ## Upgrade dependencies to their latest versions.
 	uv sync --upgrade

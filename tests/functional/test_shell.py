@@ -14,7 +14,11 @@ import pytest
 from aimbat._cli.shell import _build_completion_dict, _extract_event_flag
 from aimbat.app import app as aimbat_app
 
-_AIMBAT_LOGFILE = "aimbat_test.log"
+
+def _worker_logfile() -> str:
+    """Log file name unique per xdist worker (``"master"`` off a non-parallel run)."""
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    return f"aimbat_test_{worker}.log"
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +42,7 @@ def shell_subprocess(
     def _run(stdin: str) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env["AIMBAT_DB_URL"] = f"sqlite+pysqlite:///{db_path}"
-        env["AIMBAT_LOGFILE"] = _AIMBAT_LOGFILE
+        env["AIMBAT_LOGFILE"] = _worker_logfile()
         env["COLUMNS"] = "1000"
         return subprocess.run(
             ["uv", "run", "aimbat", "shell"],
