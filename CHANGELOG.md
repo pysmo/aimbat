@@ -40,16 +40,19 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Render settings defaults via zensical macros instead of hand-typing/shelling out
 - **(core)** Explain the load-bearing commit order in run_mccc / run_iccs
 - Broad pass on docs
+- Broad sweep on md files
 
 ### 📦 Miscellaneous
 
 - [**breaking**] Raise Python floor to 3.13
+- Align ruff and mypy strictness with pysmo's config
 
 ### 🔧 Refactoring
 
 - **(tui)** Split app.py god object, dedupe core/_iccs helpers
 - **(models)** [**breaking**] Narrow AimbatSeismogram to the pysmo Seismogram interface
 - **(snapshot)** Split the parameter hash into iccs_hash and mccc_hash
+- Rename aimbat._types to aimbat.types
 
 ### 🚀 New Features
 
@@ -62,6 +65,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(iccs)** Separate stack-affecting changes and tighten the 1:1 links
 - **(event)** Add set_event_parameters for validated batch updates
 - **(data)** Reuse existing event within event_duplicate_tolerance
+- **(core)** Add direct seismogram-triple ingestion and miniSEED support
 
 ### 🧪 Testing
 
