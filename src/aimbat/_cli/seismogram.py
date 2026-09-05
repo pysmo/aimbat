@@ -5,8 +5,8 @@ from uuid import UUID
 
 from cyclopts import App
 
-from aimbat._types import SeismogramParameter
 from aimbat.models import AimbatSeismogram
+from aimbat.types import SeismogramParameter
 
 from .common import (
     ConfirmParameters,

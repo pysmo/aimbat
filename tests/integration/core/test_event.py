@@ -8,7 +8,6 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
-from aimbat._types import EventParameter
 from aimbat.core import (
     delete_event,
     dump_event_parameter_table,
@@ -19,6 +18,7 @@ from aimbat.core import (
     toggle_event_completed,
 )
 from aimbat.models import AimbatEvent, AimbatEventQuality, AimbatStation
+from aimbat.types import EventParameter
 
 # ===================================================================
 # Default event

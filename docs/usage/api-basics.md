@@ -51,6 +51,8 @@ Given a record's ID, `Session.get` fetches it directly:
 
 ```python
 from uuid import UUID
+from sqlmodel import Session
+from aimbat.db import engine
 from aimbat.models import AimbatEvent
 
 with Session(engine) as session:

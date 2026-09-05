@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from sqlalchemy.engine import Dialect
 
-from aimbat._types import SAPandasTimedelta, SAPandasTimestamp
+from aimbat.types import SAPandasTimedelta, SAPandasTimestamp
 
 
 @pytest.fixture

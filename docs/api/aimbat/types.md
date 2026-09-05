@@ -1,7 +1,7 @@
-::: aimbat._types
+::: aimbat.types
     options:
       heading_level: 1
-      toc_label: aimbat._types
+      toc_label: aimbat.types
       show_root_heading: true
       show_root_toc_entry: true
       inherited_members: true

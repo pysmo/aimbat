@@ -75,7 +75,7 @@ from pandas import Timedelta
 from sqlmodel import Session, select
 from aimbat.db import engine
 from aimbat.core import set_event_parameter, set_seismogram_parameter
-from aimbat._types import EventParameter, SeismogramParameter
+from aimbat.types import EventParameter, SeismogramParameter
 from aimbat.models import AimbatEvent, AimbatSeismogram
 
 with Session(engine) as session:

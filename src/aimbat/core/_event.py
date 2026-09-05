@@ -10,7 +10,6 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
-from aimbat._types import EventParameter
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
@@ -21,6 +20,7 @@ from aimbat.models import (
     SeismogramQualityStats,
 )
 from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.types import EventParameter
 from aimbat.utils import get_title_map, rel
 
 __all__ = [

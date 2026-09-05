@@ -6,8 +6,8 @@ from typing import Annotated, Literal
 from cyclopts import App
 from sqlmodel import Session
 
-from aimbat._types import EventParameter
 from aimbat.models import AimbatEvent
+from aimbat.types import EventParameter
 
 from .common import (
     ConfirmParameters,

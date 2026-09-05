@@ -46,7 +46,6 @@ from aimbat._tui.modals import (
     SnapshotDetailsModal,
     ToolLaunchResult,
 )
-from aimbat._types import SeismogramParameter
 from aimbat.core import (
     BoundICCS,
     add_data_to_project,
@@ -87,6 +86,7 @@ from aimbat.models import (
     AimbatStation,
 )
 from aimbat.plot import plot_matrix_image, plot_seismograms, plot_stack
+from aimbat.types import SeismogramParameter
 from aimbat.utils.formatters import fmt_timestamp
 
 from ._format import tui_cell, tui_display_title

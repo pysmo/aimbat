@@ -14,8 +14,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from aimbat._types import PydanticTimedelta, PydanticTimestamp
 from aimbat.logger import logger
+from aimbat.types import PydanticTimedelta, PydanticTimestamp
 from aimbat.utils import mean_and_sem, mean_and_sem_timedelta
 from aimbat.utils.formatters import (
     fmt_depth_km,

@@ -11,7 +11,7 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from aimbat._types import (
+from aimbat.types import (
     PydanticNegativeTimedelta,
     PydanticNonNegativeFloat,
     PydanticPositiveTimedelta,

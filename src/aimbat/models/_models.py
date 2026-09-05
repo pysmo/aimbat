@@ -14,13 +14,13 @@ from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel._compat import SQLModelConfig
 
-from aimbat._types import (
+from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
+from aimbat.types import (
     PydanticPositiveTimedelta,
     PydanticTimestamp,
     SAPandasTimedelta,
     SAPandasTimestamp,
 )
-from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
 
 from ._format import RichColSpec
 from ._parameters import AimbatEventParametersBase, AimbatSeismogramParametersBase

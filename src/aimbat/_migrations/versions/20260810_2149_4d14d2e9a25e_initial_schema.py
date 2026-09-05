@@ -12,7 +12,7 @@ import sqlalchemy as sa
 import sqlmodel.sql.sqltypes
 from alembic import op
 
-import aimbat._types
+import aimbat.types
 
 # revision identifiers, used by Alembic.
 revision: str = "4d14d2e9a25e"
@@ -27,14 +27,14 @@ def upgrade() -> None:
         "aimbatevent",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column(
-            "time", aimbat._types.SAPandasTimestamp(timezone=True), nullable=False
+            "time", aimbat.types.SAPandasTimestamp(timezone=True), nullable=False
         ),
         sa.Column("latitude", sa.Float(), nullable=False),
         sa.Column("longitude", sa.Float(), nullable=False),
         sa.Column("depth", sa.Float(), nullable=True),
         sa.Column(
             "last_modified",
-            aimbat._types.SAPandasTimestamp(timezone=True),
+            aimbat.types.SAPandasTimestamp(timezone=True),
             nullable=True,
         ),
         sa.PrimaryKeyConstraint("id"),
@@ -56,8 +56,8 @@ def upgrade() -> None:
         "aimbateventparameters",
         sa.Column("completed", sa.Boolean(), nullable=False),
         sa.Column("ramp_width", sa.Float(), nullable=False),
-        sa.Column("window_pre", aimbat._types.SAPandasTimedelta(), nullable=False),
-        sa.Column("window_post", aimbat._types.SAPandasTimedelta(), nullable=False),
+        sa.Column("window_pre", aimbat.types.SAPandasTimedelta(), nullable=False),
+        sa.Column("window_post", aimbat.types.SAPandasTimedelta(), nullable=False),
         sa.Column("bandpass_apply", sa.Boolean(), nullable=False),
         sa.Column("bandpass_fmin", sa.Float(), nullable=False),
         sa.Column("bandpass_fmax", sa.Float(), nullable=False),
@@ -71,7 +71,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "aimbateventquality",
-        sa.Column("mccc_rmse", aimbat._types.SAPandasTimedelta(), nullable=True),
+        sa.Column("mccc_rmse", aimbat.types.SAPandasTimedelta(), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(["event_id"], ["aimbatevent.id"], ondelete="CASCADE"),
@@ -81,10 +81,10 @@ def upgrade() -> None:
         "aimbatseismogram",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column(
-            "begin_time", aimbat._types.SAPandasTimestamp(timezone=True), nullable=False
+            "begin_time", aimbat.types.SAPandasTimestamp(timezone=True), nullable=False
         ),
-        sa.Column("delta", aimbat._types.SAPandasTimedelta(), nullable=False),
-        sa.Column("t0", aimbat._types.SAPandasTimestamp(timezone=True), nullable=False),
+        sa.Column("delta", aimbat.types.SAPandasTimedelta(), nullable=False),
+        sa.Column("t0", aimbat.types.SAPandasTimestamp(timezone=True), nullable=False),
         sa.Column("station_id", sa.Uuid(), nullable=False),
         sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("extra", sa.PickleType(), nullable=True),
@@ -98,7 +98,7 @@ def upgrade() -> None:
         "aimbatsnapshot",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column(
-            "time", aimbat._types.SAPandasTimestamp(timezone=True), nullable=False
+            "time", aimbat.types.SAPandasTimestamp(timezone=True), nullable=False
         ),
         sa.Column("comment", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("parameters_hash", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
@@ -126,8 +126,8 @@ def upgrade() -> None:
         "aimbateventparameterssnapshot",
         sa.Column("completed", sa.Boolean(), nullable=False),
         sa.Column("ramp_width", sa.Float(), nullable=False),
-        sa.Column("window_pre", aimbat._types.SAPandasTimedelta(), nullable=False),
-        sa.Column("window_post", aimbat._types.SAPandasTimedelta(), nullable=False),
+        sa.Column("window_pre", aimbat.types.SAPandasTimedelta(), nullable=False),
+        sa.Column("window_post", aimbat.types.SAPandasTimedelta(), nullable=False),
         sa.Column("bandpass_apply", sa.Boolean(), nullable=False),
         sa.Column("bandpass_fmin", sa.Float(), nullable=False),
         sa.Column("bandpass_fmax", sa.Float(), nullable=False),
@@ -147,7 +147,7 @@ def upgrade() -> None:
     )
     op.create_table(
         "aimbateventqualitysnapshot",
-        sa.Column("mccc_rmse", aimbat._types.SAPandasTimedelta(), nullable=True),
+        sa.Column("mccc_rmse", aimbat.types.SAPandasTimedelta(), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("event_quality_id", sa.Uuid(), nullable=False),
         sa.Column("snapshot_id", sa.Uuid(), nullable=False),
@@ -187,7 +187,7 @@ def upgrade() -> None:
         "aimbatseismogramparameters",
         sa.Column("flip", sa.Boolean(), nullable=False),
         sa.Column("select", sa.Boolean(), nullable=False),
-        sa.Column("t1", aimbat._types.SAPandasTimestamp(timezone=True), nullable=True),
+        sa.Column("t1", aimbat.types.SAPandasTimestamp(timezone=True), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("seismogram_id", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(
@@ -200,7 +200,7 @@ def upgrade() -> None:
         sa.Column("iccs_cc", sa.Float(), nullable=True),
         sa.Column("mccc_cc_mean", sa.Float(), nullable=True),
         sa.Column("mccc_cc_std", sa.Float(), nullable=True),
-        sa.Column("mccc_error", aimbat._types.SAPandasTimedelta(), nullable=True),
+        sa.Column("mccc_error", aimbat.types.SAPandasTimedelta(), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("seismogram_id", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(
@@ -212,7 +212,7 @@ def upgrade() -> None:
         "aimbatseismogramparameterssnapshot",
         sa.Column("flip", sa.Boolean(), nullable=False),
         sa.Column("select", sa.Boolean(), nullable=False),
-        sa.Column("t1", aimbat._types.SAPandasTimestamp(timezone=True), nullable=True),
+        sa.Column("t1", aimbat.types.SAPandasTimestamp(timezone=True), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("seismogram_parameters_id", sa.Uuid(), nullable=False),
         sa.Column("snapshot_id", sa.Uuid(), nullable=False),
@@ -231,7 +231,7 @@ def upgrade() -> None:
         sa.Column("iccs_cc", sa.Float(), nullable=True),
         sa.Column("mccc_cc_mean", sa.Float(), nullable=True),
         sa.Column("mccc_cc_std", sa.Float(), nullable=True),
-        sa.Column("mccc_error", aimbat._types.SAPandasTimedelta(), nullable=True),
+        sa.Column("mccc_error", aimbat.types.SAPandasTimedelta(), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("seismogram_quality_id", sa.Uuid(), nullable=False),
         sa.Column("snapshot_id", sa.Uuid(), nullable=False),

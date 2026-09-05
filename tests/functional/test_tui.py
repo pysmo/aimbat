@@ -42,7 +42,6 @@ from aimbat._tui.modals import (
     SnapshotDetailsModal,
     ToolLaunchResult,
 )
-from aimbat._types import SeismogramParameter
 from aimbat.core import (
     BoundICCS,
     IccsLifecycle,
@@ -52,6 +51,7 @@ from aimbat.core import (
 )
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
+from aimbat.types import SeismogramParameter
 
 _TUI_SIZE = (120, 40)
 

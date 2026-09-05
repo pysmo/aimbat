@@ -8,7 +8,6 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
-from aimbat._types import SeismogramParameter
 from aimbat.core import (
     delete_seismogram,
     dump_seismogram_parameter_table,
@@ -20,6 +19,7 @@ from aimbat.core import (
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
 from aimbat.models._parameters import AimbatSeismogramParametersBase
 from aimbat.plot import plot_seismograms
+from aimbat.types import SeismogramParameter
 
 
 @pytest.fixture

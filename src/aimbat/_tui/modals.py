@@ -20,11 +20,11 @@ from textual.widgets import DataTable, Input, Label, Markdown, Static
 from aimbat._cli.common import CAUSAL_DEFAULTS
 from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY
 from aimbat._tui._widgets import VimDataTable
-from aimbat._types import EventParameter
 from aimbat.core import set_event_parameter
 from aimbat.db import engine
 from aimbat.models import AimbatEvent
 from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.types import EventParameter
 from aimbat.utils import format_validation_error
 
 if TYPE_CHECKING:

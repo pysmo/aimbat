@@ -32,11 +32,11 @@ from pysmo.tools.iccs import (
     update_timewindow as _update_timewindow,
 )
 
-from aimbat._types import EventParameter
 from aimbat.core._event import set_event_parameter, set_event_parameters
 from aimbat.core._iccs import write_back_seismograms
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
+from aimbat.types import EventParameter
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes

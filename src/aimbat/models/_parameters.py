@@ -7,7 +7,7 @@ from sqlalchemy import Float
 from sqlmodel import Field, SQLModel
 
 from aimbat import settings
-from aimbat._types import (
+from aimbat.types import (
     PydanticNegativeTimedelta,
     PydanticNonNegativeFloat,
     PydanticPositiveTimedelta,
