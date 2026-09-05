@@ -15,17 +15,17 @@ from .tui import app as tui
 from .utils import app as utils
 
 __all__ = [
-    "utils",
     "align",
     "data",
     "db",
     "event",
-    "tool",
     "plot",
     "project",
     "seismogram",
     "shell",
     "snapshot",
     "station",
+    "tool",
     "tui",
+    "utils",
 ]

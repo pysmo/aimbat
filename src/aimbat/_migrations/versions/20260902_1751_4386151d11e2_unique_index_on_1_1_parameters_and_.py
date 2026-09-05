@@ -55,9 +55,9 @@ def _reject_existing_duplicates() -> None:
         if rows:
             offenders = ", ".join(str(row[0]) for row in rows)
             raise RuntimeError(
-                f"{table} has more than one row for the same {column} "
-                f"({offenders}). Delete the duplicate rows, keeping one per "
-                f"parent, then re-run `aimbat db upgrade`."
+                f"{table} has more than one row for the same {column} ({offenders}). "
+                + "Delete the duplicate rows, keeping one per parent, then re-run "
+                + "`aimbat db upgrade`."
             )
 
 

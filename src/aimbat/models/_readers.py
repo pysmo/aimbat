@@ -14,8 +14,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
-from aimbat._types import PydanticTimedelta, PydanticTimestamp
 from aimbat.logger import logger
+from aimbat.types import PydanticTimedelta, PydanticTimestamp
 from aimbat.utils import mean_and_sem, mean_and_sem_timedelta
 from aimbat.utils.formatters import (
     fmt_depth_km,
@@ -43,11 +43,11 @@ if TYPE_CHECKING:
 __all__ = [
     "AimbatEventRead",
     "AimbatSeismogramRead",
-    "SeismogramQualityStats",
     "AimbatSnapshotRead",
     "AimbatStationRead",
-    "SnapshotSeismogramResult",
+    "SeismogramQualityStats",
     "SnapshotResults",
+    "SnapshotSeismogramResult",
 ]
 
 
@@ -353,7 +353,7 @@ class AimbatEventRead(BaseModel):
     )
 
     @classmethod
-    def from_event(cls, event: "AimbatEvent", session: "Session | None" = None) -> Self:
+    def from_event(cls, event: AimbatEvent, session: Session | None = None) -> Self:
         """Create an AimbatEventRead from an AimbatEvent ORM instance."""
         data = event.model_dump()
 
@@ -801,10 +801,10 @@ class SnapshotSeismogramResult(BaseModel):
     @classmethod
     def from_snapshot_records(
         cls,
-        param_snap: "AimbatSeismogramParametersSnapshot",
-        quality_snap: "AimbatSeismogramQualitySnapshot | None",
-        live_seismogram: "AimbatSeismogram | None",
-    ) -> "SnapshotSeismogramResult":
+        param_snap: AimbatSeismogramParametersSnapshot,
+        quality_snap: AimbatSeismogramQualitySnapshot | None,
+        live_seismogram: AimbatSeismogram | None,
+    ) -> SnapshotSeismogramResult:
         """Build a result record from pre-loaded snapshot records.
 
         Warning:

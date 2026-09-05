@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 
 from pydantic import BaseModel
 from rich.console import Group, RenderableType
@@ -74,7 +74,7 @@ def tui_display_title(model: type[BaseModel], field_name: str) -> str:
     return info.title or field_name.replace("_", " ")
 
 
-@lru_cache(maxsize=None)
+@cache
 def _col_spec_map(model: type[BaseModel]) -> dict[str, TuiColSpec]:
     """Return a map of Pydantic field title → `TuiColSpec` for fields that carry one."""
     result: dict[str, TuiColSpec] = {}

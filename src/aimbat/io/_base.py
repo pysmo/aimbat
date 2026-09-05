@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "clear_seismogram_data_cache",
     "create_event",
     "create_seismogram",
     "create_station",
@@ -53,7 +54,6 @@ __all__ = [
     "supports_seismogram_data_writing",
     "supports_station_creation",
     "write_seismogram_data",
-    "clear_seismogram_data_cache",
 ]
 
 # LRU cache of waveform arrays keyed by (datasource, datatype); evicting an
@@ -164,8 +164,9 @@ def station_creator(
     Example:
         ```python
         @station_creator(DataType.SAC)
-        def create_station_from_sacfile(sacfile: str | PathLike[str]) -> AimbatStation:
-            ...
+        def create_station_from_sacfile(
+            sacfile: str | PathLike[str],
+        ) -> AimbatStation: ...
         ```
     """
 
@@ -192,8 +193,7 @@ def event_creator(
     Example:
         ```python
         @event_creator(DataType.SAC)
-        def create_event_from_sacfile(sacfile: str | PathLike[str]) -> AimbatEvent:
-            ...
+        def create_event_from_sacfile(sacfile: str | PathLike[str]) -> AimbatEvent: ...
         ```
     """
 
@@ -220,8 +220,9 @@ def seismogram_creator(
     Example:
         ```python
         @seismogram_creator(DataType.SAC)
-        def create_seismogram_from_sacfile(sacfile: str | PathLike[str]) -> AimbatSeismogram:
-            ...
+        def create_seismogram_from_sacfile(
+            sacfile: str | PathLike[str],
+        ) -> AimbatSeismogram: ...
         ```
     """
 
@@ -248,8 +249,9 @@ def seismogram_data_reader(
     Example:
         ```python
         @seismogram_data_reader(DataType.SAC)
-        def read_seismogram_data_from_sacfile(sacfile: str | PathLike[str]) -> npt.NDArray[np.floating]:
-            ...
+        def read_seismogram_data_from_sacfile(
+            sacfile: str | PathLike[str],
+        ) -> npt.NDArray[np.floating]: ...
         ```
     """
 
@@ -278,8 +280,7 @@ def seismogram_data_writer(
         @seismogram_data_writer(DataType.SAC)
         def write_seismogram_data_to_sacfile(
             sacfile: str | PathLike[str], data: npt.NDArray[np.floating]
-        ) -> None:
-            ...
+        ) -> None: ...
         ```
     """
 

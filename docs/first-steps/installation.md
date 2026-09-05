@@ -83,7 +83,8 @@ uv tool uninstall aimbat
 
 ## Using AIMBAT as a library
 
-To call the [Python API](../usage/api.md) from other code, add AIMBAT as a
+To call the Python API from other code (see [Recipes](../usage/recipes.md) for
+the fundamentals), add AIMBAT as a
 project dependency rather than installing the command:
 
 ```bash

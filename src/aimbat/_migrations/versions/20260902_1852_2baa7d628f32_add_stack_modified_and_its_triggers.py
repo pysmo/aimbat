@@ -22,7 +22,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-import aimbat._types
+import aimbat.types
 
 # revision identifiers, used by Alembic.
 revision: str = "2baa7d628f32"
@@ -68,7 +68,7 @@ def upgrade() -> None:
         "aimbatevent",
         sa.Column(
             "stack_modified",
-            aimbat._types.SAPandasTimestamp(timezone=True),
+            aimbat.types.SAPandasTimestamp(timezone=True),
             nullable=True,
         ),
     )

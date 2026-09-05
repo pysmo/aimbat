@@ -48,8 +48,8 @@ def _check_safe_to_delete(path: Path) -> None:
         or len(resolved.parts) < _MIN_SAFE_PATH_PARTS
     ):
         raise ValueError(
-            f"Refusing to delete {resolved}: this does not look like a sample "
-            "data directory."
+            f"Refusing to delete {resolved}: this does not look like a sample data"
+            + " directory."
         )
 
 
@@ -95,7 +95,8 @@ def download_sampledata(force: bool = False) -> None:
             delete_sampledata()
         else:
             raise FileExistsError(
-                f"The directory {settings.sampledata_dir} already exists and is non-empty."
+                f"The directory {settings.sampledata_dir} already exists and is "
+                + "non-empty."
             )
 
     with urlopen(_SAMPLEDATA_SRC, timeout=_DOWNLOAD_TIMEOUT_SECONDS) as zipresp:

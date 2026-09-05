@@ -7,7 +7,7 @@ from sqlalchemy import Float
 from sqlmodel import Field, SQLModel
 
 from aimbat import settings
-from aimbat._types import (
+from aimbat.types import (
     PydanticNegativeTimedelta,
     PydanticNonNegativeFloat,
     PydanticPositiveTimedelta,
@@ -42,7 +42,10 @@ class AimbatEventParametersBase(SQLModel):
         default_factory=lambda: settings.ramp_width,
         sa_type=Float,
         title="Ramp width",
-        description="Width of taper ramp as a multiple of the window length. Values greater than 1 are valid; the ramp extends outside the window.",
+        description=(
+            "Width of taper ramp as a multiple of the window length. Values "
+            + "greater than 1 are valid; the ramp extends outside the window."
+        ),
     )
 
     window_pre: PydanticNegativeTimedelta = Field(
@@ -69,21 +72,30 @@ class AimbatEventParametersBase(SQLModel):
         default_factory=lambda: settings.bandpass_fmin,
         ge=0,
         title="Bandpass f min",
-        description="Minimum frequency for bandpass filter in Hz (ignored if `bandpass_apply` is False).",
+        description=(
+            "Minimum frequency for bandpass filter in Hz (ignored if "
+            + "`bandpass_apply` is False)."
+        ),
     )
 
     bandpass_fmax: float = Field(
         default_factory=lambda: settings.bandpass_fmax,
         gt=0,
         title="Bandpass f max",
-        description="Maximum frequency for bandpass filter in Hz (ignored if `bandpass_apply` is False).",
+        description=(
+            "Maximum frequency for bandpass filter in Hz (ignored if "
+            + "`bandpass_apply` is False)."
+        ),
     )
 
     corners: int = Field(
         default_factory=lambda: settings.corners,
         gt=0,
         title="Corners",
-        description="Number of corners (poles) for the bandpass filter (ignored if `bandpass_apply` is False).",
+        description=(
+            "Number of corners (poles) for the bandpass filter (ignored if "
+            + "`bandpass_apply` is False)."
+        ),
     )
 
     min_cc: float = Field(
@@ -91,7 +103,10 @@ class AimbatEventParametersBase(SQLModel):
         le=1.0,
         default_factory=lambda: settings.min_cc,
         title="Min CC",
-        description="Minimum cross-correlation used when automatically de-selecting seismograms.",
+        description=(
+            "Minimum cross-correlation used when automatically de-selecting "
+            + "seismograms."
+        ),
     )
 
     mccc_damp: float = Field(
@@ -106,7 +121,10 @@ class AimbatEventParametersBase(SQLModel):
         ge=0,
         le=1,
         title="MCCC min CC",
-        description="Minimum correlation coefficient required to include a pair in the MCCC inversion.",
+        description=(
+            "Minimum correlation coefficient required to include a pair in the "
+            + "MCCC inversion."
+        ),
     )
 
     @model_validator(mode="after")
@@ -161,8 +179,8 @@ class AimbatSeismogramParametersBase(SQLModel):
         sa_type=SAPandasTimestamp,
         title="T1",
         description=(
-            "Working pick. This pick serves as working as well as output pick."
-            " It is changed by: 1. Picking the phase arrival in the stack,"
-            " 2. Running ICCS, 3. Running MCCC."
+            "Working pick. This pick serves as working as well as output pick. It"
+            + " is changed by: 1. Picking the phase arrival in the stack, 2. "
+            + "Running ICCS, 3. Running MCCC."
         ),
     )

@@ -1,5 +1,10 @@
 # Project
 
+A project is a single SQLite database file (`aimbat.db` by default) holding
+everything AIMBAT knows about a dataset: events, stations, seismograms, their
+processing parameters, and snapshots. All four interfaces read and write the
+same project file.
+
 ## Creating a project
 
 A project must be initialised before data can be added. This creates the
@@ -26,14 +31,23 @@ database schema in a new SQLite file.
     aimbat tui
     ```
 
+=== "API"
+
+    ```python
+    from aimbat.db import engine
+    from aimbat.core import create_project
+
+    create_project(engine)
+    ```
+
 Re-running `project create` on an existing project raises an error rather than
-overwriting anything.
+overwriting anything. [`create_project`][aimbat.core.create_project] raises
+`RuntimeError` for the same case.
 
 ## Project location
 
 By default, AIMBAT reads and writes `aimbat.db` in the current working
-directory. All interfaces use the same configuration, so the location only needs
-to be set once.
+directory. The location only needs to be set once.
 
 !!! warning "Keep the project on local storage"
 
@@ -116,12 +130,34 @@ date:
     db upgrade
     ```
 
+=== "TUI"
+
+    Launch the TUI. A stale schema is caught on startup, before any panel that
+    might query a column the live schema doesn't have: a modal offers to
+    upgrade now (`u` or **Enter**) or quit.
+
+    ```bash
+    aimbat tui
+    ```
+
+=== "API"
+
+    ```python
+    from aimbat.db import engine
+    from aimbat.core import upgrade_project
+
+    upgrade_project(engine)
+    ```
+
 This is safe to run at any time. It does nothing if the project is already
 current, and otherwise upgrades the schema without touching events, seismograms,
 parameters, or snapshots.
 
 Until a project is upgraded, every other `aimbat` command refuses to run against
 it: the CLI and shell report the error, and the TUI shows a blocking dialog.
+The Python API differs: see
+[What every interface enforces](index.md#what-every-interface-enforces).
+
 Check the current schema version without upgrading:
 
 === "CLI"
@@ -135,3 +171,15 @@ Check the current schema version without upgrading:
     ```bash
     db current
     ```
+
+=== "API"
+
+    ```python
+    from aimbat.db import engine
+    from aimbat.core import get_current_revision
+
+    revision = get_current_revision(engine)  # None if never stamped
+    ```
+
+The TUI has no equivalent command; it runs this same check automatically on
+startup and only surfaces it as the upgrade modal above.

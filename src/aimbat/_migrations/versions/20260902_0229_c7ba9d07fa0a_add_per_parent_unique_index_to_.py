@@ -41,16 +41,16 @@ def _reject_existing_duplicates() -> None:
     for column in _FK_COLUMNS:
         rows = bind.execute(
             sa.text(
-                f"SELECT {column} FROM aimbatnote WHERE {column} IS NOT NULL "
-                f"GROUP BY {column} HAVING COUNT(*) > 1"
+                f"SELECT {column} FROM aimbatnote WHERE {column} IS NOT NULL GROUP BY "
+                + f"{column} HAVING COUNT(*) > 1"
             )
         ).fetchall()
         if rows:
             offenders = ", ".join(str(row[0]) for row in rows)
             raise RuntimeError(
-                f"aimbatnote has more than one row for the same {column} "
-                f"({offenders}). Delete the duplicate note rows, keeping one "
-                f"per parent, then re-run `aimbat db upgrade`."
+                f"aimbatnote has more than one row for the same {column} ({offenders}"
+                + "). Delete the duplicate note rows, keeping one per parent, then "
+                + "re-run `aimbat db upgrade`."
             )
 
 

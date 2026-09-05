@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from aimbat.models import AimbatNote
 
-__all__ = ["get_note_content", "save_note", "NoteTarget"]
+__all__ = ["NoteTarget", "get_note_content", "save_note"]
 
 NoteTarget = Literal["event", "station", "seismogram", "snapshot"]
 

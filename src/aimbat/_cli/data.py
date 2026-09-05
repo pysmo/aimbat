@@ -124,61 +124,14 @@ def _print_dry_run_results(
     console = Console()
     console.print(
         f"\n{new_stations} station(s) added, "
-        f"{len(added_datasources) - new_stations} skipped. "
-        f"{new_events} event(s) added, "
-        f"{len(added_datasources) - new_events} skipped. "
-        f"{new_seismograms} seismogram(s) added, "
-        f"{len(added_datasources) - new_seismograms} skipped."
+        + f"{len(added_datasources) - new_stations} skipped. {new_events} "
+        + f"event(s) added, {len(added_datasources) - new_events} skipped. "
+        + f"{new_seismograms} seismogram(s) added, "
+        + f"{len(added_datasources) - new_seismograms} skipped."
     )
 
     for message in duplicate_warnings:
         _print_warning(message)
-
-
-def _create_snapshots_for_touched_events(
-    session: Session,
-    added_datasources: Sequence[AimbatDataSource],
-    existing_seismogram_ids: set[uuid.UUID],
-) -> None:
-    """Create one snapshot per event that received a newly created seismogram."""
-    from collections import Counter
-
-    from aimbat.core import create_snapshot
-    from aimbat.logger import logger
-    from aimbat.models import AimbatEvent
-
-    from .common._decorators import _print_warning
-
-    new_seismogram_counts: Counter[uuid.UUID] = Counter(
-        ds.seismogram.event_id
-        for ds in added_datasources
-        if ds.seismogram_id not in existing_seismogram_ids
-    )
-
-    for event_id, count in new_seismogram_counts.items():
-        event = session.get(AimbatEvent, event_id)
-        if event is None:
-            continue
-        comment = f"Added {count} seismogram{'' if count == 1 else 's'}"
-        try:
-            create_snapshot(session, event, comment=comment, automatic=True)
-        except Exception as e:
-            # By this point add_data_to_project has already committed the
-            # seismogram data, so a snapshot failure must not be reported as
-            # a `data add` failure - that would misleadingly suggest the data
-            # itself wasn't added. Warn and move on to the next event rather
-            # than raising, so one event's snapshot failure (e.g. an
-            # unexpected quality-data shape) can't suppress the baseline for
-            # an unrelated event touched in the same call. A failed commit
-            # leaves the session unusable until rolled back, which would
-            # otherwise make every subsequent event's snapshot fail too.
-            session.rollback()
-            logger.warning(
-                f"Failed to create automatic snapshot for event {event_id}: {e}"
-            )
-            _print_warning(
-                f"Could not create an automatic snapshot for event {event_id}: {e}"
-            )
 
 
 @app.command(name="add")
@@ -199,8 +152,10 @@ def cli_data_add(
         DataType,
         Parameter(
             name="type",
-            help="Format of the data sources. Determines which metadata"
-            " (station, event, seismogram) can be extracted automatically.",
+            help=(
+                "Format of the data sources. Determines which metadata (station, "
+                + "event, seismogram) can be extracted automatically."
+            ),
         ),
     ] = DataType.SAC,
     station_id: Annotated[uuid.UUID | None, use_station_parameter()] = None,
@@ -222,8 +177,10 @@ def cli_data_add(
         bool,
         Parameter(
             name="snapshot",
-            help="Automatically create a snapshot for each event that received "
-            "new seismogram data.",
+            help=(
+                "Automatically create a snapshot for each event that received new "
+                + "seismogram data."
+            ),
         ),
     ] = True,
     _: DebugParameter = DebugParameter(),
@@ -285,9 +242,17 @@ def cli_data_add(
                 duplicate_warnings,
             )
         elif auto_snapshot:
-            _create_snapshots_for_touched_events(
+            from aimbat.core import create_snapshots_for_added_data
+
+            from .common._decorators import _print_warning
+
+            _snapshotted, failures = create_snapshots_for_added_data(
                 session, added_datasources, existing_seismogram_ids
             )
+            for event_id, error in failures:
+                _print_warning(
+                    f"Could not create an automatic snapshot for event {event_id}: {error}"
+                )
 
 
 @app.command(name="dump")

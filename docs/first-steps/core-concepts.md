@@ -60,4 +60,5 @@ around the same Python API ([`aimbat.core`][], [`aimbat.models`][]). Anything
 they do can also be scripted directly.
 
 AIMBAT as an application is built around that one workflow, but the API itself is
-not limited to it. See the [Python API](../usage/api.md) guide for details.
+not limited to it. Each usage chapter shows the API calls for that step; see
+[Recipes](../usage/recipes.md) for API fundamentals and cross-cutting scripts.

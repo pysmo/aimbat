@@ -6,8 +6,8 @@ from typing import Annotated, Literal
 from cyclopts import App
 from sqlmodel import Session
 
-from aimbat._types import EventParameter
 from aimbat.models import AimbatEvent
+from aimbat.types import EventParameter
 
 from .common import (
     ConfirmParameters,
@@ -27,12 +27,12 @@ __all__ = [
     "cli_event_delete",
     "cli_event_dump",
     "cli_event_list",
-    "cli_event_note_read",
     "cli_event_note_edit",
-    "cli_event_parameter_get",
-    "cli_event_parameter_set",
+    "cli_event_note_read",
     "cli_event_parameter_dump",
+    "cli_event_parameter_get",
     "cli_event_parameter_list",
+    "cli_event_parameter_set",
     "cli_event_quality_dump",
     "cli_event_quality_list",
 ]

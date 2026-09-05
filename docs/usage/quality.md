@@ -3,8 +3,9 @@
 AIMBAT records statistical metrics for judging how reliable the arrival-time
 picks are, from two sources:
 
-- **ICCS CC.** Recorded whenever an ICCS instance is created, which happens on
-    any operation that touches an event. No explicit step.
+- **ICCS CC.** Recorded whenever an ICCS instance is created, which happens the
+    first time any ICCS-consuming command (`align`, `shell`, `tool`, `plot`, or
+    the TUI) touches the event. No explicit step.
 - **MCCC metrics.** Recorded only when MCCC is run.
 
 Both are captured in snapshots and shown in the event and station views.
@@ -68,7 +69,7 @@ A single root-mean-square residual for the whole event.
 
 ## Quick reference
 
-Use `iccs_cc`, CC mean, and timing error together to triage:
+`iccs_cc`, CC mean, and timing error together support triage:
 
 | ICCS CC | CC mean | Timing error | Reading | Action |
 | :--- | :--- | :--- | :--- | :--- |
@@ -80,9 +81,10 @@ Use `iccs_cc`, CC mean, and timing error together to triage:
 
 ## Aggregated statistics
 
-The event and station views also show aggregates across the seismograms in the
-most recent MCCC run, labelled "Averages across N seismograms" where N is the
-number with quality records in the active snapshot. The aggregates include the
+The TUI's quality panel and the CLI's quality tables also show aggregates
+across the seismograms in the most recent MCCC run: `n = N` in the TUI
+subtitle, a `Count` column in the CLI, where N is the number of seismograms
+with quality records in the active snapshot. The aggregates include the
 standard error of the mean.
 
 ## Which metrics a snapshot shows
@@ -94,3 +96,27 @@ standard error of the mean.
     only; `--all` stores them for every seismogram. The mode is inferred from the
     snapshot, and the view always reports the most recent MCCC run, so a
     deselected seismogram shows MCCC data only if the last run used `--all`.
+
+## Python API
+
+Per-seismogram metrics are stored in `AimbatSeismogramQuality` and accessed via
+`seismogram.quality`:
+
+| Attribute      | Description                                                        |
+| -------------- | ------------------------------------------------------------------ |
+| `iccs_cc`      | ICCS cross-correlation with the stack                              |
+| `mccc_cc_mean` | MCCC waveform quality (mean CC across seismogram pairs)            |
+| `mccc_cc_std`  | MCCC waveform consistency (std of CC across pairs)                 |
+| `mccc_error`   | MCCC timing precision (`pd.Timedelta`, SEM from covariance matrix) |
+
+The per-event MCCC global array fit is stored in `AimbatEventQuality` and
+accessed via `event.quality`:
+
+| Attribute   | Description                       |
+| ----------- | ---------------------------------- |
+| `mccc_rmse` | Global array fit (`pd.Timedelta`) |
+
+Once alignment has run across many events, quality metrics accumulate across
+stations and events. Aggregating them into DataFrames or per-station and
+per-event summaries is covered in
+[Quality analysis](recipes.md#quality-analysis).

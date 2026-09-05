@@ -2,6 +2,7 @@
 
 import uuid
 from contextlib import suppress
+from typing import Any
 
 from sqlmodel import Session
 from textual import on
@@ -19,7 +20,7 @@ from aimbat.db import engine
 __all__ = ["NoteWidget", "SeismogramPlotWidget", "VimDataTable"]
 
 
-class VimDataTable(DataTable):
+class VimDataTable(DataTable[Any]):
     """DataTable with vim-style navigation keys.
 
     Adds j/k for cursor down/up, h/l for cursor left/right (aliases for the

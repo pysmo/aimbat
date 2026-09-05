@@ -110,14 +110,14 @@ class TestCreateAllVsMigrateParity:
     """
 
     @pytest.fixture
-    def create_all_engine(self, tmp_path: Path) -> Generator[Engine, None, None]:
+    def create_all_engine(self, tmp_path: Path) -> Generator[Engine]:
         engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'create_all.db'}")
         create_project(engine)
         yield engine
         engine.dispose()
 
     @pytest.fixture
-    def migrated_engine(self, tmp_path: Path) -> Generator[Engine, None, None]:
+    def migrated_engine(self, tmp_path: Path) -> Generator[Engine]:
         engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'migrated.db'}")
         upgrade_project(engine)
         yield engine
@@ -753,7 +753,7 @@ class TestOldDatabaseRegressionFixture:
     """
 
     @pytest.fixture
-    def old_project_engine(self, tmp_path: Path) -> Generator[Engine, None, None]:
+    def old_project_engine(self, tmp_path: Path) -> Generator[Engine]:
         db_path = tmp_path / "pre_alembic_project.db"
         shutil.copy(
             Path(__file__).parents[2] / "assets" / "pre_alembic_project.db",
@@ -847,7 +847,7 @@ def downgrade() -> None:
 @pytest.fixture
 def two_revision_migrations(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Generator[None, None, None]:
+) -> Generator[None]:
     """Points `core._migrations` at a disposable, hand-written two-revision
     migration chain (unrelated to AIMBAT's real models), so multi-revision
     matching can be tested against a genuine "older, non-head revision"

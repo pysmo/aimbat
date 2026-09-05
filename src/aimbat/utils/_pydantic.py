@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cache
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -22,7 +22,7 @@ def format_validation_error(exc: ValidationError) -> str:
     return "; ".join(e["msg"].removeprefix("Value error, ") for e in exc.errors())
 
 
-@lru_cache(maxsize=None)
+@cache
 def get_title_map(model_class: type[BaseModel]) -> dict[str, str]:
     """Build a mapping from field names to their display titles.
 

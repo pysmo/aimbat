@@ -5,7 +5,7 @@ of SQLModel `Field()` definitions that hold `pandas.Timestamp` or
 `pandas.Timedelta` values.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pandas as pd
@@ -16,12 +16,12 @@ from sqlalchemy.types import BigInteger, DateTime, TypeDecorator
 from ._coerce import coerce_to_timedelta
 
 __all__ = [
-    "SAPandasTimestamp",
     "SAPandasTimedelta",
+    "SAPandasTimestamp",
 ]
 
 
-class SAPandasTimestamp(TypeDecorator):
+class SAPandasTimestamp(TypeDecorator[Timestamp]):
     """SQLAlchemy TypeDecorator for pandas.Timestamp.
 
     Ensures timezone-aware UTC storage in a DateTime column.
@@ -56,9 +56,9 @@ class SAPandasTimestamp(TypeDecorator):
 
         # If naive (no TZ), localize to UTC. If aware, convert to UTC.
         if ts.tzinfo is None:
-            ts = ts.tz_localize(timezone.utc)
+            ts = ts.tz_localize(UTC)
         else:
-            ts = ts.tz_convert(timezone.utc)
+            ts = ts.tz_convert(UTC)
 
         # Truncate to microseconds: datetime lacks nanosecond precision.
         return ts.floor("us").to_pydatetime()
@@ -79,11 +79,11 @@ class SAPandasTimestamp(TypeDecorator):
         ts = Timestamp(value)
         # Ensure the returned pandas object is always UTC aware
         if ts.tzinfo is None:
-            return ts.tz_localize(timezone.utc)
-        return ts.tz_convert(timezone.utc)
+            return ts.tz_localize(UTC)
+        return ts.tz_convert(UTC)
 
 
-class SAPandasTimedelta(TypeDecorator):
+class SAPandasTimedelta(TypeDecorator[Timedelta]):
     """SQLAlchemy TypeDecorator for pandas.Timedelta.
 
     Stores duration as an integer of nanoseconds for maximum precision.

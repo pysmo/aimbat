@@ -137,8 +137,8 @@ class _IccsLifecycleMixin(App[None]):
         """
         if bound_iccs.event_id != self._current_event_id:
             logger.debug(
-                "ICCS worker: discarding instance for an event that is no "
-                "longer selected."
+                "ICCS worker: discarding instance for an event that is no longer "
+                + "selected."
             )
             self._iccs_lifecycle.mark_aborted()
             if self._current_event_id is not None:

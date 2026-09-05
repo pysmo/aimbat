@@ -2,7 +2,7 @@
 
 from sqlmodel import Field, SQLModel
 
-from aimbat._types import (
+from aimbat.types import (
     PydanticNonNegativeTimedelta,
     SAPandasTimedelta,
 )

@@ -111,7 +111,7 @@ _TAB_ROW_ACTIONS: dict[str, list[RowAction]] = {
 
 def _settle_cursor(
     widget: Widget,
-    tables: Sequence[tuple[DataTable, int]],
+    tables: Sequence[tuple[DataTable[Any], int]],
     on_settled: Callable[[], None],
 ) -> None:
     """Restore cursor position on `tables`.
@@ -139,7 +139,7 @@ def _setup_table(
     title: str,
     *,
     extra_columns: Sequence[str] = (),
-) -> DataTable:
+) -> DataTable[Any]:
     """Configure the `DataTable` at `selector`.
 
     Sets the border title, row cursor, and columns derived from `model`'s
@@ -170,7 +170,7 @@ def _styled_cell(cell: str | Text, style: str) -> Text:
 
 
 def _populate_rows(
-    table: DataTable,
+    table: DataTable[Any],
     rows: Sequence[dict[str, Any]],
     model: type[BaseModel],
     *,
@@ -273,7 +273,7 @@ class _RowActionTable(VimDataTable):
         """Posted when a row action is triggered directly via its footer hotkey."""
 
         def __init__(
-            self, table: "_RowActionTable", row_key: str, action_id: str
+            self, table: _RowActionTable, row_key: str, action_id: str
         ) -> None:
             super().__init__()
             self.table = table
@@ -281,7 +281,7 @@ class _RowActionTable(VimDataTable):
             self.action_id = action_id
 
         @property
-        def control(self) -> "_RowActionTable":
+        def control(self) -> _RowActionTable:
             return self.table
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -700,9 +700,9 @@ class SeismogramPanel(Widget):
         stats = cc_stats(bound_iccs.iccs) if bound_iccs is not None else None
         if stats is not None and stats.n_all > 0:
             table.border_title = (
-                f"Seismograms  [dim]CC: selected "
-                f"{fmt_float_sem(stats.mean_selected, stats.sem_selected)}"
-                f" · all {fmt_float_sem(stats.mean_all, stats.sem_all)}[/dim]"
+                "Seismograms  [dim]CC: selected "
+                + f"{fmt_float_sem(stats.mean_selected, stats.sem_selected)} · all "
+                + f"{fmt_float_sem(stats.mean_all, stats.sem_all)}[/dim]"
             )
         else:
             table.border_title = "Seismograms"

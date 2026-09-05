@@ -32,7 +32,7 @@ from aimbat.models import (
 
 
 @pytest.fixture
-def session(patched_session: Session) -> Generator[Session, None, None]:
+def session(patched_session: Session) -> Generator[Session]:
     yield patched_session
 
 

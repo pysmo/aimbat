@@ -20,11 +20,11 @@ from textual.widgets import DataTable, Input, Label, Markdown, Static
 from aimbat._cli.common import CAUSAL_DEFAULTS
 from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY
 from aimbat._tui._widgets import VimDataTable
-from aimbat._types import EventParameter
 from aimbat.core import set_event_parameter
 from aimbat.db import engine
 from aimbat.models import AimbatEvent
 from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.types import EventParameter
 from aimbat.utils import format_validation_error
 
 if TYPE_CHECKING:
@@ -44,11 +44,23 @@ class _Hint(StrEnum):
     SAVE_CANCEL = (
         "[@click='screen.save']⏎ save[/]   [@click='screen.cancel']⎋ cancel[/]"
     )
-    NAVIGATE_SELECT_CANCEL = "↑↓ navigate   [@click='screen.select']⏎ select[/]   [@click='screen.cancel']⎋ cancel[/]"
-    NAVIGATE_RUN_CANCEL = "↑↓ navigate   [@click='screen.select']⏎ run[/]   [@click='screen.cancel']⎋ cancel[/]"
-    CONFIRM_CANCEL = "[@click='screen.confirm'][bold]y[/bold] / ⏎ confirm[/]   [@click='screen.cancel'][bold]n[/bold] / ⎋ cancel[/]"
+    NAVIGATE_SELECT_CANCEL = (
+        "↑↓ navigate   [@click='screen.select']⏎ select[/]   "
+        + "[@click='screen.cancel']⎋ cancel[/]"
+    )
+    NAVIGATE_RUN_CANCEL = (
+        "↑↓ navigate   [@click='screen.select']⏎ run[/]   "
+        + "[@click='screen.cancel']⎋ cancel[/]"
+    )
+    CONFIRM_CANCEL = (
+        "[@click='screen.confirm'][bold]y[/bold] / ⏎ confirm[/]   "
+        + "[@click='screen.cancel'][bold]n[/bold] / ⎋ cancel[/]"
+    )
     CLOSE = "[@click='screen.cancel']⎋ close[/]"
-    NAVIGATE_EDIT_CLOSE = "↑↓ navigate   [@click='screen.select']⏎ edit[/]   [@click='screen.cancel']⎋ close[/]"
+    NAVIGATE_EDIT_CLOSE = (
+        "↑↓ navigate   [@click='screen.select']⏎ edit[/]   "
+        + "[@click='screen.cancel']⎋ close[/]"
+    )
 
 
 __all__ = [
@@ -145,9 +157,10 @@ class NoProjectModal(ModalScreen[bool]):
                 "No project found in the current directory.", classes=_CSS.TITLE
             )
             yield Label(
-                "[@click='screen.create'][bold]c[/bold] / ⏎ create project[/]"
-                "   "
-                "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]",
+                (
+                    "[@click='screen.create'][bold]c[/bold] / ⏎ create project[/]   "
+                    + "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]"
+                ),
                 classes=_CSS.HINT,
             )
 
@@ -197,9 +210,10 @@ class SchemaStaleModal(ModalScreen[bool]):
         with Container(id="confirm-dialog"):
             yield Label(self._message, classes=_CSS.TITLE)
             yield Label(
-                "[@click='screen.upgrade'][bold]u[/bold] / ⏎ upgrade now[/]"
-                "   "
-                "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]",
+                (
+                    "[@click='screen.upgrade'][bold]u[/bold] / ⏎ upgrade now[/]   "
+                    + "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]"
+                ),
                 classes=_CSS.HINT,
             )
 
@@ -521,7 +535,7 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
         Binding("a", "toggle_all", show=False),
     ]
 
-    def __init__(self, title: str, actions: list["RowAction"]) -> None:
+    def __init__(self, title: str, actions: list[RowAction]) -> None:
         """Initialise the modal.
 
         Args:
@@ -561,8 +575,8 @@ class SnapshotActionMenuModal(ModalScreen[tuple[str, bool, bool] | None]):
             ctx = "✓" if self._use_context else "✗"
             al = "✓" if self._all_seis else "✗"
             opts.update(
-                f"  [@click='screen.toggle_context'][dim]c[/dim] context: {ctx}[/]"
-                f"   [@click='screen.toggle_all'][dim]a[/dim] all seismograms: {al}[/]"
+                f"  [@click='screen.toggle_context'][dim]c[/dim] context: {ctx}[/]   "
+                + f"[@click='screen.toggle_all'][dim]a[/dim] all seismograms: {al}[/]"
             )
         else:
             opts.update("")
@@ -672,12 +686,15 @@ class InteractiveToolsModal(ModalScreen[ToolLaunchResult | None]):
         ctx = "✓" if self._use_context else "✗"
         al = "✓" if self._all_seis else "✗"
         options = (
-            f"  [@click='screen.toggle_context'][dim]c[/dim] context: {ctx}[/]"
-            f"   [@click='screen.toggle_all'][dim]a[/dim] all seismograms: {al}[/]"
+            f"  [@click='screen.toggle_context'][dim]c[/dim] context: {ctx}[/]   "
+            + f"[@click='screen.toggle_all'][dim]a[/dim] all seismograms: {al}[/]"
         )
         if self._highlighted_tool in CAUSAL_DEFAULTS:
             zp = "✓" if not self._causal else "✗"
-            options += f"   [@click='screen.toggle_zero_phase'][dim]z[/dim] zero-phase: {zp}[/]"
+            options += (
+                f"   [@click='screen.toggle_zero_phase'][dim]z[/dim] zero-phase: {zp}"
+                + "[/]"
+            )
         self.query_one("#tools-options", Static).update(options)
 
     @on(DataTable.RowHighlighted, "#tools-table")
@@ -783,8 +800,8 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
             fl = "✓" if self._autoflip else "✗"
             sl = "✓" if self._autoselect else "✗"
             opts.update(
-                f"  [@click='screen.toggle_autoflip'][dim]f[/dim] Autoflip: {fl}[/]"
-                f"   [@click='screen.toggle_autoselect'][dim]s[/dim] Autoselect: {sl}[/]"
+                f"  [@click='screen.toggle_autoflip'][dim]f[/dim] Autoflip: {fl}[/]   "
+                + f"[@click='screen.toggle_autoselect'][dim]s[/dim] Autoselect: {sl}[/]"
             )
         else:
             al = "✓" if self._all_seis else "✗"

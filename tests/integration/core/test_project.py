@@ -17,7 +17,7 @@ class TestProjectLifecycle:
     """Integration tests for core project management functions."""
 
     @pytest.fixture
-    def engine(self, engine_from_file: Engine) -> Generator[Engine, None, None]:
+    def engine(self, engine_from_file: Engine) -> Generator[Engine]:
         yield engine_from_file
 
     def test_create(self, engine: Engine, db_path: Path) -> None:
@@ -97,7 +97,7 @@ class TestPrintProjectInfo:
     """Tests for printing project summary information."""
 
     def test_raises_when_no_project(
-        self, engine_from_file: Engine, capsys: pytest.CaptureFixture
+        self, engine_from_file: Engine, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Verifies that a RuntimeError is raised when no project exists.
 

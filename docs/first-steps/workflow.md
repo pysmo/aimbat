@@ -59,7 +59,8 @@ Running MCCC before the final export is usual but not required.
 
     Events, stations, seismograms, and snapshots can each carry a freeform
     Markdown note (`#!bash aimbat <target> note edit`). Recording what changed
-    and why makes a promising snapshot easy to find again later.
+    and why makes a promising snapshot easy to find again later. See
+    [Notes](../usage/index.md#notes) for the shell, TUI, and API equivalents.
 
 For the ICCS options (autoflip, autoselect) and the MCCC `--all` flag, see
 [Aligning with ICCS](../usage/alignment.md) and [MCCC Alignment](../usage/mccc.md).

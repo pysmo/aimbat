@@ -30,17 +30,21 @@ def cli_iccs_run(
         bool,
         Parameter(
             name="autoselect",
-            help="Whether to automatically de-select seismograms whose"
-            " cross-correlation with the stack falls below `min_cc`, and"
-            " re-select them if the cross-correlation later exceeds `min_cc`.",
+            help=(
+                "Whether to automatically de-select seismograms whose "
+                + "cross-correlation with the stack falls below `min_cc`, and re-select"
+                + " them if the cross-correlation later exceeds `min_cc`."
+            ),
         ),
     ] = False,
     autoflip: Annotated[
         bool,
         Parameter(
             name="autoflip",
-            help="Whether to automatically flip seismograms (multiply data"
-            " by -1) when the cross-correlation is negative.",
+            help=(
+                "Whether to automatically flip seismograms (multiply data by -1) when"
+                + " the cross-correlation is negative."
+            ),
         ),
     ] = False,
     _: DebugParameter = DebugParameter(),
@@ -71,8 +75,10 @@ def cli_mccc_run(
         bool,
         Parameter(
             name="all",
-            help="Include all seismograms of an event in MCCC processing, "
-            "not just the currently selected ones.",
+            help=(
+                "Include all seismograms of an event in MCCC processing, not just the"
+                + " currently selected ones."
+            ),
         ),
     ] = False,
     _: DebugParameter = DebugParameter(),

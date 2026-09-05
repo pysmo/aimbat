@@ -89,16 +89,16 @@ def upgrade() -> None:
         _rewrite_fk(table, column, referred, ondelete="SET NULL", nullable=True)
 
     op.execute(
-        "UPDATE aimbatseismogramparameterssnapshot SET seismogram_id = ("
-        "  SELECT p.seismogram_id FROM aimbatseismogramparameters p"
-        "  WHERE p.id = aimbatseismogramparameterssnapshot.seismogram_parameters_id"
-        ") WHERE seismogram_parameters_id IS NOT NULL"
+        "UPDATE aimbatseismogramparameterssnapshot SET seismogram_id = (  "
+        + "SELECT p.seismogram_id FROM aimbatseismogramparameters p  WHERE p.id"
+        + " = aimbatseismogramparameterssnapshot.seismogram_parameters_id) "
+        + "WHERE seismogram_parameters_id IS NOT NULL"
     )
     op.execute(
-        "UPDATE aimbatseismogramqualitysnapshot SET seismogram_id = ("
-        "  SELECT q.seismogram_id FROM aimbatseismogramquality q"
-        "  WHERE q.id = aimbatseismogramqualitysnapshot.seismogram_quality_id"
-        ") WHERE seismogram_quality_id IS NOT NULL"
+        "UPDATE aimbatseismogramqualitysnapshot SET seismogram_id = (  SELECT"
+        + " q.seismogram_id FROM aimbatseismogramquality q  WHERE q.id = "
+        + "aimbatseismogramqualitysnapshot.seismogram_quality_id) WHERE "
+        + "seismogram_quality_id IS NOT NULL"
     )
 
 

@@ -31,7 +31,6 @@ dependencies = [
   "textual-fspicker>=1.0.0",
   "prompt-toolkit>=3.0.52",
   "mplcursors>=0.7",
-  "typing-extensions>=4.15.0",
   "textual-plotext>=1.0.1",
 ]
 
@@ -93,6 +92,10 @@ mpl-use-full-test-name = true
 mypy_path = "src"
 namespace_packages = true
 disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+disallow_any_generics = true
+strict_equality = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 
@@ -123,9 +126,19 @@ exclude_also = [
 [tool.ruff]
 extend-exclude = ["sample-data", "docs", "site"]
 
+[tool.ruff.format]
+docstring-code-format = true
+
 [tool.ruff.lint]
-select = ["E", "F", "I", "D"]
-ignore = ["E501", "D202"]
+select = [
+  "E", "F", "I", "D", "ISC",
+  "NPY", "FLY", "SLOT", "LOG", "PGH",
+  "UP", "C4", "RSE", "RUF022", "RUF036",
+]
+ignore = ["E501", "D202", "ISC003"]
+
+[tool.ruff.lint.flake8-implicit-str-concat]
+allow-multiline = false
 
 [tool.ruff.lint.isort]
 
@@ -146,5 +159,5 @@ section-order = [
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D"]
+"tests/**" = ["D", "ISC002", "NPY002", "PGH003"]
 "src/aimbat/_migrations/versions/*.py" = ["D"]

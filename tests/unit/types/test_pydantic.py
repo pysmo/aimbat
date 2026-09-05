@@ -1,10 +1,10 @@
-"""Tests for aimbat._types._pydantic custom Pydantic types."""
+"""Tests for aimbat.types._pydantic custom Pydantic types."""
 
 import pytest
 from pandas import NaT, Timedelta, Timestamp
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from aimbat._types import (
+from aimbat.types import (
     PydanticNegativeTimedelta,
     PydanticPositiveTimedelta,
     PydanticTimedelta,

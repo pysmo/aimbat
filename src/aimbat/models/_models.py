@@ -14,13 +14,13 @@ from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel._compat import SQLModelConfig
 
-from aimbat._types import (
+from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
+from aimbat.types import (
     PydanticPositiveTimedelta,
     PydanticTimestamp,
     SAPandasTimedelta,
     SAPandasTimestamp,
 )
-from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
 
 from ._format import RichColSpec
 from ._parameters import AimbatEventParametersBase, AimbatSeismogramParametersBase
@@ -30,21 +30,21 @@ from ._quality import (
 )
 
 __all__ = [
-    "AimbatTypes",
     "AimbatDataSource",
-    "AimbatNote",
-    "AimbatStation",
     "AimbatEvent",
     "AimbatEventParameters",
     "AimbatEventParametersSnapshot",
     "AimbatEventQuality",
     "AimbatEventQualitySnapshot",
+    "AimbatNote",
     "AimbatSeismogram",
     "AimbatSeismogramParameters",
     "AimbatSeismogramParametersSnapshot",
     "AimbatSeismogramQuality",
     "AimbatSeismogramQualitySnapshot",
     "AimbatSnapshot",
+    "AimbatStation",
+    "AimbatTypes",
 ]
 
 
@@ -167,7 +167,10 @@ class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=T
         foreign_key="aimbatseismogramparameters.id",
         ondelete="SET NULL",
         title="Seismogram parameters ID",
-        description="Foreign key referencing the source seismogram parameters, or NULL if it has been deleted.",
+        description=(
+            "Foreign key referencing the source seismogram parameters, or NULL if"
+            + " it has been deleted."
+        ),
     )
     parameters: AimbatSeismogramParameters | None = Relationship(
         back_populates="snapshots"
@@ -253,7 +256,10 @@ class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
         foreign_key="aimbateventparameters.id",
         ondelete="SET NULL",
         title="Event parameters ID",
-        description="Foreign key referencing the source event parameters, or NULL if it has been deleted.",
+        description=(
+            "Foreign key referencing the source event parameters, or NULL if it "
+            + "has been deleted."
+        ),
     )
     snapshot: "AimbatSnapshot" = Relationship(
         back_populates="event_parameters_snapshot"
@@ -327,7 +333,10 @@ class AimbatSeismogramQualitySnapshot(AimbatSeismogramQualityBase, table=True):
         foreign_key="aimbatseismogramquality.id",
         ondelete="SET NULL",
         title="Seismogram quality ID",
-        description="Foreign key referencing the source seismogram quality, or NULL if it has been deleted.",
+        description=(
+            "Foreign key referencing the source seismogram quality, or NULL if it"
+            + " has been deleted."
+        ),
     )
     quality: AimbatSeismogramQuality | None = Relationship(back_populates="snapshots")
     "The seismogram quality this snapshot was taken from, if still present."
@@ -397,7 +406,10 @@ class AimbatEventQualitySnapshot(AimbatEventQualityBase, table=True):
         foreign_key="aimbateventquality.id",
         ondelete="SET NULL",
         title="Event quality ID",
-        description="Foreign key referencing the source event quality, or NULL if it has been deleted.",
+        description=(
+            "Foreign key referencing the source event quality, or NULL if it has "
+            + "been deleted."
+        ),
     )
     quality: AimbatEventQuality | None = Relationship(back_populates="snapshots")
     "The event quality this snapshot was taken from, if still present."
@@ -454,12 +466,18 @@ class AimbatSnapshot(SQLModel, table=True):
     mccc_hash: str | None = Field(
         default=None,
         title="MCCC hash",
-        description="SHA-256 hash of the parameters affecting MCCC output at creation time.",
+        description=(
+            "SHA-256 hash of the parameters affecting MCCC output at creation "
+            + "time."
+        ),
     )
     iccs_hash: str | None = Field(
         default=None,
         title="ICCS hash",
-        description="SHA-256 hash of the parameters affecting ICCS output at creation time.",
+        description=(
+            "SHA-256 hash of the parameters affecting ICCS output at creation "
+            + "time."
+        ),
     )
     event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
         back_populates="snapshot", cascade_delete=True
@@ -698,11 +716,11 @@ class AimbatEvent(SQLModel, table=True):
         sa_type=SAPandasTimestamp,
         title="Stack modified",
         description=(
-            "Timestamp of the last change to a parameter that requires the "
-            "ICCS instance to be rebuilt (event window, ramp, bandpass, "
-            "corners; per-seismogram t1, flip, select). Drives "
-            "`BoundICCS.is_stale`. Unlike `last_modified`, an MCCC-only or "
-            "`min_cc` change does not bump it."
+            "Timestamp of the last change to a parameter that requires the ICCS "
+            + "instance to be rebuilt (event window, ramp, bandpass, corners; "
+            + "per-seismogram t1, flip, select). Drives `BoundICCS.is_stale`. "
+            + "Unlike `last_modified`, an MCCC-only or `min_cc` change does not "
+            + "bump it."
         ),
     )
     seismograms: list[AimbatSeismogram] = Relationship(
@@ -795,7 +813,10 @@ AimbatSnapshot.selected_seismogram_count = column_property(  # type: ignore[assi
     .correlate_except(AimbatSeismogramParametersSnapshot)
     .scalar_subquery()
 )
-"Number of seismogram parameter snapshots associated with this snapshot that are marked as selected."
+(
+    "Number of seismogram parameter snapshots associated with this "
+    + "snapshot that are marked as selected."
+)
 
 AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatSeismogramParametersSnapshot.id)))
@@ -806,7 +827,10 @@ AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assig
     .correlate_except(AimbatSeismogramParametersSnapshot)
     .scalar_subquery()
 )
-"Number of seismogram parameter snapshots associated with this snapshot that are marked as flipped."
+(
+    "Number of seismogram parameter snapshots associated with this "
+    + "snapshot that are marked as flipped."
+)
 
 
 class AimbatNote(SQLModel, table=True):
@@ -825,10 +849,12 @@ class AimbatNote(SQLModel, table=True):
 
     __table_args__ = (
         CheckConstraint(
-            "(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END"
-            " + CASE WHEN station_id IS NOT NULL THEN 1 ELSE 0 END"
-            " + CASE WHEN seismogram_id IS NOT NULL THEN 1 ELSE 0 END"
-            " + CASE WHEN snapshot_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
+            (
+                "(CASE WHEN event_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN "
+                + "station_id IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN seismogram_id "
+                + "IS NOT NULL THEN 1 ELSE 0 END + CASE WHEN snapshot_id IS NOT NULL "
+                + "THEN 1 ELSE 0 END) = 1"
+            ),
             name="aimbat_note_exactly_one_parent",
         ),
         Index(
@@ -904,8 +930,8 @@ class AimbatNote(SQLModel, table=True):
         )
         if set_count != 1:
             raise ValueError(
-                "Exactly one of event_id, station_id, seismogram_id, snapshot_id"
-                " must be set on AimbatNote."
+                "Exactly one of event_id, station_id, seismogram_id, snapshot_id must"
+                + " be set on AimbatNote."
             )
         return self
 

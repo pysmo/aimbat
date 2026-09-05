@@ -7,6 +7,7 @@ JSON output is used as the ground truth for ID verification after mutations.
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -29,7 +30,7 @@ class TestSnapshotCreate:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that a snapshot is created with a null comment by default.
@@ -51,7 +52,7 @@ class TestSnapshotCreate:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the comment is stored when provided.
@@ -72,7 +73,7 @@ class TestSnapshotCreate:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that one event parameter snapshot is created per snapshot.
@@ -93,7 +94,7 @@ class TestSnapshotCreate:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that seismogram parameter snapshots are created.
@@ -114,7 +115,7 @@ class TestSnapshotCreate:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that multiple snapshots accumulate correctly.
@@ -156,7 +157,7 @@ class TestSnapshotDelete:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the snapshot ID is absent from the dump after deletion.
@@ -184,7 +185,7 @@ class TestSnapshotDelete:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the related event parameter snapshot is removed after deletion.
@@ -213,7 +214,7 @@ class TestSnapshotDelete:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that all related seismogram parameter snapshots are removed after deletion.
@@ -247,7 +248,7 @@ class TestSnapshotDelete:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that deleting one snapshot does not affect the other.
@@ -284,7 +285,7 @@ class TestSnapshotDelete:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies deletion via short ID removes the snapshot and all related records.
@@ -362,7 +363,7 @@ class TestSnapshotRollback:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -397,7 +398,7 @@ class TestSnapshotRollback:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -437,7 +438,7 @@ class TestSnapshotRollback:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -472,7 +473,7 @@ class TestSnapshotRollback:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that rolling back leaves the snapshot itself in place.
@@ -509,7 +510,7 @@ class TestSnapshotDump:
     def test_dump_empty_returns_empty_lists(
         self,
         loaded_engine: Engine,
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the dump is empty when no snapshots have been created.
@@ -530,7 +531,7 @@ class TestSnapshotDump:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that the dump dict contains the three expected top-level keys.
@@ -553,7 +554,7 @@ class TestSnapshotDump:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that dump returns snapshots for all events by default.
@@ -574,7 +575,7 @@ class TestSnapshotDump:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that snapshot IDs referenced in event/seismogram params match the snapshots list.
@@ -680,7 +681,7 @@ class TestSnapshotDetails:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -706,7 +707,7 @@ class TestSnapshotDetails:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -731,7 +732,7 @@ class TestSnapshotDetails:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
@@ -767,7 +768,7 @@ class TestSnapshotPreview:
         mock_plot: MagicMock,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that plot_stack is called when previewing without --matrix.
@@ -792,7 +793,7 @@ class TestSnapshotPreview:
         mock_plot: MagicMock,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
     ) -> None:
         """Verifies that plot_matrix_image is called when previewing with --matrix.
@@ -825,7 +826,7 @@ class TestSnapshotResults:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
@@ -867,7 +868,7 @@ class TestSnapshotResults:
         self,
         loaded_engine: Engine,
         cli: Callable[[str | list[str]], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
         tmp_path: Path,
     ) -> None:
@@ -899,7 +900,7 @@ class TestSnapshotResults:
         self,
         loaded_engine: Engine,
         cli: Callable[[str | list[str]], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
         tmp_path: Path,
     ) -> None:
@@ -924,7 +925,7 @@ class TestSnapshotResults:
         self,
         loaded_engine: Engine,
         cli: Callable[[str], None],
-        cli_json: Callable[[str], list | dict],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
         event_id: str,
         capsys: pytest.CaptureFixture[str],
     ) -> None:

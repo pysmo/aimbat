@@ -27,6 +27,7 @@ from sqlmodel import Session, col, select
 
 from aimbat.logger import logger
 from aimbat.models import (
+    AimbatDataSource,
     AimbatEvent,
     AimbatEventParametersSnapshot,
     AimbatEventQuality,
@@ -52,22 +53,23 @@ from aimbat.models._quality import (
 from aimbat.utils import get_title_map, rel
 
 __all__ = [
+    "SyncResult",
     "compute_iccs_hash",
     "compute_mccc_hash",
-    "SyncResult",
     "create_snapshot",
-    "rollback_to_snapshot",
-    "sync_from_matching_hash",
+    "create_snapshots_for_added_data",
     "delete_snapshot",
-    "get_snapshots",
-    "get_snapshot_quality",
-    "dump_snapshot_table",
+    "dump_event_parameter_snapshot_table",
+    "dump_event_quality_snapshot_table",
+    "dump_seismogram_parameter_snapshot_table",
+    "dump_seismogram_quality_snapshot_table",
     "dump_snapshot_quality_table",
     "dump_snapshot_results",
-    "dump_event_parameter_snapshot_table",
-    "dump_seismogram_parameter_snapshot_table",
-    "dump_event_quality_snapshot_table",
-    "dump_seismogram_quality_snapshot_table",
+    "dump_snapshot_table",
+    "get_snapshot_quality",
+    "get_snapshots",
+    "rollback_to_snapshot",
+    "sync_from_matching_hash",
 ]
 
 
@@ -294,6 +296,76 @@ def create_snapshot(
     )
     session.add(aimbat_snapshot)
     session.commit()
+
+
+def create_snapshots_for_added_data(
+    session: Session,
+    added_datasources: Sequence[AimbatDataSource],
+    existing_seismogram_ids: set[UUID],
+    *,
+    comment: str | None = None,
+) -> tuple[list[UUID], list[tuple[UUID, str]]]:
+    """Create one snapshot per event that received a newly created seismogram.
+
+    Shared by the CLI's `data add` and the TUI's import action, both of which
+    call `add_data_to_project`/`add_seismograms_to_project` first and pass
+    its return values straight through.
+
+    Args:
+        session: Database session.
+        added_datasources: `AimbatDataSource` rows touched by the ingestion
+            call, new or reused.
+        existing_seismogram_ids: Seismogram IDs that already existed before
+            the ingestion call, so only events with a genuinely new
+            seismogram are snapshotted.
+        comment: Snapshot comment. Defaults to a per-event
+            `"Added N seismogram(s)"`.
+
+    Returns:
+        A 2-tuple of `(snapshotted, failures)`: `snapshotted` is the list of
+        event IDs a snapshot was created for; `failures` is a list of
+        `(event_id, error message)` for events whose snapshot failed. A
+        failure is logged here; the caller decides how to surface it
+        (e.g. `_print_warning` on the CLI, a notification in the TUI).
+    """
+    from collections import Counter
+
+    new_seismogram_counts: Counter[UUID] = Counter(
+        ds.seismogram.event_id
+        for ds in added_datasources
+        if ds.seismogram_id not in existing_seismogram_ids
+    )
+
+    snapshotted: list[UUID] = []
+    failures: list[tuple[UUID, str]] = []
+
+    for event_id, count in new_seismogram_counts.items():
+        event = session.get(AimbatEvent, event_id)
+        if event is None:
+            continue
+        event_comment = (
+            comment or f"Added {count} seismogram{'' if count == 1 else 's'}"
+        )
+        try:
+            create_snapshot(session, event, comment=event_comment, automatic=True)
+            snapshotted.append(event_id)
+        except Exception as e:
+            # By this point the ingestion call has already committed the
+            # seismogram data, so a snapshot failure must not be reported as
+            # an ingestion failure - that would misleadingly suggest the data
+            # itself wasn't added. Roll back and move on to the next event
+            # rather than raising, so one event's snapshot failure (e.g. an
+            # unexpected quality-data shape) can't suppress the baseline for
+            # an unrelated event touched in the same call. A failed commit
+            # leaves the session unusable until rolled back, which would
+            # otherwise make every subsequent event's snapshot fail too.
+            session.rollback()
+            logger.warning(
+                f"Failed to create automatic snapshot for event {event_id}: {e}"
+            )
+            failures.append((event_id, str(e)))
+
+    return snapshotted, failures
 
 
 def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
@@ -641,7 +713,7 @@ def dump_snapshot_table(
         raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     snapshots = get_snapshots(session, event_id)
 
@@ -731,7 +803,7 @@ def dump_snapshot_quality_table(
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
     exclude = (exclude or set()) | {"station_id"}
-    exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+    exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     snapshots = get_snapshots(session, event_id)
     stats = [SeismogramQualityStats.from_snapshot(s) for s in snapshots]
@@ -780,7 +852,7 @@ def _dump_snapshot_related_table(
     """
     logger.debug(f"Dumping {model_name} table to json.")
 
-    exclude_spec: dict[str, set] | None = {"__all__": exclude} if exclude else None
+    exclude_spec: dict[str, set[str]] | None = {"__all__": exclude} if exclude else None
 
     snapshots = get_snapshots(session, event_id)
 

@@ -1,7 +1,7 @@
 """Integration tests for the AimbatNote model's single-parent constraint and core note functions."""
 
 import uuid
-from datetime import timezone
+from datetime import UTC
 
 import pytest
 from pandas import Timestamp
@@ -29,7 +29,7 @@ def _make_station(session: Session) -> AimbatStation:
 
 def _make_event(session: Session) -> AimbatEvent:
     ev = AimbatEvent(
-        time=Timestamp("2010-02-27T06:34:14", tz=timezone.utc),
+        time=Timestamp("2010-02-27T06:34:14", tz=UTC),
         latitude=-36.12,
         longitude=-72.90,
     )
@@ -127,7 +127,7 @@ class TestAimbatNoteOnePerParent:
     def test_notes_for_two_events_are_allowed(self, patched_session: Session) -> None:
         ev1 = _make_event(patched_session)
         ev2 = AimbatEvent(
-            time=Timestamp("2011-03-11T05:46:24", tz=timezone.utc),
+            time=Timestamp("2011-03-11T05:46:24", tz=UTC),
             latitude=38.3,
             longitude=142.4,
         )

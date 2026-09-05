@@ -46,13 +46,13 @@ from aimbat._tui.modals import (
     SnapshotDetailsModal,
     ToolLaunchResult,
 )
-from aimbat._types import SeismogramParameter
 from aimbat.core import (
     BoundICCS,
     add_data_to_project,
     build_iccs_from_snapshot,
     create_project,
     create_snapshot,
+    create_snapshots_for_added_data,
     delete_event,
     delete_seismogram,
     delete_snapshot,
@@ -70,7 +70,13 @@ from aimbat.core import (
 from aimbat.core._migrations import SchemaMismatchError, _build_staleness_warning
 from aimbat.core._project import _project_exists
 from aimbat.db import engine
-from aimbat.io import DATATYPE_SUFFIXES, DataType
+from aimbat.io import (
+    DATATYPE_SUFFIXES,
+    DataType,
+    supports_event_creation,
+    supports_seismogram_creation,
+    supports_station_creation,
+)
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
@@ -80,6 +86,7 @@ from aimbat.models import (
     AimbatStation,
 )
 from aimbat.plot import plot_matrix_image, plot_seismograms, plot_stack
+from aimbat.types import SeismogramParameter
 from aimbat.utils.formatters import fmt_timestamp
 
 from ._format import tui_cell, tui_display_title
@@ -298,7 +305,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
     # ------------------------------------------------------------------
 
     @contextmanager
-    def _suspend(self, label: str | None = None) -> Generator[None, None, None]:
+    def _suspend(self, label: str | None = None) -> Generator[None]:
         """Suspend Textual and handle errors gracefully.
 
         If `label` is given, a panel is shown with a "close matplotlib to
@@ -314,8 +321,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if label is not None:
                 console.print(
                     Panel(
-                        f"[bold]{label}[/bold]\n\n"
-                        "Close the matplotlib window to return to AIMBAT.",
+                        f"[bold]{label}[/bold]\n\nClose the matplotlib window to return to AIMBAT.",
                         title="Interactive Tool Running",
                         border_style="bright_blue",
                         padding=(1, 4),
@@ -380,8 +386,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     else ""
                 )
                 bar.update(
-                    f"▶ {time_str}  |  {lat}, {lon}{modified}"
-                    f"  [dim]{iccs_status}  switch events on the Project tab[/dim]"
+                    f"▶ {time_str}  |  {lat}, {lon}{modified}  [dim]{iccs_status}  switch "
+                    + "events on the Project tab[/dim]"
                 )
         except NoResultFound:
             with Session(engine) as session:
@@ -733,7 +739,13 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 
     def action_add_data(self) -> None:
         """Prompt for a data type, then a data source, and add it to the project."""
-        actions = [(dt.value, dt.name.replace("_", " ")) for dt in DataType]
+        actions = [
+            (dt.value, dt.name.replace("_", " "))
+            for dt in DataType
+            if supports_station_creation(dt)
+            or supports_event_creation(dt)
+            or supports_seismogram_creation(dt)
+        ]
 
         def on_type(selected: str | None) -> None:
             if selected is None:
@@ -747,10 +759,30 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     return
                 try:
                     with Session(engine) as session:
-                        add_data_to_project(session, [path], data_type)
+                        (
+                            added_datasources,
+                            _existing_station_ids,
+                            _existing_event_ids,
+                            existing_seismogram_ids,
+                            _duplicate_warnings,
+                        ) = add_data_to_project(session, [path], data_type)
                         session.commit()
+                        snapshotted, failures = create_snapshots_for_added_data(
+                            session, added_datasources, existing_seismogram_ids
+                        )
                     logger.info(f"User added data file: {path}.")
                     self.notify(f"Added: {path.name}", severity="information")
+                    if snapshotted:
+                        n = len(snapshotted)
+                        self.notify(
+                            f"Snapshotted {n} event{'' if n == 1 else 's'}",
+                            severity="information",
+                        )
+                    for event_id, error in failures:
+                        self.notify(
+                            f"Could not create an automatic snapshot for event {event_id}: {error}",
+                            severity="warning",
+                        )
                     self.refresh_all()
                 except Exception as exc:
                     logger.exception(f"Failed to add data file {path}: {exc}")
@@ -801,8 +833,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 tools in `CAUSAL_TOOL_REGISTRY`, otherwise `None`.
         """
         logger.debug(
-            f"User launched interactive tool '{tool}' "
-            f"(context={context}, all_seis={all_seis}, causal={causal})."
+            f"User launched interactive tool '{tool}' (context={context}, "
+            + f"all_seis={all_seis}, causal={causal})."
         )
         bound = self._iccs_lifecycle.bound
         if bound is None:
@@ -880,7 +912,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 than only the selected ones.
         """
         logger.debug(
-            f"Alignment worker starting: {algorithm=}, {autoflip=}, {autoselect=}, {all_seis=}."
+            f"Alignment worker starting: algorithm={algorithm!r}, autoflip="
+            + f"{autoflip!r}, autoselect={autoselect!r}, all_seis={all_seis!r}."
         )
         notify_msg = "Alignment complete"
         notify_severity: Literal["information", "warning", "error"] = "information"
@@ -975,8 +1008,8 @@ def main() -> None:
     app.run()
     if app.return_code:
         raise RuntimeError(
-            "AIMBAT TUI exited after an unhandled error - see the crash "
-            "report above for details."
+            "AIMBAT TUI exited after an unhandled error - see the crash report "
+            + "above for details."
         )
 
 

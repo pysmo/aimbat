@@ -8,10 +8,12 @@ from pandas import Timedelta, Timestamp
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, col, select
 
+from aimbat.core import _snapshot
 from aimbat.core._snapshot import (
     compute_iccs_hash,
     compute_mccc_hash,
     create_snapshot,
+    create_snapshots_for_added_data,
     delete_snapshot,
     dump_event_parameter_snapshot_table,
     dump_event_quality_snapshot_table,
@@ -24,6 +26,7 @@ from aimbat.core._snapshot import (
     sync_from_matching_hash,
 )
 from aimbat.models import (
+    AimbatDataSource,
     AimbatEvent,
     AimbatEventQuality,
     AimbatSeismogram,
@@ -220,6 +223,133 @@ class TestCreateSnapshot:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         assert snapshot.event_parameters_snapshot.parameters_id == event.parameters.id
+
+
+class TestCreateSnapshotsForAddedData:
+    """Tests for create_snapshots_for_added_data (the shared CLI/TUI auto-snapshot helper)."""
+
+    def test_snapshots_every_event_with_a_new_seismogram(
+        self, loaded_session: Session
+    ) -> None:
+        """Every event whose seismograms are all "new" gets one snapshot.
+
+        Args:
+            loaded_session: The database session.
+        """
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        datasources = loaded_session.exec(select(AimbatDataSource)).all()
+
+        snapshotted, failures = create_snapshots_for_added_data(
+            loaded_session, datasources, existing_seismogram_ids=set()
+        )
+
+        assert failures == []
+        assert set(snapshotted) == {event.id for event in events}
+        assert len(loaded_session.exec(select(AimbatSnapshot)).all()) == len(events)
+
+    def test_skips_events_with_no_new_seismogram(self, loaded_session: Session) -> None:
+        """An event none of whose seismograms are new receives no snapshot.
+
+        Args:
+            loaded_session: The database session.
+        """
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        untouched_event = events[0]
+        datasources = loaded_session.exec(select(AimbatDataSource)).all()
+        existing_seismogram_ids = {s.id for s in untouched_event.seismograms}
+
+        snapshotted, failures = create_snapshots_for_added_data(
+            loaded_session, datasources, existing_seismogram_ids
+        )
+
+        assert failures == []
+        assert untouched_event.id not in snapshotted
+        assert set(snapshotted) == {e.id for e in events if e.id != untouched_event.id}
+
+    def test_default_comment_reports_new_seismogram_count(
+        self, loaded_session: Session
+    ) -> None:
+        """The default comment counts only the new seismograms, singular vs plural.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        assert len(event.seismograms) > 1
+        datasources = [
+            ds
+            for ds in loaded_session.exec(select(AimbatDataSource)).all()
+            if ds.seismogram.event_id == event.id
+        ]
+        # Mark all but one of the event's seismograms as pre-existing, so
+        # exactly one is "new".
+        existing_seismogram_ids = {s.id for s in event.seismograms[1:]}
+
+        create_snapshots_for_added_data(
+            loaded_session, datasources, existing_seismogram_ids
+        )
+
+        new_snapshot = loaded_session.exec(
+            select(AimbatSnapshot).where(AimbatSnapshot.event_id == event.id)
+        ).one()
+        assert new_snapshot.comment == "Added 1 seismogram"
+
+    def test_custom_comment_overrides_default(self, loaded_session: Session) -> None:
+        """A caller-supplied comment replaces the default per-event text.
+
+        Args:
+            loaded_session: The database session.
+        """
+        datasources = loaded_session.exec(select(AimbatDataSource)).all()
+
+        create_snapshots_for_added_data(
+            loaded_session,
+            datasources,
+            existing_seismogram_ids=set(),
+            comment="custom comment",
+        )
+
+        snapshots = loaded_session.exec(select(AimbatSnapshot)).all()
+        assert snapshots
+        assert all(s.comment == "custom comment" for s in snapshots)
+
+    def test_one_event_failure_does_not_block_the_others(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A snapshot failure for one event is isolated from the rest.
+
+        Args:
+            loaded_session: The database session.
+            monkeypatch: Pytest's monkeypatch fixture.
+        """
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        datasources = loaded_session.exec(select(AimbatDataSource)).all()
+        failing_event_id = events[0].id
+
+        real_create_snapshot = _snapshot.create_snapshot
+
+        def flaky_create_snapshot(
+            session: Session,
+            event: AimbatEvent,
+            comment: str | None = None,
+            automatic: bool = False,
+        ) -> None:
+            if event.id == failing_event_id:
+                raise RuntimeError("boom")
+            real_create_snapshot(session, event, comment=comment, automatic=automatic)
+
+        monkeypatch.setattr(_snapshot, "create_snapshot", flaky_create_snapshot)
+
+        snapshotted, failures = create_snapshots_for_added_data(
+            loaded_session, datasources, existing_seismogram_ids=set()
+        )
+
+        assert [event_id for event_id, _ in failures] == [failing_event_id]
+        assert "boom" in failures[0][1]
+        assert failing_event_id not in snapshotted
+        assert set(snapshotted) == {e.id for e in events if e.id != failing_event_id}
+        assert len(loaded_session.exec(select(AimbatSnapshot)).all()) == len(events) - 1
 
 
 class TestDeleteSnapshot:

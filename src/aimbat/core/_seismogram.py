@@ -10,7 +10,6 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
-from aimbat._types import SeismogramParameter
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
@@ -19,15 +18,16 @@ from aimbat.models import (
     AimbatSeismogramParametersBase,
     AimbatSeismogramRead,
 )
+from aimbat.types import SeismogramParameter
 from aimbat.utils import get_title_map, rel
 
 __all__ = [
     "delete_seismogram",
-    "set_seismogram_parameter",
-    "reset_seismogram_parameters",
-    "get_selected_seismograms",
-    "dump_seismogram_table",
     "dump_seismogram_parameter_table",
+    "dump_seismogram_table",
+    "get_selected_seismograms",
+    "reset_seismogram_parameters",
+    "set_seismogram_parameter",
 ]
 
 type SeismogramParameterBool = Literal[
@@ -94,7 +94,7 @@ def dump_seismogram_table(
         raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     if event_id is not None:
         statement = select(AimbatSeismogram).where(
@@ -364,7 +364,7 @@ def dump_seismogram_parameter_table(
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     adapter: TypeAdapter[Sequence[AimbatSeismogramParameters]] = TypeAdapter(
         Sequence[AimbatSeismogramParameters]

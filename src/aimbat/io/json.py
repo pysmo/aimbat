@@ -45,8 +45,8 @@ if TYPE_CHECKING:
     from aimbat.models import AimbatEvent, AimbatStation
 
 __all__ = [
-    "create_station_from_json",
     "create_event_from_json",
+    "create_station_from_json",
 ]
 
 

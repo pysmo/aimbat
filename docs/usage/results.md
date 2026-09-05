@@ -33,6 +33,20 @@ run.
     results to JSON**. A file-picker dialog opens. The suggested filename is
     `results_<short_id>.json`.
 
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.core import dump_snapshot_results
+
+    with Session(engine) as session:
+        results = dump_snapshot_results(session, snapshot_id)
+    ```
+
+    `results` is the same dict the CLI serialises to JSON. Pass
+    `by_alias=True` for the camelCase field names `--alias` produces.
+
 The CLI and shell commands accept `--alias` to use camelCase field names (e.g.
 `snapshotId`, `eventTime`, `mcccRmse`).
 
@@ -105,46 +119,8 @@ on every seismogram row.
 `iccs_cc` is `null` for snapshots taken before the event was first opened in
 AIMBAT. All MCCC fields are `null` for snapshots taken before MCCC was run.
 
-## Working with the output
-
-### Filtering with `jq`
-
-Extract only selected seismograms:
-
-```bash
-aimbat snapshot results <SNAPSHOT_ID> | \
-    jq '[.seismograms[] | select(.select == true)]'
-```
-
-Extract stations where MCCC timing error is below 0.05 s:
-
-```bash
-aimbat snapshot results <SNAPSHOT_ID> | \
-    jq '[.seismograms[] | select(.mccc_error != null and .mccc_error < 0.05)]'
-```
-
-Export station names and pick times as CSV:
-
-```bash
-aimbat snapshot results <SNAPSHOT_ID> | \
-    jq -r '.seismograms[] | [.name, .t1] | @csv'
-```
-
-### Python
-
-```python
-import json
-
-with open("results.json") as f:
-    data = json.load(f)
-
-print(f"Event: {data['event_time']}  ({data['event_latitude']}, {data['event_longitude']})")
-print(f"MCCC RMSE: {data['mccc_rmse']} s")
-
-for seis in data["seismograms"]:
-    if seis["select"]:
-        print(f"  {seis['name']:12s}  t1={seis['t1']}  err={seis['mccc_error']}")
-```
+See [Working with exported results](recipes.md#working-with-exported-results)
+for `jq` and Python examples of filtering and reading this output.
 
 ## ICCS vs MCCC picks
 
@@ -152,8 +128,8 @@ An ICCS-only snapshot has `t1` values from the iterative stack alignment. A
 post-MCCC snapshot has `t1` from the least-squares pairwise solution instead:
 slightly different in value, plus formal standard errors in `mccc_error`.
 
-Prefer the MCCC `t1` values where formal uncertainties matter. Where only
-relative picks are needed, an ICCS-only snapshot is enough.
+The MCCC `t1` values are preferable where formal uncertainties matter; an
+ICCS-only snapshot is enough where only relative picks are needed.
 
 See [Aligning with ICCS](alignment.md) and [MCCC Alignment](mccc.md) for what
 each algorithm produces and when to use it.

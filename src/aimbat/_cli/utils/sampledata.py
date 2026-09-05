@@ -13,7 +13,7 @@ from cyclopts import App, Parameter
 
 from aimbat._cli.common import ConfirmParameters, confirm_or_abort, handle_issues
 
-__all__ = ["sampledata_cli_download", "sampledata_cli_delete"]
+__all__ = ["sampledata_cli_delete", "sampledata_cli_download"]
 
 app = App(name="sampledata", help=__doc__, help_format="markdown")
 

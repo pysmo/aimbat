@@ -5,7 +5,7 @@ from typing import Any
 
 from aimbat import settings
 
-__all__ = ["print_error_panel", "handle_issues", "confirm_or_abort"]
+__all__ = ["confirm_or_abort", "handle_issues", "print_error_panel"]
 
 
 def print_error_panel(e: Exception) -> None:
@@ -70,7 +70,7 @@ def handle_issues[F: Callable[..., Any]](func: F) -> F:
                 print_error_panel(e)
                 sys.exit(1)
 
-    return wrapper  # type: ignore
+    return wrapper  # type: ignore[return-value]
 
 
 def confirm_or_abort(message: str, *, yes: bool) -> None:

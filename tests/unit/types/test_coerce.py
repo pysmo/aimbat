@@ -1,4 +1,4 @@
-"""Tests for aimbat._types._coerce.
+"""Tests for aimbat.types._coerce.
 
 The Pydantic validator and the SQLAlchemy type decorator both route bare
 input through `coerce_to_timedelta`; these tests pin the shared contract so
@@ -8,7 +8,7 @@ the two layers cannot drift into the 1e9 (seconds vs nanoseconds) mismatch.
 import pytest
 from pandas import Timedelta
 
-from aimbat._types._coerce import coerce_to_timedelta
+from aimbat.types._coerce import coerce_to_timedelta
 
 
 class TestCoerceToTimedelta:

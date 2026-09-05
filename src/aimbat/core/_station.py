@@ -22,11 +22,11 @@ from aimbat.utils import get_title_map, rel
 
 __all__ = [
     "delete_station",
-    "get_stations_in_event",
+    "dump_station_quality_table",
+    "dump_station_table",
     "get_station_iccs_ccs",
     "get_station_quality",
-    "dump_station_table",
-    "dump_station_quality_table",
+    "get_stations_in_event",
 ]
 
 
@@ -207,7 +207,7 @@ def dump_station_table(
     logger.debug("Dumping AIMBAT station table to json.")
 
     if exclude is not None:
-        exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     if event_id is not None:
         statement = (
@@ -288,7 +288,7 @@ def dump_station_quality_table(
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
     exclude = (exclude or set()) | {"event_id", "snapshot_id"}
-    exclude: dict[str, set] = {"__all__": exclude}  # type: ignore[no-redef]
+    exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     statement = select(AimbatStation).options(
         selectinload(rel(AimbatStation.seismograms)).selectinload(
