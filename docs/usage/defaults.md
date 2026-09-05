@@ -17,6 +17,7 @@ be overridden on a per-project basis (in order of precedence):
 
 !!! tip "Viewing the settings in effect"
 
-    To view the settings currently in use, run `aimbat utils settings`.
+    `aimbat utils settings` shows the settings currently in use; `--no-pretty`
+    prints them as `KEY="value"` pairs ready to paste into `.env`.
 
 [^1]: Literally a file called `.env` (not `<SOMETHING>.env`).

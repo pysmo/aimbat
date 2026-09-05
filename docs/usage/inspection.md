@@ -1,8 +1,11 @@
 # Initial data inspection
 
-Before aligning anything, inspect the imported seismograms visually to catch
+Before aligning anything, a visual check of the imported seismograms catches
 obvious problems: garbled waveforms, excessive noise, flat traces, data gaps.
 Catching these early avoids tuning parameters around unusable data.
+
+This pass is for the obvious cases only. Autoselect handles borderline traces
+algorithmically, across the whole array, not one trace at a time.
 
 Two views help.
 
@@ -29,8 +32,21 @@ moveout across the traces.
     In the **Project** tab, press `Enter` on an event row and choose **View
     seismograms**.
 
-With many traces, only a subset shows at first. Scroll to pan through the rest;
-hold **Shift** and scroll to pan the time axis.
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.models import AimbatEvent
+    from aimbat.plot import plot_seismograms
+
+    with Session(engine) as session:
+        event = session.get(AimbatEvent, event_id)
+        plot_seismograms(session, event, return_fig=False)
+    ```
+
+With many traces, only a subset shows at first. Scrolling pans through the
+rest; scrolling with **Shift** held pans the time axis.
 
 Look for:
 
@@ -77,7 +93,7 @@ isolated to one event.
         plot_seismograms(session, station, return_fig=False)
     ```
 
-Same scroll behaviour: scroll to pan traces, shift+scroll to pan time.
+Same scroll behaviour: scrolling pans traces, shift+scroll pans time.
 
 ## How the data are prepared
 
@@ -96,11 +112,10 @@ never modified.
 Because the filter follows the current event parameters, the plots change with
 it. Inspecting both filtered and unfiltered helps separate noise from signal.
 
-## Bad data
+## Excluding bad data
 
-To exclude a seismogram from processing, delete it: see
+Excluding a seismogram from processing means deleting it: see
 [Removing data](data.md#removing-data). The file on disk is unaffected.
 
-For borderline traces, noisy but perhaps usable, leave them in and let ICCS
-autoselect exclude them on cross-correlation quality rather than deleting them
-outright.
+Deletion is for the obvious cases above; autoselect handles the rest via
+`min_cc`.

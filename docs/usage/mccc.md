@@ -13,7 +13,8 @@ constrained inversion. Running ICCS first is standard, not by rule but because
 ICCS has the tools MCCC lacks: interactive parameter adjustment, autoflip,
 autoselect. Once those stop improving things, MCCC is ready.
 
-Take a snapshot before running it.
+Snapshotting beforehand preserves the pre-MCCC state, in case the run needs to
+be undone.
 
 ## How MCCC differs from ICCS
 
@@ -63,11 +64,26 @@ what window, whether to filter) is done beforehand with ICCS.
 
 === "TUI"
 
-    Press `a` for the alignment menu and choose **MCCC**.
+    Press `a` for the alignment menu and choose **MCCC**. Toggle **All
+    seismograms** (`a`) before running to include deselected ones.
+
+=== "API"
+
+    ```python
+    from sqlmodel import Session, select
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, run_mccc
+    from aimbat.models import AimbatEvent
+
+    with Session(engine) as session:
+        event = session.exec(select(AimbatEvent)).first()
+        bound = create_iccs_instance(session, event)
+        run_mccc(session, event, bound.iccs, all_seismograms=False)
+    ```
 
 MCCC updates `t1` for all participating seismograms and writes the results to the
-database immediately. Inspect the stack and matrix image afterwards to confirm
-the picks improved.
+database immediately. The stack and matrix image afterwards show whether the
+picks improved.
 
 ## Parameters
 
@@ -97,12 +113,10 @@ unstable on sparse or noisy ones.
 
 By default MCCC includes only `select = True` seismograms, the same subset that
 formed the ICCS stack. `--all` includes the deselected ones: their picks are
-updated too, but they may degrade the inversion if genuinely noisy or misaligned.
-Use with caution. See
+updated too, but they may degrade the inversion if genuinely noisy or
+misaligned, so it is best used with caution. See
 [`aimbat align mccc`][aimbat._cli.align.cli_mccc_run] for the full flag
 reference.
 
-## Exporting
-
-After MCCC, take a snapshot and export the results from it. See
+After MCCC, results export from a snapshot: see
 [Exporting Results](results.md).

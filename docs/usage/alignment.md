@@ -5,11 +5,12 @@
 ICCS alignment is exploratory. There is no fixed sequence that works for every
 dataset. It is a feedback loop: adjust a parameter, run ICCS, examine the result,
 adjust again. The goal is a stack that is coherent across the array, with high
-correlation coefficients on most traces.
+correlation coefficients on most traces. See
+[Workflow and strategy](../first-steps/workflow.md#with-aimbat) for where this
+loop fits in the wider pipeline.
 
 Parameters interact. A filter that sharpens the waveform may allow a narrower
-window, which changes which traces align well. Change one thing at a time and
-watch the effect before the next change.
+window, which changes which traces align well.
 
 ## What one run does
 
@@ -17,7 +18,9 @@ Each iteration within a run cross-correlates every seismogram against the curren
 stack, shifts its pick (`t1`) by the lag that best aligns it, and rebuilds the
 stack from the newly aligned traces. This repeats, each stack better aligned than
 the last, until the stack stops changing (see [Convergence](#convergence)) or an
-iteration limit is reached.
+iteration limit is reached. See pysmo's
+[execution flow](https://docs.pysmo.org/api/pysmo/tools/iccs/#pysmo.tools.iccs--execution-flow)
+for the exact steps.
 
 Because every seismogram is compared with the stack rather than with every other
 seismogram, ICCS is fast. It is meant to run first, preparing well-aligned data
@@ -48,8 +51,22 @@ for a final [MCCC](mccc.md) pass.
     Press `a` for the alignment menu and choose **ICCS**. Toggle **Autoflip**
     (`f`) and **Autoselect** (`s`) before running.
 
-After each run, inspect the stack and matrix image before deciding what to
-change. See [Parameters](parameters.md) for what each one controls, and
+=== "API"
+
+    ```python
+    from sqlmodel import Session, select
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance, run_iccs
+    from aimbat.models import AimbatEvent
+
+    with Session(engine) as session:
+        event = session.exec(select(AimbatEvent)).first()
+        bound = create_iccs_instance(session, event)
+        run_iccs(session, event, bound.iccs, autoflip=True, autoselect=True)
+    ```
+
+The stack and matrix image after each run show what to change next. See
+[Parameters](parameters.md) for what each one controls, and
 [`aimbat align iccs`][aimbat._cli.align.cli_iccs_run] for the flags.
 
 ## Running modes
@@ -69,7 +86,8 @@ seismogram by −1 before it enters the stack and cross-correlation. With autofl
 ICCS detects traces whose maximum absolute correlation with the stack is negative
 and sets their `flip`.
 
-Autoflip is safe to run repeatedly. Run it once early, or leave it on throughout.
+Autoflip is safe to run repeatedly, whether run once early or left on
+throughout.
 
 ### Autoselect
 
@@ -80,8 +98,8 @@ later run if parameters improve and it aligns better.
 
 Autoselect is therefore not permanent. Narrowing the time window also raises CC
 values across the board, which can bring deselected traces back above the
-threshold without any change in alignment quality. Keep that in mind when reading
-CC values after a window change.
+threshold without any change in alignment quality. This is worth remembering
+when reading CC values after a window change.
 
 ## Convergence
 
@@ -107,7 +125,7 @@ There is no objective criterion. Practical signals that the dataset is ready:
 At this point the ICCS picks can be exported directly from a snapshot (see
 [Exporting Results](results.md)). For formal per-station timing errors, for
 example as input to tomographic inversion, continue to [MCCC](mccc.md) first.
-Either way, take a snapshot before any further change.
+Either way, a snapshot taken before any further change preserves this result.
 
 ## Tips
 
@@ -116,5 +134,5 @@ Either way, take a snapshot before any further change.
 - **Snapshot before each experiment.** A different window or filter is easy to
     back out of with a snapshot in place.
 - **Delete persistent outliers.** A seismogram with a poor CC across many runs
-    and parameter combinations is dragging the stack down; remove it from the
-    project.
+    and parameter combinations is dragging the stack down and rarely improves
+    with further adjustment.

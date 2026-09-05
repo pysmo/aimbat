@@ -1,5 +1,24 @@
 # Snapshots
 
+## When to take a snapshot
+
+Before a change that might need undoing:
+
+- after initial alignment looks good, before tightening parameters
+- before an experimental configuration (a different window or filter)
+- before running MCCC
+
+`aimbat data add` snapshots each event that received new data, so a clean
+post-import baseline already exists. See
+[Adding Data](data.md#automatic-snapshots).
+
+!!! tip "Snapshot good parameter combinations — final results are exported from snapshots"
+
+    A promising combination is only exportable once it has been snapshotted,
+    so snapshotting one as soon as it looks good works better than waiting
+    until the end. It also leaves multiple parameter sets to compare, and a
+    choice of which results to keep. See [Exporting Results](results.md).
+
 ## What a snapshot captures
 
 A snapshot freezes an event's processing state at a point in time:
@@ -18,18 +37,6 @@ context seismograms are fully determined by the raw data and the parameters.
 Snapshots are per-event; each event keeps its own list. A seismogram added after
 a snapshot has no entry in it, and is included in a rollback with its current
 live parameters. The snapshot's event-level parameters still apply to it.
-
-## When to take a snapshot
-
-Before a change that might need undoing:
-
-- after initial alignment looks good, before tightening parameters
-- before an experimental configuration (a different window or filter)
-- before running MCCC
-
-`aimbat data add` snapshots each event that received new data, so a clean
-post-import baseline already exists. See
-[Adding Data](data.md#automatic-snapshots).
 
 ## Creating a snapshot
 
@@ -51,6 +58,19 @@ post-import baseline already exists. See
 
     Press `n`, optionally enter a comment, and confirm. The snapshot appears in
     the **Snapshots** tab.
+
+=== "API"
+
+    ```python
+    from sqlmodel import Session, select
+    from aimbat.db import engine
+    from aimbat.core import create_snapshot
+    from aimbat.models import AimbatEvent
+
+    with Session(engine) as session:
+        event = session.exec(select(AimbatEvent)).first()
+        create_snapshot(session, event, comment="after bandpass 1–3Hz")
+    ```
 
 The comment is optional but helps identify the snapshot later.
 
@@ -75,8 +95,21 @@ The comment is optional but helps identify the snapshot later.
     The **Snapshots** tab lists the selected event's snapshots. Select another
     event first to see its snapshots.
 
-The table shows the ID, timestamp, comment, the automatic flag, and the
-seismogram count.
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.core import get_snapshots
+
+    with Session(engine) as session:
+        snapshots = get_snapshots(session, event_id)  # one event
+        all_snapshots = get_snapshots(session)         # every event
+    ```
+
+The CLI, shell, and TUI table shows the ID, timestamp, comment, the automatic
+flag, and the seismogram count. The API returns `AimbatSnapshot` objects with
+the same information as attributes.
 
 ## Inspecting a snapshot
 
@@ -101,6 +134,23 @@ seismogram count.
     Press `Enter` on a snapshot row for **Show details**, **Preview stack**, or
     **Preview matrix image**. The **context** (`c`) and **all seismograms** (`a`)
     toggles apply.
+
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.core import build_iccs_from_snapshot
+    from aimbat.plot import plot_stack
+
+    with Session(engine) as session:
+        bound = build_iccs_from_snapshot(session, snapshot_id)
+        plot_stack(bound.iccs, context=True, all_seismograms=False, return_fig=False)
+    ```
+
+    [`build_iccs_from_snapshot`][aimbat.core.build_iccs_from_snapshot] reads
+    waveform data live but uses the snapshot's parameters; it never writes to
+    the database.
 
 `details` shows the event-level parameters as they were when the snapshot was
 taken. `preview` builds the stack from the snapshot's parameters without
@@ -130,6 +180,17 @@ again.
     Press `Enter` on a snapshot row and choose **Rollback to this snapshot**. A
     confirmation dialog appears first.
 
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.core import rollback_to_snapshot
+
+    with Session(engine) as session:
+        rollback_to_snapshot(session, snapshot_id)
+    ```
+
 If the snapshot holds MCCC quality data, the live quality metrics are restored
 too. See
 [`aimbat snapshot rollback`][aimbat._cli.snapshot.cli_snapshot_rollback] for the
@@ -153,53 +214,18 @@ rule used to pick which snapshot's quality data are restored.
 
     Press `Enter` on a snapshot row and choose **Delete snapshot**.
 
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.core import delete_snapshot
+
+    with Session(engine) as session:
+        delete_snapshot(session, snapshot_id)
+    ```
+
 Deletion is permanent.
-
-## Notes
-
-Each snapshot can carry a freeform Markdown note, for recording observations or
-decisions at the time it was taken.
-
-=== "CLI"
-
-    ```bash
-    aimbat snapshot note read <SNAPSHOT_ID>
-    aimbat snapshot note edit <SNAPSHOT_ID>  # opens $EDITOR, saves on exit
-    ```
-
-=== "Shell"
-
-    ```bash
-    snapshot note read <SNAPSHOT_ID>
-    snapshot note edit <SNAPSHOT_ID>
-    ```
-
-With no note yet, `read` prints `(no note)` and `edit` opens an empty buffer. The
-note is saved when the editor closes without error.
-
-## Exporting
-
-Two exports, for different purposes:
-
-- **`snapshot results`** — a curated per-station arrival-time document (frozen
-    `t1`, ICCS CC, MCCC metrics if run). This is the format for downstream tools
-    such as tomographic inversion. See [Exporting Results](results.md).
-- **`snapshot dump`** — the raw snapshot tables as JSON, for archiving or
-    scripting.
-
-```bash
-aimbat snapshot dump
-```
-
-The dump is a JSON object with five keys, cross-referenced by `snapshot_id`:
-
-| Key | Contents | Always present |
-| --- | --- | --- |
-| `snapshots` | metadata (ID, time, comment, `automatic` flag, hash) | Yes |
-| `event_parameters` | event parameter snapshots | Yes |
-| `seismogram_parameters` | per-seismogram parameter snapshots | Yes |
-| `event_quality` | event quality (MCCC RMSE) | Only if MCCC has run |
-| `seismogram_quality` | per-seismogram quality (ICCS CC, MCCC metrics) | Only if quality metrics exist |
 
 ## Quality statistics
 
@@ -222,6 +248,19 @@ each one:
     snapshot quality dump
     ```
 
-The table shows per-snapshot aggregated ICCS CC and, where MCCC has run, its
-metrics (mean, SEM) and the global RMSE, making it easy to compare quality across
-snapshots.
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.core import dump_snapshot_quality_table
+
+    with Session(engine) as session:
+        stats = dump_snapshot_quality_table(session, event_id=event_id)  # one event
+        all_stats = dump_snapshot_quality_table(session)                 # every event
+    ```
+
+All three surface per-snapshot aggregated ICCS CC and, where MCCC has run, its
+metrics (mean, SEM) and the global RMSE, making it easy to compare quality
+across snapshots. The CLI and shell render a table; the API returns the same
+fields as a list of dicts.

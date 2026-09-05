@@ -31,8 +31,10 @@ nav = [
     { "MCCC Alignment" = "usage/mccc.md" },
     { "Quality Assessment" = "usage/quality.md" },
     { "Exporting Results" = "usage/results.md" },
-    { "Python API" = "usage/api.md" },
+    { "Exporting Results" = "usage/results.md" },
+    { "API Basics" = "usage/api-basics.md" },
     { "Aimbat Defaults" = "usage/defaults.md" },
+    { "Recipes" = "usage/recipes.md" },
   ] },
   { "API reference" = [
     "api/aimbat.md",
@@ -169,6 +171,7 @@ inventories = [
   "https://numpy.org/doc/stable/objects.inv",
   "https://docs.scipy.org/doc/scipy/objects.inv",
   "https://matplotlib.org/stable/objects.inv",
+  "https://docs.sqlalchemy.org/en/20/objects.inv",
 ]
 [project.plugins.mkdocstrings.handlers.python.options]
 allow_inspection = true

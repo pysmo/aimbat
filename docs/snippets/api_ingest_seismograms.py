@@ -2,12 +2,13 @@
 Ingest seismograms directly from a PysmoProject, with no SAC/JSON round-trip.
 
 A PysmoProject fetches waveforms on demand and is just one possible producer
-of (seismogram, station, event) triples - add_seismograms_to_project accepts
+of (seismogram, station, event) triples. add_seismograms_to_project accepts
 triples built from any pysmo Station/Event/IccsSeismogram-shaped objects,
 however the caller likes (a notebook, an ObsPy Stream + inventory, ...).
 
-This reuses the reference station/event pair from pysmo's own PysmoProject
-documentation: IU.ANMO recording the 2010-02-27 Maule, Chile M8.8 earthquake.
+This reuses one event and three stations from AIMBAT's own Alaska teleseismic
+sample dataset (../aimbat-sampledata): the 2014-04-12 M7.6 Solomon Islands
+earthquake. All three stations (AK/AV network) are in the Aleutians.
 """
 
 import pandas as pd
@@ -24,19 +25,35 @@ from pysmo.tools.signal import remove_response
 from aimbat.core import add_seismograms_to_project
 from aimbat.db import engine
 
-station_anmo = MiniStation(
-    name="ANMO",
-    network="IU",
-    location="00",
-    channel="LHZ",
-    latitude=34.945981,
-    longitude=-106.457133,
+station_atka = MiniStation(
+    name="ATKA",
+    network="AK",
+    location="--",
+    channel="BHZ",
+    latitude=52.2016,
+    longitude=-174.1975,
 )
-event_maule = MiniEvent(
-    latitude=-36.122,
-    longitude=-72.898,
-    depth=22900.0,
-    time=pd.Timestamp("2010-02-27T06:34:11.53Z"),
+station_msw = MiniStation(
+    name="MSW",
+    network="AV",
+    location="--",
+    channel="BHZ",
+    latitude=53.9148,
+    longitude=-166.788,
+)
+station_akrb = MiniStation(
+    name="AKRB",
+    network="AV",
+    location="--",
+    channel="BHZ",
+    latitude=54.1292,
+    longitude=-166.0708,
+)
+event_solomon = MiniEvent(
+    latitude=-11.3487,
+    longitude=162.0025,
+    depth=22600.0,
+    time=pd.Timestamp("2014-04-12T20:14:39.300Z"),
 )
 
 
@@ -63,22 +80,21 @@ class ToMiniIccsSeismogramWithResponseRemoved:
 
 
 project = PysmoProject(
-    entries=[ProjectEntry(station=station_anmo, event=event_maule)],
+    entries=[
+        ProjectEntry(station=station_atka, event=event_solomon),
+        ProjectEntry(station=station_msw, event=event_solomon),
+        ProjectEntry(station=station_akrb, event=event_solomon),
+    ],
     seismogram_transform=ToMiniIccsSeismogramWithResponseRemoved(
-        # Teleseismic P on IU.ANMO's LHZ (1 Hz) channel: comfortably above
-        # the instrument's own corner and below the 0.5 Hz Nyquist.
-        pre_filt=(0.01, 0.02, 0.2, 0.3),
+        # Teleseismic P on a broadband BHZ channel: comfortably within its
+        # passband, well clear of microseismic noise below ~0.05 Hz.
+        pre_filt=(0.03, 0.05, 0.5, 1.0),
     ),
 )
 
-# Build (seismogram, station, event) triples. project.seismogram() fetches
-# and applies seismogram_transform; nothing reaches disk until
-# add_seismograms_to_project persists it below. PysmoProject's fetch cache
-# is in-memory only and the default fetch_seismogram hits a remote FDSN
-# service, so this write is the seismogram's first and only copy on disk -
-# not a duplicate. That stops being true if fetch_seismogram is swapped for
-# one that reads local files (e.g. wrapping SAC.fetch over a local
-# archive), which would make data_dir a second, redundant copy.
+# Build (seismogram, station, event) triples; project.seismogram() fetches
+# and applies seismogram_transform. Nothing reaches disk until
+# add_seismograms_to_project writes it to data_dir below.
 items = [
     (project.seismogram(station, event), station, event)
     for event in project.events

@@ -28,8 +28,8 @@ window starts a little before the onset and extends through the arrival. A short
 narrow enough to be dominated by the target phase rather than noise or later
 arrivals.
 
-Start with a window that frames the onset in the stack plot. Narrowing it once
-alignment is reasonable often improves precision.
+A window that frames the onset in the stack plot is a reasonable starting
+point. Narrowing it once alignment is reasonable often improves precision.
 
 ## Bandpass filter
 
@@ -57,8 +57,40 @@ affect the cross-correlation itself, only which seismograms contribute to the
 stack in later iterations.
 
 Set too high early on, it excludes seismograms that would align well once the
-stack improves. Start permissive and tighten as alignment converges. Adjust it
-interactively with `aimbat tool cc`.
+stack improves. A permissive starting value, tightened as alignment converges,
+works better. `aimbat tool cc` adjusts it interactively.
+
+!!! tip "Window changes shift what min_cc excludes"
+
+    Narrowing the time window typically raises CC values across the array. A
+    seismogram that autoselect had deselected can cross back above `min_cc`
+    without any real improvement in alignment. Running ICCS with autoselect
+    after narrowing the window may call for raising `min_cc`, to deselect it
+    again or keep it deselected; see [Autoselect](alignment.md#autoselect).
+
+## Python API
+
+```python
+from pandas import Timedelta
+from sqlmodel import Session, select
+from aimbat.db import engine
+from aimbat.core import set_event_parameter, set_seismogram_parameter
+from aimbat._types import EventParameter, SeismogramParameter
+from aimbat.models import AimbatEvent, AimbatSeismogram
+
+with Session(engine) as session:
+    event = session.exec(select(AimbatEvent)).first()
+    set_event_parameter(session, event.id, EventParameter.WINDOW_PRE, Timedelta(seconds=-10))
+
+    seismogram = session.exec(select(AimbatSeismogram)).first()
+    set_seismogram_parameter(session, seismogram.id, SeismogramParameter.SELECT, False)
+```
+
+`set_event_parameter` validates the new value on its own. Pass
+`validate_iccs=True` to also check it doesn't break ICCS construction, the
+same check the CLI performs. [`set_event_parameters`][aimbat.core.set_event_parameters]
+sets several event parameters as one validated batch, for values only valid
+together (e.g. a new `bandpass_fmin` above the old `bandpass_fmax`).
 
 ## Resetting a seismogram
 
@@ -84,6 +116,17 @@ Resetting clears `t1`, so it falls back to `t0` on the next stack rebuild.
     Press `Enter` on a row in the **Live data** tab and choose **Reset
     seismogram** (`u`).
 
+=== "API"
+
+    ```python
+    from sqlmodel import Session
+    from aimbat.db import engine
+    from aimbat.core import reset_seismogram_parameters
+
+    with Session(engine) as session:
+        reset_seismogram_parameters(session, seismogram_id)
+    ```
+
 ## Interactive adjustment
 
 Four tools set a value by interaction with a waveform plot rather than a typed
@@ -102,7 +145,10 @@ documented: [`update_pick`][pysmo.tools.iccs.update_pick] (`t1`),
     aimbat tool bandpass <ID> # adjust the bandpass filter interactively
     ```
 
-    All four accept `--no-context` and `--all`.
+    All four accept `--no-context` and `--all`. `phase`, `window`, and `cc`
+    also accept `--causal`; `bandpass` doesn't take one. Defaults: causal for
+    `phase`, zero-phase for `window` and `cc`. See
+    [The ICCS stack](iccs-stack.md) for why the defaults differ.
 
 === "Shell"
 
@@ -113,7 +159,10 @@ documented: [`update_pick`][pysmo.tools.iccs.update_pick] (`t1`),
     tool bandpass
     ```
 
-    All four accept `--no-context` and `--all`.
+    All four accept `--no-context` and `--all`. `phase`, `window`, and `cc`
+    also accept `--causal`; `bandpass` doesn't take one. Defaults: causal for
+    `phase`, zero-phase for `window` and `cc`. See
+    [The ICCS stack](iccs-stack.md) for why the defaults differ.
 
 === "TUI"
 
@@ -124,5 +173,7 @@ documented: [`update_pick`][pysmo.tools.iccs.update_pick] (`t1`),
     - **Min CC.** Scroll the matrix image to set the threshold.
     - **Bandpass filter.** Toggle the filter and adjust the bounds.
 
-    Toggle **Context** (`c`) and **All seismograms** (`a`) before launching. The
-    TUI suspends while the matplotlib window is open.
+    Toggle **Context** (`c`) and **All seismograms** (`a`) before launching.
+    **Phase arrival**, **Time window**, and **Min CC** also show a **zero-phase**
+    toggle (`z`); **Bandpass filter** doesn't. The TUI suspends while the
+    matplotlib window is open.

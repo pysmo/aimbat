@@ -6,18 +6,32 @@ flags) together with the stack and the views derived from them. This page covers
 that state and those views. The algorithm that updates them is in
 [Aligning with ICCS](alignment.md).
 
+!!! tip "Zero-phase vs causal filtering"
+
+    ICCS always uses the zero-phase filter internally: it introduces no time
+    shift, but energy leaking backward in time can smear a sharp onset. A
+    causal filter with approximately the same amplitude response avoids that
+    smearing, so it's used for viewing purposes, such as picking a phase
+    onset, never by the algorithm itself. Which one is shown by default
+    varies per tool, and the default is overridable per call (`--causal`, or
+    the TUI's `z` toggle): see
+    [Seismogram representations](#seismogram-representations) and
+    [Parameters](parameters.md#interactive-adjustment).
+
 ## Live data
 
 The live data are the state of the event currently being worked on: picks, the
 select and flip flags, and the values derived from them, as held by the
-in-memory ICCS instance. The CLI, shell, and TUI all read and write this same
-state, so it always reflects the most recent change, whichever interface made
-it. The TUI shows it as a table in its **Live data** tab.
+in-memory ICCS instance. The CLI, shell, TUI, and Python API all read and
+write this same state, so it always reflects the most recent change,
+whichever interface made it. The TUI shows it as a table in its **Live data**
+tab.
 
 - **CC values** come from `ICCS.ccs`, a cached property that cross-correlates
     each seismogram against the current stack on first access and clears when
-    parameters change. You do not need to run `align iccs` to see them; they
-    exist as soon as the seismograms are loaded.
+    parameters change. Running `align iccs` is not required to see them: any
+    ICCS-consuming command, such as a plot or opening the shell or TUI,
+    computes them from whatever picks are currently set.
 - **Picks (`t1`), select, and flip** reflect the database values loaded into the
     instance. A change from any interface takes effect immediately, with no
     restart.
@@ -87,8 +101,23 @@ poor ones.
 
 === "TUI"
 
-    Press `t` for the Tools menu and choose **Plot stack**. Toggle **context**
+    Press `t` for the Tools menu and choose **Stack plot**. Toggle **context**
     and **all seismograms** in the menu before launching.
+
+=== "API"
+
+    ```python
+    from sqlmodel import Session, select
+    from aimbat.db import engine
+    from aimbat.core import create_iccs_instance
+    from aimbat.models import AimbatEvent
+    from aimbat.plot import plot_stack
+
+    with Session(engine) as session:
+        event = session.exec(select(AimbatEvent)).first()
+        bound = create_iccs_instance(session, event)
+        plot_stack(bound.iccs, context=True, all_seismograms=False, return_fig=False)
+    ```
 
 ## Viewing the matrix image
 
@@ -116,18 +145,26 @@ The same time-window highlight and `context` / `--no-context` toggle apply.
 
 === "TUI"
 
-    Press `t` and choose **Plot matrix image**.
+    Press `t` and choose **Matrix image**.
+
+=== "API"
+
+    ```python
+    from aimbat.plot import plot_matrix_image
+
+    plot_matrix_image(bound.iccs, context=True, all_seismograms=False, return_fig=False)
+    ```
 
 ## Choosing a view
 
 The two views complement each other:
 
-- **Stack view** is best for assessing overall alignment and picking a new
-    arrival: the stack's shape and its coherence with individual traces are
-    immediately apparent.
-- **Matrix image** is best for spotting patterns: a cluster of poor CCs at the
-    bottom, an inverted-polarity trace (an opposite-coloured band), or a group
-    of traces shifted consistently in one direction.
+- **Stack view** shows overall alignment and supports picking a new arrival:
+    the stack's shape and its coherence with individual traces are immediately
+    apparent.
+- **Matrix image** surfaces patterns: a cluster of poor CCs at the bottom, an
+    inverted-polarity trace (an opposite-coloured band), or a group of traces
+    shifted consistently in one direction.
 
 Using both after a parameter change gives the most complete picture.
 
