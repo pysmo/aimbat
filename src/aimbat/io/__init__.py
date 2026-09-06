@@ -18,6 +18,7 @@ from .._utils import export_module_names
 
 _internal_names = set(dir())
 
+from . import _flush as _flush  # registers Session commit/rollback listeners
 from . import json as json
 from . import mseed as mseed
 from . import sac as sac

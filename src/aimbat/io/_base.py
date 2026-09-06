@@ -16,6 +16,7 @@ from collections import OrderedDict
 from collections.abc import Callable
 from os import PathLike
 from typing import TYPE_CHECKING
+from weakref import WeakKeyDictionary
 
 import numpy as np
 import numpy.typing as npt
@@ -25,6 +26,8 @@ from aimbat.logger import logger
 from ._data import DataType
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from aimbat.models import (
         AimbatEvent,
         AimbatSeismogram,
@@ -47,6 +50,7 @@ __all__ = [
     "seismogram_creator",
     "seismogram_data_reader",
     "seismogram_data_writer",
+    "stage_seismogram_data",
     "station_creator",
     "supports_event_creation",
     "supports_seismogram_creation",
@@ -60,6 +64,15 @@ __all__ = [
 # entry only costs a re-read.
 _CACHE_MAX_ENTRIES = 1024
 _cache: OrderedDict[tuple[str, DataType], npt.NDArray[np.floating]] = OrderedDict()
+
+# Per-session staged waveform writes, keyed weakly by the owning `Session`.
+# `stage_seismogram_data` fills this; the listeners in `aimbat.io._flush`
+# flush a session's pages to disk on its commit and drop them on rollback.
+# Weak keys mean an abandoned session (never committed or rolled back) loses
+# its staged pages when it is garbage-collected.
+_pending: WeakKeyDictionary[
+    Session, dict[tuple[str, DataType], npt.NDArray[np.floating]]
+] = WeakKeyDictionary()
 
 # Per-capability registries, populated by data source modules (e.g. _sac)
 _station_creators: dict[DataType, Callable[[str | PathLike[str]], AimbatStation]] = {}
@@ -383,18 +396,23 @@ def create_seismogram(
 
 
 def read_seismogram_data(
-    datasource: str | PathLike[str], datatype: DataType
+    datasource: str | PathLike[str],
+    datatype: DataType,
+    session: Session | None = None,
 ) -> npt.NDArray[np.floating]:
     """Read seismogram waveform data from a data source.
 
     Results are cached in memory by `(datasource, datatype)` key. The returned
-    array is read-only; to write new data use `write_seismogram_data`. The
-    cache entry is invalidated when `write_seismogram_data` is called for the
-    same key.
+    array is read-only.
+
+    If `session` is given and has a staged write for this key (from
+    `stage_seismogram_data`), the staged value is returned instead of reading
+    the data source, so a session sees its own uncommitted waveform write.
 
     Args:
         datasource: Data source path or name.
         datatype: Data type of the source.
+        session: Session whose staged writes should be consulted first.
 
     Returns:
         Read-only seismogram waveform data as a NumPy array.
@@ -403,12 +421,17 @@ def read_seismogram_data(
         NotImplementedError: If `datatype` has no registered data reader.
     """
     logger.debug(f"Reading seismogram data from {datasource}.")
+    key = (str(datasource), datatype)
+    if session is not None:
+        staged = _pending.get(session)
+        if staged is not None and key in staged:
+            logger.debug(f"Retrieved staged seismogram data for {datasource}.")
+            return staged[key]
     reader = _seismogram_data_readers.get(datatype)
     if reader is None:
         raise NotImplementedError(
             f"{datatype} does not support reading seismogram data."
         )
-    key = (str(datasource), datatype)
     if key in _cache:
         logger.debug(f"Retrieved seismogram data from cache for {datasource}.")
         _cache.move_to_end(key)
@@ -428,7 +451,10 @@ def write_seismogram_data(
 ) -> None:
     """Write seismogram waveform data to a data source.
 
-    Invalidates the cache entry for `(datasource, datatype)` after writing.
+    Writes eagerly and invalidates the cache entry for `(datasource,
+    datatype)`. `AimbatSeismogram.data` assignment no longer calls this
+    directly - it stages the write via `stage_seismogram_data` and the flush
+    listener in `aimbat.io._flush` calls this on the owning session's commit.
 
     Args:
         datasource: Data source path or name.
@@ -448,6 +474,69 @@ def write_seismogram_data(
     _cache.pop((str(datasource), datatype), None)
 
 
+def stage_seismogram_data(
+    session: Session | None,
+    datasource: str | PathLike[str],
+    datatype: DataType,
+    data: npt.NDArray[np.floating],
+) -> None:
+    """Stage a waveform write to flush when `session` commits.
+
+    The write is validated immediately (a datatype with no registered writer
+    raises straight away), but the data source is not touched until `session`
+    commits. The staged value is discarded if `session` rolls back or is
+    abandoned, and is visible to reads made through the same session before
+    the commit.
+
+    A copy of `data` is taken at call time, so later mutation of the caller's
+    array does not change what is persisted. The `(datasource, datatype)` key
+    is also captured now: renaming the data source on the model before the
+    commit would flush to the old path. Staged pages are held in memory until
+    the commit with no eviction (unlike the read cache), so staging waveform
+    writes for a very large event holds every new array at once.
+
+    Staging is keyed by `(datasource, datatype)`, not by seismogram: staging
+    a second write for the same data source in one session before committing
+    replaces the first, and only the last survives the flush.
+
+    If `session` is `None` (a detached instance, attached to no session)
+    there is no transaction to bind to, so the write falls back to an eager
+    `write_seismogram_data` call.
+
+    Args:
+        session: The session that owns the seismogram, or `None`.
+        datasource: Data source path or name.
+        datatype: Data type of the source.
+        data: Seismogram waveform data to write.
+
+    Raises:
+        NotImplementedError: If `datatype` has no registered data writer.
+    """
+    if datatype not in _seismogram_data_writers:
+        raise NotImplementedError(
+            f"{datatype} does not support writing seismogram data."
+        )
+    if session is None:
+        msg = f"Waveform write for detached seismogram {datasource}: "
+        logger.warning(msg + "no session to bind to, writing eagerly.")
+        write_seismogram_data(datasource, datatype, data)
+        return
+    logger.debug(f"Staging seismogram data write to {datasource}.")
+    staged = np.array(data, copy=True)
+    staged.flags.writeable = False
+    session_pending = _pending.setdefault(session, {})
+    key = (str(datasource), datatype)
+    if key in session_pending:
+        logger.warning(
+            f"Replacing an earlier staged waveform write for {datasource}; "
+            + "only the latest is flushed on commit."
+        )
+    session_pending[key] = staged
+
+
 def clear_seismogram_data_cache() -> None:
-    """Drop every entry from the in-memory waveform cache."""
+    """Drop every entry from the in-memory waveform read cache.
+
+    Staged (uncommitted) writes in `_pending` are left intact.
+    """
     _cache.clear()

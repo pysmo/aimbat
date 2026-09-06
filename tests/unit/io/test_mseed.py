@@ -149,6 +149,29 @@ class TestWriteSeismogramData:
         result = read_seismogram_data_from_mseedfile(mseed_file_good)
         np.testing.assert_allclose(result, data)
 
+    def test_deferred_stage_flushes_to_mseed(self, mseed_file_good: Path) -> None:
+        """A staged miniSEED write reaches the file only when the pending writes flush."""
+        from sqlalchemy import create_engine
+        from sqlmodel import Session
+
+        from aimbat.io import _base, _flush
+
+        original = read_seismogram_data_from_mseedfile(mseed_file_good)
+        new_data = np.ones_like(original) * 7.0
+        session = Session(create_engine("sqlite://"))
+
+        _base.stage_seismogram_data(
+            session, str(mseed_file_good), DataType.MSEED, new_data
+        )
+        np.testing.assert_array_equal(
+            read_seismogram_data_from_mseedfile(mseed_file_good), original
+        )
+
+        _flush._flush_pending(session)
+        np.testing.assert_array_equal(
+            read_seismogram_data_from_mseedfile(mseed_file_good), new_data
+        )
+
 
 # ===================================================================
 # capability registration

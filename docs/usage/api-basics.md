@@ -19,8 +19,8 @@ The API has three primary parts:
     records come from [`select`][sqlalchemy.sql.expression.select] queries.
 3. **Core functions.** High-level operations on those models
     ([`aimbat.core`][]): event selection, parameter changes, ICCS and MCCC
-    runs, snapshots. The CLI, shell, and TUI call the same functions, which
-    commit internally.
+    runs, snapshots. The CLI, shell, and TUI call the same functions, and the
+    mutating ones commit internally.
 
 ## Starting a session
 
@@ -144,3 +144,39 @@ Each commit is a disk write. Calling a core function that commits internally,
 such as [`set_seismogram_parameter`][aimbat.core.set_seismogram_parameter], once
 per seismogram in a loop costs one commit per iteration. For changes across many
 records, mutating them directly and committing once after the loop avoids that.
+
+## Working with seismogram data
+
+The waveform samples for a seismogram are not a database column. They live in
+the data source (the SAC or miniSEED file), and
+[`AimbatSeismogram.data`][aimbat.models.AimbatSeismogram] reads and writes
+them there.
+
+```python
+with Session(engine) as session:
+    seis = session.exec(select(AimbatSeismogram)).first()
+
+    samples = seis.data          # read-only NumPy array
+    seis.data = samples * 2.0    # staged, not yet on disk
+    session.commit()             # now written to the data source
+```
+
+Reading `data` returns a **read-only** array; `seis.data[0] = 1.0` raises.
+Assigning `data` **stages** the write in the session, like any other model
+change: it reaches the data source when the session commits and is discarded
+if the session rolls back. Reads through the same session see the staged
+value before the commit; other sessions see the old one until then.
+
+AIMBAT itself never writes waveform samples — every processing step writes
+parameters to the database. This matters only for custom scripts that replace
+a seismogram's waveform.
+
+!!! note "Embedding AIMBAT in a larger application"
+
+    Importing `aimbat.models` (or `aimbat.db`, or any AIMBAT code that
+    reads the project database) registers commit and rollback listeners on
+    SQLAlchemy's `Session` class for the whole process, so that a staged
+    `data` write is never silently lost. Every `Session` in the process,
+    including those of unrelated libraries, then runs a short check on each
+    commit and rollback; the work only happens for a session that actually
+    staged a waveform write.
