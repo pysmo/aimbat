@@ -102,6 +102,20 @@ def mock_uuid4(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def clear_waveform_state() -> Generator[None]:
+    """Drop cached and staged waveform data after every test.
+
+    An uncommitted staged page left behind by one test would otherwise be
+    flushed to disk by a later test's unrelated `commit()`.
+    """
+    yield
+    from aimbat.io import _base
+
+    _base._cache.clear()
+    _base._pending.clear()
+
+
+@pytest.fixture(autouse=True)
 def mock_show(monkeypatch: pytest.MonkeyPatch) -> None:
     """Mocks plt.show to prevent plots from displaying during tests.
 

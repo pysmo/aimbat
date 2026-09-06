@@ -10,11 +10,11 @@ from pandas import Timestamp
 from pydantic import model_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func, text
-from sqlalchemy.orm import column_property
+from sqlalchemy.orm import column_property, object_session
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel._compat import SQLModelConfig
 
-from aimbat.io import DataType, read_seismogram_data, write_seismogram_data
+from aimbat.io import DataType, read_seismogram_data, stage_seismogram_data
 from aimbat.types import (
     PydanticPositiveTimedelta,
     PydanticTimestamp,
@@ -517,7 +517,15 @@ class AimbatSeismogram(SQLModel, table=True):
 
     Holds timing information (`begin_time`, `delta`, `t0`) and a reference to
     the waveform data source; the waveform samples themselves are not stored
-    on this model but are read from and written to that data source on demand.
+    on this model but are read from that data source on demand.
+
+    Reading `data` returns a read-only array. Assigning `data` stages the
+    write in a per-session buffer and flushes it to the data source when the
+    owning session commits (and discards it on rollback), mirroring how ORM
+    column changes persist. Reads through the same session see the staged
+    value before the commit; other sessions do not. In-place mutation
+    (`seis.data[:] = ...`) is not supported. Assigning `data` on an instance
+    attached to no session falls back to an immediate write.
 
     Exposes the pysmo [`Seismogram`][pysmo.Seismogram] interface directly
     (`begin_time`, `delta`, `data`, `end_time`). ICCS working state (`t1`,
@@ -610,19 +618,28 @@ class AimbatSeismogram(SQLModel, table=True):
 
         @property
         def data(self) -> npt.NDArray[np.floating]:
-            """Seismogram waveform data array."""
+            """Seismogram waveform data as a read-only array.
+
+            Assigning to this attribute stages the write; it reaches the data
+            source when the owning session commits (see the class docstring).
+            """
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")
             return read_seismogram_data(
-                self.datasource.sourcename, self.datasource.datatype
+                self.datasource.sourcename,
+                self.datasource.datatype,
+                object_session(self),
             )
 
         @data.setter
         def data(self, value: npt.NDArray[np.floating]) -> None:
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")
-            write_seismogram_data(
-                self.datasource.sourcename, self.datasource.datatype, value
+            stage_seismogram_data(
+                object_session(self),
+                self.datasource.sourcename,
+                self.datasource.datatype,
+                value,
             )
 
 
