@@ -1,9 +1,10 @@
 """Manage data sources in an AIMBAT project.
 
-A *data source* is a file that AIMBAT reads seismogram waveforms and metadata
-from. When a data source is added, AIMBAT extracts and stores the associated
-station, event, and seismogram records in the project database, provided the
-data type supports it.
+A *data source* is where AIMBAT reads seismogram waveforms and metadata from.
+Every current data type is a file, but a data source need not be one; it is
+identified by an opaque `sourcename`. When a data source is added, AIMBAT
+extracts and stores the associated station, event, and seismogram records in
+the project database, provided the data type supports it.
 
 **Supported data types** (`--type`):
 
