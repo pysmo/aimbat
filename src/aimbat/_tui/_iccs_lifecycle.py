@@ -14,8 +14,6 @@ Mixed into `AimbatTUI`, which provides `_current_event_id`,
 checker; the real implementations live on the host class).
 """
 
-from __future__ import annotations
-
 import uuid
 
 from pandas import Timestamp

@@ -1,7 +1,5 @@
 """Shared formatting helpers for TUI tables."""
 
-from __future__ import annotations
-
 from functools import cache
 
 from pydantic import BaseModel
