@@ -1,13 +1,15 @@
 # flake8: noqa: E402, F403
 #
-"""File I/O for AIMBAT.
+"""I/O for AIMBAT data sources.
 
 Data source modules plug in by decorating their functions with the decorator
 factories from this package (`station_creator`, `event_creator`,
 `seismogram_creator`, `seismogram_data_reader`, `seismogram_data_writer`).
 Not every source needs to implement everything. A source that only provides
 waveform data would register a reader and writer but skip the creator
-functions.
+functions. A source is identified by an opaque `sourcename` string whose
+meaning is defined by the registered callbacks; for file-based sources it is
+a filesystem path, but non-file sources are free to use any identifier.
 
 SAC (`aimbat.io.sac`), JSON (`aimbat.io.json`), and miniSEED
 (`aimbat.io.mseed`) data sources are loaded automatically and their

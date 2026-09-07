@@ -2,7 +2,9 @@
 
 Defines the `DataType` enum used to route station, event, and seismogram
 creation and reading/writing to the data source registered for a given type,
-along with the file suffixes associated with each type.
+along with `DATATYPE_SUFFIXES`, which maps each type to its file suffixes.
+`DATATYPE_SUFFIXES` applies only to file-based sources (all current types);
+non-file sources of a given type are not described by it.
 """
 
 from enum import StrEnum, auto

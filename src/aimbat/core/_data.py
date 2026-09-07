@@ -336,7 +336,8 @@ def _process_datasource(
 
     Args:
         session: Database session.
-        datasource: Path or identifier of the data source to process.
+        datasource: Logical source identifier of the data source to process
+            (a filesystem path for file-based sources).
         datatype: Type of data, which determines which of station, event, and
             seismogram creation are attempted.
         station_id: UUID of an existing station to link to instead of
@@ -568,6 +569,10 @@ def _seismogram_path(
     begin time, so re-ingesting the same triple again resolves to the same
     `sourcename` and is deduped by `_link_seismogram`/`_link_datasource`
     rather than creating a duplicate.
+
+    This is the seam that bakes the file assumption into the in-memory
+    ingestion path: it manufactures a filesystem-path `sourcename`. A future
+    non-file data source would replace this with its own identifier scheme.
     """
 
     filename = (

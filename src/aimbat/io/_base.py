@@ -96,7 +96,7 @@ def register_station_creator(
 
     Args:
         datatype: The data type this creator handles.
-        fn: Callable that accepts a datasource path or name and returns an
+        fn: Callable that accepts a logical source identifier and returns an
             `AimbatStation` instance.
     """
     logger.debug(f"Registering station creator for {datatype}.")
@@ -111,7 +111,7 @@ def register_event_creator(
 
     Args:
         datatype: The data type this creator handles.
-        fn: Callable that accepts a datasource path or name and returns an
+        fn: Callable that accepts a logical source identifier and returns an
             `AimbatEvent` instance.
     """
     logger.debug(f"Registering event creator for {datatype}.")
@@ -126,7 +126,7 @@ def register_seismogram_creator(
 
     Args:
         datatype: The data type this creator handles.
-        fn: Callable that accepts a datasource path or name and returns an
+        fn: Callable that accepts a logical source identifier and returns an
             `AimbatSeismogram` instance.
     """
     logger.debug(f"Registering seismogram creator for {datatype}.")
@@ -141,7 +141,7 @@ def register_seismogram_data_reader(
 
     Args:
         datatype: The data type this reader handles.
-        fn: Callable that accepts a datasource path or name and returns the
+        fn: Callable that accepts a logical source identifier and returns the
             waveform data as a NumPy array.
     """
     logger.debug(f"Registering seismogram data reader for {datatype}.")
@@ -156,7 +156,7 @@ def register_seismogram_data_writer(
 
     Args:
         datatype: The data type this writer handles.
-        fn: Callable that accepts a datasource path or name and a NumPy array,
+        fn: Callable that accepts a logical source identifier and a NumPy array,
             and writes the data to the source.
     """
     logger.debug(f"Registering seismogram data writer for {datatype}.")
@@ -337,7 +337,7 @@ def create_station(
     """Create an `AimbatStation` from a data source.
 
     Args:
-        datasource: Data source path or name.
+        datasource: Logical source identifier for the data source.
         datatype: Data type of the source.
 
     Returns:
@@ -357,7 +357,7 @@ def create_event(datasource: str | PathLike[str], datatype: DataType) -> AimbatE
     """Create an `AimbatEvent` from a data source.
 
     Args:
-        datasource: Data source path or name.
+        datasource: Logical source identifier for the data source.
         datatype: Data type of the source.
 
     Returns:
@@ -379,7 +379,7 @@ def create_seismogram(
     """Create an `AimbatSeismogram` from a data source.
 
     Args:
-        datasource: Data source path or name.
+        datasource: Logical source identifier for the data source.
         datatype: Data type of the source.
 
     Returns:
@@ -410,7 +410,7 @@ def read_seismogram_data(
     the data source, so a session sees its own uncommitted waveform write.
 
     Args:
-        datasource: Data source path or name.
+        datasource: Logical source identifier for the data source.
         datatype: Data type of the source.
         session: Session whose staged writes should be consulted first.
 
@@ -457,7 +457,7 @@ def write_seismogram_data(
     listener in `aimbat.io._flush` calls this on the owning session's commit.
 
     Args:
-        datasource: Data source path or name.
+        datasource: Logical source identifier for the data source.
         datatype: Data type of the source.
         data: Seismogram waveform data to write.
 
@@ -505,7 +505,7 @@ def stage_seismogram_data(
 
     Args:
         session: The session that owns the seismogram, or `None`.
-        datasource: Data source path or name.
+        datasource: Logical source identifier for the data source.
         datatype: Data type of the source.
         data: Seismogram waveform data to write.
 

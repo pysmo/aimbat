@@ -1,6 +1,5 @@
 """ORM classes representing AIMBAT data stored in the database."""
 
-import os
 import uuid
 from typing import TYPE_CHECKING
 
@@ -51,7 +50,7 @@ __all__ = [
 class _AimbatDataSourceCreate(SQLModel):
     """Input model for creating a new data source entry."""
 
-    sourcename: os.PathLike[str] | str = Field(
+    sourcename: str = Field(
         unique=True,
     )
     datatype: DataType = Field(
@@ -60,7 +59,7 @@ class _AimbatDataSourceCreate(SQLModel):
 
 
 class AimbatDataSource(SQLModel, table=True):
-    """Location and format of the waveform data source for a seismogram."""
+    """Logical source identifier and format of the waveform data for a seismogram."""
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -83,7 +82,7 @@ class AimbatDataSource(SQLModel, table=True):
     )
     sourcename: str = Field(
         title="Source name",
-        description="Path or name of the data source.",
+        description="Opaque logical source identifier for the waveform data.",
     )
     datatype: DataType = Field(
         default=DataType.SAC,
