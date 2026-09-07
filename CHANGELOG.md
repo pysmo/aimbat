@@ -41,11 +41,13 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core)** Explain the load-bearing commit order in run_mccc / run_iccs
 - Broad pass on docs
 - Broad sweep on md files
+- **(snippets)** Update to pysmo API changes
 
 ### 📦 Miscellaneous
 
 - [**breaking**] Raise Python floor to 3.13
 - Align ruff and mypy strictness with pysmo's config
+- **(tui,io)** Remove redundant `__future__` annotations import
 
 ### 🔧 Refactoring
 
