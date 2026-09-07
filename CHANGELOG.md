@@ -53,6 +53,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(models)** [**breaking**] Narrow AimbatSeismogram to the pysmo Seismogram interface
 - **(snapshot)** Split the parameter hash into iccs_hash and mccc_hash
 - Rename aimbat._types to aimbat.types
+- **(io)** Treat datasource sourcename as an opaque source identifier
 
 ### 🚀 New Features
 
