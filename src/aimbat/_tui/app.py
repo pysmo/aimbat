@@ -1,7 +1,5 @@
 """AIMBAT Terminal User Interface application."""
 
-from __future__ import annotations
-
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager, suppress

@@ -21,8 +21,6 @@ This module registers its capabilities with the I/O dispatch layer on
 import, so importing it is sufficient to enable miniSEED support.
 """
 
-from __future__ import annotations
-
 from os import PathLike
 
 import numpy as np

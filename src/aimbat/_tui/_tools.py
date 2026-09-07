@@ -7,8 +7,6 @@ callables in `CAUSAL_TOOL_REGISTRY` additionally receive a causal argument
 from `InteractiveToolsModal`'s zero-phase toggle. Both return None.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 
 from sqlmodel import Session
