@@ -30,7 +30,11 @@ from pysmo.classes import MSeed
 
 from aimbat.logger import logger
 
-from ._base import seismogram_data_reader, seismogram_data_writer
+from ._base import (
+    SeismogramReadContext,
+    seismogram_data_reader,
+    seismogram_data_writer,
+)
 from ._data import DataType
 
 __all__ = [
@@ -41,12 +45,12 @@ __all__ = [
 
 @seismogram_data_reader(DataType.MSEED)
 def read_seismogram_data_from_mseedfile(
-    mseedfile: str | PathLike[str],
+    context: SeismogramReadContext,
 ) -> npt.NDArray[np.floating]:
     """Read seismogram waveform data from a miniSEED file.
 
     Args:
-        mseedfile: Name of the miniSEED file.
+        context: Read context whose `sourcename` names the miniSEED file.
 
     Returns:
         Seismogram amplitude data.
@@ -57,9 +61,9 @@ def read_seismogram_data_from_mseedfile(
             module docstring's scope boundary.
     """
 
-    logger.debug(f"Reading seismogram data from {mseedfile}.")
+    logger.debug(f"Reading seismogram data from {context.sourcename}.")
 
-    return MSeed.from_file(mseedfile).data
+    return MSeed.from_file(context.sourcename).data
 
 
 @seismogram_data_writer(DataType.MSEED)

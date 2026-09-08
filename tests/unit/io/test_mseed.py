@@ -13,6 +13,7 @@ from pysmo.lib.io import write_mseed
 
 from aimbat.io import (
     DataType,
+    SeismogramReadContext,
     supports_event_creation,
     supports_seismogram_creation,
     supports_station_creation,
@@ -21,6 +22,10 @@ from aimbat.io.mseed import (
     read_seismogram_data_from_mseedfile,
     write_seismogram_data_to_mseedfile,
 )
+
+
+def _mseed_context(path: Path) -> SeismogramReadContext:
+    return SeismogramReadContext(str(path), DataType.MSEED)
 
 
 @pytest.fixture
@@ -97,41 +102,43 @@ class TestReadSeismogramData:
     """Tests for reading seismogram data from miniSEED files."""
 
     def test_returns_ndarray(self, mseed_file_good: Path) -> None:
-        data = read_seismogram_data_from_mseedfile(mseed_file_good)
+        data = read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good))
         assert isinstance(data, np.ndarray)
 
     def test_matches_pysmo_data(self, mseed_file_good: Path) -> None:
         expected = MSeed.from_file(mseed_file_good).data
-        data = read_seismogram_data_from_mseedfile(mseed_file_good)
+        data = read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good))
         np.testing.assert_array_equal(data, expected)
 
     def test_nonexistent_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(MiniSEEDError):
-            read_seismogram_data_from_mseedfile(tmp_path / "missing.mseed")
+            read_seismogram_data_from_mseedfile(
+                _mseed_context(tmp_path / "missing.mseed")
+            )
 
     def test_multichannel_file_raises_value_error(
         self, mseed_file_multichannel: Path
     ) -> None:
         """A multiplexed archival-style file is out of scope - see the module docstring."""
         with pytest.raises(ValueError):
-            read_seismogram_data_from_mseedfile(mseed_file_multichannel)
+            read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_multichannel))
 
     def test_gappy_file_raises_value_error(self, mseed_file_gappy: Path) -> None:
         """A gappy archival-style file is out of scope - see the module docstring."""
         with pytest.raises(ValueError):
-            read_seismogram_data_from_mseedfile(mseed_file_gappy)
+            read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_gappy))
 
 
 class TestWriteSeismogramData:
     """Tests for writing seismogram data to miniSEED files."""
 
     def test_overwrites_data_on_disk(self, mseed_file_good: Path) -> None:
-        original = read_seismogram_data_from_mseedfile(mseed_file_good)
+        original = read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good))
         new_data = np.ones_like(original) * 42.0
 
         write_seismogram_data_to_mseedfile(mseed_file_good, new_data)
 
-        reread = read_seismogram_data_from_mseedfile(mseed_file_good)
+        reread = read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good))
         np.testing.assert_array_equal(reread, new_data)
 
     def test_preserves_other_fields(self, mseed_file_good: Path) -> None:
@@ -146,7 +153,7 @@ class TestWriteSeismogramData:
     def test_round_trip(self, mseed_file_good: Path) -> None:
         data = np.linspace(-1.0, 1.0, 100)
         write_seismogram_data_to_mseedfile(mseed_file_good, data)
-        result = read_seismogram_data_from_mseedfile(mseed_file_good)
+        result = read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good))
         np.testing.assert_allclose(result, data)
 
     def test_deferred_stage_flushes_to_mseed(self, mseed_file_good: Path) -> None:
@@ -156,7 +163,7 @@ class TestWriteSeismogramData:
 
         from aimbat.io import _base, _flush
 
-        original = read_seismogram_data_from_mseedfile(mseed_file_good)
+        original = read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good))
         new_data = np.ones_like(original) * 7.0
         session = Session(create_engine("sqlite://"))
 
@@ -164,12 +171,14 @@ class TestWriteSeismogramData:
             session, str(mseed_file_good), DataType.MSEED, new_data
         )
         np.testing.assert_array_equal(
-            read_seismogram_data_from_mseedfile(mseed_file_good), original
+            read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good)),
+            original,
         )
 
         _flush._flush_pending(session)
         np.testing.assert_array_equal(
-            read_seismogram_data_from_mseedfile(mseed_file_good), new_data
+            read_seismogram_data_from_mseedfile(_mseed_context(mseed_file_good)),
+            new_data,
         )
 
 
