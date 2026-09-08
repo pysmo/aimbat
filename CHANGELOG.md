@@ -71,6 +71,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(data)** Reuse existing event within event_duplicate_tolerance
 - **(core)** Add direct seismogram-triple ingestion and miniSEED support
 - **(io)** Defer waveform writes until session commit
+- **(data)** Add data prune for seismograms whose source has vanished
 
 ### 🧪 Testing
 
