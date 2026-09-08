@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from pysmo.classes import SAC
 
+from aimbat.io import DataType, SeismogramReadContext
 from aimbat.io.sac import (
     create_event_from_sacfile,
     create_seismogram_from_sacfile_and_pick_header,
@@ -17,6 +18,11 @@ from aimbat.io.sac import (
     write_seismogram_data_to_sacfile,
 )
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
+
+
+def _sac_context(path: Path) -> SeismogramReadContext:
+    return SeismogramReadContext(str(path), DataType.SAC)
+
 
 # ===================================================================
 # read / write seismogram data
@@ -32,7 +38,7 @@ class TestReadSeismogramData:
         Args:
             sac_file_good (Path): Path to a valid SAC file.
         """
-        data = read_seismogram_data_from_sacfile(sac_file_good)
+        data = read_seismogram_data_from_sacfile(_sac_context(sac_file_good))
         assert isinstance(data, np.ndarray)
 
     def test_matches_pysmo_data(self, sac_file_good: Path) -> None:
@@ -42,7 +48,7 @@ class TestReadSeismogramData:
             sac_file_good (Path): Path to a valid SAC file.
         """
         expected = SAC.from_file(sac_file_good).seismogram.data
-        data = read_seismogram_data_from_sacfile(sac_file_good)
+        data = read_seismogram_data_from_sacfile(_sac_context(sac_file_good))
         np.testing.assert_array_equal(data, expected)
 
     def test_nonexistent_file_raises(self, tmp_path: Path) -> None:
@@ -52,7 +58,7 @@ class TestReadSeismogramData:
             tmp_path (Path): Temporary directory path.
         """
         with pytest.raises(FileNotFoundError):
-            read_seismogram_data_from_sacfile(tmp_path / "missing.sac")
+            read_seismogram_data_from_sacfile(_sac_context(tmp_path / "missing.sac"))
 
 
 class TestWriteSeismogramData:
@@ -64,12 +70,12 @@ class TestWriteSeismogramData:
         Args:
             sac_file_good (Path): Path to a valid SAC file.
         """
-        original = read_seismogram_data_from_sacfile(sac_file_good)
+        original = read_seismogram_data_from_sacfile(_sac_context(sac_file_good))
         new_data = np.ones_like(original) * 42.0
 
         write_seismogram_data_to_sacfile(sac_file_good, new_data)
 
-        reread = read_seismogram_data_from_sacfile(sac_file_good)
+        reread = read_seismogram_data_from_sacfile(_sac_context(sac_file_good))
         np.testing.assert_array_equal(reread, new_data)
 
     def test_preserves_length(self, sac_file_good: Path) -> None:
@@ -78,9 +84,9 @@ class TestWriteSeismogramData:
         Args:
             sac_file_good (Path): Path to a valid SAC file.
         """
-        original = read_seismogram_data_from_sacfile(sac_file_good)
+        original = read_seismogram_data_from_sacfile(_sac_context(sac_file_good))
         write_seismogram_data_to_sacfile(sac_file_good, np.zeros_like(original))
-        reread = read_seismogram_data_from_sacfile(sac_file_good)
+        reread = read_seismogram_data_from_sacfile(_sac_context(sac_file_good))
         assert len(reread) == len(original)
 
     def test_round_trip(self, sac_file_good: Path) -> None:
@@ -92,7 +98,7 @@ class TestWriteSeismogramData:
         data = np.linspace(-1.0, 1.0, 100)
         # First overwrite with our data, then verify the round-trip.
         write_seismogram_data_to_sacfile(sac_file_good, data)
-        result = read_seismogram_data_from_sacfile(sac_file_good)
+        result = read_seismogram_data_from_sacfile(_sac_context(sac_file_good))
         np.testing.assert_allclose(result, data)
 
 

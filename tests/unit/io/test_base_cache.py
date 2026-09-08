@@ -25,7 +25,7 @@ def isolated_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
         _base._seismogram_data_readers,
         DataType.SAC,
-        lambda src: np.array([float(len(str(src)))]),
+        lambda context: np.array([float(len(context.sourcename))]),
     )
 
 
@@ -34,8 +34,8 @@ def test_lru_evicts_least_recently_used(monkeypatch: pytest.MonkeyPatch) -> None
 
     calls: list[str] = []
 
-    def recording_reader(src: object) -> np.ndarray:
-        calls.append(str(src))
+    def recording_reader(context: _base.SeismogramReadContext) -> np.ndarray:
+        calls.append(context.sourcename)
         return np.array([1.0])
 
     monkeypatch.setitem(_base._seismogram_data_readers, DataType.SAC, recording_reader)
@@ -116,6 +116,32 @@ def test_stage_without_session_writes_eagerly(
     )
     _base.stage_seismogram_data(None, "x", DataType.SAC, np.array([7.0]))
     assert written and written[0][0] == "x"
+
+
+def test_reader_receives_read_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[_base.SeismogramReadContext] = []
+
+    def capturing_reader(context: _base.SeismogramReadContext) -> np.ndarray:
+        seen.append(context)
+        return np.array([1.0])
+
+    monkeypatch.setitem(_base._seismogram_data_readers, DataType.SAC, capturing_reader)
+
+    _base.read_seismogram_data("x", DataType.SAC)
+    session = _session()
+    _base.read_seismogram_data("y", DataType.SAC, session=session)
+
+    assert isinstance(seen[0], _base.SeismogramReadContext)
+    assert (seen[0].sourcename, seen[0].datatype, seen[0].session) == (
+        "x",
+        DataType.SAC,
+        None,
+    )
+    assert (seen[1].sourcename, seen[1].datatype, seen[1].session) == (
+        "y",
+        DataType.SAC,
+        session,
+    )
 
 
 def test_clear_cache_keeps_staged_pages(monkeypatch: pytest.MonkeyPatch) -> None:

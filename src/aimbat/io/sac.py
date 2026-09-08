@@ -22,6 +22,7 @@ from aimbat import settings
 from aimbat.logger import logger
 
 from ._base import (
+    SeismogramReadContext,
     event_creator,
     seismogram_creator,
     seismogram_data_reader,
@@ -45,20 +46,20 @@ __all__ = [
 
 @seismogram_data_reader(DataType.SAC)
 def read_seismogram_data_from_sacfile(
-    sacfile: str | PathLike[str],
+    context: SeismogramReadContext,
 ) -> npt.NDArray[np.floating]:
     """Read seismogram waveform data from a SAC file.
 
     Args:
-        sacfile: Name of the SAC file.
+        context: Read context whose `sourcename` names the SAC file.
 
     Returns:
         Seismogram amplitude data.
     """
 
-    logger.debug(f"Reading seismogram data from {sacfile}.")
+    logger.debug(f"Reading seismogram data from {context.sourcename}.")
 
-    return SAC.from_file(sacfile).seismogram.data
+    return SAC.from_file(context.sourcename).seismogram.data
 
 
 @seismogram_data_writer(DataType.SAC)

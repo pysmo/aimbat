@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Callable
+from dataclasses import dataclass
 from os import PathLike
 from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "SeismogramReadContext",
     "clear_seismogram_data_cache",
     "create_event",
     "create_seismogram",
@@ -60,6 +62,19 @@ __all__ = [
     "write_seismogram_data",
 ]
 
+
+@dataclass(frozen=True, slots=True)
+class SeismogramReadContext:
+    """What a registered seismogram-data reader is handed for one read."""
+
+    sourcename: str
+    datatype: DataType
+    session: Session | None = None
+
+
+type SeismogramDataReader = Callable[[SeismogramReadContext], npt.NDArray[np.floating]]
+"""A registered seismogram-data reader: given a read context, return the waveform data as a NumPy array."""
+
 # LRU cache of waveform arrays keyed by (datasource, datatype); evicting an
 # entry only costs a re-read.
 _CACHE_MAX_ENTRIES = 1024
@@ -80,9 +95,7 @@ _event_creators: dict[DataType, Callable[[str | PathLike[str]], AimbatEvent]] = 
 _seismogram_creators: dict[
     DataType, Callable[[str | PathLike[str]], AimbatSeismogram]
 ] = {}
-_seismogram_data_readers: dict[
-    DataType, Callable[[str | PathLike[str]], npt.NDArray[np.floating]]
-] = {}
+_seismogram_data_readers: dict[DataType, SeismogramDataReader] = {}
 _seismogram_data_writers: dict[
     DataType, Callable[[str | PathLike[str], npt.NDArray[np.floating]], None]
 ] = {}
@@ -135,13 +148,13 @@ def register_seismogram_creator(
 
 def register_seismogram_data_reader(
     datatype: DataType,
-    fn: Callable[[str | PathLike[str]], npt.NDArray[np.floating]],
+    fn: SeismogramDataReader,
 ) -> None:
     """Register a function that reads seismogram waveform data from a data source.
 
     Args:
         datatype: The data type this reader handles.
-        fn: Callable that accepts a logical source identifier and returns the
+        fn: Callable that accepts a `SeismogramReadContext` and returns the
             waveform data as a NumPy array.
     """
     logger.debug(f"Registering seismogram data reader for {datatype}.")
@@ -250,10 +263,7 @@ def seismogram_creator(
 
 def seismogram_data_reader(
     datatype: DataType,
-) -> Callable[
-    [Callable[[str | PathLike[str]], npt.NDArray[np.floating]]],
-    Callable[[str | PathLike[str]], npt.NDArray[np.floating]],
-]:
+) -> Callable[[SeismogramDataReader], SeismogramDataReader]:
     """Decorator that registers a function as a seismogram data reader for `datatype`.
 
     Args:
@@ -263,14 +273,12 @@ def seismogram_data_reader(
         ```python
         @seismogram_data_reader(DataType.SAC)
         def read_seismogram_data_from_sacfile(
-            sacfile: str | PathLike[str],
+            context: SeismogramReadContext,
         ) -> npt.NDArray[np.floating]: ...
         ```
     """
 
-    def decorator(
-        fn: Callable[[str | PathLike[str]], npt.NDArray[np.floating]],
-    ) -> Callable[[str | PathLike[str]], npt.NDArray[np.floating]]:
+    def decorator(fn: SeismogramDataReader) -> SeismogramDataReader:
         register_seismogram_data_reader(datatype, fn)
         return fn
 
@@ -436,7 +444,10 @@ def read_seismogram_data(
         logger.debug(f"Retrieved seismogram data from cache for {datasource}.")
         _cache.move_to_end(key)
     else:
-        arr = reader(datasource)
+        context = SeismogramReadContext(
+            sourcename=key[0], datatype=datatype, session=session
+        )
+        arr = reader(context)
         arr.flags.writeable = False
         _cache[key] = arr
         if len(_cache) > _CACHE_MAX_ENTRIES:
