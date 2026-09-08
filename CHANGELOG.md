@@ -56,6 +56,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(snapshot)** Split the parameter hash into iccs_hash and mccc_hash
 - Rename aimbat._types to aimbat.types
 - **(io)** Treat datasource sourcename as an opaque source identifier
+- **(io)** Pass readers a SeismogramReadContext
 
 ### 🚀 New Features
 
