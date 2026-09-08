@@ -11,12 +11,13 @@ Each file is validated before any record is written: required fields present,
 values in range, types correct. A file that fails validation is skipped and the
 database is left unchanged for it. Other files in the same batch still import.
 
-!!! warning "Files must remain accessible"
+!!! warning "Moved or deleted sources"
 
-    AIMBAT stores the path to each data file at import time. If a file is moved,
-    renamed, or deleted afterwards, AIMBAT can no longer read waveform data for
-    the associated seismogram. Keep data files in a stable location, or update
-    the path in the database before moving them.
+    AIMBAT stores the path to each data source at import time. A source that is
+    later moved, renamed, or deleted can no longer be read. The seismogram stays
+    broken until the original path is restored, or until
+    [`aimbat data prune`](#removing-data) drops it. Data sources are best kept in
+    a stable location while a project is in progress.
 
 ## Data types
 
@@ -482,3 +483,64 @@ or were added deliberately via JSON.
 
     Deleting a seismogram removes the database record and its link to the
     waveform source only. The underlying file is never modified.
+
+### Pruning vanished data sources
+
+`aimbat data prune` reconciles a project after a data source disappears, such as
+a deleted SAC file or a moved directory. It probes every data source in scope.
+Any seismogram whose source can no longer be read is deleted. This is the batch,
+source-driven counterpart to the single-item `delete` commands.
+
+```bash
+aimbat data prune all --dry-run          # preview; delete nothing
+aimbat data prune all                    # prune every event, with a prompt
+aimbat data prune <EVENT_ID>             # prune one event only
+```
+
+Permanent removal has two parts. First the data source is removed, by deleting
+the file or regenerating the source without the seismogram. Then `prune` clears
+the leftover record.
+
+`prune` only ever touches sources that have vanished. A source that is still
+readable is left alone, and a later `data add` would re-add anything it still
+provides. A seismogram that should stay in the project but sit out the analysis
+can be deselected with `select = False` instead.
+
+!!! warning "Moved is not deleted"
+
+    `prune` cannot tell a relocated file from a deleted one. A `--dry-run` first
+    shows what would be removed. If the data still exist elsewhere, restoring the
+    path is safer than pruning.
+
+    Sometimes a source's absence cannot be confirmed, for example when its
+    parent directory is gone or a mount is unreachable. `prune` then stops
+    rather than guessing. `--force` overrides this and treats the source as
+    gone.
+
+!!! tip "What prune repairs"
+
+    Pruning re-nulls the live ICCS/MCCC quality for every affected event. The
+    `align` and `mccc` steps need re-running afterwards. Each affected event is
+    snapshotted first, unless `--no-snapshot` is given.
+
+    Frozen snapshot history is preserved. A snapshot-derived operation such as
+    `build_iccs_from_snapshot` or a snapshot plot silently omits a pruned
+    seismogram.
+
+    By default only seismograms are deleted. `--prune-empty-stations` and
+    `--prune-empty-events` also remove stations or events left with nothing.
+    `--prune-empty-events` permanently destroys those events' snapshots. The dry
+    run and the prompt both report the count.
+
+From the API, [`prune_project`][aimbat.core.prune_project] returns a
+`PruneReport` that describes what was removed, or what a dry run would remove:
+
+```python
+from sqlmodel import Session
+from aimbat.core import prune_project
+from aimbat.db import engine
+
+with Session(engine) as session:
+    report = prune_project(session, "all", dry_run=True)
+    print(report.orphan_seismograms)
+```

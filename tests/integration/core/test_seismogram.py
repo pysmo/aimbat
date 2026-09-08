@@ -79,6 +79,37 @@ class TestDeleteSeismogram:
         with pytest.raises(NoResultFound):
             delete_seismogram(loaded_session, uuid.uuid4())
 
+    def test_delete_seismogram_with_preloaded_event_and_live_quality(
+        self, loaded_session: Session
+    ) -> None:
+        """Invalidation must not choke on an already-loaded event collection.
+
+        Regression: invalidating live quality after the delete flush could
+        walk a cached `event.seismograms` that still held the deleted
+        seismogram and try to re-add its cascade-deleted quality row.
+        """
+        from aimbat.core import create_iccs_instance
+        from aimbat.models import AimbatSeismogramQuality
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        create_iccs_instance(loaded_session, event)  # writes live iccs_cc
+
+        seismograms = list(event.seismograms)  # preload the collection
+        assert len(seismograms) > 1
+        victim_id, survivor_id = seismograms[0].id, seismograms[1].id
+        assert seismograms[0].quality is not None
+
+        delete_seismogram(loaded_session, victim_id)
+
+        assert loaded_session.get(AimbatSeismogram, victim_id) is None
+        survivor_quality = loaded_session.exec(
+            select(AimbatSeismogramQuality).where(
+                AimbatSeismogramQuality.seismogram_id == survivor_id
+            )
+        ).one()
+        assert survivor_quality.iccs_cc is None
+
 
 class TestSetSeismogramParameter:
     """Tests for writing parameter values to a seismogram instance."""

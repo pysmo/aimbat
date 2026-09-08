@@ -29,6 +29,7 @@ from ._iccs import *
 from ._migrations import *
 from ._note import *
 from ._project import *
+from ._prune import *
 from ._seismogram import *
 from ._snapshot import *
 from ._station import *
