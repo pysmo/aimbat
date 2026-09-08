@@ -1,16 +1,25 @@
 """Integration tests for ICCS alignment and MCCC quality clearing."""
 
+import pytest
+from pandas import Timestamp
 from sqlmodel import Session, select
 
 from aimbat.core import (
+    NoSeismogramsError,
     build_iccs_from_snapshot,
     cc_stats,
+    clear_iccs_cache,
     create_iccs_instance,
     create_snapshot,
     run_iccs,
     run_mccc,
 )
-from aimbat.models import AimbatEvent, AimbatSeismogramQuality, AimbatSnapshot
+from aimbat.models import (
+    AimbatEvent,
+    AimbatEventParameters,
+    AimbatSeismogramQuality,
+    AimbatSnapshot,
+)
 
 
 class TestIccsMcccInterplay:
@@ -226,6 +235,46 @@ class TestCcStats:
         assert stats.n_selected == 1
         assert stats.mean_selected is not None
         assert stats.sem_selected is None
+
+
+class TestCreateIccsInstanceNoSeismograms:
+    """`create_iccs_instance` on an event with no seismograms."""
+
+    @staticmethod
+    def _empty_event(session: Session) -> AimbatEvent:
+        event = AimbatEvent(
+            time=Timestamp("2010-02-27T06:34:14", tz="UTC"),
+            latitude=-36.12,
+            longitude=-72.90,
+            depth=22.9,
+        )
+        session.add(event)
+        session.flush()
+        session.add(AimbatEventParameters(event=event))
+        session.flush()
+        return event
+
+    def test_raises_no_seismograms_error(self, loaded_session: Session) -> None:
+        """A clean, catchable error rather than a failure deep inside pysmo."""
+        event = self._empty_event(loaded_session)
+        with pytest.raises(NoSeismogramsError):
+            create_iccs_instance(loaded_session, event)
+
+    def test_does_not_poison_the_cache(self, loaded_session: Session) -> None:
+        """A failed build must not leave a half-initialised instance cached.
+
+        Regression test: the broken instance used to be cached before the
+        stats write that raises, so the next call returned it without
+        re-raising and it blew up later on first stack access.
+        """
+        clear_iccs_cache()
+        event = self._empty_event(loaded_session)
+
+        with pytest.raises(NoSeismogramsError):
+            create_iccs_instance(loaded_session, event)
+        # Second call must raise again, not hand back a cached broken instance.
+        with pytest.raises(NoSeismogramsError):
+            create_iccs_instance(loaded_session, event)
 
 
 class TestBuildIccsFromSnapshot:
