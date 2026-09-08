@@ -53,6 +53,16 @@ def delete_seismogram(session: Session, seismogram_id: UUID) -> None:
     if seismogram is None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
 
+    from ._iccs import _invalidate_event_quality
+
+    event_id = seismogram.event_id
+    # No AFTER DELETE trigger fires, so the surviving seismograms' iccs_cc and
+    # the event RMSE would otherwise be left computed against a stack that
+    # still counted this one. Invalidate while every row is persistent: doing
+    # it after the delete flush can hit a preloaded event collection that
+    # still holds this seismogram and try to re-add its cascade-deleted
+    # quality child.
+    _invalidate_event_quality(session, event_id)
     session.delete(seismogram)
     session.commit()
 

@@ -498,6 +498,58 @@ def clear_mccc_quality(session: Session, event: AimbatEvent) -> None:
     session.commit()
 
 
+def _invalidate_event_quality(session: Session, event_id: UUID) -> None:
+    """Null an event's live ICCS/MCCC quality and bump its `stack_modified`.
+
+    AIMBAT's quality-invalidation triggers are all `AFTER UPDATE` on a
+    parameter table, so removing a seismogram from an event (a delete, a
+    prune) fires none of them and leaves `AimbatEventQuality.mccc_rmse`, the
+    surviving seismograms' `iccs_cc` / MCCC stats, and `AimbatEvent.stack_modified`
+    stale. Callers that change an event's seismogram set must call this so
+    `SeismogramQualityStats.from_event` does not report numbers computed
+    against a seismogram set that no longer exists, and a warm `BoundICCS`
+    sees itself as stale.
+
+    Flushes but does not commit; the caller owns the transaction.
+
+    Args:
+        session: Database session.
+        event_id: Event whose live quality should be invalidated.
+    """
+    logger.debug(f"Invalidating live quality for event {event_id}.")
+
+    event = session.exec(
+        select(AimbatEvent)
+        .where(AimbatEvent.id == event_id)
+        .options(
+            selectinload(rel(AimbatEvent.quality)),
+            selectinload(rel(AimbatEvent.seismograms)).selectinload(
+                rel(AimbatSeismogram.quality)
+            ),
+        )
+    ).one_or_none()
+    if event is None:
+        return
+
+    if event.quality is not None:
+        event.quality.mccc_rmse = None
+        session.add(event.quality)
+
+    for seis in event.seismograms:
+        if seis.quality is not None:
+            seis.quality.iccs_cc = None
+            seis.quality.mccc_error = None
+            seis.quality.mccc_cc_mean = None
+            seis.quality.mccc_cc_std = None
+            session.add(seis.quality)
+
+    # `event` is already persistent, so the attribute change is tracked
+    # without `session.add()` - and adding it would cascade save-update along
+    # `seismograms`, which may still hold a just-deleted instance.
+    event.stack_modified = Timestamp.now("UTC")
+    session.flush()
+
+
 def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     """Build a read-only BoundICCS from a snapshot's parameters and live waveform data.
 

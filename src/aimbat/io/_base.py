@@ -6,16 +6,19 @@ providing waveform data only, for example, would register
 `register_seismogram_data_reader` and `register_seismogram_data_writer` but
 not the creator functions.
 
-The SAC data source (`aimbat.io._sac`) registers its capabilities
+The SAC data source (`aimbat.io.sac`) registers its capabilities
 automatically when imported.
 """
 
 from __future__ import annotations
 
+import os
+import stat as stat_module
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from os import PathLike
+from pathlib import Path
 from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary
 
@@ -38,29 +41,44 @@ if TYPE_CHECKING:
 
 __all__ = [
     "SeismogramReadContext",
+    "SourceUnavailableError",
     "clear_seismogram_data_cache",
     "create_event",
     "create_seismogram",
     "create_station",
     "event_creator",
+    "file_source_present",
     "read_seismogram_data",
     "register_event_creator",
     "register_seismogram_creator",
     "register_seismogram_data_reader",
     "register_seismogram_data_writer",
+    "register_source_probe",
     "register_station_creator",
     "seismogram_creator",
     "seismogram_data_reader",
     "seismogram_data_writer",
+    "source_present",
+    "source_probe",
     "stage_seismogram_data",
     "station_creator",
     "supports_event_creation",
     "supports_seismogram_creation",
     "supports_seismogram_data_reading",
     "supports_seismogram_data_writing",
+    "supports_source_probe",
     "supports_station_creation",
     "write_seismogram_data",
 ]
+
+
+class SourceUnavailableError(Exception):
+    """A probe could not determine whether a data source is present.
+
+    Distinct from a clean "absent": raised when the answer is unknowable
+    right now (an unreadable file, an unreachable mount). `aimbat data prune`
+    treats this as a hard stop, never as a licence to delete.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +92,14 @@ class SeismogramReadContext:
 
 type SeismogramDataReader = Callable[[SeismogramReadContext], npt.NDArray[np.floating]]
 """A registered seismogram-data reader: given a read context, return the waveform data as a NumPy array."""
+
+type SourcePresenceProbe = Callable[[SeismogramReadContext], bool]
+"""A registered source-presence probe: given a read context, return whether the source still provides this seismogram.
+
+Returns `True` when the source is reachable and provides the seismogram,
+`False` when it is reachable and definitely does not. Raises
+`SourceUnavailableError` when it cannot tell.
+"""
 
 # LRU cache of waveform arrays keyed by (datasource, datatype); evicting an
 # entry only costs a re-read.
@@ -99,6 +125,7 @@ _seismogram_data_readers: dict[DataType, SeismogramDataReader] = {}
 _seismogram_data_writers: dict[
     DataType, Callable[[str | PathLike[str], npt.NDArray[np.floating]], None]
 ] = {}
+_source_probes: dict[DataType, SourcePresenceProbe] = {}
 
 
 def register_station_creator(
@@ -174,6 +201,22 @@ def register_seismogram_data_writer(
     """
     logger.debug(f"Registering seismogram data writer for {datatype}.")
     _seismogram_data_writers[datatype] = fn
+
+
+def register_source_probe(
+    datatype: DataType,
+    fn: SourcePresenceProbe,
+) -> None:
+    """Register a function that checks whether a data source is still present.
+
+    Args:
+        datatype: The data type this probe handles.
+        fn: Callable that accepts a `SeismogramReadContext` and returns whether
+            the source still provides the seismogram, raising
+            `SourceUnavailableError` when it cannot tell.
+    """
+    logger.debug(f"Registering source presence probe for {datatype}.")
+    _source_probes[datatype] = fn
 
 
 def station_creator(
@@ -314,6 +357,28 @@ def seismogram_data_writer(
     return decorator
 
 
+def source_probe(
+    datatype: DataType,
+) -> Callable[[SourcePresenceProbe], SourcePresenceProbe]:
+    """Decorator that registers a function as a source-presence probe for `datatype`.
+
+    Args:
+        datatype: The data type the decorated function probes.
+
+    Example:
+        ```python
+        @source_probe(DataType.SAC)
+        def sac_source_present(context: SeismogramReadContext) -> bool: ...
+        ```
+    """
+
+    def decorator(fn: SourcePresenceProbe) -> SourcePresenceProbe:
+        register_source_probe(datatype, fn)
+        return fn
+
+    return decorator
+
+
 def supports_station_creation(datatype: DataType) -> bool:
     """Return whether `datatype` has a registered station creator."""
     return datatype in _station_creators
@@ -337,6 +402,77 @@ def supports_seismogram_data_reading(datatype: DataType) -> bool:
 def supports_seismogram_data_writing(datatype: DataType) -> bool:
     """Return whether `datatype` has a registered seismogram data writer."""
     return datatype in _seismogram_data_writers
+
+
+def supports_source_probe(datatype: DataType) -> bool:
+    """Return whether `datatype` has a registered source-presence probe."""
+    return datatype in _source_probes
+
+
+def source_present(
+    sourcename: str, datatype: DataType, session: Session | None = None
+) -> bool:
+    """Check whether a data source is still present and provides its seismogram.
+
+    Args:
+        sourcename: Logical source identifier for the data source.
+        datatype: Data type of the source.
+        session: Session made available to the probe (needed by sources whose
+            identity is resolved through the database).
+
+    Returns:
+        `True` if the source is reachable and provides the seismogram,
+        `False` if it is reachable and definitely does not.
+
+    Raises:
+        NotImplementedError: If `datatype` has no registered probe.
+        SourceUnavailableError: If the probe cannot determine presence right
+            now (e.g. an unreadable file or an unreachable mount).
+    """
+    probe = _source_probes.get(datatype)
+    if probe is None:
+        raise NotImplementedError(f"{datatype} does not support source probing.")
+    context = SeismogramReadContext(
+        sourcename=str(sourcename), datatype=datatype, session=session
+    )
+    return probe(context)
+
+
+def file_source_present(sourcename: str | PathLike[str]) -> bool:
+    """Return whether a filesystem-backed data source is present.
+
+    Shared implementation for the file-based probes (SAC, miniSEED, JSON). A
+    reachable regular file is present; a reachable directory that simply does
+    not contain the named entry is a clean `False`. Anything that leaves the
+    answer unknowable right now - a missing or unreadable parent directory (a
+    moved or unmounted tree), a permission error, an unreachable mount -
+    raises `SourceUnavailableError` rather than being mistaken for a deletion.
+
+    Args:
+        sourcename: Path to the file backing the data source.
+
+    Raises:
+        SourceUnavailableError: If presence cannot be determined right now.
+    """
+    path = Path(sourcename)
+    try:
+        mode = os.stat(path).st_mode
+    except FileNotFoundError as exc:
+        # The file is gone. Only trust that as a real deletion if the parent
+        # directory is still reachable; an unmounted volume whose mountpoint
+        # lingers would otherwise look like a clean absence.
+        if os.path.isdir(path.parent):
+            return False
+        raise SourceUnavailableError(
+            f"Neither {os.fspath(path)!r} nor its parent directory could be "
+            + "reached; this looks like a moved or unmounted data tree, not a "
+            + "deletion."
+        ) from exc
+    except OSError as exc:
+        raise SourceUnavailableError(
+            f"Could not determine whether {os.fspath(path)!r} is present: {exc}"
+        ) from exc
+    return stat_module.S_ISREG(mode)
 
 
 def create_station(

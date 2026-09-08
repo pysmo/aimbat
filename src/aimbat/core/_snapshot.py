@@ -326,7 +326,7 @@ def create_snapshots_for_added_data(
         event IDs a snapshot was created for; `failures` is a list of
         `(event_id, error message)` for events whose snapshot failed. A
         failure is logged here; the caller decides how to surface it
-        (e.g. `_print_warning` on the CLI, a notification in the TUI).
+        (e.g. `print_warning` on the CLI, a notification in the TUI).
     """
     from collections import Counter
 

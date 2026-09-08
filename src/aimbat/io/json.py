@@ -38,7 +38,13 @@ from typing import TYPE_CHECKING
 
 from aimbat.logger import logger
 
-from ._base import event_creator, station_creator
+from ._base import (
+    SeismogramReadContext,
+    event_creator,
+    file_source_present,
+    source_probe,
+    station_creator,
+)
 from ._data import DataType
 
 if TYPE_CHECKING:
@@ -47,7 +53,24 @@ if TYPE_CHECKING:
 __all__ = [
     "create_event_from_json",
     "create_station_from_json",
+    "json_source_present",
 ]
+
+
+@source_probe(DataType.JSON_EVENT)
+@source_probe(DataType.JSON_STATION)
+def json_source_present(context: SeismogramReadContext) -> bool:
+    """Return whether the JSON file backing this record still exists.
+
+    Args:
+        context: Read context whose `sourcename` names the JSON file.
+
+    Raises:
+        SourceUnavailableError: If presence cannot be determined right now
+            (an unreadable file, a missing parent directory, an unreachable
+            mount).
+    """
+    return file_source_present(context.sourcename)
 
 
 def _load_json(path: str | PathLike[str]) -> object:

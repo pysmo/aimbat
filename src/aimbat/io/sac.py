@@ -24,9 +24,11 @@ from aimbat.logger import logger
 from ._base import (
     SeismogramReadContext,
     event_creator,
+    file_source_present,
     seismogram_creator,
     seismogram_data_reader,
     seismogram_data_writer,
+    source_probe,
     station_creator,
 )
 from ._data import DataType
@@ -40,8 +42,24 @@ __all__ = [
     "create_seismogram_from_sacfile_and_pick_header",
     "create_station_from_sacfile",
     "read_seismogram_data_from_sacfile",
+    "sac_source_present",
     "write_seismogram_data_to_sacfile",
 ]
+
+
+@source_probe(DataType.SAC)
+def sac_source_present(context: SeismogramReadContext) -> bool:
+    """Return whether the SAC file backing this seismogram still exists.
+
+    Args:
+        context: Read context whose `sourcename` names the SAC file.
+
+    Raises:
+        SourceUnavailableError: If presence cannot be determined right now
+            (an unreadable file, a missing parent directory, an unreachable
+            mount).
+    """
+    return file_source_present(context.sourcename)
 
 
 @seismogram_data_reader(DataType.SAC)

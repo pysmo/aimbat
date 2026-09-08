@@ -47,6 +47,16 @@ def delete_station(session: Session, station_id: UUID) -> None:
     if station is None:
         raise NoResultFound(f"No AimbatStation found with {station_id=}")
 
+    from ._iccs import _invalidate_event_quality
+
+    # Deleting a station cascades to its seismograms across every event it
+    # recorded; none of those events' quality is invalidated by a trigger.
+    # Invalidate before deleting, while every seismogram row is still
+    # persistent: a post-delete pass can hit a preloaded event collection
+    # that still holds a cascade-deleted seismogram and its quality child.
+    affected_event_ids = {seis.event_id for seis in station.seismograms}
+    for event_id in affected_event_ids:
+        _invalidate_event_quality(session, event_id)
     session.delete(station)
     session.commit()
 

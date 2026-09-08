@@ -32,15 +32,37 @@ from aimbat.logger import logger
 
 from ._base import (
     SeismogramReadContext,
+    file_source_present,
     seismogram_data_reader,
     seismogram_data_writer,
+    source_probe,
 )
 from ._data import DataType
 
 __all__ = [
+    "mseed_source_present",
     "read_seismogram_data_from_mseedfile",
     "write_seismogram_data_to_mseedfile",
 ]
+
+
+@source_probe(DataType.MSEED)
+def mseed_source_present(context: SeismogramReadContext) -> bool:
+    """Return whether the miniSEED file backing this seismogram still exists.
+
+    A miniSEED file written by `add_seismograms_to_project` is created once and
+    then treated exactly like any other external file, so a missing one is an
+    ordinary prunable orphan.
+
+    Args:
+        context: Read context whose `sourcename` names the miniSEED file.
+
+    Raises:
+        SourceUnavailableError: If presence cannot be determined right now
+            (an unreadable file, a missing parent directory, an unreachable
+            mount).
+    """
+    return file_source_present(context.sourcename)
 
 
 @seismogram_data_reader(DataType.MSEED)

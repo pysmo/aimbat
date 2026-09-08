@@ -61,6 +61,16 @@ Deletion follows the hierarchy:
     An event or station can exist without any seismogram, but a seismogram
     cannot exist without an event to record and a station to record it.
 
+`aimbat data prune` handles a vanished data source, such as a deleted SAC file
+or a moved directory. It removes every seismogram whose source can no longer be
+read. This is the batch, source-driven counterpart to the single-item `delete`
+commands.
+
+Permanent removal has two parts. First the data source is removed, by deleting
+the file or regenerating the source without the seismogram. Then
+`aimbat data prune` clears the leftover record. A seismogram can also stay in
+the project but sit out the analysis, with `select = False`.
+
 See [Removing data](../usage/data.md#removing-data) for the commands.
 
 ## Parameters

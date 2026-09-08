@@ -64,17 +64,21 @@ from sqlmodel import Session
 from aimbat.io import DataType
 
 from .common import (
+    ConfirmParameters,
     DebugParameter,
     JsonDumpParameters,
     TableParameters,
+    confirm_or_abort,
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
+    print_warning,
     use_event_parameter,
     use_station_parameter,
 )
 
 if TYPE_CHECKING:
+    from aimbat.core import PruneReport
     from aimbat.models import AimbatDataSource
 
 app = App(name="data", help=__doc__, help_format="markdown")
@@ -92,7 +96,6 @@ def _print_dry_run_results(
     from rich.console import Console
 
     from .common import json_to_table
-    from .common._decorators import _print_warning
 
     class _DryRunRow(BaseModel):
         source: str = Field(title="Source")
@@ -132,7 +135,7 @@ def _print_dry_run_results(
     )
 
     for message in duplicate_warnings:
-        _print_warning(message)
+        print_warning(message)
 
 
 @app.command(name="add")
@@ -245,13 +248,11 @@ def cli_data_add(
         elif auto_snapshot:
             from aimbat.core import create_snapshots_for_added_data
 
-            from .common._decorators import _print_warning
-
             _snapshotted, failures = create_snapshots_for_added_data(
                 session, added_datasources, existing_seismogram_ids
             )
             for event_id, error in failures:
-                _print_warning(
+                print_warning(
                     f"Could not create an automatic snapshot for event {event_id}: {error}"
                 )
 
@@ -327,6 +328,177 @@ def cli_data_list(
             raw=raw,
             col_specs=col_specs,
         )
+
+
+def _print_prune_report(
+    report: PruneReport, *, will_prune_stations: bool, will_prune_events: bool
+) -> None:
+    """Print a `PruneReport` as a table plus follow-up warning lines."""
+    from pydantic import BaseModel, Field
+    from rich.console import Console
+
+    from .common import json_to_table
+
+    console = Console()
+
+    if not report.orphan_seismograms:
+        console.print("No vanished data sources found.")
+    else:
+
+        class _OrphanRow(BaseModel):
+            source: str = Field(title="Source")
+            type: str = Field(title="Type")
+            station: str = Field(title="Station")
+            event: str = Field(title="Event")
+            reason: str = Field(title="Reason")
+
+        rows = []
+        for seis in report.orphan_seismograms:
+            sourcename, datatype = report.orphan_sources[seis.id]
+            rows.append(
+                {
+                    "source": sourcename,
+                    "type": str(datatype),
+                    "station": seis.station.name,
+                    "event": seis.event.time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "reason": "source file missing",
+                }
+            )
+        json_to_table(rows, model=_OrphanRow, title="Data sources to prune")
+
+    for event in report.events_needing_invalidation:
+        console.print(
+            "Live ICCS/MCCC quality will be reset for event "
+            + event.time.strftime("%Y-%m-%d %H:%M:%S")
+            + " (re-run align / mccc)."
+        )
+
+    if report.emptied_stations:
+        verb = "removed" if will_prune_stations else "left empty"
+        console.print(f"{len(report.emptied_stations)} station(s) will be {verb}.")
+    if report.emptied_events:
+        if will_prune_events:
+            console.print(
+                f"{len(report.emptied_events)} emptied event(s) will be deleted."
+            )
+        else:
+            console.print(
+                f"{len(report.emptied_events)} event(s) will be left with no "
+                + "seismograms (pass --prune-empty-events to delete them)."
+            )
+
+    if report.total_snapshots:
+        print_warning(
+            f"{report.total_snapshots} snapshot(s) will be permanently deleted."
+        )
+    for category, count in report.cascaded_notes.items():
+        print_warning(f"{count} {category} note(s) will be deleted.")
+    for message in report.warnings:
+        print_warning(message)
+
+
+@app.command(name="prune")
+@handle_issues
+def cli_data_prune(
+    event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()],
+    *,
+    dry_run: Annotated[
+        bool,
+        Parameter(
+            name="dry-run",
+            help="Show what would be pruned without deleting anything.",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        Parameter(
+            help=(
+                "Treat a source whose presence cannot be determined (an "
+                + "unreadable file, a missing parent directory, an unreachable "
+                + "mount) as vanished instead of stopping."
+            ),
+        ),
+    ] = False,
+    prune_empty_stations: Annotated[
+        bool,
+        Parameter(
+            name="prune-empty-stations",
+            help="Also delete stations left with no seismograms.",
+        ),
+    ] = False,
+    prune_empty_events: Annotated[
+        bool,
+        Parameter(
+            name="prune-empty-events",
+            help=(
+                "Also delete events left with no seismograms. This permanently "
+                + "destroys those events' snapshot history."
+            ),
+        ),
+    ] = False,
+    auto_snapshot: Annotated[
+        bool,
+        Parameter(
+            name="snapshot",
+            help="Snapshot every affected event before pruning.",
+        ),
+    ] = True,
+    confirm: ConfirmParameters = ConfirmParameters(),
+) -> None:
+    """Delete seismograms whose data source has vanished.
+
+    Reconciles the project with reality after a waveform source is removed (a
+    SAC file deleted, a directory moved). Each seismogram whose source can no
+    longer be read is deleted, along with its data source, parameters, and
+    quality records. Frozen snapshot history is preserved.
+
+    `prune` never deletes anything the source still provides. To remove a
+    seismogram whose data still exist, remove it from the source directory
+    first; to exclude one from analysis without deleting it, set `select =
+    False` instead.
+
+    Always run with `--dry-run` first: `prune` cannot tell a relocated file
+    from a deleted one. Pass `--prune-empty-stations` / `--prune-empty-events`
+    to also clean up stations or events left with no seismograms.
+    """
+    from aimbat.core import prune_project
+    from aimbat.db import engine
+
+    def confirm_prune(report: PruneReport) -> bool:
+        _print_prune_report(
+            report,
+            will_prune_stations=prune_empty_stations,
+            will_prune_events=prune_empty_events,
+        )
+        stations = len(report.emptied_stations) if prune_empty_stations else 0
+        events = len(report.emptied_events) if prune_empty_events else 0
+        confirm_or_abort(
+            f"Delete {len(report.orphan_seismograms)} seismogram(s) "
+            + f"(+ {stations} station(s), {events} event(s), "
+            + f"{report.total_snapshots} snapshot(s), {report.total_notes} note(s))?",
+            yes=confirm.yes,
+        )
+        return True
+
+    with Session(engine) as session:
+        report = prune_project(
+            session,
+            event_id,
+            dry_run=dry_run,
+            prune_empty_stations=prune_empty_stations,
+            prune_empty_events=prune_empty_events,
+            auto_snapshot=auto_snapshot,
+            force=force,
+            confirm=None if dry_run else confirm_prune,
+        )
+        # A dry run, or a live run with nothing to prune, never reaches the
+        # confirm callback, so the report is still unprinted here.
+        if dry_run or not report.orphan_seismograms:
+            _print_prune_report(
+                report,
+                will_prune_stations=prune_empty_stations,
+                will_prune_events=prune_empty_events,
+            )
 
 
 if __name__ == "__main__":

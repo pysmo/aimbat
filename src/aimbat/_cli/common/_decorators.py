@@ -5,7 +5,12 @@ from typing import Any
 
 from aimbat import settings
 
-__all__ = ["confirm_or_abort", "handle_issues", "print_error_panel"]
+__all__ = [
+    "confirm_or_abort",
+    "handle_issues",
+    "print_error_panel",
+    "print_warning",
+]
 
 
 def print_error_panel(e: Exception) -> None:
@@ -24,7 +29,7 @@ def print_error_panel(e: Exception) -> None:
     console.print(panel)
 
 
-def _print_warning(message: object) -> None:
+def print_warning(message: object) -> None:
     """Print a non-fatal warning message to the console, styled yellow."""
     from rich.console import Console
     from rich.text import Text
