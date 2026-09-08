@@ -32,6 +32,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core)** Dump_event_table always returns list[dict]
 - Address PR #256 review feedback
 - **(io)** Read JSON sources as UTF-8 and name the file on a parse error
+- **(tui)** Handle events with no seismograms without crashing
 
 ### 📚 Documentation
 
