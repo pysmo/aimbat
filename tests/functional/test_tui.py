@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from pandas import Timestamp
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 from textual.binding import Binding
@@ -50,7 +51,12 @@ from aimbat.core import (
     get_head_revision,
 )
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
+from aimbat.models import (
+    AimbatEvent,
+    AimbatEventParameters,
+    AimbatSeismogram,
+    AimbatSnapshot,
+)
 from aimbat.types import SeismogramParameter
 
 _TUI_SIZE = (120, 40)
@@ -535,6 +541,60 @@ class TestICCSStalenessRetry:
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
                 assert app._iccs_lifecycle._creating is False
+
+        asyncio.run(_run())
+
+
+@pytest.mark.slow
+class TestICCSEmptyEvent:
+    """Selecting an event with no seismograms must not crash the TUI.
+
+    Regression test: `create_iccs_instance` cached a half-built instance
+    before the stats write that raises for a seismogram-less event, so the
+    one-shot retry handed that broken instance to the panels, where
+    `cc_stats` blew up with `ValueError: Cannot create stack`.
+    """
+
+    def test_select_empty_event_does_not_crash(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        with Session(loaded_engine_from_file) as session:
+            empty = AimbatEvent(
+                time=Timestamp("2011-03-11T05:46:24", tz="UTC"),
+                latitude=38.30,
+                longitude=142.37,
+                depth=29.0,
+            )
+            session.add(empty)
+            session.flush()
+            session.add(AimbatEventParameters(event=empty))
+            session.commit()
+            empty_id = empty.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                app._select_event(str(empty_id))
+                await _wait_for_iccs_worker(app)
+
+                assert app._iccs_lifecycle.bound is None
+                assert app._iccs_lifecycle.retry_pending is False
+
+                # The staleness poller must not resurrect a broken instance
+                # or start a retry storm.
+                app._check_iccs_staleness()
+                await _wait_for_iccs_worker(app)
+                app._check_iccs_staleness()
+                await pilot.pause(delay=0.3)
+
+                assert app._iccs_lifecycle.bound is None
+                assert app.is_running
+                bar = app.query_one("#event-bar", Static)
+                assert "no ICCS" in str(bar.render())
 
         asyncio.run(_run())
 

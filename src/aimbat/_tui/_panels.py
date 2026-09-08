@@ -697,7 +697,12 @@ class SeismogramPanel(Widget):
 
                 _populate_rows(table, rows, AimbatSeismogramRead)
 
-        stats = cc_stats(bound_iccs.iccs) if bound_iccs is not None else None
+        stats = None
+        if bound_iccs is not None:
+            # `cc_stats` reaches the stack, which raises for an ICCS instance
+            # with no (selected) seismograms.
+            with suppress(ValueError):
+                stats = cc_stats(bound_iccs.iccs)
         if stats is not None and stats.n_all > 0:
             table.border_title = (
                 "Seismograms  [dim]CC: selected "

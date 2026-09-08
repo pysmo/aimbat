@@ -41,6 +41,7 @@ __all__ = [
     "BoundICCS",
     "CcStats",
     "IccsLifecycle",
+    "NoSeismogramsError",
     "build_iccs_from_snapshot",
     "cc_stats",
     "clear_iccs_cache",
@@ -52,6 +53,15 @@ __all__ = [
     "validate_iccs_construction",
     "write_back_seismograms",
 ]
+
+
+class NoSeismogramsError(RuntimeError):
+    """Raised when an ICCS instance is requested for an event with no seismograms.
+
+    An event with no seismograms has no stack, so any downstream access to
+    correlation values or the stack raises deep inside pysmo. Callers get
+    this clear, catchable error up front instead.
+    """
 
 
 @dataclass
@@ -323,14 +333,22 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
         )
     ).one()
 
+    if not event.seismograms:
+        raise NoSeismogramsError(
+            f"Event {event.id} has no seismograms; cannot build an ICCS instance."
+        )
+
     logger.debug(f"Creating ICCS instance for event {event.id}.")
     bound = BoundICCS(
         iccs=_build_iccs(event),
         event_id=event.id,
         created_at=created_at,
     )
-    _iccs_cache[event.id] = bound
+    # Cache only after the stats write succeeds: a half-initialised instance
+    # left in the cache would be returned (without re-raising) on the next
+    # call and blow up later on first stack access.
     _write_iccs_stats(event.id, bound.iccs)
+    _iccs_cache[event.id] = bound
     return bound
 
 

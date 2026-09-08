@@ -22,7 +22,12 @@ from sqlmodel import Session
 from textual import work
 from textual.app import App
 
-from aimbat.core import BoundICCS, IccsLifecycle, create_iccs_instance
+from aimbat.core import (
+    BoundICCS,
+    IccsLifecycle,
+    NoSeismogramsError,
+    create_iccs_instance,
+)
 from aimbat.db import engine
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
@@ -105,8 +110,11 @@ class _IccsLifecycleMixin(App[None]):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 bound_iccs = create_iccs_instance(session, event)
-        except (NoResultFound, RuntimeError):
-            logger.debug("ICCS worker: no event selected or no data; aborting.")
+        except (NoResultFound, NoSeismogramsError, RuntimeError):
+            logger.debug(
+                "ICCS worker: no event selected, event has no seismograms, or "
+                + "no data; aborting."
+            )
             self.call_from_thread(self._iccs_lifecycle.mark_aborted)
             return
         except Exception as exc:
