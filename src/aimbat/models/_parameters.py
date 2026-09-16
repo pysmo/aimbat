@@ -96,6 +96,7 @@ class AimbatEventParametersBase(SQLModel):
             "Number of corners (poles) for the bandpass filter (ignored if "
             + "`bandpass_apply` is False)."
         ),
+        sa_column_kwargs={"server_default": "2"},
     )
 
     min_cc: float = Field(
