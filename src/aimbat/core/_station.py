@@ -120,9 +120,14 @@ def get_stations_in_event(
     if not as_json:
         return results
 
-    adapter: TypeAdapter[Sequence[AimbatStation]] = TypeAdapter(Sequence[AimbatStation])
+    read_stations = [
+        AimbatStationRead.from_station(station=s, session=session) for s in results
+    ]
+    read_adapter: TypeAdapter[Sequence[AimbatStationRead]] = TypeAdapter(
+        Sequence[AimbatStationRead]
+    )
 
-    return adapter.dump_python(results, mode="json")
+    return read_adapter.dump_python(read_stations, mode="json")
 
 
 def get_station_iccs_ccs(
