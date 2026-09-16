@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from functools import lru_cache
 from typing import Any
 
 import pandas as pd
@@ -13,11 +12,10 @@ def _narrow_pandas_type(val: Any) -> float | None:
     return None
 
 
-@lru_cache(maxsize=1024)
 def _mean_and_sem_tuple(
     data: tuple[float | None, ...],
 ) -> tuple[float | None, float | None]:
-    """Return the cached mean and SEM for a tuple of numeric values."""
+    """Return the mean and SEM for a tuple of numeric values."""
     series = pd.Series(data)
 
     return (

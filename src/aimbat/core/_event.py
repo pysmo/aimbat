@@ -52,7 +52,7 @@ def resolve_event(session: Session, event_id: UUID | None = None) -> AimbatEvent
         NoResultFound: If `event_id` is not given, or if no event with the
             given `event_id` exists.
     """
-    if event_id:
+    if event_id is not None:
         logger.debug(f"Resolving event by explicit ID: {event_id}.")
         event = session.get(AimbatEvent, event_id)
         if event is None:

@@ -28,9 +28,8 @@ class RichColSpec(BaseModel):
             alignment is applied.
         style: Style string for the column (e.g. "bold magenta").
         no_wrap: If `True`, cell values in this column will not wrap.
-        highlight: If `True`, enables Rich's automatic syntax highlighting for
-            values in this column. If `False`, disables it. If `None`, no
-            explicit setting is applied.
+        highlight: If `True` (the default), enables Rich's automatic syntax
+            highlighting for values in this column. If `False`, disables it.
         formatter: Custom formatter for cell values. Called with the raw field
             value (guaranteed non-`None`) and must return a display string. If
             `None`, a generic fallback is used instead.

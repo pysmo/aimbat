@@ -60,17 +60,17 @@ class TestSAPandasTimestamp:
         assert isinstance(result, datetime)
         assert result.tzinfo == UTC
 
-    def test_process_bind_param_truncates_nanoseconds(
+    def test_process_bind_param_rounds_nanoseconds(
         self, sa_timestamp: SAPandasTimestamp, mock_dialect: Dialect
     ) -> None:
-        """Test that nanosecond precision is truncated to microseconds."""
+        """Test that nanosecond precision is rounded to microseconds."""
         # DateTime in Python only supports microseconds, pandas supports nanoseconds
         ts_nano = pd.Timestamp("2023-01-01 12:00:00.123456789")
         result = sa_timestamp.process_bind_param(ts_nano, mock_dialect)
         assert result is not None
-        # Should be truncated/floored to microseconds
-        assert result.microsecond == 123456
-        # Ensure it didn't round up or do something unexpected with the extra precision
+        # Should be rounded to the nearest microsecond
+        assert result.microsecond == 123457
+        # Ensure it didn't carry into an unexpected field
         assert result.second == 0
 
     def test_process_result_value_none(

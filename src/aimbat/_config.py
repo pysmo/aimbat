@@ -1,7 +1,7 @@
 """Global configuration options for the AIMBAT application."""
 
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 from pandas import Timedelta
 from pydantic import Field, model_validator
@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     corners: int = Field(
         default=2,
         gt=0,
+        le=10,
         description=(
             "Number of corners (poles) for the bandpass filter (ignored if "
             + "`bandpass_apply` is False)."
@@ -264,7 +265,7 @@ def print_settings_table(pretty: bool) -> None:
         )
 
     env_prefix = Settings.model_config.get("env_prefix")
-    values: dict[str, str] = json.loads(settings.model_dump_json())
+    values: dict[str, Any] = json.loads(settings.model_dump_json())
 
     if not pretty:
         for k, v in values.items():
@@ -350,7 +351,7 @@ def generate_settings_table_markdown() -> str:
     import json
 
     env_prefix = Settings.model_config.get("env_prefix", "").upper()
-    values: dict[str, str] = json.loads(get_default_settings().model_dump_json())
+    values: dict[str, Any] = json.loads(get_default_settings().model_dump_json())
 
     lines = [
         "| Environment Variable | Default | Description |",

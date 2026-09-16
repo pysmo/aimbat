@@ -156,7 +156,7 @@ class TestSacEvent:
     ) -> None:
         """Verifies that AimbatEvent fields match the source SAC file headers.
 
-        Note: SAPandasTimestamp truncates to microsecond precision.
+        Note: SAPandasTimestamp rounds to microsecond precision.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
@@ -171,7 +171,7 @@ class TestSacEvent:
         session.commit()
         session.refresh(event)
 
-        assert event.time == sac.event.time.floor("us")
+        assert event.time == sac.event.time.round("us")
         assert event.latitude == sac.event.latitude
         assert event.longitude == sac.event.longitude
         assert event.depth == sac.event.depth
@@ -210,8 +210,8 @@ class TestSacSeismogram:
     def test_metadata_matches_sac(self, sac_file_good: Path, session: Session) -> None:
         """Verify that seismogram model fields correspond to the SAC file.
 
-        SAPandasTimestamp truncates to microsecond precision when storing
-        in SQLite, so Timestamp comparisons use floor("us").
+        SAPandasTimestamp rounds to microsecond precision when storing
+        in SQLite, so Timestamp comparisons use round("us").
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
@@ -221,9 +221,9 @@ class TestSacSeismogram:
         seis = _persist_sac(session, sac_file_good)
         session.refresh(seis)
 
-        assert seis.begin_time == sac.seismogram.begin_time.floor("us")
+        assert seis.begin_time == sac.seismogram.begin_time.round("us")
         assert seis.delta == sac.seismogram.delta
-        assert seis.t0 == sac.timestamps.t0.floor("us")  # type: ignore
+        assert seis.t0 == sac.timestamps.t0.round("us")  # type: ignore
 
     def test_read_data_from_sac(self, sac_file_good: Path, session: Session) -> None:
         """Verifies that AimbatSeismogram.data returns the waveform from the SAC file.

@@ -60,8 +60,8 @@ class SAPandasTimestamp(TypeDecorator[Timestamp]):
         else:
             ts = ts.tz_convert(UTC)
 
-        # Truncate to microseconds: datetime lacks nanosecond precision.
-        return ts.floor("us").to_pydatetime()
+        # Round to microseconds: datetime lacks nanosecond precision.
+        return ts.round("us").to_pydatetime()
 
     def process_result_value(self, value: Any, dialect: Dialect) -> Timestamp | None:
         """Convert a stored value back to a UTC-aware `Timestamp`.

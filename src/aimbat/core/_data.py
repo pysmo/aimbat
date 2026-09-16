@@ -819,8 +819,9 @@ def dump_data_table(
     if by_alias and by_title:
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
+    exclude_map: dict[str, set[str]] | None = None
     if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude_map = {"__all__": exclude}
 
     adapter: TypeAdapter[Sequence[AimbatDataSource]] = TypeAdapter(
         Sequence[AimbatDataSource]
@@ -832,7 +833,7 @@ def dump_data_table(
         data_source = session.exec(select(AimbatDataSource)).all()
 
     data = adapter.dump_python(
-        data_source, exclude=exclude, by_alias=by_alias, mode="json"
+        data_source, exclude=exclude_map, by_alias=by_alias, mode="json"
     )
 
     if by_title:

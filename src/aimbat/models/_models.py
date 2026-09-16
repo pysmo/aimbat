@@ -935,6 +935,9 @@ class AimbatNote(SQLModel, table=True):
 
     @model_validator(mode="after")
     def _exactly_one_parent(self) -> "AimbatNote":
+        # Table-model __init__ skips Pydantic validation, so this never runs
+        # on the normal construction path; the DB CheckConstraint above is
+        # the real guard. Kept for the direct-Pydantic-construction case.
         set_count = sum(
             fk is not None
             for fk in (
