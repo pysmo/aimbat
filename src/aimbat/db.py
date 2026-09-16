@@ -41,9 +41,6 @@ from aimbat.logger import logger
 
 __all__ = ["engine"]
 
-if settings.strict_schema_check:
-    warnings.simplefilter("error", SchemaStaleWarning)
-
 logger.debug(f"Initialising AIMBAT database engine with {settings.db_url=}.")
 
 engine = create_engine(
@@ -157,4 +154,10 @@ if engine.name == "sqlite":
 
             warning = _build_staleness_warning(current_revision)
             if warning is not None:
+                # Applied here rather than at module import time, so merely
+                # importing aimbat.db doesn't mutate the process-global
+                # warnings filter for every importer - only a process that
+                # actually hits a stale schema does.
+                if settings.strict_schema_check:
+                    warnings.simplefilter("error", SchemaStaleWarning)
                 warnings.warn(warning, stacklevel=1)

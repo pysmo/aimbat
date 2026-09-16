@@ -21,9 +21,14 @@ from aimbat.types import (
 class Settings(BaseSettings):
     """Runtime configuration for AIMBAT.
 
-    Values are populated, in order of precedence, from keyword arguments,
-    environment variables prefixed with `AIMBAT_`, and an `.env` file in the
-    current working directory.
+    Values are populated, in order of precedence, from keyword arguments
+    passed to `Settings()`, environment variables prefixed with `AIMBAT_`,
+    and an `.env` file in the current working directory.
+
+    The module-level `settings` object is built once at import time.
+    Changing an environment variable or `.env` file afterwards has no effect
+    on it, or on anything that already imported it (e.g. `aimbat.db`'s
+    engine, `aimbat.logger`'s sink) - construct a fresh `Settings()` instead.
     """
 
     model_config = SettingsConfigDict(env_prefix="aimbat_", env_file=".env")
@@ -309,6 +314,9 @@ def cli_settings_list(
       (e.g. `AIMBAT_LOG_LEVEL=DEBUG`).
     - Setting them in a `.env` file in the current working directory
       (e.g. `AIMBAT_LOG_LEVEL=DEBUG` in `.env`).
+
+    These are read once when AIMBAT starts; changing them mid-process has no
+    effect on the running command.
 
     Args:
         pretty: If True, print a Rich table with name, value, and
