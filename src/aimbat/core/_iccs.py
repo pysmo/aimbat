@@ -695,6 +695,11 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     session.flush()
 
 
+# AimbatEventParametersBase fields with no corresponding ICCS attribute -
+# excluded from the sync loop below by design, not by a silent hasattr() skip.
+_NON_ICCS_EVENT_PARAMETER_FIELDS = frozenset({"completed", "mccc_damp", "mccc_min_cc"})
+
+
 def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
     """Sync an existing ICCS instance's parameters from the database.
 
@@ -712,8 +717,15 @@ def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> No
 
     event_params = AimbatEventParametersBase.model_validate(event.parameters)
     for field_name in AimbatEventParametersBase.model_fields:
-        if hasattr(iccs, field_name):
-            setattr(iccs, field_name, getattr(event_params, field_name))
+        if field_name in _NON_ICCS_EVENT_PARAMETER_FIELDS:
+            continue
+        if not hasattr(iccs, field_name):
+            raise AttributeError(
+                f"ICCS has no attribute {field_name!r}; if this field is not "
+                + "meant to be synced to ICCS, add it to "
+                + "_NON_ICCS_EVENT_PARAMETER_FIELDS"
+            )
+        setattr(iccs, field_name, getattr(event_params, field_name))
 
     for iccs_seis in iccs.seismograms:
         db_seis = session.get(AimbatSeismogram, iccs_seis.extra["id"])
