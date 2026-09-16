@@ -204,6 +204,31 @@ class TestUuidShortener:
         with pytest.raises(ValueError, match="not found in table"):
             uuid_shortener(patched_session, AimbatEvent, str_uuid=str(uid))
 
+    def test_min_length_crossing_a_dash_boundary(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies a min_length that lands just past a hyphen in the UUID.
+
+        Regression test: the internal length bookkeeping used to mix a
+        dash-free count (for the SQL query) with a dashed-string count (for
+        the candidate loop); this exercises a min_length that only makes
+        sense counted on the dash-free string.
+        """
+        uid1 = uuid.UUID("aaaaaaaa-0000-4000-8000-000000000001")
+        uid2 = uuid.UUID("aaaaaaab-0000-4000-8000-000000000002")
+        e1 = _make_event(uid1, offset_seconds=0)
+        e2 = _make_event(uid2, offset_seconds=1)
+        patched_session.add(e1)
+        patched_session.add(e2)
+        patched_session.commit()
+        # 9 dash-free characters reaches just past the first hyphen (index 8).
+        short1 = uuid_shortener(patched_session, e1, min_length=9)
+        short2 = uuid_shortener(patched_session, e2, min_length=9)
+        assert str(uid1).startswith(short1)
+        assert str(uid2).startswith(short2)
+        assert short1 != short2
+        assert len(short1.replace("-", "")) >= 9
+
     def test_min_length_respected(self, patched_session: Session) -> None:
         """Verifies that the minimum length constraint is respected.
 
