@@ -309,8 +309,9 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         If `label` is given, a panel is shown with a "close matplotlib to
         return" hint. Any exception raised inside the block (including
         `KeyboardInterrupt`) is shown in the terminal while still suspended,
-        then re-raised after Textual has fully resumed so callers can still
-        react to it.
+        then re-raised after Textual has fully resumed so callers can log it
+        or update state - callers should not also display it to the user
+        (e.g. via `self.notify`), since it was already shown here.
         """
         console = Console()
         caught: BaseException | None = None
@@ -512,7 +513,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         except KeyboardInterrupt:
             pass
         except Exception as exc:
-            self.notify(str(exc), severity="error")
+            logger.exception(f"Viewing seismograms failed: {exc}")
 
     def _toggle_seismogram_bool(self, item_id: str, param: SeismogramParameter) -> None:
         """Flip a boolean seismogram parameter (select or flip) and update the in-memory ICCS instance.
@@ -686,7 +687,6 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             pass
         except Exception as exc:
             logger.exception(f"Snapshot preview failed: {exc}")
-            self.notify(str(exc), severity="error")
 
     def _confirm_rollback(self, snap_id: str) -> None:
         """Show a confirmation dialog, then roll the active event back to a snapshot if confirmed."""
@@ -860,7 +860,6 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             return
         except Exception as exc:
             logger.exception(f"Interactive tool '{tool}' raised: {exc}")
-            self.notify(str(exc), severity="error")
             return
 
         if tool in VIEW_ONLY_TOOLS:

@@ -309,6 +309,10 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     `AimbatSeismogram`, passing `data` by reference to the read-only io cache.
     No waveform data are copied.
 
+    Only `event.id` is trusted from the passed `event`: on a cache miss the
+    function re-selects it from `session`, eagerly loading `parameters` and
+    `seismograms`. `event` must therefore already be attached to `session`.
+
     Args:
         session: Database session.
         event: AimbatEvent.
