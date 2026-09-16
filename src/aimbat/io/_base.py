@@ -579,6 +579,9 @@ def read_seismogram_data(
     logger.debug(f"Reading seismogram data from {datasource}.")
     key = (str(datasource), datatype)
     if session is not None:
+        # Checked before the reader-registration check below: a session's own
+        # staged write should be readable back regardless of whether the
+        # datatype also supports reading through a registered reader.
         staged = _pending.get(session)
         if staged is not None and key in staged:
             logger.debug(f"Retrieved staged seismogram data for {datasource}.")

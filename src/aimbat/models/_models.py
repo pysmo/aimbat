@@ -628,6 +628,12 @@ class AimbatSeismogram(SQLModel, table=True):
 
             Assigning to this attribute stages the write; it reaches the data
             source when the owning session commits (see the class docstring).
+
+            In-place mutation (`seis.data[:] = ...`) is not supported - the
+            setter has no way to intercept a slice assignment on the array it
+            already returned, so NumPy raises its own `ValueError:
+            assignment destination is read-only` rather than a message
+            specific to this class. Assign a new array to `seis.data` instead.
             """
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")

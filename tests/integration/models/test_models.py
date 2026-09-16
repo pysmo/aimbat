@@ -9,7 +9,7 @@ from datetime import UTC
 import pytest
 from pandas import Timedelta, Timestamp
 from pydantic import ValidationError
-from sqlmodel import Session, select
+from sqlmodel import Session, SQLModel, select
 
 from aimbat.io import DataType
 from aimbat.models import (
@@ -688,6 +688,55 @@ class TestOneToOneLinkConstraints:
         patched_session.add(AimbatEventParameters(event=ev))
         with pytest.raises(IntegrityError):
             patched_session.flush()
+
+
+# ===================================================================
+# Count column_property / TYPE_CHECKING sync
+# ===================================================================
+
+
+class TestCountColumnPropertiesMatchTypeCheckingStubs:
+    """`AimbatEvent`/`AimbatStation`/`AimbatSnapshot` redeclare their count
+    `column_property` attributes under `if TYPE_CHECKING` (with dummy int
+    defaults) purely so type checkers see them; the real values are assigned
+    via `column_property(...)` further down the module. Nothing keeps the two
+    in sync - this pins the actual mapped `column_property` names per model
+    so an edit to one without the other fails a test instead of drifting
+    silently.
+    """
+
+    @pytest.mark.parametrize(
+        "model, expected_count_attrs",
+        [
+            (AimbatEvent, {"seismogram_count", "station_count", "snapshot_count"}),
+            (AimbatStation, {"seismogram_count", "event_count"}),
+            (
+                AimbatSnapshot,
+                {
+                    "seismogram_count",
+                    "selected_seismogram_count",
+                    "flipped_seismogram_count",
+                },
+            ),
+        ],
+    )
+    def test_mapped_column_properties_match_expected(
+        self,
+        model: type[SQLModel],
+        expected_count_attrs: set[str],
+    ) -> None:
+        from sqlalchemy import inspect
+        from sqlalchemy.orm import ColumnProperty
+
+        mapper = inspect(model)
+        assert mapper is not None
+        table_column_names = set(model.__table__.columns.keys())  # type: ignore[attr-defined]
+        derived_column_properties = {
+            prop.key
+            for prop in mapper.iterate_properties
+            if isinstance(prop, ColumnProperty) and prop.key not in table_column_names
+        }
+        assert derived_column_properties == expected_count_attrs
 
     def test_second_event_quality_rejected(self, patched_session: Session) -> None:
         from sqlalchemy.exc import IntegrityError
