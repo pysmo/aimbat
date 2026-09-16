@@ -457,6 +457,10 @@ def cli_snapshot_results(
             validator=validators.Path(dir_okay=False),
         ),
     ] = None,
+    force: Annotated[
+        bool,
+        Parameter(help="Overwrite `--output` if it already exists."),
+    ] = False,
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
     """Export per-seismogram MCCC results from a snapshot as JSON.
@@ -473,6 +477,9 @@ def cli_snapshot_results(
 
     from aimbat.core import dump_snapshot_results
     from aimbat.db import engine
+
+    if output is not None and output.exists() and not force:
+        raise FileExistsError(f"{output} already exists; pass --force to overwrite.")
 
     with Session(engine) as session:
         data = dump_snapshot_results(

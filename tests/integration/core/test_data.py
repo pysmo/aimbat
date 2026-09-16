@@ -155,6 +155,25 @@ class TestAddDataToProject:
                 data_type=DataType.SAC,
             )
 
+    def test_add_multiple_nonexistent_files_lists_all_in_error(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies the error message lists every missing source, not just the first.
+
+        Args:
+            patched_session (Session): Database session.
+        """
+        missing_a = Path("this_file_does_not_exist_a.sac")
+        missing_b = Path("this_file_does_not_exist_b.sac")
+        with pytest.raises(FileNotFoundError) as excinfo:
+            add_data_to_project(
+                patched_session,
+                [missing_a, missing_b],
+                data_type=DataType.SAC,
+            )
+        assert str(missing_a) in str(excinfo.value)
+        assert str(missing_b) in str(excinfo.value)
+
     def test_add_mixed_valid_and_invalid_files(
         self, sac_file_good: Path, patched_session: Session
     ) -> None:

@@ -139,6 +139,8 @@ def register_station_creator(
         fn: Callable that accepts a logical source identifier and returns an
             `AimbatStation` instance.
     """
+    if datatype in _station_creators:
+        logger.warning(f"Overwriting existing station creator for {datatype}.")
     logger.debug(f"Registering station creator for {datatype}.")
     _station_creators[datatype] = fn
 
@@ -154,6 +156,8 @@ def register_event_creator(
         fn: Callable that accepts a logical source identifier and returns an
             `AimbatEvent` instance.
     """
+    if datatype in _event_creators:
+        logger.warning(f"Overwriting existing event creator for {datatype}.")
     logger.debug(f"Registering event creator for {datatype}.")
     _event_creators[datatype] = fn
 
@@ -169,6 +173,8 @@ def register_seismogram_creator(
         fn: Callable that accepts a logical source identifier and returns an
             `AimbatSeismogram` instance.
     """
+    if datatype in _seismogram_creators:
+        logger.warning(f"Overwriting existing seismogram creator for {datatype}.")
     logger.debug(f"Registering seismogram creator for {datatype}.")
     _seismogram_creators[datatype] = fn
 
@@ -184,6 +190,8 @@ def register_seismogram_data_reader(
         fn: Callable that accepts a `SeismogramReadContext` and returns the
             waveform data as a NumPy array.
     """
+    if datatype in _seismogram_data_readers:
+        logger.warning(f"Overwriting existing seismogram data reader for {datatype}.")
     logger.debug(f"Registering seismogram data reader for {datatype}.")
     _seismogram_data_readers[datatype] = fn
 
@@ -199,6 +207,8 @@ def register_seismogram_data_writer(
         fn: Callable that accepts a logical source identifier and a NumPy array,
             and writes the data to the source.
     """
+    if datatype in _seismogram_data_writers:
+        logger.warning(f"Overwriting existing seismogram data writer for {datatype}.")
     logger.debug(f"Registering seismogram data writer for {datatype}.")
     _seismogram_data_writers[datatype] = fn
 
@@ -215,6 +225,8 @@ def register_source_probe(
             the source still provides the seismogram, raising
             `SourceUnavailableError` when it cannot tell.
     """
+    if datatype in _source_probes:
+        logger.warning(f"Overwriting existing source presence probe for {datatype}.")
     logger.debug(f"Registering source presence probe for {datatype}.")
     _source_probes[datatype] = fn
 

@@ -921,6 +921,47 @@ class TestSnapshotResults:
         with pytest.raises(SystemExit):
             cli(["snapshot", "results", snapshot_id, "--output", str(tmp_path)])
 
+    def test_results_output_refuses_to_overwrite_existing_file(
+        self,
+        loaded_engine: Engine,
+        cli: Callable[[str | list[str]], None],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
+        event_id: str,
+        tmp_path: Path,
+    ) -> None:
+        """Verifies that `--output` refuses to overwrite an existing file without `--force`.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            cli: The in-process CLI callable.
+            cli_json: The in-process CLI JSON dump callable.
+            event_id: The default event ID fixture.
+            tmp_path: Pytest temporary directory.
+        """
+        cli(f"snapshot create --event-id {event_id}")
+        data = cli_json("snapshot dump")
+        assert isinstance(data, dict)
+        snapshot_id: str = data["snapshots"][0]["id"]
+
+        out_file = tmp_path / "results.json"
+        out_file.write_text("pre-existing content")
+
+        with pytest.raises(FileExistsError):
+            cli(["snapshot", "results", snapshot_id, "--output", str(out_file)])
+        assert out_file.read_text() == "pre-existing content"
+
+        cli(
+            [
+                "snapshot",
+                "results",
+                snapshot_id,
+                "--output",
+                str(out_file),
+                "--force",
+            ]
+        )
+        assert out_file.read_text() != "pre-existing content"
+
     def test_results_by_alias(
         self,
         loaded_engine: Engine,

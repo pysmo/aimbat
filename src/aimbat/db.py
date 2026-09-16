@@ -30,7 +30,7 @@ import sqlite3
 import threading
 import warnings
 
-from sqlalchemy import event
+from sqlalchemy import event, make_url
 from sqlalchemy.engine.interfaces import ExceptionContext
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlmodel import create_engine
@@ -53,7 +53,7 @@ engine = create_engine(
         "check_same_thread": False,
         "timeout": 30,
     }
-    if "sqlite" in settings.db_url
+    if make_url(settings.db_url).get_backend_name() == "sqlite"
     else {},
 )
 """AIMBAT database engine."""

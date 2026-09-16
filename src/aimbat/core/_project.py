@@ -422,8 +422,17 @@ def delete_project(engine: Engine) -> None:
             return
         elif database:
             project_path = Path(database)
+            resolved = project_path.resolve()
+            if resolved == Path(resolved.anchor) or resolved == Path.home():
+                raise RuntimeError(
+                    f"Refusing to delete suspicious project path: {resolved}."
+                )
             logger.info(f"Deleting project file: {project_path}.")
             project_path.unlink()
+            for suffix in ("-wal", "-shm"):
+                project_path.with_name(project_path.name + suffix).unlink(
+                    missing_ok=True
+                )
             return
 
     raise RuntimeError(

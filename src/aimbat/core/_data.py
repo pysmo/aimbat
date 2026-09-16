@@ -492,6 +492,12 @@ def add_data_to_project(
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
 
+    missing_sources = [str(ds) for ds in data_sources if not Path(ds).exists()]
+    if missing_sources:
+        raise FileNotFoundError(
+            "Data source(s) not found: " + ", ".join(missing_sources)
+        )
+
     if station_id is not None and session.get(AimbatStation, station_id) is None:
         raise NoResultFound(f"No station found with ID {station_id}.")
     if event_id is not None and session.get(AimbatEvent, event_id) is None:
