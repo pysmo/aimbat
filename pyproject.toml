@@ -38,7 +38,7 @@ dependencies = [
 Documentation = "https://aimbat.pysmo.org"
 
 [project.scripts]
-aimbat = "aimbat.app:app"
+aimbat = "aimbat.app:main"
 aimbat-tui = "aimbat._cli.tui:app"
 
 [dependency-groups]

@@ -2,10 +2,11 @@
 
 import os
 import shutil
-from io import BytesIO
+import stat
+import tempfile
 from pathlib import Path
 from urllib.request import urlopen
-from zipfile import ZipFile
+from zipfile import ZipFile, ZipInfo
 
 from aimbat import settings
 from aimbat.logger import logger
@@ -51,6 +52,28 @@ def _check_safe_to_delete(path: Path) -> None:
             f"Refusing to delete {resolved}: this does not look like a sample data"
             + " directory."
         )
+
+
+def _is_symlink_entry(member: ZipInfo) -> bool:
+    """Whether a zip entry's stored Unix permissions mark it as a symlink.
+
+    `extractall` sanitises `..` and absolute paths, but a symlink entry can
+    still be materialised and later point outside the extraction directory
+    when followed, so such entries are skipped entirely.
+    """
+    unix_mode = member.external_attr >> 16
+    return stat.S_ISLNK(unix_mode)
+
+
+def _extract_regular_files(zfile: ZipFile, dest: Path) -> None:
+    """Extract every non-symlink member of `zfile` into `dest`."""
+    for member in zfile.infolist():
+        if _is_symlink_entry(member):
+            logger.warning(
+                f"Skipping symlink entry in sample data archive: {member.filename}"
+            )
+            continue
+        zfile.extract(member, dest)
 
 
 def delete_sampledata() -> None:
@@ -100,8 +123,11 @@ def download_sampledata(force: bool = False) -> None:
             )
 
     with urlopen(_SAMPLEDATA_SRC, timeout=_DOWNLOAD_TIMEOUT_SECONDS) as zipresp:
-        logger.debug(f"Extracting sample data to {settings.sampledata_dir}.")
-        with ZipFile(BytesIO(zipresp.read())) as zfile:
-            zfile.extractall(settings.sampledata_dir)
+        with tempfile.NamedTemporaryFile() as tmpfile:
+            shutil.copyfileobj(zipresp, tmpfile)
+            tmpfile.flush()
+            logger.debug(f"Extracting sample data to {settings.sampledata_dir}.")
+            with ZipFile(tmpfile.name) as zfile:
+                _extract_regular_files(zfile, settings.sampledata_dir)
 
     logger.info("Sample data downloaded and extracted successfully.")

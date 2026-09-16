@@ -211,13 +211,19 @@ class Settings(BaseSettings):
     def set_computed_defaults(self) -> Self:
         """Derive `db_url` from `project` when not set explicitly.
 
-        A literal `?` in `project` is percent-encoded first: SQLite URL
-        parsing otherwise treats it as the start of a query string, silently
-        truncating everything from `?` onwards off the path SQLAlchemy
-        actually opens.
+        `?` and `#` in `project` are percent-encoded first: SQLite URL
+        parsing otherwise treats them as the start of a query string or
+        fragment, silently truncating everything from that point onwards off
+        the path SQLAlchemy actually opens. `%` is escaped first so the
+        replacements below can't themselves introduce a new `%` sequence.
         """
         if self.db_url == "":
-            escaped_project = str(self.project).replace("?", "%3F")
+            escaped_project = (
+                str(self.project)
+                .replace("%", "%25")
+                .replace("?", "%3F")
+                .replace("#", "%23")
+            )
             self.db_url = f"sqlite+pysqlite:///{escaped_project}"
         return self
 
