@@ -295,6 +295,28 @@ class TestUpgradeProject:
         """An in-memory database has no file to back up and must not error."""
         upgrade_project(engine)  # already created + stamped by the `engine` fixture
 
+    def test_downgrade_from_head_to_base_drops_all_tables(
+        self, engine_from_file: Engine
+    ) -> None:
+        """Every migration's `downgrade()` should unwind cleanly, not just
+        `upgrade()` step forward - a fresh, empty project exercises the whole
+        chain without hitting any of the data-dependent downgrade caveats
+        (e.g. same-microsecond snapshot rows) documented on individual
+        migrations.
+        """
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        create_project(engine_from_file)
+        config = _alembic_config(engine_from_file)
+
+        command.downgrade(config, "base")
+
+        with engine_from_file.begin() as connection:
+            table_names = inspect(connection).get_table_names()
+        assert not any(name.startswith("aimbat") for name in table_names)
+
     def test_upgrade_rejects_unstamped_database_with_unknown_schema(
         self, engine_from_file: Engine
     ) -> None:

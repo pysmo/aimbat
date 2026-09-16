@@ -82,7 +82,14 @@ class AimbatDataSource(SQLModel, table=True):
     )
     sourcename: str = Field(
         title="Source name",
-        description="Opaque logical source identifier for the waveform data.",
+        description=(
+            "Opaque logical source identifier for the waveform data. "
+            + "Uniqueness is enforced as plain string equality, not "
+            + "canonicalised, so a file-based source reachable under two "
+            + "different (but equivalent) path spellings is not recognised "
+            + "as the same source - callers are responsible for "
+            + "canonicalising before storing."
+        ),
     )
     datatype: DataType = Field(
         default=DataType.SAC,
