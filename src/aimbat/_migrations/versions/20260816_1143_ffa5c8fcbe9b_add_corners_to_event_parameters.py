@@ -25,6 +25,8 @@ depends_on: str | Sequence[str] | None = None
 # these bodies must stay byte-for-byte (modulo whitespace) in sync with there,
 # checked by tests/integration/core/test_migrations.py::test_same_triggers.
 
+# No WHEN clause yet at this revision - added in a later migration
+# (86cb8889cd87), which narrows it to non-`completed` events.
 _EVENT_MODIFIED_ON_PARAMS_UPDATE = """
     CREATE TRIGGER IF NOT EXISTS event_modified_on_params_update
     AFTER UPDATE ON aimbateventparameters

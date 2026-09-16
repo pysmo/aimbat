@@ -250,8 +250,12 @@ def upgrade() -> None:
     # The seven triggers below are not part of SQLModel's metadata (they are
     # hand-written DDL executed imperatively by
     # `core._project.create_project()`), so autogenerate cannot see or
-    # produce them. Keep this block in sync with `create_project()` by hand;
-    # any future trigger change needs its own manual migration.
+    # produce them. This is the trigger state as of this revision; later
+    # revisions update triggers 1 and 3 (see `event_modified_on_params_update`
+    # and `null_all_quality_on_window_bandpass_change` in later migrations).
+    # Do not sync this block to `create_project()` - only the chain's end
+    # state must match it, verified by
+    # tests/integration/core/test_migrations.py::test_same_triggers.
     if op.get_bind().dialect.name == "sqlite":
         # Trigger 1: Track last modification time when event parameters change
         op.execute(
