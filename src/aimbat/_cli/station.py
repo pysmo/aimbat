@@ -136,7 +136,7 @@ def cli_station_seismograms_plot(
         station = session.get(AimbatStation, station_id)
         if station is None:
             raise ValueError(f"Station with ID {station_id} not found.")
-        plot_seismograms(session, station, return_fig=False)
+        plot_seismograms(station, return_fig=False)
 
 
 @app.command(name="dump")

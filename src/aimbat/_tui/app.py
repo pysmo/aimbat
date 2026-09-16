@@ -503,12 +503,12 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                         event = session.get(AimbatEvent, item_uuid)
                         if event is None:
                             return
-                        plot_seismograms(session, event, return_fig=False)
+                        plot_seismograms(event, return_fig=False)
                     else:
                         station = session.get(AimbatStation, item_uuid)
                         if station is None:
                             return
-                        plot_seismograms(session, station, return_fig=False)
+                        plot_seismograms(station, return_fig=False)
         except KeyboardInterrupt:
             pass
         except Exception as exc:

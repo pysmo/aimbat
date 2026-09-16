@@ -4,6 +4,7 @@ See the module docstring in `aimbat._migrations.env` for how the target
 database connection is resolved.
 """
 
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -272,6 +273,39 @@ def stamp_head(engine: Engine) -> None:
     command.stamp(_alembic_config(engine), "head")
 
 
+def _backup_before_upgrade(engine: Engine, from_revision: str | None) -> None:
+    """Copy a file-backed SQLite database aside before running migrations.
+
+    A mid-chain migration failure (disk full, power loss, a bug in a future
+    migration script) can leave a half-applied schema with no recovery path,
+    so a copy is made first. No-op for `:memory:` databases, non-SQLite
+    backends, or a database file that doesn't exist yet.
+
+    Args:
+        engine: The SQLAlchemy/SQLModel Engine instance connected to the
+            target database.
+        from_revision: The revision the backup is taken at, used only to
+            label the backup filename.
+    """
+    if engine.url.get_backend_name() != "sqlite":
+        return
+    database = engine.url.database
+    if not database or database == ":memory:":
+        return
+    db_path = Path(database)
+    if not db_path.exists():
+        return
+
+    label = from_revision or "unstamped"
+    backup_path = db_path.with_name(f"{db_path.name}.pre-{label}.bak")
+    shutil.copy2(db_path, backup_path)
+    for suffix in ("-wal", "-shm"):
+        sidecar = db_path.with_name(db_path.name + suffix)
+        if sidecar.exists():
+            shutil.copy2(sidecar, backup_path.with_name(backup_path.name + suffix))
+    logger.info(f"Backed up project database to {backup_path} before upgrading.")
+
+
 def upgrade_project(engine: Engine) -> None:
     """Upgrade the project database to the latest Alembic revision.
 
@@ -359,4 +393,5 @@ def upgrade_project(engine: Engine) -> None:
         # below, which builds the schema from scratch via the full
         # migration chain, exactly like a brand new install.
 
+    _backup_before_upgrade(engine, current_revision)
     command.upgrade(config, "head")

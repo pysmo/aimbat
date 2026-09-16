@@ -356,7 +356,7 @@ class TestPlotSeismograms:
         """
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        fig, _ = plot_seismograms(loaded_session, plot_for=event, return_fig=True)
+        fig, _ = plot_seismograms(plot_for=event, return_fig=True)
         assert isinstance(fig, Figure)
 
     def test_plot_station_returns_figure(
@@ -368,5 +368,5 @@ class TestPlotSeismograms:
             loaded_session: The database session.
             station: An AimbatStation instance.
         """
-        fig, _ = plot_seismograms(loaded_session, plot_for=station, return_fig=True)
+        fig, _ = plot_seismograms(plot_for=station, return_fig=True)
         assert isinstance(fig, Figure)

@@ -20,7 +20,7 @@ def print_error_panel(e: Exception) -> None:
 
     console = Console(stderr=True)
     panel = Panel(
-        f"{e}",
+        f"{e}\n\n(run with --debug or AIMBAT_LOG_LEVEL=DEBUG for a full traceback)",
         title="Error",
         title_align="left",
         border_style="red",

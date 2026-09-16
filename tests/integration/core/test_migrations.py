@@ -276,6 +276,25 @@ class TestUpgradeProject:
 
         assert get_current_revision(engine_from_file) is not None
 
+    def test_upgrade_backs_up_database_file_first(
+        self, engine_from_file: Engine, db_path: Path
+    ) -> None:
+        """A file-backed database should be copied aside before `command.upgrade`
+        runs, labelled with the revision it was backed up from.
+        """
+        create_project(engine_from_file)
+        revision = get_current_revision(engine_from_file)
+
+        upgrade_project(engine_from_file)
+
+        backup_path = db_path.with_name(f"{db_path.name}.pre-{revision}.bak")
+        assert backup_path.exists()
+        assert backup_path.stat().st_size > 0
+
+    def test_upgrade_skips_backup_for_in_memory_database(self, engine: Engine) -> None:
+        """An in-memory database has no file to back up and must not error."""
+        upgrade_project(engine)  # already created + stamped by the `engine` fixture
+
     def test_upgrade_rejects_unstamped_database_with_unknown_schema(
         self, engine_from_file: Engine
     ) -> None:

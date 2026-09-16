@@ -41,7 +41,7 @@ def cli_seismogram_plot(
 
     with Session(engine) as session:
         event = resolve_event(session, event_id)
-        plot_seismograms(session, event, return_fig=False)
+        plot_seismograms(event, return_fig=False)
 
 
 @app.command(name="stack")

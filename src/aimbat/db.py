@@ -88,7 +88,7 @@ if engine.name == "sqlite":
 
     @event.listens_for(engine, "handle_error")
     def _handle_missing_schema(exception_context: ExceptionContext) -> None:
-        """Convert a missing `aimbatevent` table error to a user-friendly RuntimeError.
+        """Convert a missing AIMBAT table error to a user-friendly RuntimeError.
 
         Args:
             exception_context: SQLAlchemy's context for the error being handled.
@@ -97,7 +97,7 @@ if engine.name == "sqlite":
             RuntimeError: If the original error indicates that no AIMBAT
                 project exists at the configured database location.
         """
-        if not exception_context.is_disconnect and "no such table: aimbatevent" in str(
+        if not exception_context.is_disconnect and "no such table: aimbat" in str(
             exception_context.original_exception
         ):
             raise RuntimeError(
