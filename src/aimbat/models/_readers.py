@@ -54,12 +54,16 @@ __all__ = [
 class SeismogramQualityStats(BaseModel):
     """Aggregated seismogram quality statistics for an event or station.
 
-    Built from live quality records. All mean fields are `None` when no
-    seismograms in the group have quality data. SEM fields are `None` when
-    fewer than two values are available. `mccc_rmse` is only populated by
-    `from_event` and `from_snapshot`; it is always `None` for `from_station`.
-    `event_id` is populated by `from_event` and `from_snapshot`; it is always
-    `None` for `from_station`.
+    Built from persisted `AimbatSeismogramQuality` rows, covering both ICCS
+    CC and MCCC diagnostics. All mean fields are `None` when no seismograms
+    in the group have quality data. SEM fields are `None` when fewer than
+    two values are available. `mccc_rmse` is only populated by `from_event`
+    and `from_snapshot`; it is always `None` for `from_station`. `event_id`
+    is populated by `from_event` and `from_snapshot`; it is always `None`
+    for `from_station`.
+
+    For the live, DB-independent CC-only equivalent (computed straight from
+    an `ICCS` instance), see `aimbat.core.CcStats`.
     """
 
     model_config = ConfigDict(frozen=True)

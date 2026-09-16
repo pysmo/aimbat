@@ -199,6 +199,11 @@ class CcStats:
     `mean_selected`/`sem_selected` are computed from seismograms with
     `select=True` only; `mean_all`/`sem_all` from every seismogram. SEM
     fields are `None` when fewer than two values are available.
+
+    Computed directly from `ICCS.ccs` against the current stack, so it is
+    always up to date without a DB round-trip. For the persisted-quality
+    equivalent (event/station/snapshot scoped, DB-backed), see
+    `aimbat.models.SeismogramQualityStats`.
     """
 
     n_all: int
