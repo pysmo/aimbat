@@ -55,10 +55,17 @@ def run_reporting_issues[T](func: Callable[[], T]) -> T:
     through the same red-panel path as any other failure, regardless of
     `AIMBAT_STRICT_SCHEMA_CHECK`.
 
-    In debugging mode (`AIMBAT_LOG_LEVEL=DEBUG` or `TRACE`), the schema
-    staleness promotion still applies, but exceptions are no longer caught
-    and rendered as a panel; they propagate as a normal Python traceback
-    instead.
+    In debugging mode (`AIMBAT_LOG_LEVEL=DEBUG`/`TRACE`, or a `--debug` flag
+    on the command line), the schema staleness promotion still applies, but
+    exceptions are no longer caught and rendered as a panel; they propagate
+    as a normal Python traceback instead.
+
+    A converter runs while cyclopts is still parsing arguments, before it
+    constructs the `_DebugTrait`-derived dataclass whose `__post_init__`
+    would otherwise set `settings.log_level` from `--debug` - that dataclass
+    is only built once every field, including this one, has already
+    converted successfully. So `sys.argv` is checked directly for `--debug`
+    here as well, rather than relying solely on `settings.log_level`.
     """
     import sys
     import warnings
@@ -68,7 +75,7 @@ def run_reporting_issues[T](func: Callable[[], T]) -> T:
     with warnings.catch_warnings():
         warnings.filterwarnings("error", category=SchemaStaleWarning)
 
-        if settings.log_level in ("TRACE", "DEBUG"):
+        if settings.log_level in ("TRACE", "DEBUG") or "--debug" in sys.argv:
             return func()
 
         try:

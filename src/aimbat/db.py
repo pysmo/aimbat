@@ -94,7 +94,7 @@ if engine.name == "sqlite":
             RuntimeError: If the original error indicates that no AIMBAT
                 project exists at the configured database location.
         """
-        if not exception_context.is_disconnect and "no such table: aimbat" in str(
+        if not exception_context.is_disconnect and "no such table: aimbatevent" in str(
             exception_context.original_exception
         ):
             raise RuntimeError(

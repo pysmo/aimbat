@@ -219,16 +219,14 @@ class Settings(BaseSettings):
         `?` and `#` in `project` are percent-encoded first: SQLite URL
         parsing otherwise treats them as the start of a query string or
         fragment, silently truncating everything from that point onwards off
-        the path SQLAlchemy actually opens. `%` is escaped first so the
-        replacements below can't themselves introduce a new `%` sequence.
+        the path SQLAlchemy actually opens. A literal `%` is left alone -
+        SQLAlchemy does not decode `%XX` escapes back out of the database
+        component of a sqlite URL, so escaping `%` here would instead corrupt
+        a `project` path that already contains one (e.g. `data%set.db` would
+        open `data%25set.db`).
         """
         if self.db_url == "":
-            escaped_project = (
-                str(self.project)
-                .replace("%", "%25")
-                .replace("?", "%3F")
-                .replace("#", "%23")
-            )
+            escaped_project = str(self.project).replace("?", "%3F").replace("#", "%23")
             self.db_url = f"sqlite+pysqlite:///{escaped_project}"
         return self
 

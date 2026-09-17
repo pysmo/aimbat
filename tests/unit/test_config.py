@@ -74,6 +74,18 @@ class TestSettings:
         s = Settings(project=Path("weird?name.db"))
         assert make_url(s.db_url).database == "weird%3Fname.db"
 
+    def test_db_url_preserves_literal_percent_in_project(self) -> None:
+        """A literal `%` in `project` must not be escaped to `%25`.
+
+        Regression test: SQLAlchemy does not decode `%XX` escapes back out of
+        a sqlite URL's database component, so escaping a literal `%` here
+        would open a different file than the one configured.
+        """
+        from sqlalchemy.engine import make_url
+
+        s = Settings(project=Path("data%set.db"))
+        assert make_url(s.db_url).database == "data%set.db"
+
     def test_env_prefix(self) -> None:
         """Verifies that the environment variable prefix is 'aimbat_'."""
         assert Settings.model_config.get("env_prefix") == "aimbat_"

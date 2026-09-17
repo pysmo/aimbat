@@ -10,6 +10,8 @@ from cyclopts import Parameter, Token
 
 from aimbat import settings
 
+from ._decorators import print_warning
+
 __all__ = [
     "CAUSAL_DEFAULTS",
     "ConfirmParameters",
@@ -266,23 +268,27 @@ def open_in_editor(initial_content: str) -> str:
         if result.returncode != 0:
             from aimbat.logger import logger
 
-            logger.warning(
+            message = (
                 f"Editor '{editor}' exited with code {result.returncode}; discarding "
                 + "changes."
             )
+            logger.warning(message)
+            print_warning(message)
             return initial_content
         with open(tmp_path, encoding="utf-8") as f:
             content = f.read()
         if content == initial_content and elapsed < 1:
             from aimbat.logger import logger
 
-            logger.warning(
+            message = (
                 f"Editor '{editor}' returned in under a second with no changes - if "
                 + "it launched a separate window that is still open (a non-blocking "
                 + "GUI editor), any edits made there will be lost once that window "
                 + "closes, since this temporary file is already gone. Use a "
                 + 'wait-for-close flag, e.g. EDITOR="code --wait".'
             )
+            logger.warning(message)
+            print_warning(message)
         return content
     finally:
         os.unlink(tmp_path)

@@ -283,18 +283,48 @@ class TestUuidConverterErrorHandling:
         with pytest.raises(RuntimeError, match="db lookup exploded"):
             converter(object, (Token(value="not-a-uuid"),))
 
+    def test_non_value_error_reraises_with_debug_flag_on_argv(
+        self,
+        patched_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The same failure also propagates as a traceback when `--debug` is
+        on the command line, even though `settings.log_level` alone can't
+        reflect it yet: the `_DebugTrait` dataclass that would set it isn't
+        constructed until every field, including this converter's, has
+        already converted successfully - see `run_reporting_issues`.
+        """
+        settings.log_level = "INFO"
+        monkeypatch.setattr("sys.argv", ["aimbat", "--debug"])
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("db lookup exploded")
+
+        monkeypatch.setattr("aimbat.utils.string_to_uuid", _boom)
+
+        converter = _make_uuid_converter(AimbatEvent)
+        with pytest.raises(RuntimeError, match="db lookup exploded"):
+            converter(object, (Token(value="not-a-uuid"),))
+
 
 class TestOpenInEditor:
     """Tests for `open_in_editor`'s non-blocking-editor detection."""
 
     def test_warns_when_editor_returns_fast_with_unchanged_content(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         """A sub-second return with unchanged content is the signature of a
         non-blocking GUI launcher that forked a separate window and exited
         immediately - any edit made there would be lost once that window
         closes, since the temp file is already gone by then. Warn instead of
         losing it silently.
+
+        The warning must reach the console, not just `aimbat.log`:
+        `configure_logging()` removes loguru's stderr sink, so a
+        `logger.warning` call alone is invisible to the user at the moment
+        it matters.
         """
         import subprocess
 
@@ -315,6 +345,33 @@ class TestOpenInEditor:
         assert result == "original content"
         warning.assert_called_once()
         assert "fake-editor" in warning.call_args.args[0]
+        assert "fake-editor" in capsys.readouterr().err
+
+    def test_warns_on_console_when_editor_exits_nonzero(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A non-zero editor exit discards the edit; the warning explaining
+        that must reach the console, not just `aimbat.log` (see above).
+        """
+        import subprocess
+
+        from aimbat._cli.common._parameters import open_in_editor
+
+        monkeypatch.setenv("EDITOR", "fake-editor")
+        monkeypatch.setattr(
+            "subprocess.run",
+            lambda args, check: subprocess.CompletedProcess(args, 1),
+        )
+        warning = MagicMock()
+        monkeypatch.setattr("aimbat.logger.logger.warning", warning)
+
+        result = open_in_editor("original content")
+
+        assert result == "original content"
+        warning.assert_called_once()
+        assert "fake-editor" in capsys.readouterr().err
 
     def test_no_warning_when_editor_returns_slowly(
         self, monkeypatch: pytest.MonkeyPatch
