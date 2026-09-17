@@ -97,6 +97,10 @@ def delete_event(session: Session, event_id: UUID) -> None:
     session.delete(event)
     session.commit()
 
+    from ._iccs import evict_iccs_cache_entry
+
+    evict_iccs_cache_entry(event_id)
+
 
 def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
     """Get the events marked as completed.

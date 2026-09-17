@@ -8,6 +8,7 @@ the corresponding alignment/picking algorithms and persist their
 results.
 """
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
@@ -47,6 +48,7 @@ __all__ = [
     "clear_iccs_cache",
     "clear_mccc_quality",
     "create_iccs_instance",
+    "evict_iccs_cache_entry",
     "run_iccs",
     "run_mccc",
     "sync_iccs_parameters",
@@ -242,14 +244,31 @@ def cc_stats(iccs: ICCS) -> CcStats:
 
 
 # Process-level ICCS cache. In normal CLI use this is always cold (one command
-# per process). In the shell a warm entry is reused across commands, avoiding
-# redundant data loading and ICCS computation.
-_iccs_cache: dict[UUID, BoundICCS] = {}
+# per process). In the shell/TUI a warm entry is reused across commands,
+# avoiding redundant data loading and ICCS computation. Bounded LRU (evict
+# least-recently-used once full) so visiting many events in one long-running
+# process doesn't pin every event's seismogram data in memory forever - each
+# entry holds a full copy-by-reference waveform list for its event.
+_ICCS_CACHE_MAX_ENTRIES = 32
+_iccs_cache: OrderedDict[UUID, BoundICCS] = OrderedDict()
 
 
 def clear_iccs_cache() -> None:
     """Clear the process-level ICCS cache."""
     _iccs_cache.clear()
+
+
+def evict_iccs_cache_entry(event_id: UUID) -> None:
+    """Remove one event's cached ICCS instance, if present.
+
+    Call this whenever an event is deleted, so its cached waveform data
+    don't linger in memory for the rest of the process on the strength of
+    an ID that no longer refers to anything.
+
+    Args:
+        event_id: ID of the deleted event.
+    """
+    _iccs_cache.pop(event_id, None)
 
 
 def _build_iccs(
@@ -324,6 +343,7 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     cached = _iccs_cache.get(event.id)
     if cached is not None and not cached.is_stale(event):
         logger.debug(f"Returning cached BoundICCS for event {event.id}.")
+        _iccs_cache.move_to_end(event.id)
         return cached
 
     # Stamp before reading the event's parameters and waveforms below, so a
@@ -358,6 +378,9 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     # call and blow up later on first stack access.
     _write_iccs_stats(event.id, bound.iccs)
     _iccs_cache[event.id] = bound
+    _iccs_cache.move_to_end(event.id)
+    if len(_iccs_cache) > _ICCS_CACHE_MAX_ENTRIES:
+        _iccs_cache.popitem(last=False)
     return bound
 
 

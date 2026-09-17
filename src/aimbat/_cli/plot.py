@@ -8,6 +8,11 @@ Available plots:
 
 Most plot commands support `--context` / `--no-context` to toggle extra
 waveform context, and `--all` to include deselected seismograms.
+
+`stack` and `matrix` build an ICCS instance to plot from, which writes the
+resulting cross-correlation values to the project database (the same
+live-quality write every ICCS-consuming command makes) - despite being
+read-only from the user's point of view, they do write to the database.
 """
 
 from typing import Annotated
@@ -52,7 +57,12 @@ def cli_plot_stack(
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Plot the ICCS stack of an event."""
+    """Plot the ICCS stack of an event.
+
+    Building the ICCS instance writes each seismogram's cross-correlation
+    value to the project database, so this command writes to the database
+    despite being read-only from the user's point of view.
+    """
     from sqlmodel import Session
 
     from aimbat.core import create_iccs_instance, resolve_event
@@ -81,7 +91,10 @@ def cli_plot_matrix_image(
     """Plot the ICCS seismograms of an event as a matrix image.
 
     The matrix is assembled from individual waveforms, with each row
-    representing a different seismogram.
+    representing a different seismogram. Building the ICCS instance writes
+    each seismogram's cross-correlation value to the project database, so
+    this command writes to the database despite being read-only from the
+    user's point of view.
     """
     from sqlmodel import Session
 

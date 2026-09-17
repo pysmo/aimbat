@@ -39,6 +39,19 @@ SAVEPOINT rollback (ignored) and `nested=False` for a full rollback (pages
 dropped). An abandoned session - never committed or rolled back - drops its
 pages when it is garbage-collected (weak keys in `_pending`).
 
+A consequence of keeping pages on a SAVEPOINT rollback: `_pending` sits
+entirely outside SQLAlchemy's own snapshot/savepoint machinery, so a staged
+write is never tied to the specific savepoint it was made under. If a future
+caller ever staged a write *inside* `session.begin_nested()` and then rolled
+back just that savepoint, the DB-side change would revert but the staged
+page would not - the two could disagree about which savepoint's work
+survived. No current call site stages a write inside a nested transaction
+(`core/_data.py`'s `begin_nested()` usage predates and is unrelated to
+per-seismogram data assignment), so this is a documented boundary rather
+than an active bug. Binding a stage to its enclosing savepoint would need
+tracking the active `SessionTransaction` per staged key, not just the
+session.
+
 Thread-safety: the TUI commits on its main thread while a background thread
 builds ICCS and reads staged values through the getter. Each thread uses its
 own `Session` (sessions are not thread-safe), so no two threads stage or

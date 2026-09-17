@@ -11,6 +11,7 @@ from aimbat.core import (
     clear_iccs_cache,
     create_iccs_instance,
     create_snapshot,
+    delete_event,
     run_iccs,
     run_mccc,
 )
@@ -275,6 +276,78 @@ class TestCreateIccsInstanceNoSeismograms:
         # Second call must raise again, not hand back a cached broken instance.
         with pytest.raises(NoSeismogramsError):
             create_iccs_instance(loaded_session, event)
+
+
+class TestIccsCacheEviction:
+    """Tests for the bounded, delete-event-evicted process-level ICCS cache."""
+
+    def test_delete_event_evicts_cache_entry(self, loaded_session: Session) -> None:
+        """A deleted event's cached BoundICCS must not linger in the process cache."""
+        import aimbat.core._iccs as iccs_module
+
+        clear_iccs_cache()
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        event_id = event.id
+
+        create_iccs_instance(loaded_session, event)
+        assert event_id in iccs_module._iccs_cache
+
+        delete_event(loaded_session, event_id)
+
+        assert event_id not in iccs_module._iccs_cache
+
+    def test_cache_evicts_least_recently_used_once_full(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Once the cache is at its cap, the least-recently-used entry is dropped."""
+        import aimbat.core._iccs as iccs_module
+
+        clear_iccs_cache()
+        monkeypatch.setattr(iccs_module, "_ICCS_CACHE_MAX_ENTRIES", 2)
+
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        assert len(events) >= 3, "need at least 3 events to exercise eviction"
+        first, second, third = events[0], events[1], events[2]
+
+        create_iccs_instance(loaded_session, first)
+        create_iccs_instance(loaded_session, second)
+        assert first.id in iccs_module._iccs_cache
+        assert second.id in iccs_module._iccs_cache
+
+        create_iccs_instance(loaded_session, third)
+
+        assert first.id not in iccs_module._iccs_cache, (
+            "oldest entry should have been evicted once the cache was full"
+        )
+        assert second.id in iccs_module._iccs_cache
+        assert third.id in iccs_module._iccs_cache
+
+    def test_cache_hit_refreshes_recency(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Re-accessing a cached entry protects it from eviction as the LRU."""
+        import aimbat.core._iccs as iccs_module
+
+        clear_iccs_cache()
+        monkeypatch.setattr(iccs_module, "_ICCS_CACHE_MAX_ENTRIES", 2)
+
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        assert len(events) >= 3
+        first, second, third = events[0], events[1], events[2]
+
+        create_iccs_instance(loaded_session, first)
+        create_iccs_instance(loaded_session, second)
+        # Touch `first` again so `second` becomes the least-recently-used.
+        create_iccs_instance(loaded_session, first)
+
+        create_iccs_instance(loaded_session, third)
+
+        assert first.id in iccs_module._iccs_cache
+        assert second.id not in iccs_module._iccs_cache, (
+            "re-accessing first should have made second the eviction target"
+        )
+        assert third.id in iccs_module._iccs_cache
 
 
 class TestBuildIccsFromSnapshot:
