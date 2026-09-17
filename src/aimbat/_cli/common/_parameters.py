@@ -74,8 +74,13 @@ def _make_uuid_converter(
             from aimbat.db import engine
             from aimbat.utils import string_to_uuid
 
-            with Session(engine) as session:
-                return string_to_uuid(session, value, model_class)
+            from ._decorators import run_reporting_issues
+
+            def _resolve() -> UUID:
+                with Session(engine) as session:
+                    return string_to_uuid(session, value, model_class)
+
+            return run_reporting_issues(_resolve)
 
     return _converter
 
@@ -239,6 +244,7 @@ def open_in_editor(initial_content: str) -> str:
     import shlex
     import subprocess
     import tempfile
+    import time
 
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
     if not editor:
@@ -254,7 +260,9 @@ def open_in_editor(initial_content: str) -> str:
         tmp_path = tmp.name
 
     try:
+        started = time.monotonic()
         result = subprocess.run([*shlex.split(editor), tmp_path], check=False)
+        elapsed = time.monotonic() - started
         if result.returncode != 0:
             from aimbat.logger import logger
 
@@ -264,7 +272,18 @@ def open_in_editor(initial_content: str) -> str:
             )
             return initial_content
         with open(tmp_path, encoding="utf-8") as f:
-            return f.read()
+            content = f.read()
+        if content == initial_content and elapsed < 1:
+            from aimbat.logger import logger
+
+            logger.warning(
+                f"Editor '{editor}' returned in under a second with no changes - if "
+                + "it launched a separate window that is still open (a non-blocking "
+                + "GUI editor), any edits made there will be lost once that window "
+                + "closes, since this temporary file is already gone. Use a "
+                + 'wait-for-close flag, e.g. EDITOR="code --wait".'
+            )
+        return content
     finally:
         os.unlink(tmp_path)
 

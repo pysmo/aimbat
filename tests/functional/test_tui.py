@@ -314,6 +314,78 @@ class TestTUIWithData:
         asyncio.run(_run())
 
 
+class TestSeismogramPlotDebounce:
+    """Regression test for tui L6: fast row-highlight scrolling coalesces.
+
+    `SeismogramPanel` used to re-render `SeismogramPlotWidget` on every
+    `RowHighlighted` event, so fast arrow-key scrolling through a large
+    seismogram list replotted on every keystroke. It now debounces behind a
+    0.1s cancel-and-reschedule `Timer`.
+    """
+
+    def test_rapid_row_highlights_coalesce_into_one_render(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Three quick highlights produce one render, not three."""
+        _patch_engine(monkeypatch, loaded_engine)
+
+        calls: list[str | None] = []
+        original = aimbat._tui._panels.SeismogramPanel._update_seismogram_plot
+
+        def _tracking_update(
+            self: aimbat._tui._panels.SeismogramPanel, item_id: str | None
+        ) -> None:
+            calls.append(item_id)
+            original(self, item_id)
+
+        monkeypatch.setattr(
+            aimbat._tui._panels.SeismogramPanel,
+            "_update_seismogram_plot",
+            _tracking_update,
+        )
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause(delay=0.5)
+                app = cast(AimbatTUI, pilot.app)
+                app._current_event_id = event_id
+                app.refresh_all()
+                await pilot.pause(delay=0.5)
+                await pilot.press("L")  # Project -> Live data
+                await pilot.pause()
+                table = pilot.app.query_one("#seismogram-table", DataTable)
+                table.focus()
+                await pilot.pause()
+                assert table.row_count >= 3, "need several rows to scroll through"
+                calls.clear()  # drop the settle-triggered call from focusing
+
+                # Move the cursor three times back-to-back with no `await` in
+                # between, so all three `RowHighlighted` handlers run before
+                # any real time passes - unlike `pilot.press()`, whose own
+                # per-call overhead in headless test mode can itself exceed
+                # the 0.1s debounce window and defeat the point of this test.
+                table.move_cursor(row=1)
+                table.move_cursor(row=2)
+                table.move_cursor(row=0)
+                await pilot.pause()
+                # No delay yet - the debounce timer hasn't fired.
+                assert calls == [], (
+                    "plot should not re-render before the debounce window elapses"
+                )
+
+                await pilot.pause(delay=0.2)  # past the 0.1s debounce window
+                assert len(calls) == 1, (
+                    "three quick highlights should coalesce into one render"
+                )
+
+        asyncio.run(_run())
+
+
 # ===========================================================================
 # Tab navigation
 # ===========================================================================

@@ -1,8 +1,11 @@
 """Unit tests for aimbat._cli.common."""
 
 import warnings
+from unittest.mock import MagicMock
 
 import pytest
+from cyclopts import Token
+from sqlalchemy import Engine
 
 from aimbat import settings
 from aimbat._cli.common import (
@@ -10,7 +13,9 @@ from aimbat._cli.common import (
     TableParameters,
     handle_issues,
 )
+from aimbat._cli.common._parameters import _make_uuid_converter
 from aimbat.core._migrations import SchemaStaleWarning
+from aimbat.models import AimbatEvent
 
 
 class TestIccsPlotParameters:
@@ -218,3 +223,151 @@ class TestHandleIssues:
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert "schema is stale" in captured.out or "schema is stale" in captured.err
+
+
+class TestUuidConverterErrorHandling:
+    """Tests for `_make_uuid_converter`'s failure-reporting behaviour.
+
+    Cyclopts converters run during argument parsing, before any
+    `handle_issues`-wrapped command body executes, so a failure resolving a
+    UUID prefix needs to explicitly opt into the same styled-panel /
+    debug-mode-passthrough treatment as any other command failure (see
+    `run_reporting_issues`) rather than relying on the decorator.
+    """
+
+    def test_non_value_error_exits_with_styled_panel(
+        self,
+        patched_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A non-`ValueError` failure while resolving a UUID prefix (e.g. a
+        broken DB connection) must exit 1 with a styled panel and the debug
+        hint, not propagate as a raw, unstyled traceback. Previously only
+        `ValueError`/`TypeError`/`AssertionError` raised by a converter were
+        caught, by cyclopts itself - any other exception type crashed raw,
+        regardless of `--debug`.
+        """
+        settings.log_level = "INFO"
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("db lookup exploded")
+
+        monkeypatch.setattr("aimbat.utils.string_to_uuid", _boom)
+
+        converter = _make_uuid_converter(AimbatEvent)
+        with pytest.raises(SystemExit) as exc_info:
+            converter(object, (Token(value="not-a-uuid"),))
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "db lookup exploded" in captured.err
+        assert "run with --debug" in captured.err
+
+    def test_non_value_error_reraises_in_debug_mode(
+        self,
+        patched_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The same failure propagates as a real traceback in debug mode,
+        matching `handle_issues`'s own debug-mode passthrough.
+        """
+        settings.log_level = "DEBUG"
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("db lookup exploded")
+
+        monkeypatch.setattr("aimbat.utils.string_to_uuid", _boom)
+
+        converter = _make_uuid_converter(AimbatEvent)
+        with pytest.raises(RuntimeError, match="db lookup exploded"):
+            converter(object, (Token(value="not-a-uuid"),))
+
+
+class TestOpenInEditor:
+    """Tests for `open_in_editor`'s non-blocking-editor detection."""
+
+    def test_warns_when_editor_returns_fast_with_unchanged_content(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A sub-second return with unchanged content is the signature of a
+        non-blocking GUI launcher that forked a separate window and exited
+        immediately - any edit made there would be lost once that window
+        closes, since the temp file is already gone by then. Warn instead of
+        losing it silently.
+        """
+        import subprocess
+
+        from aimbat._cli.common._parameters import open_in_editor
+
+        monkeypatch.setenv("EDITOR", "fake-editor")
+        monkeypatch.setattr(
+            "subprocess.run",
+            lambda args, check: subprocess.CompletedProcess(args, 0),
+        )
+        elapsed = iter([0.0, 0.5])
+        monkeypatch.setattr("time.monotonic", lambda: next(elapsed))
+        warning = MagicMock()
+        monkeypatch.setattr("aimbat.logger.logger.warning", warning)
+
+        result = open_in_editor("original content")
+
+        assert result == "original content"
+        warning.assert_called_once()
+        assert "fake-editor" in warning.call_args.args[0]
+
+    def test_no_warning_when_editor_returns_slowly(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A slow return with unchanged content is an ordinary blocking edit
+        session where the user made no changes, not a non-blocking-editor
+        footgun, so no warning.
+        """
+        import subprocess
+
+        from aimbat._cli.common._parameters import open_in_editor
+
+        monkeypatch.setenv("EDITOR", "fake-editor")
+        monkeypatch.setattr(
+            "subprocess.run",
+            lambda args, check: subprocess.CompletedProcess(args, 0),
+        )
+        elapsed = iter([0.0, 2.0])
+        monkeypatch.setattr("time.monotonic", lambda: next(elapsed))
+        warning = MagicMock()
+        monkeypatch.setattr("aimbat.logger.logger.warning", warning)
+
+        result = open_in_editor("original content")
+
+        assert result == "original content"
+        warning.assert_not_called()
+
+    def test_no_warning_when_content_changed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A fast return with changed content is a normal quick edit, not a
+        footgun - the edit was captured, so no warning.
+        """
+        import subprocess
+
+        from aimbat._cli.common._parameters import open_in_editor
+
+        monkeypatch.setenv("EDITOR", "fake-editor")
+
+        def _fake_run(
+            args: list[str], check: bool
+        ) -> "subprocess.CompletedProcess[str]":
+            with open(args[-1], "w", encoding="utf-8") as f:
+                f.write("edited content")
+            return subprocess.CompletedProcess(args, 0)
+
+        monkeypatch.setattr("subprocess.run", _fake_run)
+        elapsed = iter([0.0, 0.2])
+        monkeypatch.setattr("time.monotonic", lambda: next(elapsed))
+        warning = MagicMock()
+        monkeypatch.setattr("aimbat.logger.logger.warning", warning)
+
+        result = open_in_editor("original content")
+
+        assert result == "edited content"
+        warning.assert_not_called()
