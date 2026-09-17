@@ -33,6 +33,23 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Address PR #256 review feedback
 - **(io)** Read JSON sources as UTF-8 and name the file on a parse error
 - **(tui)** Handle events with no seismograms without crashing
+- Batch of mechanical deep-review fixes (docs, types, dead code)
+- Correctness bugs in utils formatters and uuid_shortener
+- Small safety/UX guards across cli, core, io, app-root
+- Back up project DB before migrating, small robustness/clarity fixes
+- Real-entrypoint traceback handler, broader db_url escaping, safer sample-data download
+- Apply strict-schema-check filter lazily, document settings singleton caveat
+- **(migrations)** Use consistent sqlite dialect detection, clarify trigger comments
+- **(models)** Match server default on corners column to migration
+- **(core)** Guard note-target lookups, discard-pick docstring, loud ICCS field sync
+- **(tui)** Make overflow-prone modals scrollable, cross-reference CC-stats types
+- **(core)** Warn on station location mismatch when reusing an existing record
+- **(cli,tui)** Report converter failures consistently, warn on lost editor edits, debounce plot re-render
+- **(core,cli,io)** Bound the ICCS cache, document plot's DB write, note savepoint boundary on staged writes
+- **(cli,core)** Warn on lost note edits, guard the seismogram-params trigger
+- **(core,models,plot)** O(n) revision matching, trigger WHEN invariant tests, ICCS validation traceback
+- **(utils)** Avoid reopening sample-data tempfile by path
+- **(cli,config)** Sentinel table check, %-escaping, --debug ordering, editor warnings
 
 ### 📚 Documentation
 
@@ -43,6 +60,9 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Broad pass on docs
 - Broad sweep on md files
 - **(snippets)** Update to pysmo API changes
+- **(models,core,tui)** Clarify quality read-model semantics and drop duplicate error toast
+- **(models,tests)** Clarify sourcename uniqueness and cover migration downgrades
+- **(core,models,tui,cli)** Name four architectural risks in code, not just the review notes
 
 ### 📦 Miscellaneous
 
@@ -58,6 +78,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Rename aimbat._types to aimbat.types
 - **(io)** Treat datasource sourcename as an opaque source identifier
 - **(io)** Pass readers a SeismogramReadContext
+- **(core)** Dump event stations through the read model in as_json mode
 
 ### 🚀 New Features
 
@@ -80,6 +101,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Add old-DB regression fixture and CI migration/wheel gates
 - Parallelise the non-slow test suite with pytest-xdist
 - Write per-worker log files to gitignored tests/.logs/
+- **(models)** Pin count column_property attrs against their TYPE_CHECKING stubs
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
