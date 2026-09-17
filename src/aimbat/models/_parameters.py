@@ -7,6 +7,7 @@ from sqlalchemy import Float
 from sqlmodel import Field, SQLModel
 
 from aimbat import settings
+from aimbat.logger import logger
 from aimbat.types import (
     PydanticNegativeTimedelta,
     PydanticNonNegativeFloat,
@@ -151,6 +152,12 @@ class AimbatEventParametersBase(SQLModel):
                 try:
                     validate_iccs_construction(event, parameters=self)
                 except Exception as exc:
+                    # Broad on purpose: any failure while constructing ICCS
+                    # (invalid parameters or a genuine bug) must surface as a
+                    # validation error here. Logged at full traceback level
+                    # first so a genuine bug isn't silently reduced to a
+                    # one-line "ICCS validation failed" message.
+                    logger.exception("ICCS validation failed during parameter check.")
                     raise ValueError(f"ICCS validation failed: {exc}") from exc
         return self
 

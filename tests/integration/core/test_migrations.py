@@ -4,6 +4,7 @@ Uses real file-based databases rather than `:memory:`, since Alembic's
 `env.py` opens its own connection.
 """
 
+import re
 import shutil
 from collections.abc import Generator
 from pathlib import Path
@@ -42,6 +43,16 @@ def _triggers(engine: Engine) -> dict[str, str]:
             text("SELECT name, sql FROM sqlite_master WHERE type = 'trigger'")
         ).all()
     return {name: " ".join(sql.split()) for name, sql in rows}
+
+
+def _when_columns(trigger_sql: str) -> set[str]:
+    """Extract the set of `NEW.<column>` names referenced in a trigger's `WHEN` clause.
+
+    Assumes the `CREATE TRIGGER ... WHEN (...) BEGIN ... END` shape used
+    throughout `core/_project.py`'s quality-invalidation triggers.
+    """
+    when_clause = trigger_sql.split("WHEN", 1)[1].split("BEGIN", 1)[0]
+    return set(re.findall(r'NEW\."?([A-Za-z_][A-Za-z0-9_]*)"?', when_clause))
 
 
 def _tables(engine: Engine) -> set[str]:
@@ -203,6 +214,56 @@ def test_triggers_helper_detects_body_drift(tmp_path: Path) -> None:
 
     engine_a.dispose()
     engine_b.dispose()
+
+
+class TestTriggerWhenClauseInvariants:
+    """Several trigger `WHEN` column lists are supposed to track each other,
+    or a Python model's field set, exactly - per the comments in
+    `core/_project.py::create_project` (core-project-data M3). Nothing
+    previously enforced that beyond the comment itself; these tests parse
+    the actual `WHEN` clauses out of the created triggers and assert them
+    against the relevant source of truth, so an edit to one side of a pair
+    that forgets the other fails a test instead of drifting silently.
+    """
+
+    @pytest.fixture
+    def engine(self, tmp_path: Path) -> Generator[Engine]:
+        engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'triggers.db'}")
+        create_project(engine)
+        yield engine
+        engine.dispose()
+
+    def test_trigger1_when_matches_event_parameters_minus_completed(
+        self, engine: Engine
+    ) -> None:
+        from aimbat.models._parameters import AimbatEventParametersBase
+
+        triggers = _triggers(engine)
+        cols = _when_columns(triggers["event_modified_on_params_update"])
+        assert cols == set(AimbatEventParametersBase.model_fields) - {"completed"}
+
+    def test_trigger2_when_matches_seismogram_parameters(self, engine: Engine) -> None:
+        from aimbat.models._parameters import AimbatSeismogramParametersBase
+
+        triggers = _triggers(engine)
+        cols = _when_columns(triggers["event_modified_on_seis_params_update"])
+        assert cols == set(AimbatSeismogramParametersBase.model_fields)
+
+    def test_trigger1b_when_matches_trigger3_when(self, engine: Engine) -> None:
+        """Trigger 1b (`stack_modified`) must track trigger 3's stack-affecting
+        column set exactly - both must fire only on the parameters that
+        actually change the aligned signal.
+        """
+        triggers = _triggers(engine)
+        cols_1b = _when_columns(triggers["event_stack_modified_on_params_update"])
+        cols_3 = _when_columns(triggers["null_all_quality_on_window_bandpass_change"])
+        assert cols_1b == cols_3
+
+    def test_trigger2b_when_matches_trigger2_when(self, engine: Engine) -> None:
+        triggers = _triggers(engine)
+        cols_2 = _when_columns(triggers["event_modified_on_seis_params_update"])
+        cols_2b = _when_columns(triggers["event_stack_modified_on_seis_params_update"])
+        assert cols_2 == cols_2b
 
 
 def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:
