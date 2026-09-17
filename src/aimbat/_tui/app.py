@@ -898,6 +898,15 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
     ) -> None:
         """Run ICCS or MCCC in a background thread and post the result to the main thread.
 
+        Note:
+            `run_iccs`/`run_mccc` mutate `bound.iccs` in place on this
+            worker thread while it runs. Nothing prevents the main thread's
+            5s staleness poll or a panel refresh from reading `bound.iccs`
+            (or replacing `bound` via `_create_iccs()`) concurrently - there
+            is no lock. Not currently known to cause a visible failure in
+            practice, but a torn read is possible while an alignment is in
+            flight.
+
         Args:
             bound: The current `BoundICCS` instance to align.
             algorithm: Either `"iccs"` or `"mccc"`.

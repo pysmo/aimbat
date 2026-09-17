@@ -133,7 +133,11 @@ def cli_station_seismograms_plot(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Plot input seismograms for events recorded at this station."""
+    """Plot input seismograms for events recorded at this station.
+
+    Keeps its database session open for as long as the plot window is:
+    closing the window promptly releases the connection.
+    """
     from sqlmodel import Session
 
     from aimbat.db import engine

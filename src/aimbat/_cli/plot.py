@@ -13,6 +13,9 @@ waveform context, and `--all` to include deselected seismograms.
 resulting cross-correlation values to the project database (the same
 live-quality write every ICCS-consuming command makes) - despite being
 read-only from the user's point of view, they do write to the database.
+
+Each command keeps its database session open for as long as the plot
+window is: closing the window promptly releases the connection.
 """
 
 from typing import Annotated

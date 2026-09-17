@@ -781,6 +781,12 @@ class AimbatEvent(SQLModel, table=True):
 
 # ----------------------------------------------------------------------------
 # Column properties
+#
+# Each of these is a correlated scalar subquery that SQLAlchemy adds to
+# every SELECT of the owning model, whether or not the count is read -
+# AimbatEvent alone carries three. Fine at interactive/single-project
+# scale; would need `column_property(..., deferred=True)` or a
+# `@hybrid_property` if listing many rows ever becomes a hot path.
 # ----------------------------------------------------------------------------
 
 AimbatEvent.seismogram_count = column_property(  # type: ignore[assignment]

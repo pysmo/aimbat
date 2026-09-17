@@ -56,6 +56,14 @@ def create_project(engine: Engine) -> None:
     automatically null quality metrics when the parameters they depend on
     change. The new database is stamped at the latest Alembic revision.
 
+    Note:
+        Tables, triggers and the Alembic stamp are three separate
+        transactions, not one atomic operation. An error partway through
+        (e.g. during trigger creation) can leave a database file with
+        tables but no quality-invalidation triggers, or triggers but no
+        Alembic stamp; either is not automatically detected or rolled
+        back.
+
     Args:
         engine: The SQLAlchemy/SQLModel Engine instance connected to the target database.
 

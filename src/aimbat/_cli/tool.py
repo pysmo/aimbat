@@ -4,6 +4,9 @@ Each subcommand opens an interactive matplotlib plot for an event. Use
 `--event-id` or set the `DEFAULT_EVENT_ID` environment variable to choose
 which event to work with. Interact with the plot (click or scroll, depending
 on the tool) to set the chosen value, then close the window to save it.
+
+Each command keeps its database session open for as long as the plot
+window is: closing the window promptly releases the connection.
 """
 
 from typing import Annotated
