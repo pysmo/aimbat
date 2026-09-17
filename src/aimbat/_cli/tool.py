@@ -4,6 +4,9 @@ Each subcommand opens an interactive matplotlib plot for an event. Use
 `--event-id` or set the `DEFAULT_EVENT_ID` environment variable to choose
 which event to work with. Interact with the plot (click or scroll, depending
 on the tool) to set the chosen value, then close the window to save it.
+
+Each command keeps its database session open for as long as the plot
+window is: closing the window promptly releases the connection.
 """
 
 from typing import Annotated
@@ -15,10 +18,14 @@ from .common import (
     CAUSAL_DEFAULTS,
     DebugParameter,
     IccsPlotParameters,
-    causal,
     event_parameter,
     handle_issues,
-    use_matrix_image,
+)
+from .common import (
+    causal as causal_param,
+)
+from .common import (
+    use_matrix_image as use_matrix_image_param,
 )
 
 app = App(name="tool", help=__doc__, help_format="markdown")
@@ -30,7 +37,7 @@ def cli_update_bandpass(
     event_id: Annotated[UUID, event_parameter()],
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_matrix_image: Annotated[bool, use_matrix_image()] = False,
+    use_matrix_image: Annotated[bool, use_matrix_image_param()] = False,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively update the bandpass filter parameters for an event.
@@ -65,8 +72,8 @@ def cli_update_phase_pick(
     event_id: Annotated[UUID, event_parameter()],
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_matrix_image: Annotated[bool, use_matrix_image()] = False,
-    causal: Annotated[bool, causal()] = CAUSAL_DEFAULTS["phase"],
+    use_matrix_image: Annotated[bool, use_matrix_image_param()] = False,
+    causal: Annotated[bool, causal_param()] = CAUSAL_DEFAULTS["phase"],
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new phase arrival time (t1) for an event.
@@ -100,8 +107,8 @@ def cli_pick_timewindow(
     event_id: Annotated[UUID, event_parameter()],
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_matrix_image: Annotated[bool, use_matrix_image()] = False,
-    causal: Annotated[bool, causal()] = CAUSAL_DEFAULTS["window"],
+    use_matrix_image: Annotated[bool, use_matrix_image_param()] = False,
+    causal: Annotated[bool, causal_param()] = CAUSAL_DEFAULTS["window"],
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new cross-correlation time window for an event.
@@ -137,8 +144,8 @@ def cli_pick_min_cc(
     event_id: Annotated[UUID, event_parameter()],
     *,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
-    use_matrix_image: Annotated[bool, use_matrix_image()] = True,
-    causal: Annotated[bool, causal()] = CAUSAL_DEFAULTS["cc"],
+    use_matrix_image: Annotated[bool, use_matrix_image_param()] = True,
+    causal: Annotated[bool, causal_param()] = CAUSAL_DEFAULTS["cc"],
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Interactively pick a new minimum cross-correlation for auto-selection.

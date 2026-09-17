@@ -3,11 +3,14 @@
 
 Covers four areas:
 
-- **JSON** — render JSON data as Rich tables (`json_to_table`).
+- **Maths** — mean/SEM over numeric and `pd.Timedelta` values
+  (`mean_and_sem`, `mean_and_sem_timedelta`).
+- **Pydantic** — validation-error formatting and title-map lookup
+  (`format_validation_error`, `get_title_map`).
 - **Sample data** — download and delete the bundled sample dataset
   (`download_sampledata`, `delete_sampledata`).
-- **Styling** — shared Rich/table style helpers (`make_table`).
-- **UUIDs** — look up model records by short UUID prefix (`get_by_uuid`).
+- **UUIDs / formatting** — short-UUID lookup, `rel()` for typed
+  relationships, and the `fmt_*` display formatters (`utils.formatters`).
 """
 
 from .._utils import export_module_names

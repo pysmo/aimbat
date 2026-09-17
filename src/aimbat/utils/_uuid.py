@@ -94,7 +94,8 @@ def uuid_shortener[T: AimbatTypes](
         model_class = type(aimbat_obj)
         target_full = str(aimbat_obj.id)
 
-    prefix_clean = target_full.replace("-", "")[:min_length]
+    target_clean = target_full.replace("-", "")
+    prefix_clean = target_clean[:min_length]
 
     # select with a WHERE clause that removes dashes and compares the cleaned prefix
     statement = select(model_class.id).where(
@@ -103,24 +104,36 @@ def uuid_shortener[T: AimbatTypes](
         )
     )
 
-    # Store results as standard hyphenated strings
+    # Compare on the dash-free form throughout, to match prefix_clean above.
     results = session.exec(statement).all()
-    relevant_pool = [str(uid) for uid in results]
+    relevant_pool = [str(uid).replace("-", "") for uid in results]
 
-    if target_full not in relevant_pool:
+    if target_clean not in relevant_pool:
         raise ValueError(f"ID {target_full} not found in table {model_class.__name__}")
 
     current_length = min_length
-    while current_length < len(target_full):
-        candidate = target_full[:current_length]
-        if candidate.endswith("-"):
-            current_length += 1
-            continue
-
-        matches = [u for u in relevant_pool if u.startswith(candidate)]
+    while current_length < len(target_clean):
+        candidate_clean = target_clean[:current_length]
+        matches = [u for u in relevant_pool if u.startswith(candidate_clean)]
         if len(matches) == 1:
+            candidate = _dashed_prefix(target_full, current_length)
             logger.debug(f"Shortened {target_full} to: {candidate}")
             return candidate
         current_length += 1
 
     return target_full
+
+
+def _dashed_prefix(full_dashed: str, clean_length: int) -> str:
+    """Return the leading `clean_length` non-hyphen characters of `full_dashed`.
+
+    Hyphens up to that point are preserved, matching how a full UUID string
+    is conventionally shortened for display.
+    """
+    count = 0
+    for i, ch in enumerate(full_dashed):
+        if ch != "-":
+            count += 1
+        if count == clean_length:
+            return full_dashed[: i + 1]
+    return full_dashed

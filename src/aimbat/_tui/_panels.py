@@ -18,6 +18,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.message import Message
+from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import DataTable, Static
 
@@ -623,6 +624,7 @@ class SeismogramPanel(Widget):
         self._highlighted_id: str | None = None
         self._refreshing: bool = False
         self._bound_iccs: BoundICCS | None = None
+        self._plot_update_timer: Timer | None = None
         _setup_table(
             self,
             "#seismogram-table",
@@ -729,7 +731,7 @@ class SeismogramPanel(Widget):
         self._highlighted_id = event.row_key.value if event.row_key else None
         if not self._refreshing:
             self._update_seismogram_note(self._highlighted_id)
-            self._update_seismogram_plot(self._highlighted_id)
+            self._schedule_seismogram_plot_update(self._highlighted_id)
 
     def _dispatch_row_action(self, tab: str, item_id: str, action: str) -> None:
         """Post `RowActionChosen` for the given row and action."""
@@ -761,15 +763,38 @@ class SeismogramPanel(Widget):
             self.query_one("#seismogram-note", NoteWidget), "seismogram", item_id
         )
 
+    def _schedule_seismogram_plot_update(self, item_id: str | None) -> None:
+        """Debounce `_update_seismogram_plot` so fast row-highlight scrolling coalesces.
+
+        Arrow-key scrolling through the seismogram table fires a
+        `RowHighlighted` event per keystroke; re-plotting on every one of
+        them (a plotext render) makes fast scrolling feel laggy. Only the
+        last highlighted row within a short window actually gets plotted.
+
+        Args:
+            item_id: ID of the seismogram to plot, or `None` to clear.
+        """
+        if self._plot_update_timer is not None:
+            self._plot_update_timer.stop()
+        self._plot_update_timer = self.set_timer(
+            0.1, lambda: self._update_seismogram_plot(item_id)
+        )
+
     def _update_seismogram_plot(self, item_id: str | None) -> None:
         """Update the waveform plot with the CC and context windows of the given seismogram.
 
         Clears the plot if `item_id` is `None`, no ICCS instance is bound,
         or the seismogram cannot be located in the bound ICCS instance.
+        Cancels any pending debounced update scheduled by
+        `_schedule_seismogram_plot_update`, so an immediate call here always
+        wins over a stale one.
 
         Args:
             item_id: ID of the seismogram to plot, or `None` to clear.
         """
+        if self._plot_update_timer is not None:
+            self._plot_update_timer.stop()
+            self._plot_update_timer = None
         try:
             plot_widget = self.query_one("#seismogram-plot", SeismogramPlotWidget)
         except NoMatches:

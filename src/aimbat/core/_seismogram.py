@@ -154,7 +154,8 @@ def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
 
     All fields defined on AimbatSeismogramParametersBase are reset to the
     values produced by a fresh default instance, so newly added fields are
-    picked up automatically.
+    picked up automatically. This includes `t1`, so a manual pick is
+    discarded along with `select` and `flip`.
 
     Args:
         session: Database session.

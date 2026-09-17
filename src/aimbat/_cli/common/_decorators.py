@@ -10,6 +10,7 @@ __all__ = [
     "handle_issues",
     "print_error_panel",
     "print_warning",
+    "run_reporting_issues",
 ]
 
 
@@ -20,7 +21,7 @@ def print_error_panel(e: Exception) -> None:
 
     console = Console(stderr=True)
     panel = Panel(
-        f"{e}",
+        f"{e}\n\n(run with --debug or AIMBAT_LOG_LEVEL=DEBUG for a full traceback)",
         title="Error",
         title_align="left",
         border_style="red",
@@ -40,6 +41,50 @@ def print_warning(message: object) -> None:
     Console(stderr=True).print(Text(str(message), style="yellow"))
 
 
+def run_reporting_issues[T](func: Callable[[], T]) -> T:
+    """Run `func`, reporting exceptions to the console the same way `handle_issues` does.
+
+    Exists so code that runs outside a `handle_issues`-wrapped command body -
+    currently the UUID-prefix converters in `common/_parameters.py`, which
+    cyclopts calls during argument parsing, before the command function
+    itself is invoked - gets the same styled-panel / debug-mode-passthrough
+    behaviour instead of a raw, unstyled traceback.
+
+    Any `aimbat.core.SchemaStaleWarning` raised during the call is always
+    promoted to an error first, so a stale database schema is reported
+    through the same red-panel path as any other failure, regardless of
+    `AIMBAT_STRICT_SCHEMA_CHECK`.
+
+    In debugging mode (`AIMBAT_LOG_LEVEL=DEBUG`/`TRACE`, or a `--debug` flag
+    on the command line), the schema staleness promotion still applies, but
+    exceptions are no longer caught and rendered as a panel; they propagate
+    as a normal Python traceback instead.
+
+    A converter runs while cyclopts is still parsing arguments, before it
+    constructs the `_DebugTrait`-derived dataclass whose `__post_init__`
+    would otherwise set `settings.log_level` from `--debug` - that dataclass
+    is only built once every field, including this one, has already
+    converted successfully. So `sys.argv` is checked directly for `--debug`
+    here as well, rather than relying solely on `settings.log_level`.
+    """
+    import sys
+    import warnings
+
+    from aimbat.core._migrations import SchemaStaleWarning
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", category=SchemaStaleWarning)
+
+        if settings.log_level in ("TRACE", "DEBUG") or "--debug" in sys.argv:
+            return func()
+
+        try:
+            return func()
+        except Exception as e:
+            print_error_panel(e)
+            sys.exit(1)
+
+
 def handle_issues[F: Callable[..., Any]](func: F) -> F:
     """Decorator that reports exceptions to the console and exits cleanly.
 
@@ -55,25 +100,11 @@ def handle_issues[F: Callable[..., Any]](func: F) -> F:
     and rendered as a panel; they propagate as a normal Python traceback
     instead.
     """
-    import sys
-    import warnings
     from functools import wraps
-
-    from aimbat.core._migrations import SchemaStaleWarning
 
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        with warnings.catch_warnings():
-            warnings.filterwarnings("error", category=SchemaStaleWarning)
-
-            if settings.log_level in ("TRACE", "DEBUG"):
-                return func(*args, **kwargs)
-
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                print_error_panel(e)
-                sys.exit(1)
+        return run_reporting_issues(lambda: func(*args, **kwargs))
 
     return wrapper  # type: ignore[return-value]
 

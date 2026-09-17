@@ -30,7 +30,7 @@ import sqlite3
 import threading
 import warnings
 
-from sqlalchemy import event
+from sqlalchemy import event, make_url
 from sqlalchemy.engine.interfaces import ExceptionContext
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlmodel import create_engine
@@ -41,9 +41,6 @@ from aimbat.logger import logger
 
 __all__ = ["engine"]
 
-if settings.strict_schema_check:
-    warnings.simplefilter("error", SchemaStaleWarning)
-
 logger.debug(f"Initialising AIMBAT database engine with {settings.db_url=}.")
 
 engine = create_engine(
@@ -53,7 +50,7 @@ engine = create_engine(
         "check_same_thread": False,
         "timeout": 30,
     }
-    if "sqlite" in settings.db_url
+    if make_url(settings.db_url).get_backend_name() == "sqlite"
     else {},
 )
 """AIMBAT database engine."""
@@ -88,7 +85,7 @@ if engine.name == "sqlite":
 
     @event.listens_for(engine, "handle_error")
     def _handle_missing_schema(exception_context: ExceptionContext) -> None:
-        """Convert a missing `aimbatevent` table error to a user-friendly RuntimeError.
+        """Convert a missing AIMBAT table error to a user-friendly RuntimeError.
 
         Args:
             exception_context: SQLAlchemy's context for the error being handled.
@@ -157,4 +154,10 @@ if engine.name == "sqlite":
 
             warning = _build_staleness_warning(current_revision)
             if warning is not None:
+                # Applied here rather than at module import time, so merely
+                # importing aimbat.db doesn't mutate the process-global
+                # warnings filter for every importer - only a process that
+                # actually hits a stale schema does.
+                if settings.strict_schema_check:
+                    warnings.simplefilter("error", SchemaStaleWarning)
                 warnings.warn(warning, stacklevel=1)

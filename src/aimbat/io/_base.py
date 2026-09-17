@@ -102,7 +102,11 @@ Returns `True` when the source is reachable and provides the seismogram,
 """
 
 # LRU cache of waveform arrays keyed by (datasource, datatype); evicting an
-# entry only costs a re-read.
+# entry only costs a re-read. Mutated without a lock: a concurrent first-read
+# of the same key from two threads just duplicates the read, it doesn't
+# corrupt the dict (each thread's `_cache[key] = arr` assignment is atomic
+# under the GIL). Worth revisiting only if the TUI's worker-thread usage
+# grows into genuinely concurrent reads of the same seismogram.
 _CACHE_MAX_ENTRIES = 1024
 _cache: OrderedDict[tuple[str, DataType], npt.NDArray[np.floating]] = OrderedDict()
 
@@ -110,7 +114,10 @@ _cache: OrderedDict[tuple[str, DataType], npt.NDArray[np.floating]] = OrderedDic
 # `stage_seismogram_data` fills this; the listeners in `aimbat.io._flush`
 # flush a session's pages to disk on its commit and drop them on rollback.
 # Weak keys mean an abandoned session (never committed or rolled back) loses
-# its staged pages when it is garbage-collected.
+# its staged pages when it is garbage-collected. Same unlocked-mutation shape
+# as `_cache` above, but keyed per-`Session` so two threads only race if they
+# share one `Session` across threads - already unsupported (SQLAlchemy
+# `Session`s aren't thread-safe).
 _pending: WeakKeyDictionary[
     Session, dict[tuple[str, DataType], npt.NDArray[np.floating]]
 ] = WeakKeyDictionary()
@@ -139,6 +146,8 @@ def register_station_creator(
         fn: Callable that accepts a logical source identifier and returns an
             `AimbatStation` instance.
     """
+    if datatype in _station_creators:
+        logger.warning(f"Overwriting existing station creator for {datatype}.")
     logger.debug(f"Registering station creator for {datatype}.")
     _station_creators[datatype] = fn
 
@@ -154,6 +163,8 @@ def register_event_creator(
         fn: Callable that accepts a logical source identifier and returns an
             `AimbatEvent` instance.
     """
+    if datatype in _event_creators:
+        logger.warning(f"Overwriting existing event creator for {datatype}.")
     logger.debug(f"Registering event creator for {datatype}.")
     _event_creators[datatype] = fn
 
@@ -169,6 +180,8 @@ def register_seismogram_creator(
         fn: Callable that accepts a logical source identifier and returns an
             `AimbatSeismogram` instance.
     """
+    if datatype in _seismogram_creators:
+        logger.warning(f"Overwriting existing seismogram creator for {datatype}.")
     logger.debug(f"Registering seismogram creator for {datatype}.")
     _seismogram_creators[datatype] = fn
 
@@ -184,6 +197,8 @@ def register_seismogram_data_reader(
         fn: Callable that accepts a `SeismogramReadContext` and returns the
             waveform data as a NumPy array.
     """
+    if datatype in _seismogram_data_readers:
+        logger.warning(f"Overwriting existing seismogram data reader for {datatype}.")
     logger.debug(f"Registering seismogram data reader for {datatype}.")
     _seismogram_data_readers[datatype] = fn
 
@@ -199,6 +214,8 @@ def register_seismogram_data_writer(
         fn: Callable that accepts a logical source identifier and a NumPy array,
             and writes the data to the source.
     """
+    if datatype in _seismogram_data_writers:
+        logger.warning(f"Overwriting existing seismogram data writer for {datatype}.")
     logger.debug(f"Registering seismogram data writer for {datatype}.")
     _seismogram_data_writers[datatype] = fn
 
@@ -215,6 +232,8 @@ def register_source_probe(
             the source still provides the seismogram, raising
             `SourceUnavailableError` when it cannot tell.
     """
+    if datatype in _source_probes:
+        logger.warning(f"Overwriting existing source presence probe for {datatype}.")
     logger.debug(f"Registering source presence probe for {datatype}.")
     _source_probes[datatype] = fn
 
@@ -567,6 +586,9 @@ def read_seismogram_data(
     logger.debug(f"Reading seismogram data from {datasource}.")
     key = (str(datasource), datatype)
     if session is not None:
+        # Checked before the reader-registration check below: a session's own
+        # staged write should be readable back regardless of whether the
+        # datatype also supports reading through a registered reader.
         staged = _pending.get(session)
         if staged is not None and key in staged:
             logger.debug(f"Retrieved staged seismogram data for {datasource}.")

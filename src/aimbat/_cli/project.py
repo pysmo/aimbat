@@ -119,11 +119,14 @@ def cli_project_info(
             seismograms_in_event = None
             selected_seismograms_in_event = None
 
+        def _fmt(value: int | UUID | None) -> str:
+            return "—" if value is None else str(value)
+
         event_label = "Selected Event ID: "
-        grid.add_row(event_label, f"{target_event_id}")
+        grid.add_row(event_label, _fmt(target_event_id))
         grid.add_row(
             "Number of Stations in Project (total/selected event): ",
-            f"({stations}/{active_stations})",
+            f"({stations}/{_fmt(active_stations)})",
         )
 
         grid.add_row(
@@ -132,7 +135,7 @@ def cli_project_info(
         )
         grid.add_row(
             "Number of Seismograms in Selected Event (total/selected): ",
-            f"({seismograms_in_event}/{selected_seismograms_in_event})",
+            f"({_fmt(seismograms_in_event)}/{_fmt(selected_seismograms_in_event)})",
         )
 
         console = Console()

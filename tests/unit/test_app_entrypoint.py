@@ -73,3 +73,21 @@ def test_cli_version(
         app.app(["--version"])
     assert excinfo.value.code == 0
     assert "unknown" in capsys.readouterr().out
+
+
+def test_main_prints_traceback_and_exits_on_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verifies main() catches an unhandled exception and exits with code 1.
+
+    Regression test: this handler previously lived only under
+    `if __name__ == "__main__":`, so it never ran for the installed
+    `aimbat` console script, which calls straight into `app.app`.
+    """
+    from aimbat import app
+
+    monkeypatch.setattr(app, "app", mock_raise)
+    with pytest.raises(SystemExit) as excinfo:
+        app.main()
+    assert excinfo.value.code == 1
+    assert "Exception" in capsys.readouterr().err

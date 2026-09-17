@@ -4,6 +4,7 @@ See the module docstring in `aimbat._migrations.env` for how the target
 database connection is resolved.
 """
 
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -159,15 +160,16 @@ def _alembic_config(engine: Engine) -> "Config":
 def _find_matching_revision(engine: Engine) -> str | None:
     """Find which known revision (if any) `engine`'s live schema matches.
 
-    Checked from `head` backwards to the baseline - closest-to-head match
-    found first, since "already caught up except for the very latest
-    migration" is the common case for a database that just skipped one
-    release. For each candidate revision, a disposable in-memory database is
-    built by replaying the migration chain up to that revision, then
-    compared against `engine`'s live schema using Alembic's own comparator
-    (the same one that powers `--autogenerate`) - fed a *reflected*
-    `MetaData` rather than `SQLModel.metadata`, so the comparison isn't tied
-    to the current models and works for any historical revision, not just
+    A single disposable in-memory database is built once, replaying the
+    migration chain from base to head and reflecting a `MetaData` snapshot
+    after each step - rather than a fresh database rebuilt from base for
+    every candidate, which made an earlier version of this function
+    O(revisions²). Candidates are then compared against `engine`'s live
+    schema from head backwards, using Alembic's own comparator (the same one
+    that powers `--autogenerate`) fed each cached snapshot in turn - so the
+    common case (already caught up except for the very latest migration)
+    still returns after a single comparison, and the comparison isn't tied
+    to the current models, so it works for any historical revision, not just
     head.
 
     Comparing only against `head`/`SQLModel.metadata` (an earlier version of
@@ -200,20 +202,24 @@ def _find_matching_revision(engine: Engine) -> str | None:
     from sqlalchemy import MetaData, create_engine
 
     script_dir = ScriptDirectory(str(_migrations_dir()))
+    revisions_head_to_base = list(script_dir.walk_revisions(base="base", head="head"))
+
+    snapshots: dict[str, MetaData] = {}
+    scratch_engine = create_engine("sqlite://")
+    try:
+        for script in reversed(revisions_head_to_base):
+            command.upgrade(_alembic_config(scratch_engine), script.revision)
+            metadata = MetaData()
+            metadata.reflect(bind=scratch_engine)
+            snapshots[script.revision] = metadata
+    finally:
+        scratch_engine.dispose()
 
     with engine.connect() as connection:
         migration_context = MigrationContext.configure(connection)
 
-        for script in script_dir.walk_revisions(base="base", head="head"):
-            scratch_engine = create_engine("sqlite://")
-            try:
-                command.upgrade(_alembic_config(scratch_engine), script.revision)
-                scratch_metadata = MetaData()
-                scratch_metadata.reflect(bind=scratch_engine)
-            finally:
-                scratch_engine.dispose()
-
-            if not compare_metadata(migration_context, scratch_metadata):
+        for script in revisions_head_to_base:
+            if not compare_metadata(migration_context, snapshots[script.revision]):
                 return script.revision
 
     return None
@@ -270,6 +276,39 @@ def stamp_head(engine: Engine) -> None:
     from alembic import command
 
     command.stamp(_alembic_config(engine), "head")
+
+
+def _backup_before_upgrade(engine: Engine, from_revision: str | None) -> None:
+    """Copy a file-backed SQLite database aside before running migrations.
+
+    A mid-chain migration failure (disk full, power loss, a bug in a future
+    migration script) can leave a half-applied schema with no recovery path,
+    so a copy is made first. No-op for `:memory:` databases, non-SQLite
+    backends, or a database file that doesn't exist yet.
+
+    Args:
+        engine: The SQLAlchemy/SQLModel Engine instance connected to the
+            target database.
+        from_revision: The revision the backup is taken at, used only to
+            label the backup filename.
+    """
+    if engine.url.get_backend_name() != "sqlite":
+        return
+    database = engine.url.database
+    if not database or database == ":memory:":
+        return
+    db_path = Path(database)
+    if not db_path.exists():
+        return
+
+    label = from_revision or "unstamped"
+    backup_path = db_path.with_name(f"{db_path.name}.pre-{label}.bak")
+    shutil.copy2(db_path, backup_path)
+    for suffix in ("-wal", "-shm"):
+        sidecar = db_path.with_name(db_path.name + suffix)
+        if sidecar.exists():
+            shutil.copy2(sidecar, backup_path.with_name(backup_path.name + suffix))
+    logger.info(f"Backed up project database to {backup_path} before upgrading.")
 
 
 def upgrade_project(engine: Engine) -> None:
@@ -359,4 +398,5 @@ def upgrade_project(engine: Engine) -> None:
         # below, which builds the schema from scratch via the full
         # migration chain, exactly like a brand new install.
 
+    _backup_before_upgrade(engine, current_revision)
     command.upgrade(config, "head")

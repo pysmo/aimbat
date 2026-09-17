@@ -59,6 +59,18 @@ class TestProjectLifecycleWithFile:
             "Output should contain the database filename"
         )
 
+    def test_project_info_renders_missing_dash_not_none(
+        self,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+    ) -> None:
+        """Verifies project info shows `—` rather than `None` when no event is resolved."""
+        aimbat_subprocess(["project", "create"])
+        result = aimbat_subprocess(["project", "info"])
+        assert result.returncode == 0, result.stderr
+        assert "None" not in result.stdout, (
+            "Output should not contain literal 'None' when no event is resolved"
+        )
+
     def test_delete_project(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],

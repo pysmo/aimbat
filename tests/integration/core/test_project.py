@@ -80,6 +80,44 @@ class TestProjectLifecycle:
             "expected no project after calling delete_project()"
         )
 
+    def test_delete_project_removes_wal_and_shm_sidecars(
+        self, engine: Engine, db_path: Path
+    ) -> None:
+        """Verifies that `-wal`/`-shm` sidecar files are removed alongside the database.
+
+        Args:
+            engine (Engine): The SQLAlchemy engine.
+            db_path (Path): The path to the project database file.
+        """
+        create_project(engine)
+        wal_path = db_path.with_name(db_path.name + "-wal")
+        shm_path = db_path.with_name(db_path.name + "-shm")
+        wal_path.touch()
+        shm_path.touch()
+
+        delete_project(engine)
+
+        assert not wal_path.exists(), "expected -wal sidecar to be removed"
+        assert not shm_path.exists(), "expected -shm sidecar to be removed"
+
+    def test_delete_project_refuses_suspicious_path(
+        self, engine: Engine, db_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verifies `delete_project` refuses to unlink a path that looks unsafe.
+
+        Args:
+            engine (Engine): The SQLAlchemy engine.
+            db_path (Path): The path to the project database file.
+            monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
+        """
+        create_project(engine)
+        monkeypatch.setattr(Path, "home", staticmethod(lambda: db_path.resolve()))
+
+        with pytest.raises(RuntimeError, match="suspicious"):
+            delete_project(engine)
+
+        assert db_path.exists(), "expected the project file to survive the refusal"
+
     def test_delete_project_when_there_is_none(self, engine: Engine) -> None:
         """Verifies that attempting to delete a non-existent project raises an error.
 

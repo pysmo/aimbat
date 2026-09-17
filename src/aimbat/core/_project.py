@@ -56,6 +56,14 @@ def create_project(engine: Engine) -> None:
     automatically null quality metrics when the parameters they depend on
     change. The new database is stamped at the latest Alembic revision.
 
+    Note:
+        Tables, triggers and the Alembic stamp are three separate
+        transactions, not one atomic operation. An error partway through
+        (e.g. during trigger creation) can leave a database file with
+        tables but no quality-invalidation triggers, or triggers but no
+        Alembic stamp; either is not automatically detected or rolled
+        back.
+
     Args:
         engine: The SQLAlchemy/SQLModel Engine instance connected to the target database.
 
@@ -107,11 +115,17 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 2: Track last modification time when seismogram parameters change
+            # Trigger 2: Track last modification time when seismogram parameters
+            # change. Lists every AimbatSeismogramParametersBase field (flip,
+            # select, t1) so a no-op UPDATE (value unchanged) doesn't bump
+            # last_modified and cause a spurious TUI repaint.
             connection.execute(
                 text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_seis_params_update
                 AFTER UPDATE ON aimbatseismogramparameters
+                WHEN (NEW.flip IS NOT OLD.flip)
+                  OR (NEW."select" IS NOT OLD."select")
+                  OR (NEW.t1 IS NOT OLD.t1)
                 BEGIN
                     UPDATE aimbatevent
                     SET last_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
@@ -422,8 +436,17 @@ def delete_project(engine: Engine) -> None:
             return
         elif database:
             project_path = Path(database)
+            resolved = project_path.resolve()
+            if resolved == Path(resolved.anchor) or resolved == Path.home():
+                raise RuntimeError(
+                    f"Refusing to delete suspicious project path: {resolved}."
+                )
             logger.info(f"Deleting project file: {project_path}.")
             project_path.unlink()
+            for suffix in ("-wal", "-shm"):
+                project_path.with_name(project_path.name + suffix).unlink(
+                    missing_ok=True
+                )
             return
 
     raise RuntimeError(

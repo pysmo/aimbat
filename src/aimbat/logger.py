@@ -17,6 +17,8 @@ AIMBAT_LOGFILE=/path/to/custom.log
 ```
 """
 
+from pathlib import Path
+
 from loguru import logger
 
 from aimbat import settings
@@ -27,8 +29,10 @@ def configure_logging() -> None:
 
     Removes all existing loguru handlers and adds a single file sink using
     `Settings.logfile` and `Settings.log_level` from the active `aimbat.settings`
-    instance. Log files are rotated at 100 MB.
+    instance. Log files are rotated at 100 MB. `Settings.logfile`'s parent
+    directory is created if it doesn't already exist.
     """
+    Path(settings.logfile).parent.mkdir(parents=True, exist_ok=True)
     logger.remove()
     logger.add(settings.logfile, rotation="100 MB", level=settings.log_level)
 

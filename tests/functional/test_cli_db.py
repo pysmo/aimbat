@@ -84,7 +84,7 @@ class TestDbCommands:
         with sqlite3.connect(db_path) as connection:
             connection.execute("DROP TABLE aimbatstation")
 
-        result = aimbat_subprocess(["station", "list"])
+        result = aimbat_subprocess(["station", "list", "all"])
         assert result.returncode != 0
         assert "No AIMBAT project found" not in result.stderr
 

@@ -309,8 +309,9 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         If `label` is given, a panel is shown with a "close matplotlib to
         return" hint. Any exception raised inside the block (including
         `KeyboardInterrupt`) is shown in the terminal while still suspended,
-        then re-raised after Textual has fully resumed so callers can still
-        react to it.
+        then re-raised after Textual has fully resumed so callers can log it
+        or update state - callers should not also display it to the user
+        (e.g. via `self.notify`), since it was already shown here.
         """
         console = Console()
         caught: BaseException | None = None
@@ -503,16 +504,16 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                         event = session.get(AimbatEvent, item_uuid)
                         if event is None:
                             return
-                        plot_seismograms(session, event, return_fig=False)
+                        plot_seismograms(event, return_fig=False)
                     else:
                         station = session.get(AimbatStation, item_uuid)
                         if station is None:
                             return
-                        plot_seismograms(session, station, return_fig=False)
+                        plot_seismograms(station, return_fig=False)
         except KeyboardInterrupt:
             pass
         except Exception as exc:
-            self.notify(str(exc), severity="error")
+            logger.exception(f"Viewing seismograms failed: {exc}")
 
     def _toggle_seismogram_bool(self, item_id: str, param: SeismogramParameter) -> None:
         """Flip a boolean seismogram parameter (select or flip) and update the in-memory ICCS instance.
@@ -686,7 +687,6 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             pass
         except Exception as exc:
             logger.exception(f"Snapshot preview failed: {exc}")
-            self.notify(str(exc), severity="error")
 
     def _confirm_rollback(self, snap_id: str) -> None:
         """Show a confirmation dialog, then roll the active event back to a snapshot if confirmed."""
@@ -860,7 +860,6 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             return
         except Exception as exc:
             logger.exception(f"Interactive tool '{tool}' raised: {exc}")
-            self.notify(str(exc), severity="error")
             return
 
         if tool in VIEW_ONLY_TOOLS:
@@ -898,6 +897,15 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         all_seis: bool,
     ) -> None:
         """Run ICCS or MCCC in a background thread and post the result to the main thread.
+
+        Note:
+            `run_iccs`/`run_mccc` mutate `bound.iccs` in place on this
+            worker thread while it runs. Nothing prevents the main thread's
+            5s staleness poll or a panel refresh from reading `bound.iccs`
+            (or replacing `bound` via `_create_iccs()`) concurrently - there
+            is no lock. Not currently known to cause a visible failure in
+            practice, but a torn read is possible while an alignment is in
+            flight.
 
         Args:
             bound: The current `BoundICCS` instance to align.

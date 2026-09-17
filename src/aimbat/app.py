@@ -44,9 +44,18 @@ app.command(cli.shell)
 app.command(cli.tui)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Run the AIMBAT CLI, printing a full traceback on an unhandled exception.
+
+    Uses a dedicated stderr console rather than the module-level `console`
+    (stdout), matching every other error path in `_cli/common/_decorators.py`.
+    """
     try:
         app()
     except Exception:
-        console.print_exception(show_locals=True)
+        Console(stderr=True).print_exception(show_locals=True)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

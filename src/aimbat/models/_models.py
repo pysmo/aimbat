@@ -82,7 +82,14 @@ class AimbatDataSource(SQLModel, table=True):
     )
     sourcename: str = Field(
         title="Source name",
-        description="Opaque logical source identifier for the waveform data.",
+        description=(
+            "Opaque logical source identifier for the waveform data. "
+            + "Uniqueness is enforced as plain string equality, not "
+            + "canonicalised, so a file-based source reachable under two "
+            + "different (but equivalent) path spellings is not recognised "
+            + "as the same source - callers are responsible for "
+            + "canonicalising before storing."
+        ),
     )
     datatype: DataType = Field(
         default=DataType.SAC,
@@ -621,6 +628,12 @@ class AimbatSeismogram(SQLModel, table=True):
 
             Assigning to this attribute stages the write; it reaches the data
             source when the owning session commits (see the class docstring).
+
+            In-place mutation (`seis.data[:] = ...`) is not supported - the
+            setter has no way to intercept a slice assignment on the array it
+            already returned, so NumPy raises its own `ValueError:
+            assignment destination is read-only` rather than a message
+            specific to this class. Assign a new array to `seis.data` instead.
             """
             if self.datasource is None:
                 raise ValueError("Expected a valid datasource name, got None.")
@@ -768,6 +781,12 @@ class AimbatEvent(SQLModel, table=True):
 
 # ----------------------------------------------------------------------------
 # Column properties
+#
+# Each of these is a correlated scalar subquery that SQLAlchemy adds to
+# every SELECT of the owning model, whether or not the count is read -
+# AimbatEvent alone carries three. Fine at interactive/single-project
+# scale; would need `column_property(..., deferred=True)` or a
+# `@hybrid_property` if listing many rows ever becomes a hot path.
 # ----------------------------------------------------------------------------
 
 AimbatEvent.seismogram_count = column_property(  # type: ignore[assignment]
@@ -935,6 +954,9 @@ class AimbatNote(SQLModel, table=True):
 
     @model_validator(mode="after")
     def _exactly_one_parent(self) -> "AimbatNote":
+        # Table-model __init__ skips Pydantic validation, so this never runs
+        # on the normal construction path; the DB CheckConstraint above is
+        # the real guard. Kept for the direct-Pydantic-construction case.
         set_count = sum(
             fk is not None
             for fk in (

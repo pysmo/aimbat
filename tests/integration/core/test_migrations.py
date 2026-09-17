@@ -4,6 +4,7 @@ Uses real file-based databases rather than `:memory:`, since Alembic's
 `env.py` opens its own connection.
 """
 
+import re
 import shutil
 from collections.abc import Generator
 from pathlib import Path
@@ -42,6 +43,16 @@ def _triggers(engine: Engine) -> dict[str, str]:
             text("SELECT name, sql FROM sqlite_master WHERE type = 'trigger'")
         ).all()
     return {name: " ".join(sql.split()) for name, sql in rows}
+
+
+def _when_columns(trigger_sql: str) -> set[str]:
+    """Extract the set of `NEW.<column>` names referenced in a trigger's `WHEN` clause.
+
+    Assumes the `CREATE TRIGGER ... WHEN (...) BEGIN ... END` shape used
+    throughout `core/_project.py`'s quality-invalidation triggers.
+    """
+    when_clause = trigger_sql.split("WHEN", 1)[1].split("BEGIN", 1)[0]
+    return set(re.findall(r'NEW\."?([A-Za-z_][A-Za-z0-9_]*)"?', when_clause))
 
 
 def _tables(engine: Engine) -> set[str]:
@@ -205,6 +216,56 @@ def test_triggers_helper_detects_body_drift(tmp_path: Path) -> None:
     engine_b.dispose()
 
 
+class TestTriggerWhenClauseInvariants:
+    """Several trigger `WHEN` column lists are supposed to track each other,
+    or a Python model's field set, exactly - per the comments in
+    `core/_project.py::create_project` (core-project-data M3). Nothing
+    previously enforced that beyond the comment itself; these tests parse
+    the actual `WHEN` clauses out of the created triggers and assert them
+    against the relevant source of truth, so an edit to one side of a pair
+    that forgets the other fails a test instead of drifting silently.
+    """
+
+    @pytest.fixture
+    def engine(self, tmp_path: Path) -> Generator[Engine]:
+        engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'triggers.db'}")
+        create_project(engine)
+        yield engine
+        engine.dispose()
+
+    def test_trigger1_when_matches_event_parameters_minus_completed(
+        self, engine: Engine
+    ) -> None:
+        from aimbat.models._parameters import AimbatEventParametersBase
+
+        triggers = _triggers(engine)
+        cols = _when_columns(triggers["event_modified_on_params_update"])
+        assert cols == set(AimbatEventParametersBase.model_fields) - {"completed"}
+
+    def test_trigger2_when_matches_seismogram_parameters(self, engine: Engine) -> None:
+        from aimbat.models._parameters import AimbatSeismogramParametersBase
+
+        triggers = _triggers(engine)
+        cols = _when_columns(triggers["event_modified_on_seis_params_update"])
+        assert cols == set(AimbatSeismogramParametersBase.model_fields)
+
+    def test_trigger1b_when_matches_trigger3_when(self, engine: Engine) -> None:
+        """Trigger 1b (`stack_modified`) must track trigger 3's stack-affecting
+        column set exactly - both must fire only on the parameters that
+        actually change the aligned signal.
+        """
+        triggers = _triggers(engine)
+        cols_1b = _when_columns(triggers["event_stack_modified_on_params_update"])
+        cols_3 = _when_columns(triggers["null_all_quality_on_window_bandpass_change"])
+        assert cols_1b == cols_3
+
+    def test_trigger2b_when_matches_trigger2_when(self, engine: Engine) -> None:
+        triggers = _triggers(engine)
+        cols_2 = _when_columns(triggers["event_modified_on_seis_params_update"])
+        cols_2b = _when_columns(triggers["event_stack_modified_on_seis_params_update"])
+        assert cols_2 == cols_2b
+
+
 def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:
     """Guards `_unique_constraints`/`_check_constraints`/`_indexes`
     themselves: each must report a difference when one database has a
@@ -275,6 +336,47 @@ class TestUpgradeProject:
         upgrade_project(engine_from_file)
 
         assert get_current_revision(engine_from_file) is not None
+
+    def test_upgrade_backs_up_database_file_first(
+        self, engine_from_file: Engine, db_path: Path
+    ) -> None:
+        """A file-backed database should be copied aside before `command.upgrade`
+        runs, labelled with the revision it was backed up from.
+        """
+        create_project(engine_from_file)
+        revision = get_current_revision(engine_from_file)
+
+        upgrade_project(engine_from_file)
+
+        backup_path = db_path.with_name(f"{db_path.name}.pre-{revision}.bak")
+        assert backup_path.exists()
+        assert backup_path.stat().st_size > 0
+
+    def test_upgrade_skips_backup_for_in_memory_database(self, engine: Engine) -> None:
+        """An in-memory database has no file to back up and must not error."""
+        upgrade_project(engine)  # already created + stamped by the `engine` fixture
+
+    def test_downgrade_from_head_to_base_drops_all_tables(
+        self, engine_from_file: Engine
+    ) -> None:
+        """Every migration's `downgrade()` should unwind cleanly, not just
+        `upgrade()` step forward - a fresh, empty project exercises the whole
+        chain without hitting any of the data-dependent downgrade caveats
+        (e.g. same-microsecond snapshot rows) documented on individual
+        migrations.
+        """
+        from alembic import command
+
+        from aimbat.core._migrations import _alembic_config
+
+        create_project(engine_from_file)
+        config = _alembic_config(engine_from_file)
+
+        command.downgrade(config, "base")
+
+        with engine_from_file.begin() as connection:
+            table_names = inspect(connection).get_table_names()
+        assert not any(name.startswith("aimbat") for name in table_names)
 
     def test_upgrade_rejects_unstamped_database_with_unknown_schema(
         self, engine_from_file: Engine

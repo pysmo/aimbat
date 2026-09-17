@@ -9,7 +9,6 @@ import mplcursors  # type: ignore[import-untyped]
 import pandas as pd
 from matplotlib import ticker
 from matplotlib.backend_bases import MouseEvent
-from sqlmodel import Session
 
 from pysmo.tools.plotutils import relative_time_array, time_array
 
@@ -57,16 +56,13 @@ def _add_scroll_pan(ax: plt.Axes) -> None:
 
 
 @singledispatch
-def _plot_seis(
-    arg: AimbatEvent | AimbatStation, session: Session
-) -> tuple[plt.Figure, plt.Axes]:
+def _plot_seis(arg: AimbatEvent | AimbatStation) -> tuple[plt.Figure, plt.Axes]:
     """Plot seismograms for an event or station.
 
     Dispatches to the implementation registered for the type of `arg`.
 
     Args:
         arg: Event or station to plot seismograms for.
-        session: Database session.
 
     Returns:
         The created figure and axes.
@@ -79,12 +75,11 @@ def _plot_seis(
 
 
 @_plot_seis.register
-def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
+def _(event: AimbatEvent) -> tuple[plt.Figure, plt.Axes]:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Args:
         event: Event whose seismograms are plotted.
-        session: Database session.
 
     Returns:
         The created figure and axes.
@@ -118,6 +113,10 @@ def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
         )
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
+    # Keep a strong reference alive on the figure: mplcursors stops working
+    # if its Cursor object is garbage collected, and `cursor` itself goes
+    # out of scope once this function returns, before `plt.show()` runs.
+    fig._aimbat_cursor = cursor  # type: ignore[attr-defined]
 
     @cursor.connect("add")  # type: ignore[untyped-decorator]
     def on_add(sel: mplcursors.Selection) -> None:
@@ -143,12 +142,11 @@ def _(event: AimbatEvent, session: Session) -> tuple[plt.Figure, plt.Axes]:
 
 
 @_plot_seis.register
-def _(station: AimbatStation, session: Session) -> tuple[plt.Figure, plt.Axes]:
+def _(station: AimbatStation) -> tuple[plt.Figure, plt.Axes]:
     """Plot all seismograms for a particular station ordered by event time.
 
     Args:
         station: Station whose seismograms are plotted.
-        session: Database session.
 
     Returns:
         The created figure and axes.
@@ -169,6 +167,9 @@ def _(station: AimbatStation, session: Session) -> tuple[plt.Figure, plt.Axes]:
         ax.plot(rel_times, data, label=f"Seismogram: {id}")
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
+    # See the matching comment in the AimbatEvent branch above: this
+    # reference must outlive the function call.
+    fig._aimbat_cursor = cursor  # type: ignore[attr-defined]
 
     @cursor.connect("add")  # type: ignore[untyped-decorator]
     def on_add(sel: mplcursors.Selection) -> None:
@@ -187,23 +188,22 @@ def _(station: AimbatStation, session: Session) -> tuple[plt.Figure, plt.Axes]:
 
 @overload
 def plot_seismograms(
-    session: Session, plot_for: AimbatEvent | AimbatStation, return_fig: Literal[True]
+    plot_for: AimbatEvent | AimbatStation, return_fig: Literal[True]
 ) -> tuple[plt.Figure, plt.Axes]: ...
 
 
 @overload
 def plot_seismograms(
-    session: Session, plot_for: AimbatEvent | AimbatStation, return_fig: Literal[False]
+    plot_for: AimbatEvent | AimbatStation, return_fig: Literal[False]
 ) -> None: ...
 
 
 def plot_seismograms(
-    session: Session, plot_for: AimbatEvent | AimbatStation, return_fig: bool
+    plot_for: AimbatEvent | AimbatStation, return_fig: bool
 ) -> tuple[plt.Figure, plt.Axes] | None:
     """Plot all seismograms for a particular event or station.
 
     Args:
-        session: Database session.
         plot_for: What to plot the seismograms for (Event or Station).
         return_fig: Whether to return the figure and axes objects instead of showing the plot.
 
@@ -218,7 +218,7 @@ def plot_seismograms(
     """
     logger.info(f"Plotting seismograms for {type(plot_for).__name__}: {plot_for.id}.")
 
-    fig, ax = _plot_seis(plot_for, session)
+    fig, ax = _plot_seis(plot_for)
     _add_scroll_pan(ax)
 
     if return_fig:

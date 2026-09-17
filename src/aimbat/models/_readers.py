@@ -54,12 +54,16 @@ __all__ = [
 class SeismogramQualityStats(BaseModel):
     """Aggregated seismogram quality statistics for an event or station.
 
-    Built from live quality records. All mean fields are `None` when no
-    seismograms in the group have quality data. SEM fields are `None` when
-    fewer than two values are available. `mccc_rmse` is only populated by
-    `from_event` and `from_snapshot`; it is always `None` for `from_station`.
-    `event_id` is populated by `from_event` and `from_snapshot`; it is always
-    `None` for `from_station`.
+    Built from persisted `AimbatSeismogramQuality` rows, covering both ICCS
+    CC and MCCC diagnostics. All mean fields are `None` when no seismograms
+    in the group have quality data. SEM fields are `None` when fewer than
+    two values are available. `mccc_rmse` is only populated by `from_event`
+    and `from_snapshot`; it is always `None` for `from_station`. `event_id`
+    is populated by `from_event` and `from_snapshot`; it is always `None`
+    for `from_station`.
+
+    For the live, DB-independent CC-only equivalent (computed straight from
+    an `ICCS` instance), see `aimbat.core.CcStats`.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -85,7 +89,17 @@ class SeismogramQualityStats(BaseModel):
             "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False),  # type: ignore[dict-item]
         },
     )
-    count: int = Field(title="Count")
+    count: int = Field(
+        title="Count",
+        description=(
+            "Number of seismograms in the group (regardless of whether they"
+            + " have quality data). `from_event`/`from_station` count live"
+            + " seismograms directly; `from_snapshot` uses the snapshot's own"
+            + " seismogram-parameter-snapshot count instead. The mean/SEM"
+            + " fields above only aggregate the subset that has quality data,"
+            + " which may be smaller than this count."
+        ),
+    )
     cc_mean: float | None = Field(default=None, title="ICCS CC mean")
     cc_mean_sem: float | None = Field(default=None, title="ICCS CC mean SEM")
     mccc_cc_mean: float | None = Field(default=None, title="MCCC CC mean")
@@ -579,6 +593,7 @@ class AimbatSeismogramRead(BaseModel):
             if seismogram.parameters.t1
             else None
         )
+        quality = seismogram.quality
         return cls(
             id=seismogram.id,
             short_id=short_id,
@@ -587,10 +602,10 @@ class AimbatSeismogramRead(BaseModel):
             select=seismogram.parameters.select,
             flip=seismogram.parameters.flip,
             delta_t=delta_t,
-            mccc_error=getattr(seismogram.quality, "mccc_error", None),
-            iccs_cc=getattr(seismogram.quality, "iccs_cc", None),
-            mccc_cc_mean=getattr(seismogram.quality, "mccc_cc_mean", None),
-            mccc_cc_std=getattr(seismogram.quality, "mccc_cc_std", None),
+            mccc_error=quality.mccc_error if quality else None,
+            iccs_cc=quality.iccs_cc if quality else None,
+            mccc_cc_mean=quality.mccc_cc_mean if quality else None,
+            mccc_cc_std=quality.mccc_cc_std if quality else None,
             event_id=seismogram.event_id,
             short_event_id=short_event_id,
         )
@@ -835,10 +850,10 @@ class SnapshotSeismogramResult(BaseModel):
             select=param_snap.select,
             flip=param_snap.flip,
             t1=param_snap.t1,
-            iccs_cc=getattr(quality_snap, "iccs_cc", None),
-            mccc_cc_mean=getattr(quality_snap, "mccc_cc_mean", None),
-            mccc_cc_std=getattr(quality_snap, "mccc_cc_std", None),
-            mccc_error=getattr(quality_snap, "mccc_error", None),
+            iccs_cc=quality_snap.iccs_cc if quality_snap else None,
+            mccc_cc_mean=quality_snap.mccc_cc_mean if quality_snap else None,
+            mccc_cc_std=quality_snap.mccc_cc_std if quality_snap else None,
+            mccc_error=quality_snap.mccc_error if quality_snap else None,
         )
 
 

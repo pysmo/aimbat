@@ -1,6 +1,7 @@
 """Unit tests for aimbat.utils._sampledata."""
 
 import io
+import stat
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -14,6 +15,16 @@ from aimbat.utils._sampledata import (
     delete_sampledata,
     download_sampledata,
 )
+
+
+class _FakeResponse(io.BytesIO):
+    """A `BytesIO` usable as a context manager, standing in for `urlopen`'s response."""
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        return None
 
 
 def _make_zip_bytes(filenames: list[str]) -> bytes:
@@ -116,17 +127,17 @@ class TestDownloadSampledata:
     def _mock_urlopen(self, filenames: list[str]) -> MagicMock:
         """Return a context-manager mock that yields ZIP bytes for urlopen.
 
+        Wraps the bytes in a real `BytesIO` (rather than a bare `.read()`
+        stub) so `shutil.copyfileobj`'s chunked `read(size)` calls behave
+        like a real response stream and hit EOF correctly.
+
         Args:
             filenames (list[str]): List of filenames for the mock ZIP.
 
         Returns:
             MagicMock: A mock object behaving like urlopen's return value.
         """
-        zip_bytes = _make_zip_bytes(filenames)
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = zip_bytes
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp = _FakeResponse(_make_zip_bytes(filenames))
         mock_urlopen = MagicMock(return_value=mock_resp)
         return mock_urlopen
 
@@ -179,6 +190,28 @@ class TestDownloadSampledata:
         with patch("aimbat.utils._sampledata.urlopen", mock_urlopen):
             download_sampledata()
         mock_urlopen.assert_called_once()
+
+    def test_skips_symlink_entries(self, sampledata_dir: Path) -> None:
+        """Verifies a symlink entry in the archive is skipped, not materialised.
+
+        Regression test: a zip entry with a symlink `external_attr` must not
+        be extracted as a symlink on disk, even though a regular file with
+        the same name elsewhere in the archive still is.
+        """
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w") as zf:
+            zf.writestr("data/file.sac", b"")
+            link_info = zipfile.ZipInfo("data/evil-link")
+            link_info.external_attr = (stat.S_IFLNK | 0o777) << 16
+            zf.writestr(link_info, "/etc/passwd")
+        mock_resp = _FakeResponse(buf.getvalue())
+        mock_urlopen = MagicMock(return_value=mock_resp)
+
+        with patch("aimbat.utils._sampledata.urlopen", mock_urlopen):
+            download_sampledata()
+
+        assert (sampledata_dir / "data" / "file.sac").exists()
+        assert not (sampledata_dir / "data" / "evil-link").exists()
 
     def test_urlopen_called_with_src(self, sampledata_dir: Path) -> None:
         """Verifies that urlopen is called with the sample data source URL and a timeout.

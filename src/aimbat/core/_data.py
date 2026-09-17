@@ -46,7 +46,27 @@ __all__ = [
 ]
 
 
-def _link_station(session: Session, new_aimbat_station: AimbatStation) -> AimbatStation:
+def _warn_on_station_location_mismatch(
+    label: str,
+    new_station: AimbatStation,
+    existing_station: AimbatStation,
+) -> None:
+    """Warn if the reused station's location metadata differs from the source's."""
+    if (
+        new_station.latitude != existing_station.latitude
+        or new_station.longitude != existing_station.longitude
+        or new_station.elevation != existing_station.elevation
+    ):
+        logger.warning(
+            f"Station {existing_station.network}.{existing_station.name} matched "
+            + "by name/network/channel/location but has different location "
+            + f"metadata in {label}. The existing record will be used."
+        )
+
+
+def _link_station(
+    session: Session, new_aimbat_station: AimbatStation, label: str
+) -> AimbatStation:
     """Dedup an already-built AimbatStation against the project, or add it."""
 
     statement = (
@@ -70,6 +90,7 @@ def _link_station(session: Session, new_aimbat_station: AimbatStation) -> Aimbat
             f"Using existing station {aimbat_station.name} - "
             + f"{aimbat_station.network} instead of adding new one."
         )
+        _warn_on_station_location_mismatch(label, new_aimbat_station, aimbat_station)
     return aimbat_station
 
 
@@ -79,7 +100,7 @@ def _create_station(
     """Create a new AimbatStation if it doesn't exist yet, or use existing one."""
 
     new_aimbat_station = create_station(datasource, datatype)
-    return _link_station(session, new_aimbat_station)
+    return _link_station(session, new_aimbat_station, str(datasource))
 
 
 def _format_gap_prefix(
@@ -492,6 +513,12 @@ def add_data_to_project(
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
 
+    missing_sources = [str(ds) for ds in data_sources if not Path(ds).exists()]
+    if missing_sources:
+        raise FileNotFoundError(
+            "Data source(s) not found: " + ", ".join(missing_sources)
+        )
+
     if station_id is not None and session.get(AimbatStation, station_id) is None:
         raise NoResultFound(f"No station found with ID {station_id}.")
     if event_id is not None and session.get(AimbatEvent, event_id) is None:
@@ -647,6 +674,17 @@ def add_seismograms_to_project(
     Raises:
         ValueError: If a near-duplicate event falls in the "ambiguous gap"
             band (see `add_data_to_project`).
+
+    Note:
+        Miniseed files are written to `data_dir` before the final commit. If
+        that commit fails (disk full, a constraint violation surfaced only
+        at commit time, a concurrent writer), the files already written
+        survive on disk with no corresponding database row - an orphan
+        `aimbat data prune` cannot detect, since prune only looks for
+        database rows whose file has vanished, never the reverse. Low
+        severity (disk clutter, not data loss) and the failure window is
+        narrow, but worth knowing about before relying on `data_dir` being
+        an exact mirror of the database.
     """
 
     logger.info(f"Adding {len(items)} seismogram(s) to project directly.")
@@ -666,14 +704,14 @@ def add_seismograms_to_project(
         total = len(items)
         with session.begin_nested() as nested:
             for done, (seismogram, station, event) in enumerate(items, start=1):
+                label = f"{station.network}.{station.name}"
                 aimbat_station = _link_station(
-                    session, AimbatStation.model_validate(station)
+                    session, AimbatStation.model_validate(station), label
                 )
 
                 new_aimbat_event = AimbatEvent.model_validate(
                     event, update={"parameters": AimbatEventParameters()}
                 )
-                label = f"{station.network}.{station.name}"
                 aimbat_event, duplicate_warning = _link_event(
                     session, new_aimbat_event, dry_run, known_event_ids, label
                 )
@@ -819,8 +857,9 @@ def dump_data_table(
     if by_alias and by_title:
         raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
 
+    exclude_map: dict[str, set[str]] | None = None
     if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+        exclude_map = {"__all__": exclude}
 
     adapter: TypeAdapter[Sequence[AimbatDataSource]] = TypeAdapter(
         Sequence[AimbatDataSource]
@@ -832,7 +871,7 @@ def dump_data_table(
         data_source = session.exec(select(AimbatDataSource)).all()
 
     data = adapter.dump_python(
-        data_source, exclude=exclude, by_alias=by_alias, mode="json"
+        data_source, exclude=exclude_map, by_alias=by_alias, mode="json"
     )
 
     if by_title:

@@ -1,7 +1,7 @@
 """Global configuration options for the AIMBAT application."""
 
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 from pandas import Timedelta
 from pydantic import Field, model_validator
@@ -21,9 +21,14 @@ from aimbat.types import (
 class Settings(BaseSettings):
     """Runtime configuration for AIMBAT.
 
-    Values are populated, in order of precedence, from keyword arguments,
-    environment variables prefixed with `AIMBAT_`, and an `.env` file in the
-    current working directory.
+    Values are populated, in order of precedence, from keyword arguments
+    passed to `Settings()`, environment variables prefixed with `AIMBAT_`,
+    and an `.env` file in the current working directory.
+
+    The module-level `settings` object is built once at import time.
+    Changing an environment variable or `.env` file afterwards has no effect
+    on it, or on anything that already imported it (e.g. `aimbat.db`'s
+    engine, `aimbat.logger`'s sink) - construct a fresh `Settings()` instead.
     """
 
     model_config = SettingsConfigDict(env_prefix="aimbat_", env_file=".env")
@@ -58,6 +63,7 @@ class Settings(BaseSettings):
     corners: int = Field(
         default=2,
         gt=0,
+        le=10,
         description=(
             "Number of corners (poles) for the bandpass filter (ignored if "
             + "`bandpass_apply` is False)."
@@ -210,13 +216,17 @@ class Settings(BaseSettings):
     def set_computed_defaults(self) -> Self:
         """Derive `db_url` from `project` when not set explicitly.
 
-        A literal `?` in `project` is percent-encoded first: SQLite URL
-        parsing otherwise treats it as the start of a query string, silently
-        truncating everything from `?` onwards off the path SQLAlchemy
-        actually opens.
+        `?` and `#` in `project` are percent-encoded first: SQLite URL
+        parsing otherwise treats them as the start of a query string or
+        fragment, silently truncating everything from that point onwards off
+        the path SQLAlchemy actually opens. A literal `%` is left alone -
+        SQLAlchemy does not decode `%XX` escapes back out of the database
+        component of a sqlite URL, so escaping `%` here would instead corrupt
+        a `project` path that already contains one (e.g. `data%set.db` would
+        open `data%25set.db`).
         """
         if self.db_url == "":
-            escaped_project = str(self.project).replace("?", "%3F")
+            escaped_project = str(self.project).replace("?", "%3F").replace("#", "%23")
             self.db_url = f"sqlite+pysqlite:///{escaped_project}"
         return self
 
@@ -264,7 +274,7 @@ def print_settings_table(pretty: bool) -> None:
         )
 
     env_prefix = Settings.model_config.get("env_prefix")
-    values: dict[str, str] = json.loads(settings.model_dump_json())
+    values: dict[str, Any] = json.loads(settings.model_dump_json())
 
     if not pretty:
         for k, v in values.items():
@@ -302,6 +312,9 @@ def cli_settings_list(
       (e.g. `AIMBAT_LOG_LEVEL=DEBUG`).
     - Setting them in a `.env` file in the current working directory
       (e.g. `AIMBAT_LOG_LEVEL=DEBUG` in `.env`).
+
+    These are read once when AIMBAT starts; changing them mid-process has no
+    effect on the running command.
 
     Args:
         pretty: If True, print a Rich table with name, value, and
@@ -350,7 +363,7 @@ def generate_settings_table_markdown() -> str:
     import json
 
     env_prefix = Settings.model_config.get("env_prefix", "").upper()
-    values: dict[str, str] = json.loads(get_default_settings().model_dump_json())
+    values: dict[str, Any] = json.loads(get_default_settings().model_dump_json())
 
     lines = [
         "| Environment Variable | Default | Description |",

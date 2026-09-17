@@ -181,3 +181,65 @@ class TestNoteCore:
         save_note(patched_session, "event", ev.id, "second version")
 
         assert get_note_content(patched_session, "event", ev.id) == "second version"
+
+    def test_save_note_reports_no_race_when_content_matches_expected(
+        self, patched_session: Session
+    ) -> None:
+        """No concurrent edit: expected_previous matches what's still there."""
+        ev = _make_event(patched_session)
+        save_note(patched_session, "event", ev.id, "first version")
+
+        raced = save_note(
+            patched_session,
+            "event",
+            ev.id,
+            "second version",
+            expected_previous="first version",
+        )
+
+        assert raced is False
+        assert get_note_content(patched_session, "event", ev.id) == "second version"
+
+    def test_save_note_reports_race_when_content_changed_since_expected(
+        self, patched_session: Session
+    ) -> None:
+        """A concurrent edit changed the note after expected_previous was read."""
+        ev = _make_event(patched_session)
+        save_note(patched_session, "event", ev.id, "first version")
+        save_note(patched_session, "event", ev.id, "concurrent edit")
+
+        raced = save_note(
+            patched_session,
+            "event",
+            ev.id,
+            "second version",
+            expected_previous="first version",
+        )
+
+        assert raced is True
+        assert get_note_content(patched_session, "event", ev.id) == "second version"
+
+    def test_save_note_reports_race_when_note_was_created_concurrently(
+        self, patched_session: Session
+    ) -> None:
+        """expected_previous of "" (no note read) but one now exists."""
+        ev = _make_event(patched_session)
+        save_note(patched_session, "event", ev.id, "concurrently created")
+
+        raced = save_note(
+            patched_session, "event", ev.id, "second version", expected_previous=""
+        )
+
+        assert raced is True
+
+    def test_save_note_no_race_check_when_expected_previous_omitted(
+        self, patched_session: Session
+    ) -> None:
+        """No expected_previous given: never reported as a race."""
+        ev = _make_event(patched_session)
+        save_note(patched_session, "event", ev.id, "first version")
+        save_note(patched_session, "event", ev.id, "concurrent edit")
+
+        raced = save_note(patched_session, "event", ev.id, "second version")
+
+        assert raced is False

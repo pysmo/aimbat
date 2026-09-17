@@ -8,6 +8,7 @@ the corresponding alignment/picking algorithms and persist their
 results.
 """
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
@@ -47,6 +48,7 @@ __all__ = [
     "clear_iccs_cache",
     "clear_mccc_quality",
     "create_iccs_instance",
+    "evict_iccs_cache_entry",
     "run_iccs",
     "run_mccc",
     "sync_iccs_parameters",
@@ -199,6 +201,11 @@ class CcStats:
     `mean_selected`/`sem_selected` are computed from seismograms with
     `select=True` only; `mean_all`/`sem_all` from every seismogram. SEM
     fields are `None` when fewer than two values are available.
+
+    Computed directly from `ICCS.ccs` against the current stack, so it is
+    always up to date without a DB round-trip. For the persisted-quality
+    equivalent (event/station/snapshot scoped, DB-backed), see
+    `aimbat.models.SeismogramQualityStats`.
     """
 
     n_all: int
@@ -237,14 +244,31 @@ def cc_stats(iccs: ICCS) -> CcStats:
 
 
 # Process-level ICCS cache. In normal CLI use this is always cold (one command
-# per process). In the shell a warm entry is reused across commands, avoiding
-# redundant data loading and ICCS computation.
-_iccs_cache: dict[UUID, BoundICCS] = {}
+# per process). In the shell/TUI a warm entry is reused across commands,
+# avoiding redundant data loading and ICCS computation. Bounded LRU (evict
+# least-recently-used once full) so visiting many events in one long-running
+# process doesn't pin every event's seismogram data in memory forever - each
+# entry holds a full copy-by-reference waveform list for its event.
+_ICCS_CACHE_MAX_ENTRIES = 32
+_iccs_cache: OrderedDict[UUID, BoundICCS] = OrderedDict()
 
 
 def clear_iccs_cache() -> None:
     """Clear the process-level ICCS cache."""
     _iccs_cache.clear()
+
+
+def evict_iccs_cache_entry(event_id: UUID) -> None:
+    """Remove one event's cached ICCS instance, if present.
+
+    Call this whenever an event is deleted, so its cached waveform data
+    don't linger in memory for the rest of the process on the strength of
+    an ID that no longer refers to anything.
+
+    Args:
+        event_id: ID of the deleted event.
+    """
+    _iccs_cache.pop(event_id, None)
 
 
 def _build_iccs(
@@ -304,6 +328,10 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     `AimbatSeismogram`, passing `data` by reference to the read-only io cache.
     No waveform data are copied.
 
+    Only `event.id` is trusted from the passed `event`: on a cache miss the
+    function re-selects it from `session`, eagerly loading `parameters` and
+    `seismograms`. `event` must therefore already be attached to `session`.
+
     Args:
         session: Database session.
         event: AimbatEvent.
@@ -315,6 +343,7 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     cached = _iccs_cache.get(event.id)
     if cached is not None and not cached.is_stale(event):
         logger.debug(f"Returning cached BoundICCS for event {event.id}.")
+        _iccs_cache.move_to_end(event.id)
         return cached
 
     # Stamp before reading the event's parameters and waveforms below, so a
@@ -349,6 +378,9 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     # call and blow up later on first stack access.
     _write_iccs_stats(event.id, bound.iccs)
     _iccs_cache[event.id] = bound
+    _iccs_cache.move_to_end(event.id)
+    if len(_iccs_cache) > _ICCS_CACHE_MAX_ENTRIES:
+        _iccs_cache.popitem(last=False)
     return bound
 
 
@@ -695,6 +727,11 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     session.flush()
 
 
+# AimbatEventParametersBase fields with no corresponding ICCS attribute -
+# excluded from the sync loop below by design, not by a silent hasattr() skip.
+_NON_ICCS_EVENT_PARAMETER_FIELDS = frozenset({"completed", "mccc_damp", "mccc_min_cc"})
+
+
 def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
     """Sync an existing ICCS instance's parameters from the database.
 
@@ -712,8 +749,15 @@ def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> No
 
     event_params = AimbatEventParametersBase.model_validate(event.parameters)
     for field_name in AimbatEventParametersBase.model_fields:
-        if hasattr(iccs, field_name):
-            setattr(iccs, field_name, getattr(event_params, field_name))
+        if field_name in _NON_ICCS_EVENT_PARAMETER_FIELDS:
+            continue
+        if not hasattr(iccs, field_name):
+            raise AttributeError(
+                f"ICCS has no attribute {field_name!r}; if this field is not "
+                + "meant to be synced to ICCS, add it to "
+                + "_NON_ICCS_EVENT_PARAMETER_FIELDS"
+            )
+        setattr(iccs, field_name, getattr(event_params, field_name))
 
     for iccs_seis in iccs.seismograms:
         db_seis = session.get(AimbatSeismogram, iccs_seis.extra["id"])

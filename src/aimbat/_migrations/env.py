@@ -16,7 +16,7 @@ from typing import Any, Literal
 
 from alembic import context
 from alembic.autogenerate.api import AutogenContext
-from sqlalchemy import Connection, Engine
+from sqlalchemy import Connection, Engine, make_url
 from sqlmodel import SQLModel
 
 # Import locally to ensure SQLModel registers all table metadata before
@@ -66,7 +66,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=settings.db_url.startswith("sqlite"),
+        render_as_batch=make_url(settings.db_url).get_backend_name() == "sqlite",
         render_item=render_item,
     )
 

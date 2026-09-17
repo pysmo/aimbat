@@ -18,6 +18,7 @@ from .common import (
     handle_issues,
     id_parameter,
     open_in_editor,
+    print_warning,
     station_parameter_is_all,
     station_parameter_with_all,
 )
@@ -78,7 +79,14 @@ def cli_station_note_edit(
 
     if updated != original:
         with Session(engine) as session:
-            save_note(session, "station", station_id, updated)
+            raced = save_note(
+                session, "station", station_id, updated, expected_previous=original
+            )
+        if raced:
+            print_warning(
+                "Note changed elsewhere while the editor was open; your edit has"
+                + " overwritten that change."
+            )
 
 
 @app.command(name="delete")
@@ -125,7 +133,11 @@ def cli_station_seismograms_plot(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Plot input seismograms for events recorded at this station."""
+    """Plot input seismograms for events recorded at this station.
+
+    Keeps its database session open for as long as the plot window is:
+    closing the window promptly releases the connection.
+    """
     from sqlmodel import Session
 
     from aimbat.db import engine
@@ -136,7 +148,7 @@ def cli_station_seismograms_plot(
         station = session.get(AimbatStation, station_id)
         if station is None:
             raise ValueError(f"Station with ID {station_id} not found.")
-        plot_seismograms(session, station, return_fig=False)
+        plot_seismograms(station, return_fig=False)
 
 
 @app.command(name="dump")

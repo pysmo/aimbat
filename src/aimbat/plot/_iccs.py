@@ -148,7 +148,7 @@ def update_bandpass(
         )
         return None
 
-    logger.warning(_RETURN_FIG_WARNING)
+    logger.debug(_RETURN_FIG_WARNING)
     return result
 
 
@@ -187,7 +187,7 @@ def update_pick(
         session.commit()
         return None
 
-    logger.warning(_RETURN_FIG_WARNING)
+    logger.debug(_RETURN_FIG_WARNING)
     return result
 
 
@@ -238,7 +238,7 @@ def update_timewindow(
         )
         return None
 
-    logger.warning(_RETURN_FIG_WARNING)
+    logger.debug(_RETURN_FIG_WARNING)
     return result
 
 
@@ -282,5 +282,5 @@ def update_min_cc(
         )
         return None
 
-    logger.warning(_RETURN_FIG_WARNING)
+    logger.debug(_RETURN_FIG_WARNING)
     return result

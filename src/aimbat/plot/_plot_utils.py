@@ -56,6 +56,13 @@ def event_seismograms(
 ) -> list[tuple[MiniSeismogram, AimbatStation, float, uuid.UUID]]:
     """Get all seismograms for a particular event ordered by descending great circle distance.
 
+    Note:
+        Each seismogram is detrended/filtered/resampled/normalised
+        synchronously in `_prepare_seismogram_for_plotting`, with no
+        batching or progress feedback - for an event with a large number of
+        seismograms, the plot window can take a noticeable moment to appear
+        with no indication that anything is happening.
+
     Args:
         event: AimbatEvent.
 
@@ -81,6 +88,10 @@ def station_seismograms(
     station: AimbatStation,
 ) -> list[tuple[MiniSeismogram, AimbatEvent, pd.Timestamp, uuid.UUID]]:
     """Get all seismograms for a particular station ordered by event time.
+
+    Note:
+        See `event_seismograms` - the same synchronous, unbatched
+        preparation cost applies here.
 
     Args:
         station: AimbatStation.

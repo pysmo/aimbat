@@ -37,3 +37,6 @@ DATATYPE_SUFFIXES: dict[DataType, list[str]] = {
     DataType.JSON_STATION: [".json"],
     DataType.MSEED: [".mseed", ".miniseed", ".ms"],
 }
+"""`.json` maps to both `JSON_EVENT` and `JSON_STATION`, so a suffix alone
+never resolves to one `DataType` - callers must pass an explicit `DataType`
+for JSON sources rather than inferring it from this mapping."""
