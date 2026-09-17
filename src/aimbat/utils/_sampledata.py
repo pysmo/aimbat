@@ -126,8 +126,9 @@ def download_sampledata(force: bool = False) -> None:
         with tempfile.NamedTemporaryFile() as tmpfile:
             shutil.copyfileobj(zipresp, tmpfile)
             tmpfile.flush()
+            tmpfile.seek(0)
             logger.debug(f"Extracting sample data to {settings.sampledata_dir}.")
-            with ZipFile(tmpfile.name) as zfile:
+            with ZipFile(tmpfile) as zfile:
                 _extract_regular_files(zfile, settings.sampledata_dir)
 
     logger.info("Sample data downloaded and extracted successfully.")
