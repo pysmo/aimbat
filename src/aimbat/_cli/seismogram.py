@@ -19,6 +19,7 @@ from .common import (
     handle_issues,
     id_parameter,
     open_in_editor,
+    print_warning,
 )
 
 app = App(name="seismogram", help=__doc__, help_format="markdown")
@@ -77,7 +78,18 @@ def cli_seismogram_note_edit(
 
     if updated != original:
         with Session(engine) as session:
-            save_note(session, "seismogram", seismogram_id, updated)
+            raced = save_note(
+                session,
+                "seismogram",
+                seismogram_id,
+                updated,
+                expected_previous=original,
+            )
+        if raced:
+            print_warning(
+                "Note changed elsewhere while the editor was open; your edit has"
+                + " overwritten that change."
+            )
 
 
 @app.command(name="delete")

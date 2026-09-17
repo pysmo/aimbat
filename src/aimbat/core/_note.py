@@ -42,8 +42,13 @@ def get_note_content(session: Session, target: NoteTarget, target_id: uuid.UUID)
 
 
 def save_note(
-    session: Session, target: NoteTarget, target_id: uuid.UUID, content: str
-) -> None:
+    session: Session,
+    target: NoteTarget,
+    target_id: uuid.UUID,
+    content: str,
+    *,
+    expected_previous: str | None = None,
+) -> bool:
     """Save note content for the given entity, creating the note record if needed.
 
     Args:
@@ -51,12 +56,25 @@ def save_note(
         target: Entity type, one of `event`, `station`, `seismogram`, `snapshot`.
         target_id: UUID of the target entity.
         content: Markdown note content to save.
+        expected_previous: The content the caller last read before editing, if
+            any. Compared against the note's content immediately before this
+            save to detect a concurrent edit racing this one.
+
+    Returns:
+        True if `expected_previous` was given and didn't match the note's
+        content right before this save - i.e. someone else's edit is about to
+        be overwritten by this one. False otherwise.
     """
     attr = _note_id_attr(target)
     note = session.exec(select(AimbatNote).where(attr == target_id)).one_or_none()
+    raced = (
+        expected_previous is not None
+        and (note.content if note is not None else "") != expected_previous
+    )
     if note is None:
         note = AimbatNote(**{f"{target}_id": target_id, "content": content})
     else:
         note.content = content
     session.add(note)
     session.commit()
+    return raced

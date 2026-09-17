@@ -21,6 +21,7 @@ from .common import (
     event_parameter_with_all,
     handle_issues,
     open_in_editor,
+    print_warning,
 )
 
 __all__ = [
@@ -176,7 +177,14 @@ def cli_event_note_edit(
     if updated != original:
         with Session(engine) as session:
             event = resolve_event(session, event_id)
-            save_note(session, "event", event.id, updated)
+            raced = save_note(
+                session, "event", event.id, updated, expected_previous=original
+            )
+        if raced:
+            print_warning(
+                "Note changed elsewhere while the editor was open; your edit has"
+                + " overwritten that change."
+            )
 
 
 @_parameter.command(name="get")

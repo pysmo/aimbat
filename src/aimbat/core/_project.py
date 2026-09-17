@@ -107,11 +107,17 @@ def create_project(engine: Engine) -> None:
             """)
             )
 
-            # Trigger 2: Track last modification time when seismogram parameters change
+            # Trigger 2: Track last modification time when seismogram parameters
+            # change. Lists every AimbatSeismogramParametersBase field (flip,
+            # select, t1) so a no-op UPDATE (value unchanged) doesn't bump
+            # last_modified and cause a spurious TUI repaint.
             connection.execute(
                 text("""
                 CREATE TRIGGER IF NOT EXISTS event_modified_on_seis_params_update
                 AFTER UPDATE ON aimbatseismogramparameters
+                WHEN (NEW.flip IS NOT OLD.flip)
+                  OR (NEW."select" IS NOT OLD."select")
+                  OR (NEW.t1 IS NOT OLD.t1)
                 BEGIN
                     UPDATE aimbatevent
                     SET last_modified = strftime('%Y-%m-%d %H:%M:%f', 'now')
