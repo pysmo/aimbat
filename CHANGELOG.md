@@ -69,6 +69,8 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - [**breaking**] Raise Python floor to 3.13
 - Align ruff and mypy strictness with pysmo's config
 - **(tui,io)** Remove redundant `__future__` annotations import
+- Track shared .envrc, keep machine-specific overrides local
+- Update stale `master` references to `main`
 
 ### 🔧 Refactoring
 
