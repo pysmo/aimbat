@@ -14,7 +14,7 @@ from aimbat.logger import logger
 __all__ = ["delete_sampledata", "download_sampledata"]
 
 _SAMPLEDATA_SRC = (
-    "https://github.com/pysmo/aimbat-sampledata/archive/refs/heads/master.zip"
+    "https://github.com/pysmo/aimbat-sampledata/archive/refs/heads/main.zip"
 )
 _DOWNLOAD_TIMEOUT_SECONDS = 30
 _MIN_SAFE_PATH_PARTS = 4
