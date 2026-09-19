@@ -15,7 +15,7 @@
 <img src="https://readthedocs.org/projects/aimbat/badge/?version=latest" alt="Documentation Status">
 </img></a>
 <a href="https://codecov.io/gh/pysmo/aimbat" target="_blank">
-<img src="https://codecov.io/gh/pysmo/aimbat/branch/master/graph/badge.svg?token=ZsHTBN4rxF" alt="codecov">
+<img src="https://codecov.io/gh/pysmo/aimbat/branch/main/graph/badge.svg?token=ZsHTBN4rxF" alt="codecov">
 </img></a>
 <a href="https://pypi.org/project/aimbat/" target="_blank">
 <img src="https://img.shields.io/pypi/v/aimbat" alt="PyPI">

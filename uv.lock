@@ -65,7 +65,7 @@ requires-dist = [
     { name = "pandas-stubs", specifier = ">=3.0.0.260204" },
     { name = "prompt-toolkit", specifier = ">=3.0.52" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
-    { name = "pysmo", git = "https://github.com/pysmo/pysmo?rev=master" },
+    { name = "pysmo", git = "https://github.com/pysmo/pysmo?rev=main" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "sqlmodel", specifier = ">=0.0.24" },
     { name = "textual", specifier = ">=8.0.0" },
@@ -1864,8 +1864,8 @@ wheels = [
 
 [[package]]
 name = "pysmo"
-version = "1.0.0.dev225+ge0aa52e3f"
-source = { git = "https://github.com/pysmo/pysmo?rev=master#e0aa52e3fc05ad0ac3492571d6e73782553b542a" }
+version = "1.0.0.dev231+g4b06d3964"
+source = { git = "https://github.com/pysmo/pysmo?rev=main#4b06d39647e7d2bed1a80ab4aeafdb52a1cd175d" }
 dependencies = [
     { name = "annotated-types" },
     { name = "attrs" },

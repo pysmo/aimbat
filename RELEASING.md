@@ -5,9 +5,9 @@ push access and Actions permissions on this repository.
 
 ## Prerequisites
 
-- Everything intended for the release is already merged into `master`.
+- Everything intended for the release is already merged into `main`.
 - `CHANGELOG.md`'s `## [Unreleased]` section (kept current on every push to
-  `master` by the `changelog` workflow) reflects what you expect to ship.
+  `main` by the `changelog` workflow) reflects what you expect to ship.
   Note history before `v1.0.7` is deliberately excluded from generation
   (`cliff.toml`'s config has no such cutoff — it's applied via a `v1.0.7..`
   range argument at every git-cliff invocation) since that predates the
@@ -41,7 +41,7 @@ This is the *only* manual trigger. It runs as one ordered job:
 
 1. Validates the version format and confirms the tag doesn't already exist.
 2. For a full release (not `rc`/`.dev`): regenerates `CHANGELOG.md` labelled
-   `## [2.0.0] - date` and pushes it to `master` as an ordinary commit.
+   `## [2.0.0] - date` and pushes it to `main` as an ordinary commit.
 3. Creates and pushes the annotated tag on top of that commit.
 
 Concurrent dispatches are serialized, so it's safe to trigger without
@@ -49,7 +49,7 @@ checking whether another run is in flight.
 
 ## 3. What happens automatically
 
-- The `CHANGELOG.md` push to `master` triggers the docs site (GitHub Pages)
+- The `CHANGELOG.md` push to `main` triggers the docs site (GitHub Pages)
   to redeploy, already showing the correct version heading — it was
   committed before the tag existed.
 - The tag push triggers `release.yml`: builds the sdist/wheel, publishes to
@@ -67,10 +67,10 @@ Always cut releases via `release-prep.yml`, not `git tag` + `git push` by
 hand. `release.yml` triggers on any matching tag regardless of origin, so
 the build/publish/release steps still work — but a manually-created tag
 skips the changelog commit, so it carries whichever `CHANGELOG.md` heading
-was last on `master` (typically still `## [Unreleased]`).
+was last on `main` (typically still `## [Unreleased]`).
 
 This self-heals on GitHub Pages the next time an ordinary commit lands on
-`master`, since the `changelog` workflow picks up the tag from git history
+`main`, since the `changelog` workflow picks up the tag from git history
 on its own. It does **not** self-heal on Read the Docs if it's building
 that tag as its own pinned version — that build stays wrong permanently,
 since it's tied to a fixed git ref.
@@ -81,6 +81,6 @@ to re-run against a tag that already exists). Fix it manually:
 ```sh
 git checkout v2.0.0
 uv run git-cliff v1.0.7.. --config cliff.toml --tag v2.0.0 --output CHANGELOG.md
-git checkout master
-# apply the regenerated CHANGELOG.md, commit, and push to master
+git checkout main
+# apply the regenerated CHANGELOG.md, commit, and push to main
 ```

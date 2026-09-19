@@ -64,7 +64,7 @@ docs = [
 default-groups = ["test", "dev", "docs"]
 
 [tool.uv.sources]
-pysmo = { git = "https://github.com/pysmo/pysmo", rev = "master" }
+pysmo = { git = "https://github.com/pysmo/pysmo", rev = "main" }
 testkit = { git = "https://github.com/pysmo/testkit", tag = "v0.2.0" }
 
 [tool.hatch.version]

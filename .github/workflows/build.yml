@@ -5,7 +5,7 @@ on:
     workflows:
       - "unit tests"
     branches:
-      - master
+      - main
     types:
       - completed
 

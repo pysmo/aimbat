@@ -2,7 +2,7 @@ name: changelog
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths-ignore:
       - CHANGELOG.md
 
@@ -32,5 +32,5 @@ jobs:
             echo "No changelog changes"
           else
             git commit -m "docs: update CHANGELOG.md"
-            git push origin HEAD:master
+            git push origin HEAD:main
           fi
