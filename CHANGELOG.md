@@ -50,6 +50,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core,models,plot)** O(n) revision matching, trigger WHEN invariant tests, ICCS validation traceback
 - **(utils)** Avoid reopening sample-data tempfile by path
 - **(cli,config)** Sentinel table check, %-escaping, --debug ordering, editor warnings
+- **(utils)** Update sample-data download URL to `main` branch
 
 ### 📚 Documentation
 
