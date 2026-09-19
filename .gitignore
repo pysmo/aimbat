@@ -30,7 +30,8 @@ nohup.out
 .venv
 junit.xml
 .ipynb_checkpoints
-.envrc
+.envrc.local
+!.envrc
 aimbat.log
 .env
 tests/.logs/
