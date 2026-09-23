@@ -1721,3 +1721,86 @@ class TestDumpSnapshotResults:
         assert "event_time" not in result
         assert "seismogramId" in result["seismograms"][0]
         assert "seismogram_id" not in result["seismograms"][0]
+
+
+class TestResyncQuality:
+    """The one invalidation policy every parameter change goes through.
+
+    `set_event_parameters`, `set_seismogram_parameter`,
+    `reset_seismogram_parameters` and `rollback_to_snapshot` all delegate to
+    `resync_quality`, so a change back to parameters a snapshot already
+    measured restores its MCCC diagnostics whichever path made the change.
+    The database triggers null quality on their own; only this path puts it
+    back, so a parameter-changing path that skips it fails here.
+    """
+
+    @staticmethod
+    def _snapshot_with_mccc_quality(session: Session, event: AimbatEvent) -> None:
+        """Give the event MCCC quality and freeze it in a snapshot."""
+        _write_mock_mccc_quality(
+            session,
+            event.id,
+            [s.id for s in event.seismograms],
+            [s.parameters.select for s in event.seismograms],
+            all_seismograms=True,
+        )
+        session.refresh(event)
+        create_snapshot(session, event)
+
+    @staticmethod
+    def _event_quality(session: Session, event: AimbatEvent) -> AimbatEventQuality:
+        return session.exec(
+            select(AimbatEventQuality).where(
+                col(AimbatEventQuality.event_id) == event.id
+            )
+        ).one()
+
+    @pytest.mark.parametrize(
+        "path", ["event_parameter", "seismogram_parameter", "seismogram_reset"]
+    )
+    def test_change_and_change_back_restores_mccc_quality(
+        self, loaded_session: Session, path: str
+    ) -> None:
+        """Verifies each parameter-change path restores quality it can vouch for."""
+        from aimbat.core._event import set_event_parameter
+        from aimbat.core._seismogram import (
+            reset_seismogram_parameters,
+            set_seismogram_parameter,
+        )
+        from aimbat.types import EventParameter, SeismogramParameter
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seismogram = event.seismograms[0]
+        window_pre = event.parameters.window_pre
+
+        self._snapshot_with_mccc_quality(loaded_session, event)
+        assert self._event_quality(loaded_session, event).mccc_rmse is not None
+
+        # Change a parameter the MCCC hash covers, then change it back.
+        if path == "event_parameter":
+            set_event_parameter(
+                loaded_session,
+                event.id,
+                EventParameter.WINDOW_PRE,
+                window_pre - Timedelta(seconds=1),
+            )
+        else:
+            set_seismogram_parameter(
+                loaded_session, seismogram.id, SeismogramParameter.FLIP, True
+            )
+
+        assert self._event_quality(loaded_session, event).mccc_rmse is None
+
+        if path == "event_parameter":
+            set_event_parameter(
+                loaded_session, event.id, EventParameter.WINDOW_PRE, window_pre
+            )
+        elif path == "seismogram_parameter":
+            set_seismogram_parameter(
+                loaded_session, seismogram.id, SeismogramParameter.FLIP, False
+            )
+        else:
+            reset_seismogram_parameters(loaded_session, seismogram.id)
+
+        assert self._event_quality(loaded_session, event).mccc_rmse is not None

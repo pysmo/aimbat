@@ -7,8 +7,8 @@ from typing import Any
 from uuid import UUID
 
 from pandas import Timedelta
-from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import SessionTransaction
 from sqlmodel import Session, select
 
 from pysmo import Event, MiniStationCode, Station
@@ -35,7 +35,7 @@ from aimbat.models._models import (
     AimbatStation,
     _AimbatDataSourceCreate,
 )
-from aimbat.utils import exception_message, get_title_map
+from aimbat.utils import check_field_name_flags, dump_models, exception_message
 from aimbat.utils.formatters import fmt_timedelta
 
 __all__ = [
@@ -451,6 +451,42 @@ def _process_datasource(
     return aimbat_data_source, duplicate_warning
 
 
+def _existing_entity_ids(session: Session) -> tuple[set[UUID], set[UUID], set[UUID]]:
+    """Return the station, event and seismogram IDs already in the project.
+
+    Read before ingestion starts, and before the savepoint is opened, so a
+    caller can tell the records a call created from the ones it reused.
+    """
+    return (
+        set(session.exec(select(AimbatStation.id)).all()),
+        set(session.exec(select(AimbatEvent.id)).all()),
+        set(session.exec(select(AimbatSeismogram.id)).all()),
+    )
+
+
+def _roll_back_dry_run(
+    session: Session,
+    nested: SessionTransaction,
+    added_datasources: Sequence[AimbatDataSource],
+) -> None:
+    """Undo everything an ingestion call staged, leaving it readable.
+
+    Flushing first fills in the database-assigned values on the records the
+    caller is about to return for display; rolling the savepoint back then
+    leaves the project unchanged.
+
+    Args:
+        session: Database session.
+        nested: Savepoint the ingestion ran in.
+        added_datasources: Data sources staged so far, flushed if any.
+    """
+    logger.info("Dry run: displaying data that would be added.")
+    if added_datasources:
+        session.flush()
+    nested.rollback()
+    logger.info("Dry run complete. Rolling back changes.")
+
+
 def add_data_to_project(
     session: Session,
     data_sources: Sequence[os.PathLike[str] | str],
@@ -528,11 +564,9 @@ def add_data_to_project(
     if event_id is not None and session.get(AimbatEvent, event_id) is None:
         raise NoResultFound(f"No event found with ID {event_id}.")
 
-    # Snapshot existing IDs before entering the savepoint so we can identify
-    # what is new vs reused, for a dry run or otherwise.
-    existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
-    existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
-    existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
+    existing_station_ids, existing_event_ids, existing_seismogram_ids = (
+        _existing_entity_ids(session)
+    )
 
     # Mutated in place as new events are created, so near-duplicate
     # detection also covers events created earlier in this same batch,
@@ -571,11 +605,7 @@ def add_data_to_project(
                     on_progress(done, total)
 
             if dry_run:
-                logger.info("Dry run: displaying data that would be added.")
-                if added_datasources:
-                    session.flush()
-                nested.rollback()
-                logger.info("Dry run complete. Rolling back changes.")
+                _roll_back_dry_run(session, nested, added_datasources)
                 return (
                     added_datasources,
                     existing_station_ids,
@@ -705,9 +735,9 @@ def add_seismograms_to_project(
 
     data_dir = Path(data_dir)
 
-    existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
-    existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
-    existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
+    existing_station_ids, existing_event_ids, existing_seismogram_ids = (
+        _existing_entity_ids(session)
+    )
 
     known_event_ids = set(existing_event_ids)
 
@@ -781,11 +811,7 @@ def add_seismograms_to_project(
                     on_progress(done, total)
 
             if dry_run:
-                logger.info("Dry run: displaying data that would be added.")
-                if added_datasources:
-                    session.flush()
-                nested.rollback()
-                logger.info("Dry run complete. Rolling back changes.")
+                _roll_back_dry_run(session, nested, added_datasources)
                 return (
                     added_datasources,
                     existing_station_ids,
@@ -868,28 +894,17 @@ def dump_data_table(
     """
     logger.debug("Dumping AIMBAT datasources table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    exclude_map: dict[str, set[str]] | None = None
-    if exclude is not None:
-        exclude_map = {"__all__": exclude}
-
-    adapter: TypeAdapter[Sequence[AimbatDataSource]] = TypeAdapter(
-        Sequence[AimbatDataSource]
-    )
+    check_field_name_flags(by_alias, by_title)
 
     if event_id is not None:
         data_source = get_data_for_event(session, event_id)
     else:
         data_source = session.exec(select(AimbatDataSource)).all()
 
-    data = adapter.dump_python(
-        data_source, exclude=exclude_map, by_alias=by_alias, mode="json"
+    return dump_models(
+        data_source,
+        AimbatDataSource,
+        by_alias=by_alias,
+        by_title=by_title,
+        exclude=exclude,
     )
-
-    if by_title:
-        title_map = get_title_map(AimbatDataSource)
-        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-    return data

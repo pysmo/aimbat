@@ -7,8 +7,9 @@ Covers five areas:
   (`mean_and_sem`, `mean_and_sem_timedelta`).
 - **Errors** — exception message plus attached notes, for display
   (`exception_message`).
-- **Pydantic** — validation-error formatting and title-map lookup
-  (`format_validation_error`, `get_title_map`).
+- **Pydantic** — validation-error formatting, title-map lookup, and the
+  serialisation shared by the `core.dump_*_table` functions
+  (`format_validation_error`, `get_title_map`, `dump_models`).
 - **Sample data** — download and delete the bundled sample dataset
   (`download_sampledata`, `delete_sampledata`).
 - **UUIDs / formatting** — short-UUID lookup, `rel()` for typed

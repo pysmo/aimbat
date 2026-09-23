@@ -19,7 +19,6 @@ from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
-from pydantic import TypeAdapter
 from sqlalchemy import func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
@@ -51,7 +50,7 @@ from aimbat.models._quality import (
     AimbatEventQualityBase,
     AimbatSeismogramQualityBase,
 )
-from aimbat.utils import get_title_map, rel
+from aimbat.utils import check_field_name_flags, dump_models, rel
 
 __all__ = [
     "SyncResult",
@@ -69,6 +68,7 @@ __all__ = [
     "dump_snapshot_table",
     "get_snapshot_quality",
     "get_snapshots",
+    "resync_quality",
     "rollback_to_snapshot",
     "sync_from_matching_hash",
 ]
@@ -77,9 +77,9 @@ __all__ = [
 class SyncResult(NamedTuple):
     """Which live quality metrics `sync_from_matching_hash` repopulated.
 
-    Callers fall back to `clear_mccc_quality` when `mccc_synced` is `False`, so
-    it reports whether the restore landed, not merely whether a matching
-    snapshot was found.
+    `resync_quality` falls back to `clear_mccc_quality` when `mccc_synced` is
+    `False`, so it reports whether the restore landed, not merely whether a
+    matching snapshot was found.
     """
 
     mccc_synced: bool
@@ -414,8 +414,6 @@ def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
     Raises:
         ValueError: If no snapshot with the given ID is found.
     """
-    from ._iccs import clear_mccc_quality
-
     logger.info(f"Rolling back to snapshot with id={snapshot_id}.")
 
     statement = (
@@ -474,17 +472,7 @@ def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
             setattr(current_seismogram_parameters, k, v)
         session.add(current_seismogram_parameters)
 
-    event = snapshot.event
-    result = sync_from_matching_hash(
-        session,
-        event.id,
-        iccs_hash=compute_iccs_hash(event),
-        mccc_hash=compute_mccc_hash(event),
-        prefer_snapshot_id=snapshot_id,
-    )
-    if not result.mccc_synced:
-        clear_mccc_quality(session, event)
-    session.commit()
+    resync_quality(session, snapshot.event, prefer_snapshot_id=snapshot_id)
 
 
 def _pick_candidate(
@@ -667,6 +655,44 @@ def sync_from_matching_hash(
     return SyncResult(mccc_synced=mccc_synced, iccs_synced=iccs_synced)
 
 
+def resync_quality(
+    session: Session,
+    event: AimbatEvent,
+    *,
+    prefer_snapshot_id: UUID | None = None,
+) -> SyncResult:
+    """Bring an event's live quality metrics back in line with its parameters.
+
+    The invalidation policy every parameter change follows: restore whatever a
+    snapshot taken under the new parameters already measured, throw away the
+    MCCC diagnostics that nothing can vouch for, and commit. Call it after
+    changing event or seismogram parameters, with the change staged on
+    `session` but not yet committed.
+
+    Args:
+        session: Database session.
+        event: Event whose parameters have just changed.
+        prefer_snapshot_id: Snapshot to prefer when several match, for a
+            rollback restoring the snapshot it is rolling back to.
+
+    Returns:
+        `SyncResult` recording which metric groups were repopulated.
+    """
+    from ._iccs import clear_mccc_quality
+
+    result = sync_from_matching_hash(
+        session,
+        event.id,
+        iccs_hash=compute_iccs_hash(event),
+        mccc_hash=compute_mccc_hash(event),
+        prefer_snapshot_id=prefer_snapshot_id,
+    )
+    if not result.mccc_synced:
+        clear_mccc_quality(session, event)
+    session.commit()
+    return result
+
+
 def delete_snapshot(session: Session, snapshot_id: UUID) -> None:
     """Delete an AIMBAT parameter snapshot.
 
@@ -755,43 +781,23 @@ def dump_snapshot_table(
     """
     logger.debug("Dumping AimbatSnapshot table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    if not from_read_model and by_title:
-        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
-
-    if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+    check_field_name_flags(by_alias, by_title, from_read_model)
 
     snapshots = get_snapshots(session, event_id, with_counts=from_read_model)
 
     if from_read_model:
-        snapshot_read_adapter: TypeAdapter[Sequence[AimbatSnapshotRead]] = TypeAdapter(
-            Sequence[AimbatSnapshotRead]
-        )
         snapshots_read = [
             AimbatSnapshotRead.from_snapshot(s, session=session) for s in snapshots
         ]
-        snapshot_dicts = snapshot_read_adapter.dump_python(
-            snapshots_read, mode="json", by_alias=by_alias, exclude=exclude
+        return dump_models(
+            snapshots_read,
+            AimbatSnapshotRead,
+            by_alias=by_alias,
+            by_title=by_title,
+            exclude=exclude,
         )
 
-        if by_title:
-            title_map = get_title_map(AimbatSnapshotRead)
-            snapshot_dicts = [
-                {title_map.get(k, k): v for k, v in row.items()}
-                for row in snapshot_dicts
-            ]
-    else:
-        snapshot_adapter: TypeAdapter[Sequence[AimbatSnapshot]] = TypeAdapter(
-            Sequence[AimbatSnapshot]
-        )
-        snapshot_dicts = snapshot_adapter.dump_python(
-            snapshots, mode="json", by_alias=by_alias, exclude=exclude
-        )
-
-    return snapshot_dicts
+    return dump_models(snapshots, AimbatSnapshot, by_alias=by_alias, exclude=exclude)
 
 
 def get_snapshot_quality(session: Session, snapshot_id: UUID) -> SeismogramQualityStats:
@@ -848,25 +854,18 @@ def dump_snapshot_quality_table(
 
     logger.debug("Dumping AIMBAT snapshot quality table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    exclude = (exclude or set()) | {"station_id"}
-    exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+    check_field_name_flags(by_alias, by_title)
 
     snapshots = get_snapshots(session, event_id, with_counts=True)
     stats = [SeismogramQualityStats.from_snapshot(s) for s in snapshots]
 
-    adapter: TypeAdapter[Sequence[SeismogramQualityStats]] = TypeAdapter(
-        Sequence[SeismogramQualityStats]
+    return dump_models(
+        stats,
+        SeismogramQualityStats,
+        by_alias=by_alias,
+        by_title=by_title,
+        exclude=(exclude or set()) | {"station_id"},
     )
-    data = adapter.dump_python(stats, mode="json", exclude=exclude, by_alias=by_alias)
-
-    if by_title:
-        title_map = get_title_map(SeismogramQualityStats)
-        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-    return data
 
 
 def _dump_snapshot_related_table(
@@ -883,7 +882,9 @@ def _dump_snapshot_related_table(
 
     Shared by the `dump_*_snapshot_table` functions below, which each supply
     the Pydantic model to serialise with and how to pull its records out of
-    one `AimbatSnapshot`.
+    one `AimbatSnapshot`. The query is the part they have in common; the
+    serialisation is `utils.dump_models`, shared with every other
+    `dump_*_table` function.
 
     Args:
         session: Database session.
@@ -901,15 +902,10 @@ def _dump_snapshot_related_table(
     """
     logger.debug(f"Dumping {model_name} table to json.")
 
-    exclude_spec: dict[str, set[str]] | None = {"__all__": exclude} if exclude else None
-
     snapshots = get_snapshots(session, event_id)
-
-    adapter: TypeAdapter[Sequence[Any]] = TypeAdapter(Sequence[model])  # type: ignore[valid-type]
     records = [record for s in snapshots for record in extract(s)]
-    return adapter.dump_python(
-        records, mode="json", by_alias=by_alias, exclude=exclude_spec
-    )
+
+    return dump_models(records, model, by_alias=by_alias, exclude=exclude)
 
 
 def dump_event_parameter_snapshot_table(

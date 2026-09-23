@@ -5,7 +5,6 @@ from typing import Any, Literal, overload
 from uuid import UUID
 
 from pandas import Timestamp
-from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
@@ -19,7 +18,7 @@ from aimbat.models import (
     AimbatSeismogramRead,
 )
 from aimbat.types import SeismogramParameter
-from aimbat.utils import get_title_map, rel
+from aimbat.utils import check_field_name_flags, dump_models, rel
 
 __all__ = [
     "delete_seismogram",
@@ -97,14 +96,7 @@ def dump_seismogram_table(
     """
     logger.debug("Dumping AIMBAT seismogram table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    if not from_read_model and by_title:
-        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
-
-    if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+    check_field_name_flags(by_alias, by_title, from_read_model)
 
     if event_id is not None:
         statement = select(AimbatSeismogram).where(
@@ -127,25 +119,16 @@ def dump_seismogram_table(
             AimbatSeismogramRead.from_seismogram(s, session=session)
             for s in seismograms
         ]
-        adapter_reads: TypeAdapter[Sequence[AimbatSeismogramRead]] = TypeAdapter(
-            Sequence[AimbatSeismogramRead]
+        return dump_models(
+            seismogram_reads,
+            AimbatSeismogramRead,
+            by_alias=by_alias,
+            by_title=by_title,
+            exclude=exclude,
         )
-        data = adapter_reads.dump_python(
-            seismogram_reads, mode="json", exclude=exclude, by_alias=by_alias
-        )
 
-        if by_title:
-            title_map = get_title_map(AimbatSeismogramRead)
-            return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-        return data
-
-    adapter: TypeAdapter[Sequence[AimbatSeismogram]] = TypeAdapter(
-        Sequence[AimbatSeismogram]
-    )
-
-    return adapter.dump_python(
-        seismograms, mode="json", exclude=exclude, by_alias=by_alias
+    return dump_models(
+        seismograms, AimbatSeismogram, by_alias=by_alias, exclude=exclude
     )
 
 
@@ -183,27 +166,13 @@ def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
     if seismogram is None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
 
-    from ._iccs import clear_mccc_quality
-    from ._snapshot import (
-        compute_iccs_hash,
-        compute_mccc_hash,
-        sync_from_matching_hash,
-    )
+    from ._snapshot import resync_quality
 
     defaults = AimbatSeismogramParametersBase()
     for field_name in AimbatSeismogramParametersBase.model_fields:
         setattr(seismogram.parameters, field_name, getattr(defaults, field_name))
     session.add(seismogram)
-    event = seismogram.event
-    result = sync_from_matching_hash(
-        session,
-        event.id,
-        iccs_hash=compute_iccs_hash(event),
-        mccc_hash=compute_mccc_hash(event),
-    )
-    if not result.mccc_synced:
-        clear_mccc_quality(session, event)
-    session.commit()
+    resync_quality(session, seismogram.event)
 
 
 @overload
@@ -251,12 +220,7 @@ def set_seismogram_parameter(
         ValueError: If no seismogram with the given ID is found.
         ValidationError: If `value` fails Pydantic validation for `name`.
     """
-    from ._iccs import clear_mccc_quality
-    from ._snapshot import (
-        compute_iccs_hash,
-        compute_mccc_hash,
-        sync_from_matching_hash,
-    )
+    from ._snapshot import resync_quality
 
     logger.debug(
         f"Setting seismogram {name=} to {value=} in seismogram {seismogram_id=}."
@@ -283,16 +247,7 @@ def set_seismogram_parameter(
     )
     setattr(seismogram.parameters, name, getattr(parameters, name))
     session.add(seismogram)
-    event = seismogram.event
-    result = sync_from_matching_hash(
-        session,
-        event.id,
-        iccs_hash=compute_iccs_hash(event),
-        mccc_hash=compute_mccc_hash(event),
-    )
-    if not result.mccc_synced:
-        clear_mccc_quality(session, event)
-    session.commit()
+    resync_quality(session, seismogram.event)
 
 
 def get_selected_seismograms(
@@ -371,15 +326,7 @@ def dump_seismogram_parameter_table(
     """
     logger.debug("Dumping AimbatSeismogramParameters table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
-
-    adapter: TypeAdapter[Sequence[AimbatSeismogramParameters]] = TypeAdapter(
-        Sequence[AimbatSeismogramParameters]
-    )
+    check_field_name_flags(by_alias, by_title)
 
     if event_id is not None:
         statement = (
@@ -392,12 +339,10 @@ def dump_seismogram_parameter_table(
 
     parameters = session.exec(statement).all()
 
-    data = adapter.dump_python(
-        parameters, mode="json", exclude=exclude, by_alias=by_alias
+    return dump_models(
+        parameters,
+        AimbatSeismogramParameters,
+        by_alias=by_alias,
+        by_title=by_title,
+        exclude=exclude,
     )
-
-    if by_title:
-        title_map = get_title_map(AimbatSeismogramParameters)
-        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-    return data

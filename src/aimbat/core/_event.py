@@ -5,7 +5,6 @@ from typing import Any, Literal, overload
 from uuid import UUID
 
 from pandas import Timedelta
-from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
@@ -22,7 +21,7 @@ from aimbat.models import (
 )
 from aimbat.models._parameters import AimbatEventParametersBase
 from aimbat.types import EventParameter
-from aimbat.utils import get_title_map, rel
+from aimbat.utils import check_field_name_flags, dump_models, rel
 
 __all__ = [
     "delete_event",
@@ -250,14 +249,7 @@ def dump_event_table(
     """
     logger.debug("Dumping AIMBAT event table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    if not from_read_model and by_title:
-        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
-
-    if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+    check_field_name_flags(by_alias, by_title, from_read_model)
 
     statement = select(AimbatEvent).options(
         selectinload(rel(AimbatEvent.seismograms)).selectinload(
@@ -271,21 +263,15 @@ def dump_event_table(
 
     if from_read_model:
         event_reads = [AimbatEventRead.from_event(e, session=session) for e in events]
-        adapter_reads: TypeAdapter[Sequence[AimbatEventRead]] = TypeAdapter(
-            Sequence[AimbatEventRead]
+        return dump_models(
+            event_reads,
+            AimbatEventRead,
+            by_alias=by_alias,
+            by_title=by_title,
+            exclude=exclude,
         )
-        data = adapter_reads.dump_python(
-            event_reads, exclude=exclude, by_alias=by_alias, mode="json"
-        )
 
-        if by_title:
-            title_map = get_title_map(AimbatEventRead)
-            return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-        return data
-
-    adapter: TypeAdapter[Sequence[AimbatEvent]] = TypeAdapter(Sequence[AimbatEvent])
-    return adapter.dump_python(events, mode="json", exclude=exclude, by_alias=by_alias)
+    return dump_models(events, AimbatEvent, by_alias=by_alias, exclude=exclude)
 
 
 @overload
@@ -396,12 +382,7 @@ def set_event_parameters(
         ValidationError: If any value fails Pydantic validation, or, when
             `validate_iccs` is True, if ICCS construction fails.
     """
-    from ._iccs import clear_mccc_quality
-    from ._snapshot import (
-        compute_iccs_hash,
-        compute_mccc_hash,
-        sync_from_matching_hash,
-    )
+    from ._snapshot import resync_quality
 
     updates = {str(name): value for name, value in values.items()}
     logger.debug(f"Setting {updates} for event {event_id=}.")
@@ -431,15 +412,7 @@ def set_event_parameters(
     for name in updates:
         setattr(event.parameters, name, getattr(parameters, name))
     session.add(event)
-    result = sync_from_matching_hash(
-        session,
-        event.id,
-        iccs_hash=compute_iccs_hash(event),
-        mccc_hash=compute_mccc_hash(event),
-    )
-    if not result.mccc_synced:
-        clear_mccc_quality(session, event)
-    session.commit()
+    resync_quality(session, event)
 
 
 def dump_event_parameter_table(
@@ -466,15 +439,7 @@ def dump_event_parameter_table(
 
     logger.debug("Dumping AIMBAT event parameter table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
-
-    adapter: TypeAdapter[Sequence[AimbatEventParameters]] = TypeAdapter(
-        Sequence[AimbatEventParameters]
-    )
+    check_field_name_flags(by_alias, by_title)
 
     if event_id is not None:
         statement = select(AimbatEventParameters).where(
@@ -485,15 +450,13 @@ def dump_event_parameter_table(
 
     parameters = session.exec(statement).all()
 
-    data = adapter.dump_python(
-        parameters, mode="json", exclude=exclude, by_alias=by_alias
+    return dump_models(
+        parameters,
+        AimbatEventParameters,
+        by_alias=by_alias,
+        by_title=by_title,
+        exclude=exclude,
     )
-
-    if by_title:
-        title_map = get_title_map(AimbatEventParameters)
-        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-    return data
 
 
 def dump_event_quality_table(
@@ -520,11 +483,7 @@ def dump_event_quality_table(
 
     logger.debug("Dumping AIMBAT event quality table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    exclude = (exclude or set()) | {"station_id", "snapshot_id"}
-    exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+    check_field_name_flags(by_alias, by_title)
 
     statement = select(AimbatEvent).options(
         selectinload(rel(AimbatEvent.seismograms)).selectinload(
@@ -538,13 +497,10 @@ def dump_event_quality_table(
     events = session.exec(statement).all()
     stats = [SeismogramQualityStats.from_event(e) for e in events]
 
-    adapter: TypeAdapter[Sequence[SeismogramQualityStats]] = TypeAdapter(
-        Sequence[SeismogramQualityStats]
+    return dump_models(
+        stats,
+        SeismogramQualityStats,
+        by_alias=by_alias,
+        by_title=by_title,
+        exclude=(exclude or set()) | {"station_id", "snapshot_id"},
     )
-    data = adapter.dump_python(stats, mode="json", exclude=exclude, by_alias=by_alias)
-
-    if by_title:
-        title_map = get_title_map(SeismogramQualityStats)
-        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-    return data
