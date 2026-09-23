@@ -38,3 +38,8 @@ tests/.logs/
 scratch/
 aimbat.db-shm
 aimbat.db-wal
+
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
