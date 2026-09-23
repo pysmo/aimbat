@@ -38,6 +38,7 @@ def _tool_phase(
     """Launch the interactive phase-arrival (t1) picking tool."""
     update_pick(
         session,
+        event,
         iccs,
         context,
         all_seismograms=all_seismograms,

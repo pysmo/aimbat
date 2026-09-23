@@ -1420,6 +1420,7 @@ class TestCausalZeroPhaseToggle:
 
         def _fake_update_pick(
             session: object,
+            event: object,
             iccs: object,
             context: object,
             *,

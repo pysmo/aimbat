@@ -6,7 +6,10 @@ phase pick, time window, minimum CC threshold), the change is persisted to
 the database once the interactive session ends.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from sqlmodel import Session
 
@@ -33,7 +36,7 @@ from pysmo.tools.iccs import (
 )
 
 from aimbat.core._event import set_event_parameter, set_event_parameters
-from aimbat.core._iccs import write_back_seismograms
+from aimbat.core._iccs import evict_iccs_cache_entry, write_back_seismograms
 from aimbat.logger import logger
 from aimbat.models import AimbatEvent
 from aimbat.types import EventParameter
@@ -56,6 +59,24 @@ __all__ = [
     "update_pick",
     "update_timewindow",
 ]
+
+
+@contextmanager
+def _evict_cached_iccs_on_failure(event_id: UUID) -> Iterator[None]:
+    """Drop the event's cached ICCS instance if the enclosed write fails.
+
+    The widgets mutate the process-cached ICCS instance in place while the
+    user interacts with the plot, and the new values are only written to the
+    database afterwards. A rejected write leaves those values on the cached
+    instance without bumping `stack_modified`, so it never looks stale, and
+    later callers in the same process (`aimbat shell`, the TUI) would keep
+    being handed values the database refused.
+    """
+    try:
+        yield
+    except Exception:
+        evict_iccs_cache_entry(event_id)
+        raise
 
 
 def plot_stack(
@@ -136,16 +157,17 @@ def update_bandpass(
             + f"{iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, fmax="
             + f"{iccs.bandpass_fmax}, corners={iccs.corners}"
         )
-        set_event_parameters(
-            session,
-            event.id,
-            {
-                EventParameter.BANDPASS_APPLY: iccs.bandpass_apply,
-                EventParameter.BANDPASS_FMIN: iccs.bandpass_fmin,
-                EventParameter.BANDPASS_FMAX: iccs.bandpass_fmax,
-                EventParameter.CORNERS: iccs.corners,
-            },
-        )
+        with _evict_cached_iccs_on_failure(event.id):
+            set_event_parameters(
+                session,
+                event.id,
+                {
+                    EventParameter.BANDPASS_APPLY: iccs.bandpass_apply,
+                    EventParameter.BANDPASS_FMIN: iccs.bandpass_fmin,
+                    EventParameter.BANDPASS_FMAX: iccs.bandpass_fmax,
+                    EventParameter.CORNERS: iccs.corners,
+                },
+            )
         return None
 
     logger.debug(_RETURN_FIG_WARNING)
@@ -154,6 +176,7 @@ def update_bandpass(
 
 def update_pick(
     session: Session,
+    event: AimbatEvent,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -165,6 +188,7 @@ def update_pick(
 
     Args:
         session: Database session.
+        event: AimbatEvent.
         iccs: ICCS instance.
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
@@ -183,8 +207,9 @@ def update_pick(
     )
 
     if not return_fig:
-        write_back_seismograms(session, iccs)
-        session.commit()
+        with _evict_cached_iccs_on_failure(event.id):
+            write_back_seismograms(session, iccs)
+            session.commit()
         return None
 
     logger.debug(_RETURN_FIG_WARNING)
@@ -228,14 +253,15 @@ def update_timewindow(
             f"Saving new time window for event {event.id}: pre={iccs.window_pre}, "
             + f"post={iccs.window_post}"
         )
-        set_event_parameters(
-            session,
-            event.id,
-            {
-                EventParameter.WINDOW_PRE: iccs.window_pre,
-                EventParameter.WINDOW_POST: iccs.window_post,
-            },
-        )
+        with _evict_cached_iccs_on_failure(event.id):
+            set_event_parameters(
+                session,
+                event.id,
+                {
+                    EventParameter.WINDOW_PRE: iccs.window_pre,
+                    EventParameter.WINDOW_POST: iccs.window_post,
+                },
+            )
         return None
 
     logger.debug(_RETURN_FIG_WARNING)
@@ -277,9 +303,10 @@ def update_min_cc(
             f"Saving new minimum cross-correlation threshold for event {event.id}:"
             + f" {iccs.min_cc}"
         )
-        set_event_parameter(
-            session, event.id, EventParameter.MIN_CC, float(iccs.min_cc)
-        )
+        with _evict_cached_iccs_on_failure(event.id):
+            set_event_parameter(
+                session, event.id, EventParameter.MIN_CC, float(iccs.min_cc)
+            )
         return None
 
     logger.debug(_RETURN_FIG_WARNING)

@@ -92,6 +92,7 @@ def cli_update_phase_pick(
         iccs = create_iccs_instance(session, event).iccs
         update_pick(
             session,
+            event,
             iccs,
             context=iccs_plot_parameters.context,
             all_seismograms=iccs_plot_parameters.all_seismograms,
