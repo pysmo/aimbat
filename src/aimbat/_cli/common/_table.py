@@ -1,7 +1,9 @@
-"""Render JSON data as a rich console table, driven by a Pydantic model's fields."""
+"""Render dumped table data as a rich console table or as JSON."""
 
 import types
+from collections.abc import Callable
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
     TypeAliasType,
@@ -9,6 +11,7 @@ from typing import (
     get_args,
     get_origin,
 )
+from uuid import UUID
 
 from pandas import NaT, Timedelta, to_datetime
 from pydantic import BaseModel
@@ -18,7 +21,21 @@ from rich.table import Table
 from aimbat.models._format import RichColSpec
 from aimbat.utils.formatters import fmt_bool, fmt_float, fmt_timestamp
 
-__all__ = ["json_to_table"]
+if TYPE_CHECKING:
+    from sqlmodel import Session
+
+    from aimbat.models import AimbatEvent, AimbatTypes
+
+__all__ = [
+    "event_table_title",
+    "id_label",
+    "json_to_table",
+    "print_json_dump",
+    "print_quality_table",
+]
+
+type TableDump = Callable[..., list[dict[str, Any]]]
+"""A `core.dump_*_table` function, called with keyword arguments only."""
 
 _MISSING_MARKER = " — "
 
@@ -194,3 +211,103 @@ def json_to_table(
             table.add_row(*[_fmt_val(n, item.get(n)) for n in visible_fields])
 
     console.print(table)
+
+
+def id_label(
+    session: "Session", model: type["AimbatTypes"], record_id: UUID | str, *, raw: bool
+) -> str:
+    """Render a record's ID the way a table title shows it.
+
+    Args:
+        session: Database session.
+        model: Model the ID belongs to, used to shorten it unambiguously.
+        record_id: The ID to render.
+        raw: If `True`, show the full UUID instead of its short prefix.
+    """
+    from aimbat.utils import uuid_shortener
+
+    if raw:
+        return str(record_id)
+    return uuid_shortener(session, model, str_uuid=str(record_id))
+
+
+def event_table_title(
+    session: "Session", event: "AimbatEvent", *, subject: str, raw: bool
+) -> str:
+    """Title for a table of records belonging to one event.
+
+    Args:
+        session: Database session.
+        event: The event the records belong to.
+        subject: Plural noun for what the table lists, e.g. `"seismograms"`.
+        raw: If `True`, show the full event time and UUID instead of the
+            rounded time and short ID.
+    """
+    if raw:
+        return f"AIMBAT {subject} for event {event.time} (ID={event.id})"
+    from aimbat.utils import uuid_shortener
+
+    time = event.time.strftime("%Y-%m-%d %H:%M:%S")
+    return f"AIMBAT {subject} for event {time} (ID={uuid_shortener(session, event)})"
+
+
+def print_json_dump(dump: TableDump, *, by_alias: bool) -> None:
+    """Print a table dump as JSON, in its own database session.
+
+    Args:
+        dump: The `core.dump_*_table` function to call.
+        by_alias: Whether to key the records by field alias.
+    """
+    from rich import print_json
+    from sqlmodel import Session
+
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        print_json(data=dump(session, by_alias=by_alias))
+
+
+def print_quality_table(
+    session: "Session",
+    dump: TableDump,
+    *,
+    title: str,
+    filter_id: UUID | None,
+    id_field: str,
+    id_columns: dict[str, type["AimbatTypes"]],
+    raw: bool,
+) -> None:
+    """Print one of the aggregated quality tables.
+
+    Args:
+        session: Database session.
+        dump: The `core.dump_*_quality_table` function to call.
+        title: Table title.
+        filter_id: Restrict the table to this record, or `None` for all of them.
+        id_field: Name of `dump`'s filter argument, e.g. `"event_id"`. Also the
+            column left out when the table covers a single record, since every
+            row would repeat it.
+        id_columns: The ID columns to shorten, mapped to the model each belongs to.
+        raw: If `True`, render the table unformatted.
+    """
+    from aimbat.models import SeismogramQualityStats
+
+    def shorten(model: type["AimbatTypes"]) -> Callable[[Any], str]:
+        return lambda value: id_label(session, model, value, raw=False)
+
+    col_specs = {
+        column: RichColSpec(formatter=shorten(model))
+        for column, model in id_columns.items()
+    }
+
+    json_to_table(
+        data=dump(
+            session,
+            **{id_field: filter_id},
+            exclude=None if filter_id is None else {id_field},
+        ),
+        model=SeismogramQualityStats,
+        title=title,
+        raw=raw,
+        col_specs=col_specs,
+    )

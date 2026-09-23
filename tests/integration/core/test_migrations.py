@@ -265,6 +265,30 @@ class TestTriggerWhenClauseInvariants:
         cols_2b = _when_columns(triggers["event_stack_modified_on_seis_params_update"])
         assert cols_2 == cols_2b
 
+    def test_trigger1_ignored_fields_are_excluded_from_both_hashes(
+        self, engine: Engine
+    ) -> None:
+        """An event parameter trigger 1 ignores must not feed either snapshot hash.
+
+        The containment runs one way only. A field the trigger leaves out of
+        its `WHEN` clause is one a change to which is never recorded as a
+        modification at all, so a hash that moved on it would block snapshot
+        reuse for a change nothing else acknowledges. The reverse is not an
+        invariant: the hashes also exclude `min_cc` and the MCCC-only
+        parameters, which trigger 1 does fire on.
+        """
+        from aimbat.core._snapshot import (
+            _ICCS_HASH_EVENT_EXCLUDE,
+            _MCCC_HASH_EVENT_EXCLUDE,
+        )
+        from aimbat.models._parameters import AimbatEventParametersBase
+
+        cols = _when_columns(_triggers(engine)["event_modified_on_params_update"])
+        ignored = set(AimbatEventParametersBase.model_fields) - cols
+
+        assert ignored, "Trigger 1 is supposed to ignore at least `completed`"
+        assert ignored <= _ICCS_HASH_EVENT_EXCLUDE & _MCCC_HASH_EVENT_EXCLUDE
+
 
 def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:
     """Guards `_unique_constraints`/`_check_constraints`/`_indexes`

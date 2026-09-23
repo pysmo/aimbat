@@ -72,6 +72,7 @@ from .common import (
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
+    print_json_dump,
     print_warning,
     use_event_parameter,
     use_station_parameter,
@@ -285,13 +286,9 @@ def cli_data_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from rich import print_json
-
     from aimbat.core import dump_data_table
-    from aimbat.db import engine
 
-    with Session(engine) as session:
-        print_json(data=dump_data_table(session, by_alias=dump_parameters.by_alias))
+    print_json_dump(dump_data_table, by_alias=dump_parameters.by_alias)
 
 
 @app.command(name="list")

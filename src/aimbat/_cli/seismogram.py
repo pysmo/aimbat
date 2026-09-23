@@ -16,80 +16,25 @@ from .common import (
     confirm_or_abort,
     event_parameter_is_all,
     event_parameter_with_all,
+    event_table_title,
     handle_issues,
+    id_label,
     id_parameter,
-    open_in_editor,
-    print_warning,
+    make_note_app,
+    print_json_dump,
 )
 
 app = App(name="seismogram", help=__doc__, help_format="markdown")
-_note = App(name="note", help="Read and edit seismogram notes.", help_format="markdown")
+_note = make_note_app(
+    "seismogram",
+    AimbatSeismogram,
+    id_parameter(AimbatSeismogram, help="UUID (or unique prefix) of seismogram."),
+)
 parameter = App(
     name="parameter", help="Manage seismogram parameters.", help_format="markdown"
 )
 app.command(_note)
 app.command(parameter)
-
-
-@_note.command(name="read")
-@handle_issues
-def cli_seismogram_note_read(
-    seismogram_id: Annotated[
-        UUID,
-        id_parameter(AimbatSeismogram, help="UUID (or unique prefix) of seismogram."),
-    ],
-    *,
-    _: DebugParameter = DebugParameter(),
-) -> None:
-    """Display the note attached to a seismogram, rendered as Markdown."""
-    from rich.console import Console
-    from rich.markdown import Markdown
-    from sqlmodel import Session
-
-    from aimbat.core import get_note_content
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        content = get_note_content(session, "seismogram", seismogram_id)
-
-    Console().print(Markdown(content) if content else "(no note)")
-
-
-@_note.command(name="edit")
-@handle_issues
-def cli_seismogram_note_edit(
-    seismogram_id: Annotated[
-        UUID,
-        id_parameter(AimbatSeismogram, help="UUID (or unique prefix) of seismogram."),
-    ],
-    *,
-    _: DebugParameter = DebugParameter(),
-) -> None:
-    """Open the seismogram note in `$EDITOR` and save changes on exit."""
-    from sqlmodel import Session
-
-    from aimbat.core import get_note_content, save_note
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        original = get_note_content(session, "seismogram", seismogram_id)
-
-    updated = open_in_editor(original)
-
-    if updated != original:
-        with Session(engine) as session:
-            raced = save_note(
-                session,
-                "seismogram",
-                seismogram_id,
-                updated,
-                expected_previous=original,
-            )
-        if raced:
-            print_warning(
-                "Note changed elsewhere while the editor was open; your edit has"
-                + " overwritten that change."
-            )
 
 
 @app.command(name="delete")
@@ -130,16 +75,9 @@ def cli_seismogram_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from rich import print_json
-    from sqlmodel import Session
-
     from aimbat.core import dump_seismogram_table
-    from aimbat.db import engine
 
-    with Session(engine) as session:
-        print_json(
-            data=dump_seismogram_table(session, by_alias=dump_parameters.by_alias)
-        )
+    print_json_dump(dump_seismogram_table, by_alias=dump_parameters.by_alias)
 
 
 @app.command(name="list")
@@ -155,7 +93,6 @@ def cli_seismogram_list(
     from aimbat.core import dump_seismogram_table, resolve_event
     from aimbat.db import engine
     from aimbat.models import AimbatSeismogramRead
-    from aimbat.utils import uuid_shortener
 
     from .common import json_to_table
 
@@ -170,13 +107,8 @@ def cli_seismogram_list(
             data = dump_seismogram_table(session, from_read_model=True, exclude=exclude)
         else:
             event = resolve_event(session, event_id)
-            if raw:
-                title = f"AIMBAT seismograms for event {event.time} (ID={event.id})"
-                exclude.add("event_id")
-            else:
-                title = f"AIMBAT seismograms for event {event.time.strftime('%Y-%m-%d %H:%M:%S')}"
-                title += f" (ID={uuid_shortener(session, event)})"
-                exclude.add("short_event_id")
+            title = event_table_title(session, event, subject="seismograms", raw=raw)
+            exclude.add("event_id" if raw else "short_event_id")
             data = dump_seismogram_table(
                 session,
                 from_read_model=True,
@@ -280,18 +212,9 @@ def cli_seismogram_parameter_dump(
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
     """Dump seismogram parameter table to json."""
-    from rich import print_json
-    from sqlmodel import Session
-
     from aimbat.core import dump_seismogram_parameter_table
-    from aimbat.db import engine
 
-    with Session(engine) as session:
-        print_json(
-            data=dump_seismogram_parameter_table(
-                session, by_alias=dump_parameters.by_alias
-            )
-        )
+    print_json_dump(dump_seismogram_parameter_table, by_alias=dump_parameters.by_alias)
 
 
 @parameter.command(name="list")
@@ -311,7 +234,11 @@ def cli_seismogram_parameter_list(
 
     from aimbat.core import dump_seismogram_parameter_table, resolve_event
     from aimbat.db import engine
-    from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
+    from aimbat.models import (
+        AimbatEvent,
+        AimbatSeismogram,
+        AimbatSeismogramParameters,
+    )
     from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
     from aimbat.utils.formatters import fmt_flip
@@ -326,7 +253,8 @@ def cli_seismogram_parameter_list(
             title = "Seismogram parameters for all events"
         else:
             event = resolve_event(session, event_id)
-            title = f"Seismogram parameters for event: {uuid_shortener(session, event) if not raw else str(event.id)}"
+            label = id_label(session, AimbatEvent, event.id, raw=raw)
+            title = f"Seismogram parameters for event: {label}"
 
         data = dump_seismogram_parameter_table(
             session, event_id=event.id if event else None
