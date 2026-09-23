@@ -62,7 +62,7 @@ def test_flush_invalidates_the_read_cache(
     isolated_state: list[tuple[str, list[float]]],
 ) -> None:
     session = _session()
-    _base._cache[("file_a", DataType.SAC)] = np.array([0.0])
+    _base._cache[("file_a", DataType.SAC)] = _base._CacheEntry(None, np.array([0.0]))
     _base.stage_seismogram_data(session, "file_a", DataType.SAC, np.array([9.0]))
 
     _flush._flush_pending(session)

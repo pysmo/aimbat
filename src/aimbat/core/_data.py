@@ -18,9 +18,7 @@ from pysmo.tools.iccs import IccsSeismogram
 from aimbat import settings
 from aimbat.io import (
     DataType,
-    create_event,
-    create_seismogram,
-    create_station,
+    read_source_records,
     supports_event_creation,
     supports_seismogram_creation,
     supports_station_creation,
@@ -92,15 +90,6 @@ def _link_station(
         )
         _warn_on_station_location_mismatch(label, new_aimbat_station, aimbat_station)
     return aimbat_station
-
-
-def _create_station(
-    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
-) -> AimbatStation:
-    """Create a new AimbatStation if it doesn't exist yet, or use existing one."""
-
-    new_aimbat_station = create_station(datasource, datatype)
-    return _link_station(session, new_aimbat_station, str(datasource))
 
 
 def _format_gap_prefix(
@@ -257,21 +246,6 @@ def _link_event(
     return aimbat_event, None
 
 
-def _create_event(
-    session: Session,
-    datasource: os.PathLike[str] | str,
-    datatype: DataType,
-    dry_run: bool,
-    known_event_ids: set[UUID],
-) -> tuple[AimbatEvent, str | None]:
-    """Create a new AimbatEvent if it doesn't exist yet, or use existing one."""
-
-    new_aimbat_event = create_event(datasource, datatype)
-    return _link_event(
-        session, new_aimbat_event, dry_run, known_event_ids, str(datasource)
-    )
-
-
 def _format_seismogram_collision_message(label: str, sourcename: str) -> str:
     """Build the message for a seismogram whose deterministic path collides with an already-ingested one."""
     return (
@@ -305,15 +279,6 @@ def _link_seismogram(
     return aimbat_seismogram
 
 
-def _create_seismogram(
-    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
-) -> AimbatSeismogram:
-    """Create a new AimbatSeismogram if it doesn't exist yet, or use existing one."""
-
-    new_aimbat_seismogram = create_seismogram(datasource, datatype)
-    return _link_seismogram(session, new_aimbat_seismogram, str(datasource))
-
-
 def _link_datasource(
     session: Session,
     sourcename: str,
@@ -341,6 +306,24 @@ def _link_datasource(
     return aimbat_data_source
 
 
+def _already_ingested_datasource(
+    session: Session, sourcename: str, datatype: DataType
+) -> AimbatDataSource | None:
+    """Return the project's data source of this name and type, if it has one.
+
+    The cheap key every ingested source is deduped on, queried before the
+    source itself is read: re-running `data add` over a mostly-imported
+    directory would otherwise parse each file only to discard what it built.
+    """
+
+    statement = (
+        select(AimbatDataSource)
+        .where(AimbatDataSource.sourcename == sourcename)
+        .where(AimbatDataSource.datatype == datatype)
+    )
+    return session.exec(statement).one_or_none()
+
+
 def _process_datasource(
     session: Session,
     datasource: os.PathLike[str] | str,
@@ -354,6 +337,14 @@ def _process_datasource(
 
     Returns an `AimbatDataSource` when seismogram data are created, or `None`
     for station-only or event-only imports.
+
+    A source already ingested under the same name and data type is returned
+    as it stands, without being read: its seismogram, station and event are
+    already linked, and none of them is updated from the source on a re-add
+    anyway. A station or event override (`station_id` / `event_id`) asks for
+    a re-link, so it takes the full path instead. One consequence of not
+    reading the source: a location mismatch that appeared in it since the
+    first ingest is no longer warned about on every re-add.
 
     Args:
         session: Database session.
@@ -392,6 +383,23 @@ def _process_datasource(
 
     duplicate_warning: str | None = None
 
+    if station_id is None and event_id is None:
+        ingested = _already_ingested_datasource(session, str(datasource), datatype)
+        if ingested is not None:
+            logger.debug(
+                f"Data source {datasource} is already in the project; reusing "
+                + "its records without reading it."
+            )
+            return ingested, None
+
+    records = read_source_records(
+        datasource,
+        datatype,
+        station=station_id is None and supports_station_creation(datatype),
+        event=event_id is None and supports_event_creation(datatype),
+        seismogram=supports_seismogram_creation(datatype),
+    )
+
     # Resolve station: use the provided UUID, extract from the source, or skip
     if station_id is not None:
         aimbat_station: AimbatStation | None = session.get(AimbatStation, station_id)
@@ -401,8 +409,8 @@ def _process_datasource(
             f"Using station {getattr(aimbat_station, 'name', 'Unknown')} - "
             + f"{getattr(aimbat_station, 'network', 'Unknown')} (ID={station_id})."
         )
-    elif supports_station_creation(datatype):
-        aimbat_station = _create_station(session, datasource, datatype)
+    elif records.station is not None:
+        aimbat_station = _link_station(session, records.station, str(datasource))
     else:
         aimbat_station = None
 
@@ -412,15 +420,15 @@ def _process_datasource(
         if aimbat_event is None:
             raise ValueError(f"No event found with ID={event_id}.")
         logger.debug(f"Using event {aimbat_event.time} (ID={event_id}).")
-    elif supports_event_creation(datatype):
-        aimbat_event, duplicate_warning = _create_event(
-            session, datasource, datatype, dry_run, known_event_ids
+    elif records.event is not None:
+        aimbat_event, duplicate_warning = _link_event(
+            session, records.event, dry_run, known_event_ids, str(datasource)
         )
     else:
         aimbat_event = None
 
     # No seismogram creation → station/event-only import, nothing more to do
-    if not supports_seismogram_creation(datatype):
+    if records.seismogram is None:
         return None, duplicate_warning
 
     # Seismogram creation requires both a station and an event to link to
@@ -435,7 +443,7 @@ def _process_datasource(
             + "via --use-event."
         )
 
-    aimbat_seismogram = _create_seismogram(session, datasource, datatype)
+    aimbat_seismogram = _link_seismogram(session, records.seismogram, str(datasource))
     # TODO: perhaps updating station/event info from the source should be optional
     aimbat_seismogram.station = aimbat_station
     aimbat_seismogram.event = aimbat_event
