@@ -349,9 +349,9 @@ def set_event_parameter(
 
     Raises:
         NoResultFound: If no event with the given ID is found.
-        ValidationError: If `value` fails Pydantic validation for `name`, or,
-            when `validate_iccs` is True, if ICCS construction fails with the
-            new value.
+        ValidationError: If `value` fails Pydantic validation for `name`.
+        IccsValidationError: If `validate_iccs` is True and ICCS construction
+            is rejected by the new value.
     """
     set_event_parameters(session, event_id, {name: value}, validate_iccs=validate_iccs)
 
@@ -379,9 +379,11 @@ def set_event_parameters(
 
     Raises:
         NoResultFound: If no event with the given ID is found.
-        ValidationError: If any value fails Pydantic validation, or, when
-            `validate_iccs` is True, if ICCS construction fails.
+        ValidationError: If any value fails Pydantic validation.
+        IccsValidationError: If `validate_iccs` is True and ICCS construction
+            is rejected by the new values.
     """
+    from ._iccs import validate_iccs_construction
     from ._snapshot import resync_quality
 
     updates = {str(name): value for name, value in values.items()}
@@ -406,8 +408,10 @@ def set_event_parameters(
     parameters = AimbatEventParametersBase.model_validate(
         event.parameters,
         update=updates,
-        context={"validate_iccs": validate_iccs, "event": event},
     )
+
+    if validate_iccs:
+        validate_iccs_construction(event, parameters=parameters)
 
     for name in updates:
         setattr(event.parameters, name, getattr(parameters, name))

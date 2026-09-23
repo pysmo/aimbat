@@ -88,7 +88,8 @@ with Session(engine) as session:
 
 `set_event_parameter` validates the new value on its own. Pass
 `validate_iccs=True` to also check it doesn't break ICCS construction, the
-same check the CLI performs. [`set_event_parameters`][aimbat.core.set_event_parameters]
+same check the CLI performs; a value ICCS rejects raises `IccsValidationError`
+and leaves the parameter unchanged. [`set_event_parameters`][aimbat.core.set_event_parameters]
 sets several event parameters as one validated batch, for values only valid
 together (e.g. a new `bandpass_fmin` above the old `bandpass_fmax`).
 

@@ -2,12 +2,11 @@
 
 from typing import Self
 
-from pydantic import ValidationInfo, model_validator
+from pydantic import model_validator
 from sqlalchemy import Float
 from sqlmodel import Field, SQLModel
 
 from aimbat import settings
-from aimbat.logger import logger
 from aimbat.types import (
     PydanticNegativeTimedelta,
     PydanticNonNegativeFloat,
@@ -134,31 +133,6 @@ class AimbatEventParametersBase(SQLModel):
         """Validate that `bandpass_fmax` is strictly greater than `bandpass_fmin`."""
         if self.bandpass_fmax <= self.bandpass_fmin:
             raise ValueError("bandpass_fmax must be > bandpass_fmin")
-        return self
-
-    @model_validator(mode="after")
-    def validate_iccs_context(self, info: ValidationInfo) -> Self:
-        """Attempt ICCS construction with these parameters if requested.
-
-        Requires `validate_iccs=True` and an `event` instance in the validation
-        context.
-        """
-        context = info.context or {}
-        if context.get("validate_iccs"):
-            event = context.get("event")
-            if event:
-                from aimbat.core._iccs import validate_iccs_construction
-
-                try:
-                    validate_iccs_construction(event, parameters=self)
-                except Exception as exc:
-                    # Broad on purpose: any failure while constructing ICCS
-                    # (invalid parameters or a genuine bug) must surface as a
-                    # validation error here. Logged at full traceback level
-                    # first so a genuine bug isn't silently reduced to a
-                    # one-line "ICCS validation failed" message.
-                    logger.exception("ICCS validation failed during parameter check.")
-                    raise ValueError(f"ICCS validation failed: {exc}") from exc
         return self
 
 

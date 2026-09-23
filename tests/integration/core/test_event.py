@@ -10,6 +10,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from aimbat.core import (
+    IccsValidationError,
     delete_event,
     dump_event_parameter_table,
     dump_event_table,
@@ -18,6 +19,7 @@ from aimbat.core import (
     set_event_parameter,
     toggle_event_completed,
 )
+from aimbat.core import _iccs as core_iccs
 from aimbat.models import AimbatEvent, AimbatEventQuality, AimbatStation
 from aimbat.types import EventParameter
 
@@ -195,12 +197,39 @@ class TestSetEventParameter:
 
         # Test invalid change (e.g., window that would result in no data)
         # Very large window might fail construction if it exceeds data bounds
-        with pytest.raises(ValueError, match="ICCS validation failed"):
+        with pytest.raises(IccsValidationError, match="ICCS validation failed"):
             set_event_parameter(
                 loaded_session,
                 event.id,
                 EventParameter.WINDOW_POST,
                 Timedelta(seconds=10000),
+                validate_iccs=True,
+            )
+        assert event.parameters.window_post == new_value
+
+    def test_validate_iccs_does_not_relabel_a_bug(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verifies a non-parameter failure propagates instead of becoming a ValueError.
+
+        Args:
+            loaded_session: The database session.
+            monkeypatch: Pytest monkeypatch fixture.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise TypeError("not a parameter problem")
+
+        monkeypatch.setattr(core_iccs, "_build_iccs", _boom)
+
+        with pytest.raises(TypeError, match="not a parameter problem"):
+            set_event_parameter(
+                loaded_session,
+                event.id,
+                EventParameter.WINDOW_POST,
+                Timedelta(seconds=2),
                 validate_iccs=True,
             )
 

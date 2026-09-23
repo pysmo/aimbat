@@ -42,6 +42,7 @@ __all__ = [
     "BoundICCS",
     "CcStats",
     "IccsLifecycle",
+    "IccsValidationError",
     "NoSeismogramsError",
     "build_iccs_from_snapshot",
     "cc_stats",
@@ -55,6 +56,14 @@ __all__ = [
     "validate_iccs_construction",
     "write_back_seismograms",
 ]
+
+
+class IccsValidationError(ValueError):
+    """Raised when an event's parameters cannot produce an ICCS instance.
+
+    A `ValueError` subclass, so callers that only care that the parameters
+    were rejected can keep catching `ValueError`.
+    """
 
 
 class NoSeismogramsError(RuntimeError):
@@ -711,9 +720,17 @@ def validate_iccs_construction(
             event parameters (useful for validation).
 
     Raises:
-        Exception: Any exception raised by ICCS construction (e.g. invalid parameter values).
+        IccsValidationError: If the parameters are rejected by ICCS construction.
     """
-    _build_iccs(event, parameters=parameters)
+    try:
+        _build_iccs(event, parameters=parameters)
+    except ValueError as exc:
+        # pysmo's attrs validators and pydantic both reject bad parameter
+        # values with a ValueError. Anything else - a missing data source, an
+        # AttributeError - is not the parameters' fault and propagates as
+        # itself rather than being relabelled.
+        logger.exception("ICCS validation failed during parameter check.")
+        raise IccsValidationError(f"ICCS validation failed: {exc}") from exc
 
 
 def write_back_seismograms(session: Session, iccs: ICCS) -> None:
