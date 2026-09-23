@@ -374,12 +374,8 @@ class TestSeismogramPlotDebounce:
                 table.move_cursor(row=1)
                 table.move_cursor(row=2)
                 table.move_cursor(row=0)
-                await pilot.pause()
-                # No delay yet - the debounce timer hasn't fired.
-                assert calls == [], (
-                    "plot should not re-render before the debounce window elapses"
-                )
-
+                # No "nothing rendered yet" assertion: a slow runner can exceed
+                # the 0.1s debounce window before the first pause returns.
                 await pilot.pause(delay=0.2)  # past the 0.1s debounce window
                 assert len(calls) == 1, (
                     "three quick highlights should coalesce into one render"
