@@ -72,6 +72,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(tui,io)** Remove redundant `__future__` annotations import
 - Track shared .envrc, keep machine-specific overrides local
 - Update stale `master` references to `main`
+- Migrate from uv/direnv to devenv
 
 ### 🔧 Refactoring
 
