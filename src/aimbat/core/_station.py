@@ -17,6 +17,7 @@ from aimbat.models import (
     AimbatStation,
     AimbatStationRead,
     SeismogramQualityStats,
+    undefer_counts,
 )
 from aimbat.utils import get_title_map, rel
 
@@ -111,6 +112,8 @@ def get_stations_in_event(
             selectinload(rel(AimbatStation.seismograms)).selectinload(
                 rel(AimbatSeismogram.event)
             ),
+            # Only the read model reads the counts.
+            *(undefer_counts(AimbatStation) if as_json else ()),
         )
     )
 
@@ -244,6 +247,8 @@ def dump_station_table(
         selectinload(rel(AimbatStation.seismograms)).selectinload(
             rel(AimbatSeismogram.event)
         ),
+        # Only the read model reads the counts.
+        *(undefer_counts(AimbatStation) if from_read_model else ()),
     )
 
     stations = session.exec(statement).all()

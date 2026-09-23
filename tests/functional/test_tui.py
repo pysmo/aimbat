@@ -35,6 +35,7 @@ import aimbat._tui._widgets
 import aimbat._tui.app
 import aimbat._tui.modals
 import aimbat.db
+from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
 from aimbat._tui.app import AimbatTUI
 from aimbat._tui.modals import (
     ActionMenuModal,
@@ -1737,6 +1738,49 @@ class TestToggleSeismogramBoolRefresh:
             refetched = session.get(AimbatSeismogram, seis_id)
             assert refetched is not None
             assert refetched.parameters.select is False
+
+
+# ===========================================================================
+# refresh_all reads through a single session
+# ===========================================================================
+
+
+class TestRefreshAllSharesOneSession:
+    """Every panel in a refresh reads through the same session, so the work
+    cached on it (the shortener's id pool) is done once per refresh rather
+    than once per panel (findings-tui L1).
+    """
+
+    def test_panels_receive_the_same_session(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        seen: list[Session] = []
+
+        def _record(panel: type[object]) -> None:
+            original = panel.refresh_data  # type: ignore[attr-defined]
+
+            def wrapper(self: object, session: Session, *args: object) -> None:
+                seen.append(session)
+                original(self, session, *args)
+
+            monkeypatch.setattr(panel, "refresh_data", wrapper)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await pilot.pause(delay=0.5)
+                for panel in (ProjectPanel, SeismogramPanel, SnapshotPanel):
+                    _record(panel)
+                app.refresh_all()
+                await pilot.pause()
+
+        asyncio.run(_run())
+
+        assert len(seen) == 3, "every panel should have been refreshed"
+        assert all(isinstance(session, Session) for session in seen)
+        assert all(session is seen[0] for session in seen)
 
 
 # ===========================================================================

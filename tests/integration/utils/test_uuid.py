@@ -4,6 +4,7 @@ import uuid
 
 import pandas as pd
 import pytest
+from sqlalchemy import event
 from sqlmodel import Session
 
 import aimbat
@@ -245,6 +246,66 @@ class TestUuidShortener:
         assert len(short.replace("-", "")) >= 4, (
             "result should be at least 4 characters excluding dashes"
         )
+
+    def test_one_query_covers_a_whole_table_of_rows(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies that shortening N ids costs one query, not N.
+
+        Regression test: the prefix lookup used to run its own
+        non-sargable `LIKE` per call, so rendering a table scanned the
+        table once per row (twice per seismogram row, and again per cell
+        for the CLI's column formatters).
+        """
+        events = [_make_event(uuid.uuid4(), offset_seconds=i) for i in range(20)]
+        patched_session.add_all(events)
+        patched_session.commit()
+        # Read the ids before recording: `commit` expired the instances, and
+        # the resulting refresh is not what this test is counting.
+        uids = [str(e.id) for e in events]
+
+        statements: list[str] = []
+        bind = patched_session.get_bind()
+
+        def record(
+            conn: object,
+            cursor: object,
+            statement: str,
+            parameters: object,
+            context: object,
+            executemany: bool,
+        ) -> None:
+            statements.append(statement)
+
+        event.listen(bind, "before_cursor_execute", record)
+        try:
+            shortened = [
+                uuid_shortener(patched_session, AimbatEvent, str_uuid=uid)
+                for uid in uids
+            ]
+        finally:
+            event.remove(bind, "before_cursor_execute", record)
+
+        assert len(statements) == 1, "the id pool should be fetched once per table"
+        assert len(set(shortened)) == len(uids), "prefixes should still be unique"
+
+    def test_pool_is_refetched_for_a_row_added_later_in_the_session(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies that a row added after the pool was cached is still found.
+
+        The cached pool would otherwise report the new id as absent from
+        its own table.
+        """
+        first = _make_event(uuid.uuid4(), offset_seconds=0)
+        patched_session.add(first)
+        patched_session.commit()
+        uuid_shortener(patched_session, first)
+
+        second = _make_event(uuid.uuid4(), offset_seconds=1)
+        patched_session.add(second)
+        patched_session.commit()
+        assert str(second.id).startswith(uuid_shortener(patched_session, second))
 
     def test_min_length_defaults_to_setting(
         self, patched_session: Session, monkeypatch: pytest.MonkeyPatch

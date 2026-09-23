@@ -5,6 +5,7 @@ import uuid
 import pytest
 from pandas import Timedelta
 from sqlalchemy import Engine
+from sqlalchemy import event as sa_event
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
@@ -422,6 +423,39 @@ class TestDumpEventTableToJson:
         assert len(result) > 0
         assert "lastModified" in result[0]
         assert "last_modified" not in result[0]
+
+    def test_read_model_counts_are_loaded_with_the_events(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies the counts the read model renders cost no extra queries.
+
+        The count columns are deferred so that the processing paths do not
+        pay for them; this path does read them, so it has to undefer them
+        rather than let each one load on access, per row.
+        """
+        statements: list[str] = []
+
+        def record(
+            conn: object,
+            cursor: object,
+            statement: str,
+            parameters: object,
+            context: object,
+            executemany: bool,
+        ) -> None:
+            statements.append(statement)
+
+        bind = loaded_session.get_bind()
+        sa_event.listen(bind, "before_cursor_execute", record)
+        try:
+            result = dump_event_table(loaded_session, from_read_model=True)
+        finally:
+            sa_event.remove(bind, "before_cursor_execute", record)
+
+        assert len(result) > 0
+        assert all(row["seismogram_count"] > 0 for row in result)
+        counting = [s for s in statements if "count(" in s.lower()]
+        assert len(counting) == 1, "counts should come from the events query itself"
 
 
 class TestDumpEventParameterTableToJson:

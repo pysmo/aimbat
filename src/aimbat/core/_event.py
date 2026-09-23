@@ -18,6 +18,7 @@ from aimbat.models import (
     AimbatSeismogram,
     AimbatStation,
     SeismogramQualityStats,
+    undefer_counts,
 )
 from aimbat.models._parameters import AimbatEventParametersBase
 from aimbat.types import EventParameter
@@ -264,6 +265,7 @@ def dump_event_table(
         ),
         selectinload(rel(AimbatEvent.parameters)),
         selectinload(rel(AimbatEvent.quality)),
+        *undefer_counts(AimbatEvent),
     )
     events = session.exec(statement).all()
 

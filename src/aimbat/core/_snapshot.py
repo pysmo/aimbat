@@ -41,6 +41,7 @@ from aimbat.models import (
     SeismogramQualityStats,
     SnapshotResults,
     SnapshotSeismogramResult,
+    undefer_counts,
 )
 from aimbat.models._parameters import (
     AimbatEventParametersBase,
@@ -687,13 +688,16 @@ def delete_snapshot(session: Session, snapshot_id: UUID) -> None:
 
 
 def get_snapshots(
-    session: Session, event_id: UUID | None = None
+    session: Session, event_id: UUID | None = None, with_counts: bool = False
 ) -> Sequence[AimbatSnapshot]:
     """Get the snapshots, optional filtered by event ID.
 
     Args:
         session: Database session.
         event_id: Event ID to filter snapshots by (if none is provided, snapshots for all events are returned).
+        with_counts: Whether to load the deferred seismogram counts in the same
+            query. Only the table-rendering paths read them; the hash-matching
+            paths do not, and pay three scalar subqueries per row if they are.
 
     Returns:
         Snapshots.
@@ -713,6 +717,7 @@ def get_snapshots(
         selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)),
         selectinload(rel(AimbatSnapshot.event_quality_snapshot)),
         selectinload(rel(AimbatSnapshot.seismogram_quality_snapshots)),
+        *(undefer_counts(AimbatSnapshot) if with_counts else ()),
     )
 
     logger.debug(f"Executing statement to get snapshots: {statement}")
@@ -759,7 +764,7 @@ def dump_snapshot_table(
     if exclude is not None:
         exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
-    snapshots = get_snapshots(session, event_id)
+    snapshots = get_snapshots(session, event_id, with_counts=from_read_model)
 
     if from_read_model:
         snapshot_read_adapter: TypeAdapter[Sequence[AimbatSnapshotRead]] = TypeAdapter(
@@ -849,7 +854,7 @@ def dump_snapshot_quality_table(
     exclude = (exclude or set()) | {"station_id"}
     exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
-    snapshots = get_snapshots(session, event_id)
+    snapshots = get_snapshots(session, event_id, with_counts=True)
     stats = [SeismogramQualityStats.from_snapshot(s) for s in snapshots]
 
     adapter: TypeAdapter[Sequence[SeismogramQualityStats]] = TypeAdapter(

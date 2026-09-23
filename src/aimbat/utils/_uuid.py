@@ -1,5 +1,6 @@
 """Helpers for resolving and shortening AIMBAT record UUIDs."""
 
+from bisect import bisect_left
 from uuid import UUID
 
 from sqlalchemy import String, cast, func
@@ -15,6 +16,7 @@ __all__ = [
 ]
 
 _LIKE_ESCAPE_CHAR = "\\"
+_ID_POOL_KEY = "aimbat_uuid_id_pools"
 
 
 def _escape_like(value: str) -> str:
@@ -71,6 +73,10 @@ def uuid_shortener[T: AimbatTypes](
 ) -> str:
     """Return the shortest unique prefix for a UUID, formatted with dashes.
 
+    The table's ids are fetched once per session and cached there, so calling
+    this once per row (or once per cell) stays a single query - see
+    `_id_pool` for what that caching does and does not guarantee.
+
     Args:
         session: An active SQLModel/SQLAlchemy session.
         aimbat_obj: Either an instance of a SQLModel or the SQLModel class itself.
@@ -99,34 +105,73 @@ def uuid_shortener[T: AimbatTypes](
         model_class = type(aimbat_obj)
         target_full = str(aimbat_obj.id)
 
+    # Compare on the dash-free form throughout.
     target_clean = target_full.replace("-", "")
-    prefix_clean = target_clean[:min_length]
 
-    # select with a WHERE clause that removes dashes and compares the cleaned prefix
-    statement = select(model_class.id).where(
-        func.replace(cast(model_class.id, String), "-", "").like(
-            f"{_escape_like(prefix_clean)}%", escape=_LIKE_ESCAPE_CHAR
-        )
-    )
-
-    # Compare on the dash-free form throughout, to match prefix_clean above.
-    results = session.exec(statement).all()
-    relevant_pool = [str(uid).replace("-", "") for uid in results]
-
-    if target_clean not in relevant_pool:
+    pool = _id_pool(session, model_class, target_clean)
+    if not _contains(pool, target_clean):
         raise ValueError(f"ID {target_full} not found in table {model_class.__name__}")
 
-    current_length = min_length
-    while current_length < len(target_clean):
-        candidate_clean = target_clean[:current_length]
-        matches = [u for u in relevant_pool if u.startswith(candidate_clean)]
-        if len(matches) == 1:
-            candidate = _dashed_prefix(target_full, current_length)
-            logger.debug(f"Shortened {target_full} to: {candidate}")
-            return candidate
-        current_length += 1
+    length = min(
+        max(min_length, _unique_prefix_length(pool, target_clean)), len(target_clean)
+    )
+    candidate = _dashed_prefix(target_full, length)
+    logger.debug(f"Shortened {target_full} to: {candidate}")
+    return candidate
 
-    return target_full
+
+def _id_pool[T: AimbatTypes](
+    session: Session, model_class: type[T], target_clean: str
+) -> list[str]:
+    """Return every id in `model_class`'s table, dash-free and sorted.
+
+    The pool is cached on `session`, so rendering a table of N rows costs one
+    query per table rather than one per row (per cell, for the CLI's column
+    formatters).
+
+    A session that writes between two shortenings can therefore hold a stale
+    pool. `target_clean` being absent forces a refetch, which covers a row
+    this session has just added; a row added by another writer can still leave
+    the returned prefix one character shorter than it needs to be, which is
+    cosmetic and gone on the next session.
+    """
+    pools: dict[type[T], list[str]] = session.info.setdefault(_ID_POOL_KEY, {})
+    pool = pools.get(model_class)
+    if pool is None or not _contains(pool, target_clean):
+        pool = sorted(
+            str(uid).replace("-", "")
+            for uid in session.exec(select(model_class.id)).all()
+        )
+        pools[model_class] = pool
+    return pool
+
+
+def _contains(pool: list[str], target: str) -> bool:
+    """Whether the sorted `pool` holds `target`."""
+    index = bisect_left(pool, target)
+    return index < len(pool) and pool[index] == target
+
+
+def _unique_prefix_length(pool: list[str], target: str) -> int:
+    """Length of the shortest prefix of `target` no other id in `pool` shares."""
+    index = bisect_left(pool, target)
+    # `pool` is sorted, so the ids sharing the longest prefix with `target` are
+    # the ones either side of it - nothing further out can share more.
+    neighbours = [pool[i] for i in (index - 1, index + 1) if 0 <= i < len(pool)]
+    return (
+        max((_common_prefix_length(target, other) for other in neighbours), default=0)
+        + 1
+    )
+
+
+def _common_prefix_length(first: str, second: str) -> int:
+    """Number of leading characters `first` and `second` have in common."""
+    length = 0
+    for char_first, char_second in zip(first, second):
+        if char_first != char_second:
+            break
+        length += 1
+    return length
 
 
 def _dashed_prefix(full_dashed: str, clean_length: int) -> str:

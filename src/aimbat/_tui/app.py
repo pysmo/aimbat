@@ -354,44 +354,50 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         panel's displayed data (including `column_property` counts and the
         live quality getters) is affected by the change; record that
         reasoning as a comment at the call site.
+
+        The event bar and all three panels share one session, so the id pool
+        `uuid_shortener` caches on it is fetched once for the whole refresh
+        rather than once per panel.
         """
         self.refresh_bindings()
-        self._refresh_event_bar()
-        self.query_one(ProjectPanel).refresh_data(self._current_event_id)
-        self.query_one(SeismogramPanel).refresh_data(
-            self._current_event_id, self._iccs_lifecycle.bound
-        )
-        self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
+        with Session(engine) as session:
+            self._refresh_event_bar(session)
+            self.query_one(ProjectPanel).refresh_data(session, self._current_event_id)
+            self.query_one(SeismogramPanel).refresh_data(
+                session, self._current_event_id, self._iccs_lifecycle.bound
+            )
+            self.query_one(SnapshotPanel).refresh_data(session, self._current_event_id)
 
-    def _refresh_event_bar(self) -> None:
+    def _refresh_event_bar(self, session: Session) -> None:
         """Update the status bar with the current event's time, location and ICCS status.
 
         Shows a prompt to select an event or add data when no event is
         selected, or an error message if the current event could not be
         loaded.
+
+        Args:
+            session: Database session to read the current event with.
         """
         bar = self.query_one("#event-bar", Static)
         try:
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                iccs_status = (
-                    " ● ICCS ready" if self._iccs_lifecycle.ready else " ○ no ICCS"
-                )
-                time_str = fmt_timestamp(event.time) if event.time else "unknown"
-                lat = f"{event.latitude:.3f}°"
-                lon = f"{event.longitude:.3f}°"
-                modified = (
-                    f"  modified: {fmt_timestamp(event.last_modified)}"
-                    if event.last_modified is not None
-                    else ""
-                )
-                bar.update(
-                    f"▶ {time_str}  |  {lat}, {lon}{modified}  [dim]{iccs_status}  switch "
-                    + "events on the Project tab[/dim]"
-                )
+            event = self._get_current_event(session)
+            iccs_status = (
+                " ● ICCS ready" if self._iccs_lifecycle.ready else " ○ no ICCS"
+            )
+            time_str = fmt_timestamp(event.time) if event.time else "unknown"
+            lat = f"{event.latitude:.3f}°"
+            lon = f"{event.longitude:.3f}°"
+            modified = (
+                f"  modified: {fmt_timestamp(event.last_modified)}"
+                if event.last_modified is not None
+                else ""
+            )
+            bar.update(
+                f"▶ {time_str}  |  {lat}, {lon}{modified}  [dim]{iccs_status}  switch "
+                + "events on the Project tab[/dim]"
+            )
         except NoResultFound:
-            with Session(engine) as session:
-                has_events = session.exec(select(AimbatEvent)).first() is not None
+            has_events = session.exec(select(AimbatEvent)).first() is not None
             if has_events:
                 bar.update(
                     "[red]No event selected: select one on the Project tab[/red]"
