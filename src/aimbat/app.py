@@ -49,7 +49,15 @@ def main() -> None:
 
     Uses a dedicated stderr console rather than the module-level `console`
     (stdout), matching every other error path in `_cli/common/_decorators.py`.
+
+    Configures logging first: importing AIMBAT deliberately leaves the
+    process's loguru setup untouched, so the entrypoint that owns the process
+    is where the log file is opened.
     """
+    from aimbat.logger import configure_logging
+
+    configure_logging()
+
     try:
         app()
     except Exception:

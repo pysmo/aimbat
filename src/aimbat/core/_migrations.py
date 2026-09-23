@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Engine
+from sqlalchemy import Connection, Engine
 
 from aimbat.logger import logger
 
@@ -139,13 +139,15 @@ def _migrations_dir() -> Path:
     return Path(aimbat._migrations.__file__).parent
 
 
-def _alembic_config(engine: Engine) -> "Config":
-    """Build an Alembic `Config` bound to `engine`.
+def _alembic_config(bind: Engine | Connection) -> "Config":
+    """Build an Alembic `Config` bound to `bind`.
 
     `config.attributes["connection"]` is the standard Alembic "connection
     sharing" pattern (see `aimbat._migrations.env`): it makes `env.py`
     operate on exactly this engine rather than re-deriving its own from
     `aimbat.db.engine`, which matters for tests that use a different engine.
+    Passing an open `Connection` instead of an `Engine` keeps Alembic inside
+    a transaction the caller owns.
     """
     from alembic.config import Config
 
@@ -153,7 +155,7 @@ def _alembic_config(engine: Engine) -> "Config":
 
     config = Config()
     config.set_main_option("script_location", str(_migrations_dir()))
-    config.attributes["connection"] = engine
+    config.attributes["connection"] = bind
     return config
 
 
@@ -261,8 +263,8 @@ def get_head_revision() -> str | None:
     return script_dir.get_current_head()
 
 
-def stamp_head(engine: Engine) -> None:
-    """Mark `engine`'s database as being at the latest Alembic revision.
+def stamp_head(bind: Engine | Connection) -> None:
+    """Mark a database as being at the latest Alembic revision.
 
     Writes Alembic's bookkeeping only, and runs no migration DDL. Intended for
     a database whose schema is already known to match `head`, e.g.
@@ -270,12 +272,13 @@ def stamp_head(engine: Engine) -> None:
     `SQLModel.metadata.create_all()` rather than via a migration.
 
     Args:
-        engine: The SQLAlchemy/SQLModel Engine instance connected to the
-            target database.
+        bind: Engine connected to the target database, or an open connection
+            to it - the latter so the stamp can share a transaction with the
+            schema it describes.
     """
     from alembic import command
 
-    command.stamp(_alembic_config(engine), "head")
+    command.stamp(_alembic_config(bind), "head")
 
 
 def _checkpoint_wal(engine: Engine) -> None:

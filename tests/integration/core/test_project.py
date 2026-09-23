@@ -7,10 +7,20 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
+from sqlalchemy.exc import OperationalError
 
 from aimbat.core import create_project, delete_project
 from aimbat.core._project import _project_exists
+
+
+def _triggers(engine: Engine) -> list[str]:
+    """Names of the triggers the database currently has."""
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text("SELECT name FROM sqlite_master WHERE type = 'trigger'")
+        ).all()
+    return [name for (name,) in rows]
 
 
 class TestProjectLifecycle:
@@ -117,6 +127,61 @@ class TestProjectLifecycle:
             delete_project(engine)
 
         assert db_path.exists(), "expected the project file to survive the refusal"
+
+    def test_failed_trigger_creation_leaves_no_project(
+        self, engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verifies a failure partway through `create_project` rolls the whole lot back.
+
+        Regression test: tables, triggers and the Alembic stamp used to be
+        three separate transactions, so a failure during trigger creation
+        left a database with tables but no quality invalidation - dead
+        silently, and indistinguishable afterwards from a complete project.
+
+        Args:
+            engine (Engine): The SQLAlchemy engine.
+            monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
+        """
+        import aimbat.core._project as project
+
+        monkeypatch.setattr(
+            project, "_null_quality_trigger", lambda *args: "NOT VALID SQL"
+        )
+
+        with pytest.raises(OperationalError):
+            create_project(engine)
+
+        assert not _project_exists(engine), (
+            "expected no tables to survive a failed create_project()"
+        )
+        assert not _triggers(engine), "expected no triggers to survive either"
+
+        monkeypatch.undo()
+        create_project(engine)
+        assert _project_exists(engine), "expected a retry to succeed"
+
+    def test_failed_stamp_leaves_no_project(
+        self, engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verifies the Alembic stamp is inside the same transaction as the schema.
+
+        Args:
+            engine (Engine): The SQLAlchemy engine.
+            monkeypatch (pytest.MonkeyPatch): Pytest monkeypatch fixture.
+        """
+        import aimbat.core._migrations as migrations
+
+        def fail(bind: object) -> None:
+            raise RuntimeError("stamping failed")
+
+        monkeypatch.setattr(migrations, "stamp_head", fail)
+
+        with pytest.raises(RuntimeError, match="stamping failed"):
+            create_project(engine)
+
+        assert not _project_exists(engine), (
+            "expected no tables to survive a failed stamp"
+        )
 
     def test_delete_project_when_there_is_none(self, engine: Engine) -> None:
         """Verifies that attempting to delete a non-existent project raises an error.

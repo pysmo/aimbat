@@ -1020,11 +1020,19 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 def main() -> None:
     """Run the AIMBAT TUI until it exits.
 
+    Configures logging first, for the same reason `aimbat.app.main` does: the
+    `aimbat-tui` script reaches this function without passing through the CLI
+    entrypoint.
+
     Raises:
         RuntimeError: If the TUI exited after an unhandled exception (a
             non-zero `App.return_code`), so the process reports failure
             rather than exiting 0 despite the crash.
     """
+    from aimbat.logger import configure_logging
+
+    configure_logging()
+
     app = AimbatTUI()
     app.run()
     if app.return_code:
