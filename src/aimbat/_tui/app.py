@@ -85,6 +85,7 @@ from aimbat.models import (
 )
 from aimbat.plot import plot_matrix_image, plot_seismograms, plot_stack
 from aimbat.types import SeismogramParameter
+from aimbat.utils import exception_message
 from aimbat.utils.formatters import fmt_timestamp
 
 from ._format import tui_cell, tui_display_title
@@ -784,7 +785,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     self.refresh_all()
                 except Exception as exc:
                     logger.exception(f"Failed to add data file {path}: {exc}")
-                    self.notify(str(exc), severity="error")
+                    self.notify(exception_message(exc), severity="error")
 
             self.push_screen(
                 FileOpen(

@@ -35,7 +35,7 @@ from aimbat.models._models import (
     AimbatStation,
     _AimbatDataSourceCreate,
 )
-from aimbat.utils import get_title_map
+from aimbat.utils import exception_message, get_title_map
 from aimbat.utils.formatters import fmt_timedelta
 
 __all__ = [
@@ -509,6 +509,10 @@ def add_data_to_project(
     Raises:
         ValueError: If a near-duplicate event falls in the "ambiguous gap"
             band (see above).
+
+    Anything raised while a data source is being processed carries a
+    `Data source: <name>` note identifying it, which
+    `utils.exception_message` renders alongside the message.
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
@@ -542,15 +546,23 @@ def add_data_to_project(
         total = len(data_sources)
         with session.begin_nested() as nested:
             for done, datasource in enumerate(data_sources, start=1):
-                result, duplicate_warning = _process_datasource(
-                    session,
-                    datasource,
-                    data_type,
-                    station_id,
-                    event_id,
-                    dry_run,
-                    known_event_ids,
-                )
+                try:
+                    result, duplicate_warning = _process_datasource(
+                        session,
+                        datasource,
+                        data_type,
+                        station_id,
+                        event_id,
+                        dry_run,
+                        known_event_ids,
+                    )
+                except Exception as e:
+                    # A note rather than a wrapping exception, so callers
+                    # catching the documented ValidationError/ValueError/
+                    # NoResultFound still do. Displayed by
+                    # `utils.exception_message`.
+                    e.add_note(f"Data source: {datasource}")
+                    raise
                 if result is not None:
                     added_datasources.append(result)
                 if duplicate_warning is not None:
@@ -583,7 +595,9 @@ def add_data_to_project(
         )
 
     except Exception as e:
-        logger.error(f"Failed to add data. Rolling back changes. Error: {e}")
+        logger.error(
+            "Failed to add data. Rolling back changes. Error: " + exception_message(e)
+        )
         raise
 
 

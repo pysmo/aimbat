@@ -151,6 +151,10 @@ def create_seismogram_from_sacfile_and_pick_header(
 
     Returns:
         A new `AimbatSeismogram` instance, with `t0` set from `sac_pick_header`.
+
+    Raises:
+        ValueError: If `sac_pick_header` is not a SAC pick header, or if the
+            file has no pick stored in it.
     """
 
     from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
@@ -158,7 +162,18 @@ def create_seismogram_from_sacfile_and_pick_header(
     logger.debug(f"Reading seismogram metadata from {sacfile}.")
 
     sac = SAC.from_file(sacfile)
+    if not hasattr(sac.timestamps, sac_pick_header):
+        raise ValueError(
+            f"{sac_pick_header!r} is not a SAC pick header. Point the "
+            + "sac_pick_header setting (AIMBAT_SAC_PICK_HEADER) at one that is."
+        )
     t0 = getattr(sac.timestamps, sac_pick_header)
+    if t0 is None:
+        raise ValueError(
+            f"No initial pick found in SAC header {sac_pick_header!r}. Either add "
+            + "the pick, or point the sac_pick_header setting "
+            + "(AIMBAT_SAC_PICK_HEADER) at a header that has one."
+        )
     seismogram = sac.seismogram
     aimbat_seismogram = AimbatSeismogram.model_validate(
         seismogram, update={"t0": t0, "parameters": AimbatSeismogramParameters()}

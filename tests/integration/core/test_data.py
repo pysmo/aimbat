@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 from pandas import Timedelta, Timestamp
-from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
@@ -32,6 +31,7 @@ from aimbat.models import (
     AimbatSeismogram,
     AimbatStation,
 )
+from aimbat.utils import exception_message
 
 # ---------------------------------------------------------------------------
 # Module-level fixtures
@@ -199,7 +199,7 @@ class TestAddDataToProject:
     def test_add_sac_file_with_missing_pick(
         self, sac_file_good: Path, patched_session: Session
     ) -> None:
-        """Verifies that adding a SAC file missing required pick information raises ValidationError.
+        """Verifies that a SAC file missing its pick names the header and the file.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
@@ -208,12 +208,39 @@ class TestAddDataToProject:
         sac = SAC.from_file(sac_file_good)
         sac.timestamps.t0 = None
         sac.write(sac_file_good)
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError, match="No initial pick found") as excinfo:
             add_data_to_project(
                 patched_session,
                 [sac_file_good],
                 data_type=DataType.SAC,
             )
+        message = exception_message(excinfo.value)
+        assert "sac_pick_header" in message, "should name the setting to change"
+        assert str(sac_file_good) in message, "should name the offending data source"
+
+    def test_add_sac_file_with_invalid_pick_header(
+        self,
+        sac_file_good: Path,
+        patched_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Verifies that a pick header that doesn't exist is reported as such.
+
+        Args:
+            sac_file_good (Path): Path to a valid SAC file.
+            patched_session (Session): Database session.
+            monkeypatch: The pytest monkeypatch fixture.
+        """
+        monkeypatch.setattr(aimbat.settings, "sac_pick_header", "not_a_header")
+        with pytest.raises(ValueError, match="is not a SAC pick header") as excinfo:
+            add_data_to_project(
+                patched_session,
+                [sac_file_good],
+                data_type=DataType.SAC,
+            )
+        assert str(sac_file_good) in exception_message(excinfo.value), (
+            "should name the offending data source"
+        )
 
     def test_dry_run_all_new(
         self,

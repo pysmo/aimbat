@@ -1,10 +1,12 @@
 # flake8: noqa: E402, F403
 """Miscellaneous helpers for AIMBAT.
 
-Covers four areas:
+Covers five areas:
 
 - **Maths** — mean/SEM over numeric and `pd.Timedelta` values
   (`mean_and_sem`, `mean_and_sem_timedelta`).
+- **Errors** — exception message plus attached notes, for display
+  (`exception_message`).
 - **Pydantic** — validation-error formatting and title-map lookup
   (`format_validation_error`, `get_title_map`).
 - **Sample data** — download and delete the bundled sample dataset
@@ -17,6 +19,7 @@ from .._utils import export_module_names
 
 _internal_names = set(dir())
 
+from ._errors import *
 from ._maths import *
 from ._pydantic import *
 from ._sampledata import *

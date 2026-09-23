@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 from pandas import Timedelta, Timestamp
-from pydantic import ValidationError
 
 from pysmo.classes import SAC
 
@@ -263,18 +262,19 @@ class TestCreateSeismogram:
             )
 
     def test_invalid_pick_header_raises(self, sac_file_good: Path) -> None:
-        """Verifies that requesting an invalid pick header raises AttributeError.
+        """Verifies that an invalid pick header names the setting that selects it.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
         """
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValueError, match="is not a SAC pick header") as excinfo:
             create_seismogram_from_sacfile_and_pick_header(
                 sac_file_good, "nonexistent_header"
             )
+        assert "sac_pick_header" in str(excinfo.value)
 
     def test_none_pick_raises(self, sac_file_good: Path) -> None:
-        """Verifies that if the pick header exists but is None, ValidationError is raised.
+        """Verifies that an unset pick header names the header and the setting.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
@@ -288,5 +288,7 @@ class TestCreateSeismogram:
                 break
         assert none_header is not None, "expected at least one None timestamp header"
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError, match="No initial pick found") as excinfo:
             create_seismogram_from_sacfile_and_pick_header(sac_file_good, none_header)
+        assert none_header in str(excinfo.value)
+        assert "sac_pick_header" in str(excinfo.value)
