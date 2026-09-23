@@ -446,6 +446,54 @@ class TestQualityWriteTransaction:
                 for q in session.exec(select(AimbatSeismogramQuality)).all()
             )
 
+    def test_rollback_evicts_the_instance_so_the_next_build_rewrites_cc(
+        self, loaded_engine: Engine
+    ) -> None:
+        """A rolled-back build is not served from the cache afterwards.
+
+        A cache hit skips the CC write, so a surviving entry would leave
+        `iccs_cc` empty indefinitely.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+        """
+        from aimbat.core import _iccs as core_iccs
+
+        clear_iccs_cache()
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            create_iccs_instance(session, event)
+            assert event.id in core_iccs._iccs_cache
+            session.rollback()
+            assert event.id not in core_iccs._iccs_cache
+
+            create_iccs_instance(session, event)
+            session.commit()
+
+        with Session(loaded_engine) as session:
+            assert any(
+                q.iccs_cc is not None
+                for q in session.exec(select(AimbatSeismogramQuality)).all()
+            )
+
+    def test_commit_keeps_the_instance_cached(self, loaded_engine: Engine) -> None:
+        """A commit leaves the cache entry alone, and a later rollback too.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+        """
+        from aimbat.core import _iccs as core_iccs
+
+        clear_iccs_cache()
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            create_iccs_instance(session, event)
+            session.commit()
+            session.rollback()
+            assert event.id in core_iccs._iccs_cache
+
     def test_failed_mccc_quality_write_rolls_back_the_picks(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:

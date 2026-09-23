@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
 from pandas import Timestamp
+from sqlalchemy import event as sa_event
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
@@ -285,6 +286,34 @@ def evict_iccs_cache_entry(event_id: UUID) -> None:
     _iccs_cache.pop(event_id, None)
 
 
+_PENDING_KEY = "aimbat_iccs_pending"
+
+
+def _evict_on_rollback(session: Session, bound: BoundICCS) -> None:
+    """Drop `bound` from the cache if `session` rolls back before committing.
+
+    The instance was built on the assumption that its flushed CC rows would be
+    kept. Once they are discarded, a cache hit would skip the write that
+    repopulates them.
+    """
+    pending: list[BoundICCS] | None = session.info.get(_PENDING_KEY)
+    if pending is None:
+        pending = session.info[_PENDING_KEY] = []
+
+        def _on_rollback(_session: Session, _previous: object) -> None:
+            for item in pending:
+                if _iccs_cache.get(item.event_id) is item:
+                    del _iccs_cache[item.event_id]
+            pending.clear()
+
+        def _on_commit(_session: Session) -> None:
+            pending.clear()
+
+        sa_event.listen(session, "after_soft_rollback", _on_rollback)
+        sa_event.listen(session, "after_commit", _on_commit)
+    pending.append(bound)
+
+
 def _build_iccs(
     event: AimbatEvent, parameters: AimbatEventParametersBase | None = None
 ) -> ICCS:
@@ -337,7 +366,8 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     has not advanced since the instance was created). Otherwise builds a new one
     and updates the cache. Building one writes each seismogram's ICCS CC value to
     the live quality table on `session`, flushed but not committed: the caller
-    decides whether those values are kept.
+    decides whether those values are kept. If `session` rolls back first, the
+    new instance is dropped from the cache again.
 
     `MiniIccsSeismogram` instances are constructed directly from each
     `AimbatSeismogram`, passing `data` by reference to the read-only io cache.
@@ -394,6 +424,7 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     _write_iccs_stats(session, event.id, bound.iccs)
     _iccs_cache[event.id] = bound
     _iccs_cache.move_to_end(event.id)
+    _evict_on_rollback(session, bound)
     if len(_iccs_cache) > _ICCS_CACHE_MAX_ENTRIES:
         _iccs_cache.popitem(last=False)
     return bound

@@ -55,3 +55,41 @@ class TestRejectedWriteEvictsCachedIccs:
             )
 
         assert event.id not in core_iccs._iccs_cache
+
+
+class TestInjectedEngine:
+    """Tests that `update_*` persists through a caller-supplied engine."""
+
+    def test_write_uses_the_given_engine(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verifies the write session is opened on the engine passed in.
+
+        Args:
+            loaded_session: The database session.
+            monkeypatch: The pytest monkeypatch fixture.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        engine = loaded_session.get_bind()
+
+        clear_iccs_cache()
+        iccs = create_iccs_instance(loaded_session, event).iccs
+        loaded_session.commit()
+
+        def _set(iccs_arg: Any, *args: object, **kwargs: object) -> None:
+            iccs_arg.min_cc = 0.25
+
+        monkeypatch.setattr(plot_iccs, "_update_min_cc", _set)
+        update_min_cc(
+            event.id,
+            iccs,
+            context=False,
+            all_seismograms=False,
+            causal=False,
+            return_fig=False,
+            engine=engine,  # type: ignore[arg-type]
+        )
+
+        loaded_session.expire_all()
+        assert event.parameters.min_cc == 0.25

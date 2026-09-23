@@ -257,8 +257,9 @@ def dump_event_table(
         ),
         selectinload(rel(AimbatEvent.parameters)),
         selectinload(rel(AimbatEvent.quality)),
-        *undefer_counts(AimbatEvent),
     )
+    if from_read_model:
+        statement = statement.options(*undefer_counts(AimbatEvent))
     events = session.exec(statement).all()
 
     if from_read_model:

@@ -525,6 +525,34 @@ class TestDumpEventTableToJson:
         counting = [s for s in statements if "count(" in s.lower()]
         assert len(counting) == 1, "counts should come from the events query itself"
 
+    def test_orm_dump_does_not_query_counts(self, loaded_session: Session) -> None:
+        """Verifies the ORM dump skips the count subqueries it never serialises.
+
+        Args:
+            loaded_session: The database session.
+        """
+        statements: list[str] = []
+
+        def record(
+            conn: object,
+            cursor: object,
+            statement: str,
+            parameters: object,
+            context: object,
+            executemany: bool,
+        ) -> None:
+            statements.append(statement)
+
+        bind = loaded_session.get_bind()
+        sa_event.listen(bind, "before_cursor_execute", record)
+        try:
+            result = dump_event_table(loaded_session, from_read_model=False)
+        finally:
+            sa_event.remove(bind, "before_cursor_execute", record)
+
+        assert len(result) > 0
+        assert not [s for s in statements if "count(" in s.lower()]
+
 
 class TestDumpEventParameterTableToJson:
     """Tests for serialising the event parameter table to JSON."""

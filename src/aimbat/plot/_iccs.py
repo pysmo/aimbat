@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from pysmo.tools.iccs import (
@@ -65,9 +66,13 @@ __all__ = [
 
 
 @contextmanager
-def _write_session() -> Iterator[Session]:
-    """Open a session for persisting what an interactive plot changed."""
-    from aimbat.db import engine
+def _write_session(engine: Engine | None) -> Iterator[Session]:
+    """Open a session for persisting what an interactive plot changed.
+
+    Uses the project engine unless `engine` is given.
+    """
+    if engine is None:
+        from aimbat.db import engine
 
     with Session(engine) as session:
         yield session
@@ -140,6 +145,7 @@ def update_bandpass(
     all_seismograms: bool,
     use_matrix_image: bool,
     return_fig: bool,
+    engine: Engine | None = None,
 ) -> tuple["Figure", "Axes", Any] | None:
     """Update the bandpass filter parameters for an event.
 
@@ -150,6 +156,7 @@ def update_bandpass(
         all_seismograms: If True, include deselected seismograms in the plot.
         use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
         return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
+        engine: Engine to persist the change with. Defaults to the project engine.
 
     Returns:
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
@@ -167,7 +174,7 @@ def update_bandpass(
             + f"{iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, fmax="
             + f"{iccs.bandpass_fmax}, corners={iccs.corners}"
         )
-        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
+        with _evict_cached_iccs_on_failure(event_id), _write_session(engine) as session:
             set_event_parameters(
                 session,
                 event_id,
@@ -192,6 +199,7 @@ def update_pick(
     use_matrix_image: bool,
     causal: bool,
     return_fig: bool,
+    engine: Engine | None = None,
 ) -> tuple["Figure", "Axes", Any] | None:
     """Update the phase pick (t1) for an event.
 
@@ -203,6 +211,7 @@ def update_pick(
         use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
         causal: If True, use causal (single-pass) instead of zero-phase filtering.
         return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
+        engine: Engine to persist the change with. Defaults to the project engine.
 
     Returns:
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
@@ -215,7 +224,7 @@ def update_pick(
     )
 
     if not return_fig:
-        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
+        with _evict_cached_iccs_on_failure(event_id), _write_session(engine) as session:
             write_back_seismograms(session, iccs)
             session.commit()
         return None
@@ -232,6 +241,7 @@ def update_timewindow(
     use_matrix_image: bool,
     causal: bool,
     return_fig: bool,
+    engine: Engine | None = None,
 ) -> tuple["Figure", "Axes", Any] | None:
     """Update the cross-correlation time window for the given event.
 
@@ -243,6 +253,7 @@ def update_timewindow(
         use_matrix_image: If True, pick from the matrix image; otherwise pick from the stack plot.
         causal: If True, use causal (single-pass) instead of zero-phase filtering.
         return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
+        engine: Engine to persist the change with. Defaults to the project engine.
 
     Returns:
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
@@ -259,7 +270,7 @@ def update_timewindow(
             f"Saving new time window for event {event_id}: pre={iccs.window_pre}, "
             + f"post={iccs.window_post}"
         )
-        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
+        with _evict_cached_iccs_on_failure(event_id), _write_session(engine) as session:
             set_event_parameters(
                 session,
                 event_id,
@@ -281,6 +292,7 @@ def update_min_cc(
     all_seismograms: bool,
     causal: bool,
     return_fig: bool,
+    engine: Engine | None = None,
 ) -> tuple["Figure", "Axes", Any] | None:
     """Update the minimum cross-correlation threshold for the given event.
 
@@ -291,6 +303,7 @@ def update_min_cc(
         all_seismograms: If True, include deselected seismograms in the plot.
         causal: If True, use causal (single-pass) instead of zero-phase filtering.
         return_fig: If True, return the figure, axes and widget objects instead of showing the plot.
+        engine: Engine to persist the change with. Defaults to the project engine.
 
     Returns:
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
@@ -307,7 +320,7 @@ def update_min_cc(
             f"Saving new minimum cross-correlation threshold for event {event_id}:"
             + f" {iccs.min_cc}"
         )
-        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
+        with _evict_cached_iccs_on_failure(event_id), _write_session(engine) as session:
             set_event_parameter(
                 session, event_id, EventParameter.MIN_CC, float(iccs.min_cc)
             )
