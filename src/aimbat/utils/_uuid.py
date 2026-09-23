@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import String, cast, func
 from sqlmodel import Session, select
 
+from aimbat import settings
 from aimbat.logger import logger
 from aimbat.models import AimbatTypes
 
@@ -65,7 +66,7 @@ def string_to_uuid(
 def uuid_shortener[T: AimbatTypes](
     session: Session,
     aimbat_obj: T | type[T],
-    min_length: int = 2,
+    min_length: int | None = None,
     str_uuid: str | None = None,
 ) -> str:
     """Return the shortest unique prefix for a UUID, formatted with dashes.
@@ -74,6 +75,7 @@ def uuid_shortener[T: AimbatTypes](
         session: An active SQLModel/SQLAlchemy session.
         aimbat_obj: Either an instance of a SQLModel or the SQLModel class itself.
         min_length: The starting character length for the shortened ID.
+            Defaults to `Settings.min_id_length`.
         str_uuid: The full UUID string. Required only if `aimbat_obj` is a class.
 
     Returns:
@@ -84,6 +86,9 @@ def uuid_shortener[T: AimbatTypes](
             provided, or if the resolved UUID has no matching record in the
             table.
     """
+
+    if min_length is None:
+        min_length = settings.min_id_length
 
     if isinstance(aimbat_obj, type):
         model_class = aimbat_obj

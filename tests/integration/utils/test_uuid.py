@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 from sqlmodel import Session
 
+import aimbat
 from aimbat.models import AimbatEvent
 from aimbat.utils._uuid import string_to_uuid, uuid_shortener
 
@@ -243,4 +244,23 @@ class TestUuidShortener:
         short = uuid_shortener(patched_session, event, min_length=4)
         assert len(short.replace("-", "")) >= 4, (
             "result should be at least 4 characters excluding dashes"
+        )
+
+    def test_min_length_defaults_to_setting(
+        self, patched_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verifies that `min_id_length` is used when `min_length` is omitted.
+
+        Args:
+            patched_session: The database session.
+            monkeypatch: The pytest monkeypatch fixture.
+        """
+        uid = uuid.uuid4()
+        event = _make_event(uid)
+        patched_session.add(event)
+        patched_session.commit()
+        monkeypatch.setattr(aimbat.settings, "min_id_length", 7)
+        short = uuid_shortener(patched_session, event)
+        assert len(short.replace("-", "")) >= 7, (
+            "result should honour the min_id_length setting"
         )

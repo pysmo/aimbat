@@ -152,7 +152,12 @@ class Settings(BaseSettings):
     )
 
     min_id_length: int = Field(
-        default=2, ge=1, description="Minimum length of ID string."
+        default=2,
+        ge=1,
+        description=(
+            "Minimum length of a shortened ID. Shortened IDs start at this "
+            + "many characters and grow until they are unique."
+        ),
     )
 
     project: Path = Field(
