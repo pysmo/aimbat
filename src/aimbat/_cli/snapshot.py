@@ -252,20 +252,21 @@ def cli_snapshot_preview(
 
     with Session(engine) as session:
         iccs = build_iccs_from_snapshot(session, snapshot_id).iccs
-        if as_matrix:
-            plot_matrix_image(
-                iccs,
-                iccs_plot_parameters.context,
-                all_seismograms=iccs_plot_parameters.all_seismograms,
-                return_fig=False,
-            )
-        else:
-            plot_stack(
-                iccs,
-                iccs_plot_parameters.context,
-                all_seismograms=iccs_plot_parameters.all_seismograms,
-                return_fig=False,
-            )
+
+    if as_matrix:
+        plot_matrix_image(
+            iccs,
+            iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
+            return_fig=False,
+        )
+    else:
+        plot_stack(
+            iccs,
+            iccs_plot_parameters.context,
+            all_seismograms=iccs_plot_parameters.all_seismograms,
+            return_fig=False,
+        )
 
 
 @app.command(name="details")

@@ -116,8 +116,17 @@ poor ones.
     with Session(engine) as session:
         event = session.exec(select(AimbatEvent)).first()
         bound = create_iccs_instance(session, event)
-        plot_stack(bound.iccs, context=True, all_seismograms=False, return_fig=False)
+        session.commit()  # keeps the CC values the instance just measured
+
+    plot_stack(bound.iccs, context=True, all_seismograms=False, return_fig=False)
     ```
+
+    !!! tip "Close the session before plotting"
+
+        `plot_stack` blocks until you close the window. The instance it plots
+        holds its own copy of the waveforms, so nothing needs the database
+        while the window is open, and leaving the session open would keep the
+        project database busy for no reason.
 
 ## Viewing the matrix image
 

@@ -852,16 +852,20 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         )
 
         try:
+            with Session(engine) as session:
+                event_id = self._get_current_event(session).id
+
+            # No session is held across the tool: it blocks for as long as its
+            # plot window is open, and opens a short-lived one of its own
+            # afterwards if it has something to save.
             with self._suspend(label):
-                with Session(engine) as session:
-                    event = self._get_current_event(session)
-                    if is_causal_tool:
-                        assert causal is not None
-                        CAUSAL_TOOL_REGISTRY[tool][1](
-                            session, event, iccs, context, all_seis, causal
-                        )
-                    else:
-                        TOOL_REGISTRY[tool][1](session, event, iccs, context, all_seis)
+                if is_causal_tool:
+                    assert causal is not None
+                    CAUSAL_TOOL_REGISTRY[tool][1](
+                        event_id, iccs, context, all_seis, causal
+                    )
+                else:
+                    TOOL_REGISTRY[tool][1](event_id, iccs, context, all_seis)
         except KeyboardInterrupt:
             self.notify(f"{label} cancelled", timeout=2)
             return

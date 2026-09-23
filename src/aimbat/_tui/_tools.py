@@ -2,18 +2,20 @@
 
 Extend `TOOL_REGISTRY`/`CAUSAL_TOOL_REGISTRY` to register new interactive
 tools. Each entry maps a key to a (label, callable) pair. Callables in
-`TOOL_REGISTRY` receive (session, event, iccs, context, all_seismograms);
-callables in `CAUSAL_TOOL_REGISTRY` additionally receive a causal argument
-from `InteractiveToolsModal`'s zero-phase toggle. Both return None.
+`TOOL_REGISTRY` receive (event_id, iccs, context, all_seismograms); callables
+in `CAUSAL_TOOL_REGISTRY` additionally receive a causal argument from
+`InteractiveToolsModal`'s zero-phase toggle. Both return None.
+
+A tool blocks for as long as its plot window is open, so none of them is
+handed a database session: those that save a change open a short-lived one of
+their own after the window closes.
 """
 
 from collections.abc import Callable
-
-from sqlmodel import Session
+from uuid import UUID
 
 from pysmo.tools.iccs import ICCS
 
-from aimbat.models import AimbatEvent
 from aimbat.plot import (
     plot_matrix_image,
     plot_stack,
@@ -23,13 +25,12 @@ from aimbat.plot import (
     update_timewindow,
 )
 
-type ToolFn = Callable[[Session, AimbatEvent, ICCS, bool, bool], None]
-type CausalToolFn = Callable[[Session, AimbatEvent, ICCS, bool, bool, bool], None]
+type ToolFn = Callable[[UUID, ICCS, bool, bool], None]
+type CausalToolFn = Callable[[UUID, ICCS, bool, bool, bool], None]
 
 
 def _tool_phase(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -37,8 +38,7 @@ def _tool_phase(
 ) -> None:
     """Launch the interactive phase-arrival (t1) picking tool."""
     update_pick(
-        session,
-        event,
+        event_id,
         iccs,
         context,
         all_seismograms=all_seismograms,
@@ -49,8 +49,7 @@ def _tool_phase(
 
 
 def _tool_window(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -58,8 +57,7 @@ def _tool_window(
 ) -> None:
     """Launch the interactive time-window selection tool."""
     update_timewindow(
-        session,
-        event,
+        event_id,
         iccs,
         context,
         all_seismograms=all_seismograms,
@@ -70,8 +68,7 @@ def _tool_window(
 
 
 def _tool_cc(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -79,8 +76,7 @@ def _tool_cc(
 ) -> None:
     """Launch the interactive minimum-CC threshold tool."""
     update_min_cc(
-        session,
-        event,
+        event_id,
         iccs,
         context,
         all_seismograms=all_seismograms,
@@ -90,16 +86,14 @@ def _tool_cc(
 
 
 def _tool_bandpass(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
 ) -> None:
     """Launch the interactive bandpass-filter tool."""
     update_bandpass(
-        session,
-        event,
+        event_id,
         iccs,
         context,
         all_seismograms=all_seismograms,
@@ -109,27 +103,25 @@ def _tool_bandpass(
 
 
 def _tool_stack(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
 ) -> None:
     """Show the interactive stack plot."""
-    # session/event are unused here but required by ToolFn for a uniform
+    # event_id is unused here but required by ToolFn for a uniform
     # TOOL_REGISTRY signature.
     plot_stack(iccs, context, all_seismograms, return_fig=False)
 
 
 def _tool_image(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
 ) -> None:
     """Show the interactive cross-correlation matrix image."""
-    # session/event are unused here but required by ToolFn for a uniform
+    # event_id is unused here but required by ToolFn for a uniform
     # TOOL_REGISTRY signature.
     plot_matrix_image(iccs, context, all_seismograms, return_fig=False)
 

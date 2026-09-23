@@ -14,8 +14,8 @@ resulting cross-correlation values to the project database (the same
 live-quality write every ICCS-consuming command makes) - despite being
 read-only from the user's point of view, they do write to the database.
 
-Each command keeps its database session open for as long as the plot
-window is: closing the window promptly releases the connection.
+Each command closes its database session before the plot window opens, so
+an open plot holds no database connection.
 """
 
 from typing import Annotated
@@ -45,11 +45,13 @@ def cli_seismogram_plot(
 
     from aimbat.core import resolve_event
     from aimbat.db import engine
-    from aimbat.plot import plot_seismograms
+    from aimbat.plot import plot_seismograms, show_figure
 
     with Session(engine) as session:
         event = resolve_event(session, event_id)
-        plot_seismograms(event, return_fig=False)
+        fig, _axes = plot_seismograms(event, return_fig=True)
+
+    show_figure(fig)
 
 
 @app.command(name="stack")
@@ -75,12 +77,14 @@ def cli_plot_stack(
     with Session(engine) as session:
         event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
-        plot_stack(
-            iccs,
-            iccs_plot_parameters.context,
-            all_seismograms=iccs_plot_parameters.all_seismograms,
-            return_fig=False,
-        )
+        session.commit()
+
+    plot_stack(
+        iccs,
+        iccs_plot_parameters.context,
+        all_seismograms=iccs_plot_parameters.all_seismograms,
+        return_fig=False,
+    )
 
 
 @app.command(name="matrix")
@@ -111,12 +115,14 @@ def cli_plot_matrix_image(
     with Session(engine) as session:
         event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
-        plot_matrix_image(
-            iccs,
-            iccs_plot_parameters.context,
-            all_seismograms=iccs_plot_parameters.all_seismograms,
-            return_fig=False,
-        )
+        session.commit()
+
+    plot_matrix_image(
+        iccs,
+        iccs_plot_parameters.context,
+        all_seismograms=iccs_plot_parameters.all_seismograms,
+        return_fig=False,
+    )
 
 
 if __name__ == "__main__":

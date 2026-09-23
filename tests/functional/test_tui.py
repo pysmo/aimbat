@@ -1497,8 +1497,7 @@ class TestCausalZeroPhaseToggle:
         captured: dict[str, object] = {}
 
         def _fake_update_pick(
-            session: object,
-            event: object,
+            event_id: object,
             iccs: object,
             context: object,
             *,

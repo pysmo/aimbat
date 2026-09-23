@@ -83,22 +83,20 @@ def cli_station_seismograms_plot(
     *,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Plot input seismograms for events recorded at this station.
-
-    Keeps its database session open for as long as the plot window is:
-    closing the window promptly releases the connection.
-    """
+    """Plot input seismograms for events recorded at this station."""
     from sqlmodel import Session
 
     from aimbat.db import engine
     from aimbat.models import AimbatStation
-    from aimbat.plot import plot_seismograms
+    from aimbat.plot import plot_seismograms, show_figure
 
     with Session(engine) as session:
         station = session.get(AimbatStation, station_id)
         if station is None:
             raise ValueError(f"Station with ID {station_id} not found.")
-        plot_seismograms(station, return_fig=False)
+        fig, _axes = plot_seismograms(station, return_fig=True)
+
+    show_figure(fig)
 
 
 @app.command(name="dump")

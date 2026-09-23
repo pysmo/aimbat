@@ -46,8 +46,7 @@ class TestRejectedWriteEvictsCachedIccs:
 
         with pytest.raises(ValidationError):
             update_min_cc(
-                loaded_session,
-                event,
+                event.id,
                 iccs,
                 context=False,
                 all_seismograms=False,

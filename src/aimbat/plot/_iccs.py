@@ -4,6 +4,10 @@ Wraps the plotting and interactive widget functions from `pysmo.tools.iccs`.
 Where a widget lets a user change an alignment parameter (bandpass filter,
 phase pick, time window, minimum CC threshold), the change is persisted to
 the database once the interactive session ends.
+
+The `update_*` functions take an event ID rather than a session, and open a
+short-lived session of their own after the plot window closes. Nothing holds a
+database connection for the minutes a user may spend in front of the window.
 """
 
 from collections.abc import Iterator
@@ -38,7 +42,6 @@ from pysmo.tools.iccs import (
 from aimbat.core._event import set_event_parameter, set_event_parameters
 from aimbat.core._iccs import evict_iccs_cache_entry, write_back_seismograms
 from aimbat.logger import logger
-from aimbat.models import AimbatEvent
 from aimbat.types import EventParameter
 
 if TYPE_CHECKING:
@@ -59,6 +62,15 @@ __all__ = [
     "update_pick",
     "update_timewindow",
 ]
+
+
+@contextmanager
+def _write_session() -> Iterator[Session]:
+    """Open a session for persisting what an interactive plot changed."""
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        yield session
 
 
 @contextmanager
@@ -122,8 +134,7 @@ def plot_matrix_image(
 
 
 def update_bandpass(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -133,8 +144,7 @@ def update_bandpass(
     """Update the bandpass filter parameters for an event.
 
     Args:
-        session: Database session.
-        event: AimbatEvent.
+        event_id: UUID of the event being updated.
         iccs: ICCS instance.
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
@@ -145,7 +155,7 @@ def update_bandpass(
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
     """
 
-    logger.info(f"Updating bandpass filter parameters for event {event.id}.")
+    logger.info(f"Updating bandpass filter parameters for event {event_id}.")
 
     result = _update_bandpass(  # type: ignore[call-overload]
         iccs, context, all_seismograms, use_matrix_image, return_fig=return_fig
@@ -153,14 +163,14 @@ def update_bandpass(
 
     if not return_fig:
         logger.debug(
-            f"Saving new bandpass filter parameters for event {event.id}: apply="
+            f"Saving new bandpass filter parameters for event {event_id}: apply="
             + f"{iccs.bandpass_apply}, fmin={iccs.bandpass_fmin}, fmax="
             + f"{iccs.bandpass_fmax}, corners={iccs.corners}"
         )
-        with _evict_cached_iccs_on_failure(event.id):
+        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
             set_event_parameters(
                 session,
-                event.id,
+                event_id,
                 {
                     EventParameter.BANDPASS_APPLY: iccs.bandpass_apply,
                     EventParameter.BANDPASS_FMIN: iccs.bandpass_fmin,
@@ -175,8 +185,7 @@ def update_bandpass(
 
 
 def update_pick(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -187,8 +196,7 @@ def update_pick(
     """Update the phase pick (t1) for an event.
 
     Args:
-        session: Database session.
-        event: AimbatEvent.
+        event_id: UUID of the event being updated.
         iccs: ICCS instance.
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
@@ -207,7 +215,7 @@ def update_pick(
     )
 
     if not return_fig:
-        with _evict_cached_iccs_on_failure(event.id):
+        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
             write_back_seismograms(session, iccs)
             session.commit()
         return None
@@ -217,8 +225,7 @@ def update_pick(
 
 
 def update_timewindow(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -229,8 +236,7 @@ def update_timewindow(
     """Update the cross-correlation time window for the given event.
 
     Args:
-        session: Database session.
-        event: AimbatEvent.
+        event_id: UUID of the event being updated.
         iccs: ICCS instance.
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
@@ -242,7 +248,7 @@ def update_timewindow(
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
     """
 
-    logger.info(f"Updating time window for event {event.id}.")
+    logger.info(f"Updating time window for event {event_id}.")
 
     result = _update_timewindow(  # type: ignore[call-overload]
         iccs, context, all_seismograms, use_matrix_image, causal, return_fig=return_fig
@@ -250,13 +256,13 @@ def update_timewindow(
 
     if not return_fig:
         logger.debug(
-            f"Saving new time window for event {event.id}: pre={iccs.window_pre}, "
+            f"Saving new time window for event {event_id}: pre={iccs.window_pre}, "
             + f"post={iccs.window_post}"
         )
-        with _evict_cached_iccs_on_failure(event.id):
+        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
             set_event_parameters(
                 session,
-                event.id,
+                event_id,
                 {
                     EventParameter.WINDOW_PRE: iccs.window_pre,
                     EventParameter.WINDOW_POST: iccs.window_post,
@@ -269,8 +275,7 @@ def update_timewindow(
 
 
 def update_min_cc(
-    session: Session,
-    event: AimbatEvent,
+    event_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -280,8 +285,7 @@ def update_min_cc(
     """Update the minimum cross-correlation threshold for the given event.
 
     Args:
-        session: Database session.
-        event: AimbatEvent.
+        event_id: UUID of the event being updated.
         iccs: ICCS instance.
         context: If True, plot waveforms with extra context around the taper window.
         all_seismograms: If True, include deselected seismograms in the plot.
@@ -292,7 +296,7 @@ def update_min_cc(
         A tuple of (Figure, Axes, widgets) if return_fig is True, otherwise None.
     """
 
-    logger.info(f"Updating minimum cross-correlation threshold for event {event.id}.")
+    logger.info(f"Updating minimum cross-correlation threshold for event {event_id}.")
 
     result = _update_min_cc(  # type: ignore[call-overload]
         iccs, context, all_seismograms, causal, return_fig=return_fig
@@ -300,12 +304,12 @@ def update_min_cc(
 
     if not return_fig:
         logger.debug(
-            f"Saving new minimum cross-correlation threshold for event {event.id}:"
+            f"Saving new minimum cross-correlation threshold for event {event_id}:"
             + f" {iccs.min_cc}"
         )
-        with _evict_cached_iccs_on_failure(event.id):
+        with _evict_cached_iccs_on_failure(event_id), _write_session() as session:
             set_event_parameter(
-                session, event.id, EventParameter.MIN_CC, float(iccs.min_cc)
+                session, event_id, EventParameter.MIN_CC, float(iccs.min_cc)
             )
         return None
 

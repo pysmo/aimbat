@@ -110,6 +110,9 @@ class _IccsLifecycleMixin(App[None]):
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 bound_iccs = create_iccs_instance(session, event)
+                # Building the instance writes each seismogram's CC value; it
+                # is only kept if this session commits.
+                session.commit()
         except (NoResultFound, NoSeismogramsError, RuntimeError):
             logger.debug(
                 "ICCS worker: no event selected, event has no seismograms, or "
