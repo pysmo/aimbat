@@ -352,6 +352,61 @@ class TestUpgradeProject:
         assert backup_path.exists()
         assert backup_path.stat().st_size > 0
 
+    def test_upgrade_never_overwrites_an_existing_backup(
+        self, engine_from_file: Engine, db_path: Path
+    ) -> None:
+        """Retrying an upgrade must not clobber the backup from the first attempt.
+
+        The revision alone doesn't identify a backup, so a second upgrade from
+        the same revision has to land on a different name - otherwise the one
+        intact copy is destroyed by the retry it exists to protect.
+        """
+        create_project(engine_from_file)
+        revision = get_current_revision(engine_from_file)
+        first = db_path.with_name(f"{db_path.name}.pre-{revision}.bak")
+
+        upgrade_project(engine_from_file)
+        assert first.exists()
+        original_bytes = first.read_bytes()
+
+        upgrade_project(engine_from_file)
+
+        second = db_path.with_name(f"{db_path.name}.pre-{revision}.1.bak")
+        assert second.exists()
+        assert first.read_bytes() == original_bytes
+
+    def test_upgrade_backup_is_self_contained_in_wal_mode(
+        self, engine_from_file: Engine, db_path: Path
+    ) -> None:
+        """The backup file must stand on its own.
+
+        In WAL mode the newest pages live in the `-wal` sidecar, so copying
+        the database file alone captures a database missing its most recent
+        writes - the schema the migration is about to change, among them.
+        Checkpointing first folds them back in, which also makes the `-wal`
+        copy unnecessary and the `-shm` copy (rebuildable shared memory)
+        pointless.
+        """
+        with engine_from_file.connect() as connection:
+            connection.exec_driver_sql("PRAGMA journal_mode=WAL")
+        create_project(engine_from_file)
+        revision = get_current_revision(engine_from_file)
+
+        upgrade_project(engine_from_file)
+
+        backup_path = db_path.with_name(f"{db_path.name}.pre-{revision}.bak")
+        assert backup_path.exists()
+        assert not backup_path.with_name(backup_path.name + "-wal").exists()
+        assert not backup_path.with_name(backup_path.name + "-shm").exists()
+
+        restored = create_engine(rf"sqlite+pysqlite:///{backup_path}")
+        try:
+            with restored.begin() as connection:
+                table_names = inspect(connection).get_table_names()
+        finally:
+            restored.dispose()
+        assert "aimbatevent" in table_names
+
     def test_upgrade_skips_backup_for_in_memory_database(self, engine: Engine) -> None:
         """An in-memory database has no file to back up and must not error."""
         upgrade_project(engine)  # already created + stamped by the `engine` fixture

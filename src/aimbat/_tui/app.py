@@ -883,8 +883,16 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             return
 
         def on_result(result: tuple[str, bool, bool, bool] | None) -> None:
-            if result is not None:
-                self._run_align_tool(self._iccs_lifecycle.bound, *result)
+            if result is None:
+                return
+            # Re-checked here, not just in the guard above: the modal is
+            # async, so the staleness poll can clear the instance via
+            # `_create_iccs()` while it is open.
+            bound = self._iccs_lifecycle.bound
+            if bound is None:
+                self.notify("ICCS not ready: please wait", severity="warning")
+                return
+            self._run_align_tool(bound, *result)
 
         self.push_screen(AlignModal(), on_result)
 

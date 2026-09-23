@@ -38,6 +38,7 @@ import aimbat.db
 from aimbat._tui.app import AimbatTUI
 from aimbat._tui.modals import (
     ActionMenuModal,
+    AlignModal,
     InteractiveToolsModal,
     SchemaStaleModal,
     SnapshotDetailsModal,
@@ -885,6 +886,82 @@ class TestRequireIccs:
         message, severity = notifications[0]
         assert "iccs not ready" in message.lower()
         assert "parameters" in message.lower()
+        assert severity == "warning"
+
+
+@pytest.mark.slow
+class TestAlignModalLosesIccsWhileOpen:
+    """The align menu re-checks the ICCS instance when the modal closes.
+
+    `action_open_align` gates on `_require_iccs()` before pushing the modal,
+    but the modal is async: the staleness poll can rebuild the instance while
+    it is open, leaving `bound` as `None`. Handing that `None` to the worker
+    surfaced as `'NoneType' object has no attribute 'iccs'`.
+    """
+
+    def test_cleared_instance_notifies_instead_of_running(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Clearing `bound` while the modal is open must not reach the worker."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        notifications: list[tuple[str, str]] = []
+        align_calls: list[object] = []
+        callbacks: list[Callable[[object], object]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                    assert event is not None
+                    app._current_event_id = event.id
+                    app._iccs_lifecycle.assign(
+                        _real_create_iccs_instance(session, event)
+                    )
+                assert app._iccs_lifecycle.ready is True
+
+                real_push_screen = app.push_screen
+
+                def fake_push_screen(
+                    screen: object,
+                    callback: Callable[[object], object] | None = None,
+                    **kwargs: object,
+                ) -> object:
+                    if isinstance(screen, AlignModal):
+                        assert callback is not None
+                        callbacks.append(callback)
+                        return None
+                    return real_push_screen(screen, callback, **kwargs)  # type: ignore[call-overload]
+
+                monkeypatch.setattr(app, "push_screen", fake_push_screen)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                monkeypatch.setattr(
+                    app, "_run_align_tool", lambda *args: align_calls.append(args)
+                )
+
+                app.action_open_align()
+                assert len(callbacks) == 1
+
+                # What the staleness poll does via `start_creating()`.
+                app._iccs_lifecycle.bound = None
+                callbacks[0](("iccs", False, False, False))
+
+        asyncio.run(_run())
+
+        assert align_calls == []
+        assert len(notifications) == 1
+        message, severity = notifications[0]
+        assert "iccs not ready" in message.lower()
         assert severity == "warning"
 
 

@@ -74,7 +74,12 @@ __all__ = [
 
 
 class SyncResult(NamedTuple):
-    """Which live quality metrics `sync_from_matching_hash` repopulated."""
+    """Which live quality metrics `sync_from_matching_hash` repopulated.
+
+    Callers fall back to `clear_mccc_quality` when `mccc_synced` is `False`, so
+    it reports whether the restore landed, not merely whether a matching
+    snapshot was found.
+    """
 
     mccc_synced: bool
     iccs_synced: bool
@@ -526,8 +531,15 @@ def _live_seismogram_quality_map(
     return {row.seismogram_id: row for row in rows}
 
 
-def _restore_mccc_quality(session: Session, snapshot: AimbatSnapshot) -> None:
-    """Copy the frozen MCCC diagnostics from `snapshot` into the live records."""
+def _restore_mccc_quality(session: Session, snapshot: AimbatSnapshot) -> bool:
+    """Copy the frozen MCCC diagnostics from `snapshot` into the live records.
+
+    Returns:
+        Whether the event-level diagnostics (`mccc_rmse` among them) were
+        restored. `False` means the event has no live quality record, so the
+        seismogram-level values were restored without their event-level
+        counterpart and the caller should treat the sync as incomplete.
+    """
     logger.info(f"Syncing MCCC quality from snapshot {snapshot.id}.")
 
     event_quality_snap = snapshot.event_quality_snapshot
@@ -557,6 +569,8 @@ def _restore_mccc_quality(session: Session, snapshot: AimbatSnapshot) -> None:
         for k in _MCCC_SEISMOGRAM_QUALITY_FIELDS:
             setattr(live_seis_quality, k, getattr(seis_quality_snap, k))
         session.add(live_seis_quality)
+
+    return live_event_quality is not None
 
 
 def _restore_iccs_cc(session: Session, snapshot: AimbatSnapshot) -> None:
@@ -607,7 +621,9 @@ def sync_from_matching_hash(
         prefer_snapshot_id: Snapshot to prefer when several candidates match.
 
     Returns:
-        `SyncResult` recording which metric groups were repopulated.
+        `SyncResult` recording which metric groups were repopulated. A matching
+        MCCC snapshot whose event-level restore had to be skipped counts as
+        unsynced, so the caller still clears the stale diagnostics.
     """
     session.flush()
 
@@ -626,8 +642,7 @@ def sync_from_matching_hash(
             prefer_snapshot_id,
         )
         if mccc_candidate is not None:
-            _restore_mccc_quality(session, mccc_candidate)
-            mccc_synced = True
+            mccc_synced = _restore_mccc_quality(session, mccc_candidate)
         else:
             logger.debug("No snapshot with matching MCCC hash and quality found.")
 

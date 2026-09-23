@@ -94,7 +94,12 @@ class BoundICCS:
             return True
         if event.stack_modified is None:
             return False
-        return event.stack_modified > self.created_at
+        # The triggers stamp `stack_modified` to millisecond precision while
+        # `created_at` keeps microseconds, so the two are compared at the
+        # coarser one. A change landing in the same millisecond counts as
+        # stale: the worst case is one redundant rebuild, against silently
+        # serving values the database has already superseded.
+        return event.stack_modified >= self.created_at.floor("ms")
 
 
 @dataclass

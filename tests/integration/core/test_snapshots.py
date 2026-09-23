@@ -820,6 +820,40 @@ class TestSyncFromMatchingHash:
         loaded_session.refresh(eq)
         assert eq.mccc_rmse is not None
 
+    def test_missing_live_event_quality_reports_unsynced(
+        self, loaded_session: Session
+    ) -> None:
+        """A skipped event-level restore must not report as a completed sync.
+
+        Callers read `mccc_synced` to decide whether to fall back to
+        `clear_mccc_quality`, so reporting `True` on a restore that couldn't
+        write the event level leaves the event with neither a restored RMSE
+        nor a cleared one.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        seis_ids = [s.id for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
+        _write_mock_mccc_quality(
+            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
+        )
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        mccc_hash = compute_mccc_hash(event)
+
+        eq = loaded_session.exec(
+            select(AimbatEventQuality).where(
+                col(AimbatEventQuality.event_id) == event.id
+            )
+        ).one()
+        loaded_session.delete(eq)
+        loaded_session.commit()
+
+        result = sync_from_matching_hash(loaded_session, event.id, mccc_hash=mccc_hash)
+        loaded_session.commit()
+        assert result.mccc_synced is False
+
     def test_no_match_returns_unsynced_result(self, loaded_session: Session) -> None:
         """No candidate snapshot leaves both flags False."""
         event = loaded_session.exec(select(AimbatEvent)).first()
