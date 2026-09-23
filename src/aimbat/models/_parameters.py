@@ -132,7 +132,12 @@ class AimbatEventParametersBase(SQLModel):
     def check_freq_range(self) -> Self:
         """Validate that `bandpass_fmax` is strictly greater than `bandpass_fmin`."""
         if self.bandpass_fmax <= self.bandpass_fmin:
-            raise ValueError("bandpass_fmax must be > bandpass_fmin")
+            raise ValueError(
+                f"bandpass_fmax ({self.bandpass_fmax:g} Hz) must be greater than "
+                + f"bandpass_fmin ({self.bandpass_fmin:g} Hz). Setting one bound at "
+                + "a time, widen the band first: raise bandpass_fmax before "
+                + "bandpass_fmin, lower bandpass_fmin before bandpass_fmax."
+            )
         return self
 
 

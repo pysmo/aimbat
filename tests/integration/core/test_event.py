@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 from pandas import Timedelta
+from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlalchemy import event as sa_event
 from sqlalchemy.exc import NoResultFound
@@ -17,11 +18,13 @@ from aimbat.core import (
     get_completed_events,
     get_events_using_station,
     set_event_parameter,
+    set_event_parameters,
     toggle_event_completed,
 )
 from aimbat.core import _iccs as core_iccs
 from aimbat.models import AimbatEvent, AimbatEventQuality, AimbatStation
 from aimbat.types import EventParameter
+from aimbat.utils import format_validation_error
 
 # ===================================================================
 # Default event
@@ -261,6 +264,42 @@ class TestSetEventParameter:
             assert event is not None
             assert event.parameters.window_post == new_value
             assert event.last_modified is not None
+
+    def test_rejected_bandpass_bound_names_the_order_that_works(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies a rejected bandpass bound says how to move the band.
+
+        The TUI parameters modal and the CLI both write one bound at a time,
+        so moving the band up fails if `bandpass_fmin` is set first. That is
+        recoverable - widening before narrowing always validates - but only
+        if the message says so.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        set_event_parameters(
+            loaded_session,
+            event.id,
+            {
+                EventParameter.BANDPASS_FMIN: 0.5,
+                EventParameter.BANDPASS_FMAX: 1.0,
+            },
+        )
+
+        with pytest.raises(ValidationError) as excinfo:
+            set_event_parameter(
+                loaded_session, event.id, EventParameter.BANDPASS_FMIN, 1.5
+            )
+        message = format_validation_error(excinfo.value)
+        assert "bandpass_fmax (1 Hz)" in message
+        assert "bandpass_fmin (1.5 Hz)" in message
+        assert "raise bandpass_fmax before bandpass_fmin" in message
+
+        # The order the message gives: widen first, then narrow.
+        set_event_parameter(loaded_session, event.id, EventParameter.BANDPASS_FMAX, 2.0)
+        set_event_parameter(loaded_session, event.id, EventParameter.BANDPASS_FMIN, 1.5)
+        assert event.parameters.bandpass_fmin == 1.5
+        assert event.parameters.bandpass_fmax == 2.0
 
 
 class TestSetEventParameters:

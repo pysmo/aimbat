@@ -42,6 +42,13 @@ Filtering is off by default. When on, the same filter is applied to the
 seismograms and the stack, so the cross-correlation always compares like with
 like.
 
+!!! tip "Widen the band before narrowing it"
+
+    `bandpass_fmax` must stay above `bandpass_fmin`, and the CLI and TUI set
+    one bound at a time. Moving a 0.5-1 Hz band up to 1.5-2 Hz is therefore
+    rejected if `bandpass_fmin` goes first. Raise `bandpass_fmax` first and it
+    works; moving the band down, lower `bandpass_fmin` first.
+
 ## The phase pick (t1)
 
 `t1` is the per-seismogram pick ICCS refines each run: one value per seismogram,
