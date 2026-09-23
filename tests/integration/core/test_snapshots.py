@@ -1049,6 +1049,86 @@ class TestSyncFromMatchingHash:
         assert result.mccc_synced is False
 
 
+class TestRestoreWithPreloadedQuality:
+    """Restoring quality onto rows the triggers changed behind the ORM's back.
+
+    The quality-invalidation triggers null columns with raw SQL the ORM never
+    sees, so a quality row already in the session's identity map keeps
+    reporting its pre-trigger value. Writing the snapshot's value back onto
+    such a stale instance looks like no change, emits no UPDATE, and leaves
+    the trigger's NULL in place while `SyncResult` claims a successful sync.
+    """
+
+    @staticmethod
+    def _raw_iccs_ccs(session: Session) -> list[float | None]:
+        """Read every `iccs_cc` straight from the database, bypassing the identity map.
+
+        Unfiltered because this test is the only thing that writes quality
+        rows into the fixture, so every row belongs to the event under test.
+        """
+        rows = session.connection().exec_driver_sql(
+            "SELECT iccs_cc FROM aimbatseismogramquality"
+        )
+        return [row[0] for row in rows]
+
+    def test_iccs_cc_restored_when_quality_rows_are_already_loaded(
+        self, loaded_session: Session
+    ) -> None:
+        """`iccs_cc` reaches the database even with the live rows preloaded."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        for offset, seis in enumerate(event.seismograms):
+            loaded_session.add(
+                AimbatSeismogramQuality(
+                    id=uuid.uuid4(),
+                    seismogram_id=seis.id,
+                    iccs_cc=0.9 - offset / 100,
+                )
+            )
+        loaded_session.commit()
+
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        iccs_hash = compute_iccs_hash(event)
+
+        # Pull the live quality rows into the identity map *before* the
+        # triggers fire, which is what makes the stale-instance path reachable.
+        preloaded = loaded_session.exec(select(AimbatSeismogramQuality)).all()
+        assert all(q.iccs_cc is not None for q in preloaded)
+
+        # Nudge a stack parameter and put it straight back. Each flush fires
+        # the null-all-quality trigger; the round trip leaves the ICCS hash
+        # equal to the snapshot's, so the snapshot is still a restore
+        # candidate - the "tweaked it and changed my mind" case.
+        original_window_pre = event.parameters.window_pre
+        event.parameters.window_pre = original_window_pre - Timedelta(seconds=1)
+        loaded_session.flush()
+        event.parameters.window_pre = original_window_pre
+        loaded_session.flush()
+
+        assert self._raw_iccs_ccs(loaded_session) == [None for _ in preloaded], (
+            "Precondition: the triggers should have nulled every iccs_cc."
+        )
+        assert all(q.iccs_cc is not None for q in preloaded), (
+            "Precondition: the ORM should still be holding the pre-trigger values, "
+            "otherwise this test is not exercising the stale-instance path."
+        )
+
+        result = sync_from_matching_hash(loaded_session, event.id, iccs_hash=iccs_hash)
+        loaded_session.commit()
+
+        assert result.iccs_synced is True
+        restored = self._raw_iccs_ccs(loaded_session)
+        assert all(cc is not None for cc in restored), (
+            "sync_from_matching_hash reported iccs_synced, so the values must "
+            f"actually be in the database, got {restored}."
+        )
+        assert sorted(cc for cc in restored if cc is not None) == sorted(
+            0.9 - offset / 100 for offset in range(len(preloaded))
+        )
+
+
 class TestDumpSnapshotTable:
     """Tests for dump_snapshot_table."""
 

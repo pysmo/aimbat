@@ -96,6 +96,29 @@ _MCCC_SEISMOGRAM_QUALITY_FIELDS = tuple(
     k for k in AimbatSeismogramQualityBase.model_fields if k != "iccs_cc"
 )
 
+_RESTORE_POPULATE_EXISTING_NOTE = """Why the restore queries pass `populate_existing=True`.
+
+The quality-invalidation triggers (see `core/_project.py`) null the quality
+columns with raw SQL `UPDATE`s that SQLAlchemy never sees. A `SELECT` alone
+does not repair that: by default the ORM keeps the attribute values already
+loaded on an instance in the identity map and only fills in instances it has
+not seen, so a quality row loaded *before* the flush still reports its
+pre-trigger value afterwards.
+
+That turns a restore into a silent no-op. Assigning the snapshot's value back
+onto a stale instance that still holds the same value is not a change, so no
+`UPDATE` is emitted, the column keeps the `NULL` the trigger wrote, and
+`SyncResult` reports the metric as synced. `populate_existing=True` forces the
+freshly selected rows to overwrite the identity map, so the restore compares
+against what is actually in the database.
+
+No current caller reaches `sync_from_matching_hash` with live quality rows
+already loaded in the same session, so this was latent rather than an active
+bug - but nothing in the call graph enforces that, and the failure is silent
+when it does happen. Covered by
+`tests/integration/core/test_snapshots.py::TestRestoreWithPreloadedQuality`.
+"""
+
 
 def _compute_parameters_hash(
     event: AimbatEvent,
@@ -484,6 +507,9 @@ def _live_seismogram_quality_map(
     one-quality-row-per-seismogram invariant (`AimbatSeismogram.quality` is a
     scalar relationship) is enforced by a unique index on
     `AimbatSeismogramQuality.seismogram_id`.
+
+    `populate_existing` is load-bearing, not a micro-optimisation: see
+    `_RESTORE_POPULATE_EXISTING_NOTE`.
     """
     seismogram_ids = {
         q.seismogram_id
@@ -493,9 +519,9 @@ def _live_seismogram_quality_map(
     if not seismogram_ids:
         return {}
     rows = session.exec(
-        select(AimbatSeismogramQuality).where(
-            col(AimbatSeismogramQuality.seismogram_id).in_(seismogram_ids)
-        )
+        select(AimbatSeismogramQuality)
+        .where(col(AimbatSeismogramQuality.seismogram_id).in_(seismogram_ids))
+        .execution_options(populate_existing=True)
     ).all()
     return {row.seismogram_id: row for row in rows}
 
@@ -508,9 +534,9 @@ def _restore_mccc_quality(session: Session, snapshot: AimbatSnapshot) -> None:
     assert event_quality_snap is not None  # guaranteed by the candidate filter
 
     live_event_quality = session.exec(
-        select(AimbatEventQuality).where(
-            col(AimbatEventQuality.event_id) == snapshot.event_id
-        )
+        select(AimbatEventQuality)
+        .where(col(AimbatEventQuality.event_id) == snapshot.event_id)
+        .execution_options(populate_existing=True)
     ).one_or_none()
     if live_event_quality is None:
         logger.warning(
@@ -567,8 +593,11 @@ def sync_from_matching_hash(
     candidates, wins the tie-break.
 
     Pending parameter changes are flushed first so the quality-invalidation
-    triggers have fired before the restored values are written. The caller
-    owns the transaction and must commit.
+    triggers have fired before the restored values are written, and the restore
+    queries re-read the live quality rows with `populate_existing=True` so they
+    see what those triggers actually wrote rather than a stale identity-map
+    value (see `_RESTORE_POPULATE_EXISTING_NOTE`). The caller owns the
+    transaction and must commit.
 
     Args:
         session: Database session.
