@@ -4,6 +4,7 @@ All commands are invoked in-process via `app()` with `aimbat.db.engine`
 monkeypatched to the test fixture's in-memory database.
 """
 
+import re
 from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -268,6 +269,53 @@ class TestDataManagement:
         assert isinstance(snapshot_data, dict)
         assert snapshot_data["snapshots"] == [], (
             "A dry run should never create a snapshot."
+        )
+
+    def test_dry_run_summary_predicts_the_real_add(
+        self,
+        patched_engine: Engine,
+        multi_event_data: Sequence[Path],
+        cli: Callable[[str], None],
+        cli_json: Callable[[str], list[Any] | dict[str, Any]],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Verifies the dry-run summary counts distinct entities, not data sources.
+
+        Many SAC files routinely resolve to one event, so counting per data
+        source reported one event added per file. Asserted by running the same
+        add for real and comparing against what actually landed in the
+        database, rather than against numbers hardcoded from the fixture.
+        """
+        files = " ".join(f.as_posix() for f in multi_event_data)
+        capsys.readouterr()
+        cli(f"data add {files} --no-progress --dry-run")
+        summary = capsys.readouterr().out.splitlines()[-1].strip()
+
+        match = re.fullmatch(
+            r"(\d+) station\(s\) added, (\d+) skipped\. "
+            r"(\d+) event\(s\) added, (\d+) skipped\. "
+            r"(\d+) seismogram\(s\) added, (\d+) skipped\.",
+            summary,
+        )
+        assert match is not None, f"Unexpected dry-run summary line: {summary!r}"
+        stations, _, events, _, seismograms, _ = (int(g) for g in match.groups())
+
+        cli(f"data add {files} --no-progress --no-snapshot")
+        actual = {
+            "station": len(cli_json("station dump")),
+            "event": len(cli_json("event dump")),
+            "seismogram": len(cli_json("seismogram dump")),
+        }
+        assert {
+            "station": stations,
+            "event": events,
+            "seismogram": seismograms,
+        } == actual, (
+            "The dry-run summary should predict exactly what a real add creates."
+        )
+        assert actual["event"] < len(multi_event_data), (
+            "Fixture no longer exercises the bug: it needs several data sources "
+            "sharing one event for a per-source count to differ from a per-event one."
         )
 
     def test_add_data_with_use_flags(
