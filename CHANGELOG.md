@@ -12,6 +12,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 - **(snapshot)** Backfill sequence in one window-function pass
 - **(io)** Bound the waveform cache with an LRU cap
+- **(core,tui,utils)** Stop querying for rows nobody reads
 
 ### 🐛 Bug Fixes
 
@@ -51,6 +52,15 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(utils)** Avoid reopening sample-data tempfile by path
 - **(cli,config)** Sentinel table check, %-escaping, --debug ordering, editor warnings
 - **(utils)** Update sample-data download URL to `main` branch
+- **(io)** Name the data source and pick header in ingestion failures
+- **(config)** Honour `min_id_length` when shortening IDs
+- **(plot)** Evict the cached ICCS when an interactive write is rejected
+- **(core)** Restore snapshot quality onto trigger-modified rows
+- **(cli)** Count distinct entities in the data add dry-run summary
+- **(core,tui)** Report restores, backups and staleness accurately
+- **(io,core)** Read a data source once, and notice when it changes
+- **(models)** Say how to move the bandpass when a bound is rejected
+- **(core,plot)** Evict cached ICCS on rollback, let plot writes take an engine
 
 ### 📚 Documentation
 
@@ -83,6 +93,11 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(io)** Treat datasource sourcename as an opaque source identifier
 - **(io)** Pass readers a SeismogramReadContext
 - **(core)** Dump event stations through the read model in as_json mode
+- **(core,utils)** Give the repeated core blocks one definition each
+- **(cli,core)** Build repeated command and trigger bodies from one place
+- **(app,core)** Configure logging at the entrypoints, create projects atomically
+- **(core,plot)** Write quality on the caller's session, free the plot window
+- **(core,models)** Run the ICCS parameter check in core, not in the model
 
 ### 🚀 New Features
 
@@ -106,6 +121,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Parallelise the non-slow test suite with pytest-xdist
 - Write per-worker log files to gitignored tests/.logs/
 - **(models)** Pin count column_property attrs against their TYPE_CHECKING stubs
+- **(tui)** Drop timing-sensitive assertion from debounce test
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
