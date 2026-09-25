@@ -4,6 +4,7 @@
 _internal_names = set(dir())
 
 from ._decorators import *
+from ._notes import *
 from ._parameters import *
 from ._table import *
 

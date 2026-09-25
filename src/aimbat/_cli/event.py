@@ -11,7 +11,6 @@ from aimbat.types import EventParameter
 
 from .common import (
     ConfirmParameters,
-    DebugParameter,
     EventDebugParameters,
     JsonDumpParameters,
     TableParameters,
@@ -20,16 +19,16 @@ from .common import (
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
-    open_in_editor,
-    print_warning,
+    id_label,
+    make_note_app,
+    print_json_dump,
+    print_quality_table,
 )
 
 __all__ = [
     "cli_event_delete",
     "cli_event_dump",
     "cli_event_list",
-    "cli_event_note_edit",
-    "cli_event_note_read",
     "cli_event_parameter_dump",
     "cli_event_parameter_get",
     "cli_event_parameter_list",
@@ -39,7 +38,7 @@ __all__ = [
 ]
 
 app = App(name="event", help=__doc__, help_format="markdown")
-_note = App(name="note", help="Read and edit event notes.", help_format="markdown")
+_note = make_note_app("event", AimbatEvent, event_parameter())
 _parameter = App(
     name="parameter", help="Manage event parameters.", help_format="markdown"
 )
@@ -84,13 +83,9 @@ def cli_event_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from rich import print_json
-
     from aimbat.core import dump_event_table
-    from aimbat.db import engine
 
-    with Session(engine) as session:
-        print_json(data=dump_event_table(session, by_alias=dump_parameters.by_alias))
+    print_json_dump(dump_event_table, by_alias=dump_parameters.by_alias)
 
 
 @app.command(name="list")
@@ -124,67 +119,6 @@ def cli_event_list(
             title="AIMBAT Events",
             raw=raw,
         )
-
-
-@_note.command(name="read")
-@handle_issues
-def cli_event_note_read(
-    event_id: Annotated[uuid.UUID, event_parameter()],
-    *,
-    _: DebugParameter = DebugParameter(),
-) -> None:
-    """Display the note attached to an event, rendered as Markdown."""
-    from rich.console import Console
-    from rich.markdown import Markdown
-
-    from aimbat.core import get_note_content, resolve_event
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        content = get_note_content(session, "event", event.id)
-
-    Console().print(Markdown(content) if content else "(no note)")
-
-
-@_note.command(name="edit")
-@handle_issues
-def cli_event_note_edit(
-    event_id: Annotated[uuid.UUID, event_parameter()],
-    *,
-    _: DebugParameter = DebugParameter(),
-) -> None:
-    """Open the event note in `$EDITOR` and save changes on exit.
-
-    The note is written to a temporary Markdown file. When the editor closes,
-    the updated content is saved back to the database. If the file is left
-    unchanged, no write is performed.
-
-    On Windows, set the `EDITOR` environment variable to your preferred editor
-    (e.g. `notepad`, `notepad++`). The editor must be a blocking process; for
-    GUI editors that do not block by default (such as VS Code), pass the
-    appropriate wait flag (e.g. `EDITOR="code --wait"`).
-    """
-    from aimbat.core import get_note_content, resolve_event, save_note
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        original = get_note_content(session, "event", event.id)
-
-    updated = open_in_editor(original)
-
-    if updated != original:
-        with Session(engine) as session:
-            event = resolve_event(session, event_id)
-            raced = save_note(
-                session, "event", event.id, updated, expected_previous=original
-            )
-        if raced:
-            print_warning(
-                "Note changed elsewhere while the editor was open; your edit has"
-                + " overwritten that change."
-            )
 
 
 @_parameter.command(name="get")
@@ -243,16 +177,9 @@ def cli_event_parameter_dump(
     dump_parameters: JsonDumpParameters = JsonDumpParameters(),
 ) -> None:
     """Dump event parameter table to json."""
-    from rich import print_json
-    from sqlmodel import Session
-
     from aimbat.core import dump_event_parameter_table
-    from aimbat.db import engine
 
-    by_alias = dump_parameters.by_alias
-
-    with Session(engine) as session:
-        print_json(data=dump_event_parameter_table(session, by_alias=by_alias))
+    print_json_dump(dump_event_parameter_table, by_alias=dump_parameters.by_alias)
 
 
 @_parameter.command(name="list")
@@ -284,7 +211,8 @@ def cli_event_parameter_list(
             data = dump_event_parameter_table(session)
         else:
             event = resolve_event(session, event_id)
-            title = f"Event parameters for event: {uuid_shortener(session, event) if not raw else str(event.id)}"
+            label = id_label(session, AimbatEvent, event.id, raw=raw)
+            title = f"Event parameters for event: {label}"
             data = dump_event_parameter_table(
                 session, event_id=event.id, exclude={"event_id"}
             )
@@ -320,15 +248,9 @@ def cli_event_quality_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from rich import print_json
-
     from aimbat.core import dump_event_quality_table
-    from aimbat.db import engine
 
-    with Session(engine) as session:
-        data = dump_event_quality_table(session, by_alias=dump_parameters.by_alias)
-
-    print_json(data=data)
+    print_json_dump(dump_event_quality_table, by_alias=dump_parameters.by_alias)
 
 
 @_quality.command(name="list")
@@ -345,47 +267,25 @@ def cli_event_quality_list(
     """
     from aimbat.core import dump_event_quality_table
     from aimbat.db import engine
-    from aimbat.models import SeismogramQualityStats
-    from aimbat.models._format import RichColSpec
-    from aimbat.utils import uuid_shortener
-
-    from .common import json_to_table
 
     raw = table_parameters.raw
-    is_all = event_parameter_is_all(event_id)
 
     with Session(engine) as session:
-        if is_all:
-            title = "Quality statistics for all events"
-            exclude = None
+        if event_parameter_is_all(event_id):
+            title, filter_id = "Quality statistics for all events", None
         else:
-            label = (
-                str(event_id)
-                if raw
-                else uuid_shortener(session, AimbatEvent, str_uuid=str(event_id))
-            )
-            title = f"Quality statistics for event: {label}"
-            exclude = {"event_id"}
+            label = id_label(session, AimbatEvent, event_id, raw=raw)
+            title, filter_id = f"Quality statistics for event: {label}", event_id
 
-        col_specs = {
-            "event_id": RichColSpec(
-                formatter=lambda x: uuid_shortener(session, AimbatEvent, str_uuid=x),
-            ),
-        }
-
-        data = dump_event_quality_table(
+        print_quality_table(
             session,
-            event_id=None if event_parameter_is_all(event_id) else event_id,
-            exclude=exclude,
+            dump_event_quality_table,
+            title=title,
+            filter_id=filter_id,
+            id_field="event_id",
+            id_columns={"event_id": AimbatEvent},
+            raw=raw,
         )
-
-    json_to_table(
-        data=data,
-        model=SeismogramQualityStats,
-        title=title,
-        raw=raw,
-        col_specs=col_specs,
-    )
 
 
 if __name__ == "__main__":

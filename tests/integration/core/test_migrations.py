@@ -265,6 +265,30 @@ class TestTriggerWhenClauseInvariants:
         cols_2b = _when_columns(triggers["event_stack_modified_on_seis_params_update"])
         assert cols_2 == cols_2b
 
+    def test_trigger1_ignored_fields_are_excluded_from_both_hashes(
+        self, engine: Engine
+    ) -> None:
+        """An event parameter trigger 1 ignores must not feed either snapshot hash.
+
+        The containment runs one way only. A field the trigger leaves out of
+        its `WHEN` clause is one a change to which is never recorded as a
+        modification at all, so a hash that moved on it would block snapshot
+        reuse for a change nothing else acknowledges. The reverse is not an
+        invariant: the hashes also exclude `min_cc` and the MCCC-only
+        parameters, which trigger 1 does fire on.
+        """
+        from aimbat.core._snapshot import (
+            _ICCS_HASH_EVENT_EXCLUDE,
+            _MCCC_HASH_EVENT_EXCLUDE,
+        )
+        from aimbat.models._parameters import AimbatEventParametersBase
+
+        cols = _when_columns(_triggers(engine)["event_modified_on_params_update"])
+        ignored = set(AimbatEventParametersBase.model_fields) - cols
+
+        assert ignored, "Trigger 1 is supposed to ignore at least `completed`"
+        assert ignored <= _ICCS_HASH_EVENT_EXCLUDE & _MCCC_HASH_EVENT_EXCLUDE
+
 
 def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:
     """Guards `_unique_constraints`/`_check_constraints`/`_indexes`
@@ -351,6 +375,61 @@ class TestUpgradeProject:
         backup_path = db_path.with_name(f"{db_path.name}.pre-{revision}.bak")
         assert backup_path.exists()
         assert backup_path.stat().st_size > 0
+
+    def test_upgrade_never_overwrites_an_existing_backup(
+        self, engine_from_file: Engine, db_path: Path
+    ) -> None:
+        """Retrying an upgrade must not clobber the backup from the first attempt.
+
+        The revision alone doesn't identify a backup, so a second upgrade from
+        the same revision has to land on a different name - otherwise the one
+        intact copy is destroyed by the retry it exists to protect.
+        """
+        create_project(engine_from_file)
+        revision = get_current_revision(engine_from_file)
+        first = db_path.with_name(f"{db_path.name}.pre-{revision}.bak")
+
+        upgrade_project(engine_from_file)
+        assert first.exists()
+        original_bytes = first.read_bytes()
+
+        upgrade_project(engine_from_file)
+
+        second = db_path.with_name(f"{db_path.name}.pre-{revision}.1.bak")
+        assert second.exists()
+        assert first.read_bytes() == original_bytes
+
+    def test_upgrade_backup_is_self_contained_in_wal_mode(
+        self, engine_from_file: Engine, db_path: Path
+    ) -> None:
+        """The backup file must stand on its own.
+
+        In WAL mode the newest pages live in the `-wal` sidecar, so copying
+        the database file alone captures a database missing its most recent
+        writes - the schema the migration is about to change, among them.
+        Checkpointing first folds them back in, which also makes the `-wal`
+        copy unnecessary and the `-shm` copy (rebuildable shared memory)
+        pointless.
+        """
+        with engine_from_file.connect() as connection:
+            connection.exec_driver_sql("PRAGMA journal_mode=WAL")
+        create_project(engine_from_file)
+        revision = get_current_revision(engine_from_file)
+
+        upgrade_project(engine_from_file)
+
+        backup_path = db_path.with_name(f"{db_path.name}.pre-{revision}.bak")
+        assert backup_path.exists()
+        assert not backup_path.with_name(backup_path.name + "-wal").exists()
+        assert not backup_path.with_name(backup_path.name + "-shm").exists()
+
+        restored = create_engine(rf"sqlite+pysqlite:///{backup_path}")
+        try:
+            with restored.begin() as connection:
+                table_names = inspect(connection).get_table_names()
+        finally:
+            restored.dispose()
+        assert "aimbatevent" in table_names
 
     def test_upgrade_skips_backup_for_in_memory_database(self, engine: Engine) -> None:
         """An in-memory database has no file to back up and must not error."""

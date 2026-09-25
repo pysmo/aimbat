@@ -1,7 +1,7 @@
 """ORM classes representing AIMBAT data stored in the database."""
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
@@ -9,7 +9,7 @@ from pandas import Timestamp
 from pydantic import model_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func, text
-from sqlalchemy.orm import column_property, object_session
+from sqlalchemy.orm import class_mapper, column_property, object_session, undefer
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel._compat import SQLModelConfig
 
@@ -44,6 +44,7 @@ __all__ = [
     "AimbatSnapshot",
     "AimbatStation",
     "AimbatTypes",
+    "undefer_counts",
 ]
 
 
@@ -782,18 +783,21 @@ class AimbatEvent(SQLModel, table=True):
 # ----------------------------------------------------------------------------
 # Column properties
 #
-# Each of these is a correlated scalar subquery that SQLAlchemy adds to
-# every SELECT of the owning model, whether or not the count is read -
-# AimbatEvent alone carries three. Fine at interactive/single-project
-# scale; would need `column_property(..., deferred=True)` or a
-# `@hybrid_property` if listing many rows ever becomes a hot path.
+# Each of these is a correlated scalar subquery, and all are `deferred` so
+# that they are left out of an ordinary SELECT of the owning model -
+# AimbatEvent carries three, and the processing paths that load an event to
+# run ICCS never read any of them. Reading one on a loaded instance emits its
+# subquery on its own, so the paths that render counts for many rows (the
+# `dump_*_table` functions feeding the read models) undefer them to keep that
+# a single query.
 # ----------------------------------------------------------------------------
 
 AimbatEvent.seismogram_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatSeismogram.id)))
     .where(col(AimbatSeismogram.event_id) == col(AimbatEvent.id))
     .correlate_except(AimbatSeismogram)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 "Number of seismograms for this event."
 
@@ -801,7 +805,8 @@ AimbatEvent.station_count = column_property(  # type: ignore[assignment]
     select(func.count(func.distinct(col(AimbatSeismogram.station_id))))
     .where(col(AimbatSeismogram.event_id) == col(AimbatEvent.id))
     .correlate_except(AimbatSeismogram)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 "Number of unique stations for this event."
 
@@ -809,7 +814,8 @@ AimbatEvent.snapshot_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatSnapshot.id)))
     .where(col(AimbatSnapshot.event_id) == col(AimbatEvent.id))
     .correlate_except(AimbatSnapshot)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 "Number of snapshots for this event."
 
@@ -817,7 +823,8 @@ AimbatStation.seismogram_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatSeismogram.id)))
     .where(col(AimbatSeismogram.station_id) == col(AimbatStation.id))
     .correlate_except(AimbatSeismogram)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 "Number of seismograms recorded at this station."
 
@@ -825,7 +832,8 @@ AimbatStation.event_count = column_property(  # type: ignore[assignment]
     select(func.count(func.distinct(col(AimbatSeismogram.event_id))))
     .where(col(AimbatSeismogram.station_id) == col(AimbatStation.id))
     .correlate_except(AimbatSeismogram)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 "Number of unique events recorded at this station."
 
@@ -835,7 +843,8 @@ AimbatSnapshot.seismogram_count = column_property(  # type: ignore[assignment]
         col(AimbatSeismogramParametersSnapshot.snapshot_id) == col(AimbatSnapshot.id)
     )
     .correlate_except(AimbatSeismogramParametersSnapshot)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 "Number of seismogram parameter snapshots associated with this snapshot."
 
@@ -846,7 +855,8 @@ AimbatSnapshot.selected_seismogram_count = column_property(  # type: ignore[assi
         & col(AimbatSeismogramParametersSnapshot.select).is_(True)
     )
     .correlate_except(AimbatSeismogramParametersSnapshot)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 (
     "Number of seismogram parameter snapshots associated with this "
@@ -860,12 +870,30 @@ AimbatSnapshot.flipped_seismogram_count = column_property(  # type: ignore[assig
         & col(AimbatSeismogramParametersSnapshot.flip).is_(True)
     )
     .correlate_except(AimbatSeismogramParametersSnapshot)
-    .scalar_subquery()
+    .scalar_subquery(),
+    deferred=True,
 )
 (
     "Number of seismogram parameter snapshots associated with this "
     + "snapshot that are marked as flipped."
 )
+
+
+def undefer_counts(model_class: type[SQLModel]) -> tuple[Any, ...]:
+    """Loader options that fetch `model_class`'s count columns in the main query.
+
+    Pass these to `select(...).options(...)` in a path that renders counts for
+    many rows; without them each count is a query of its own, per row.
+
+    The options are read off the mapper rather than listed here, so a count
+    added later reaches every table-rendering path without any of them being
+    touched.
+    """
+    return tuple(
+        undefer(getattr(model_class, prop.key))
+        for prop in class_mapper(model_class).column_attrs
+        if prop.deferred
+    )
 
 
 class AimbatNote(SQLModel, table=True):

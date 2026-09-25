@@ -38,12 +38,18 @@ moveout across the traces.
     from sqlmodel import Session
     from aimbat.db import engine
     from aimbat.models import AimbatEvent
-    from aimbat.plot import plot_seismograms
+    from aimbat.plot import plot_seismograms, show_figure
 
     with Session(engine) as session:
         event = session.get(AimbatEvent, event_id)
-        plot_seismograms(session, event, return_fig=False)
+        fig, _ = plot_seismograms(event, return_fig=True)
+
+    show_figure(fig)
     ```
+
+    Building the figure reads the event from the database, so it happens
+    inside the session; showing it blocks until the window is closed, so it
+    happens outside.
 
 With many traces, only a subset shows at first. Scrolling pans through the
 rest; scrolling with **Shift** held pans the time axis.
@@ -86,12 +92,18 @@ isolated to one event.
     from sqlmodel import Session
     from aimbat.db import engine
     from aimbat.models import AimbatStation
-    from aimbat.plot import plot_seismograms
+    from aimbat.plot import plot_seismograms, show_figure
 
     with Session(engine) as session:
         station = session.get(AimbatStation, station_id)
-        plot_seismograms(session, station, return_fig=False)
+        fig, _ = plot_seismograms(station, return_fig=True)
+
+    show_figure(fig)
     ```
+
+    Building the figure reads the station from the database, so it happens
+    inside the session; showing it blocks until the window is closed, so it
+    happens outside.
 
 Same scroll behaviour: scrolling pans traces, shift+scroll pans time.
 

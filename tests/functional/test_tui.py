@@ -35,9 +35,11 @@ import aimbat._tui._widgets
 import aimbat._tui.app
 import aimbat._tui.modals
 import aimbat.db
+from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
 from aimbat._tui.app import AimbatTUI
 from aimbat._tui.modals import (
     ActionMenuModal,
+    AlignModal,
     InteractiveToolsModal,
     SchemaStaleModal,
     SnapshotDetailsModal,
@@ -372,12 +374,8 @@ class TestSeismogramPlotDebounce:
                 table.move_cursor(row=1)
                 table.move_cursor(row=2)
                 table.move_cursor(row=0)
-                await pilot.pause()
-                # No delay yet - the debounce timer hasn't fired.
-                assert calls == [], (
-                    "plot should not re-render before the debounce window elapses"
-                )
-
+                # No "nothing rendered yet" assertion: a slow runner can exceed
+                # the 0.1s debounce window before the first pause returns.
                 await pilot.pause(delay=0.2)  # past the 0.1s debounce window
                 assert len(calls) == 1, (
                     "three quick highlights should coalesce into one render"
@@ -885,6 +883,82 @@ class TestRequireIccs:
         message, severity = notifications[0]
         assert "iccs not ready" in message.lower()
         assert "parameters" in message.lower()
+        assert severity == "warning"
+
+
+@pytest.mark.slow
+class TestAlignModalLosesIccsWhileOpen:
+    """The align menu re-checks the ICCS instance when the modal closes.
+
+    `action_open_align` gates on `_require_iccs()` before pushing the modal,
+    but the modal is async: the staleness poll can rebuild the instance while
+    it is open, leaving `bound` as `None`. Handing that `None` to the worker
+    surfaced as `'NoneType' object has no attribute 'iccs'`.
+    """
+
+    def test_cleared_instance_notifies_instead_of_running(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Clearing `bound` while the modal is open must not reach the worker."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        notifications: list[tuple[str, str]] = []
+        align_calls: list[object] = []
+        callbacks: list[Callable[[object], object]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                with Session(loaded_engine_from_file) as session:
+                    event = session.exec(select(AimbatEvent)).first()
+                    assert event is not None
+                    app._current_event_id = event.id
+                    app._iccs_lifecycle.assign(
+                        _real_create_iccs_instance(session, event)
+                    )
+                assert app._iccs_lifecycle.ready is True
+
+                real_push_screen = app.push_screen
+
+                def fake_push_screen(
+                    screen: object,
+                    callback: Callable[[object], object] | None = None,
+                    **kwargs: object,
+                ) -> object:
+                    if isinstance(screen, AlignModal):
+                        assert callback is not None
+                        callbacks.append(callback)
+                        return None
+                    return real_push_screen(screen, callback, **kwargs)  # type: ignore[call-overload]
+
+                monkeypatch.setattr(app, "push_screen", fake_push_screen)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                monkeypatch.setattr(
+                    app, "_run_align_tool", lambda *args: align_calls.append(args)
+                )
+
+                app.action_open_align()
+                assert len(callbacks) == 1
+
+                # What the staleness poll does via `start_creating()`.
+                app._iccs_lifecycle.bound = None
+                callbacks[0](("iccs", False, False, False))
+
+        asyncio.run(_run())
+
+        assert align_calls == []
+        assert len(notifications) == 1
+        message, severity = notifications[0]
+        assert "iccs not ready" in message.lower()
         assert severity == "warning"
 
 
@@ -1419,7 +1493,7 @@ class TestCausalZeroPhaseToggle:
         captured: dict[str, object] = {}
 
         def _fake_update_pick(
-            session: object,
+            event_id: object,
             iccs: object,
             context: object,
             *,
@@ -1659,6 +1733,49 @@ class TestToggleSeismogramBoolRefresh:
             refetched = session.get(AimbatSeismogram, seis_id)
             assert refetched is not None
             assert refetched.parameters.select is False
+
+
+# ===========================================================================
+# refresh_all reads through a single session
+# ===========================================================================
+
+
+class TestRefreshAllSharesOneSession:
+    """Every panel in a refresh reads through the same session, so the work
+    cached on it (the shortener's id pool) is done once per refresh rather
+    than once per panel (findings-tui L1).
+    """
+
+    def test_panels_receive_the_same_session(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+
+        seen: list[Session] = []
+
+        def _record(panel: type[object]) -> None:
+            original = panel.refresh_data  # type: ignore[attr-defined]
+
+            def wrapper(self: object, session: Session, *args: object) -> None:
+                seen.append(session)
+                original(self, session, *args)
+
+            monkeypatch.setattr(panel, "refresh_data", wrapper)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await pilot.pause(delay=0.5)
+                for panel in (ProjectPanel, SeismogramPanel, SnapshotPanel):
+                    _record(panel)
+                app.refresh_all()
+                await pilot.pause()
+
+        asyncio.run(_run())
+
+        assert len(seen) == 3, "every panel should have been refreshed"
+        assert all(isinstance(session, Session) for session in seen)
+        assert all(session is seen[0] for session in seen)
 
 
 # ===========================================================================

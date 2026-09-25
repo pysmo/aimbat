@@ -412,7 +412,9 @@ class ProjectPanel(Widget):
             "Stations",
         )
 
-    def refresh_data(self, current_event_id: uuid.UUID | None) -> None:
+    def refresh_data(
+        self, session: Session, current_event_id: uuid.UUID | None
+    ) -> None:
         """Reload the event and station tables from the database.
 
         Marks the active event's row with an arrow, dims stations that have
@@ -422,6 +424,8 @@ class ProjectPanel(Widget):
         panel once the cursor has settled.
 
         Args:
+            session: Database session to read from, shared with the other
+                panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
                 if no event is selected.
         """
@@ -431,31 +435,30 @@ class ProjectPanel(Widget):
         et.clear()
         st.clear()
         with suppress(NoResultFound, RuntimeError):
-            with Session(engine) as session:
-                event_rows = dump_event_table(
-                    session,
-                    from_read_model=True,
-                    by_title=True,
-                    exclude=_EVENT_TABLE_EXCLUDE,
-                )
-                station_rows = dump_station_table(
-                    session,
-                    from_read_model=True,
-                    by_title=True,
-                    exclude=_STATION_TABLE_EXCLUDE,
-                )
-                used_station_ids: set[str] = (
-                    {
-                        str(station_id)
-                        for station_id in session.exec(
-                            select(AimbatSeismogram.station_id)
-                            .where(AimbatSeismogram.event_id == current_event_id)
-                            .distinct()
-                        ).all()
-                    }
-                    if current_event_id is not None
-                    else set()
-                )
+            event_rows = dump_event_table(
+                session,
+                from_read_model=True,
+                by_title=True,
+                exclude=_EVENT_TABLE_EXCLUDE,
+            )
+            station_rows = dump_station_table(
+                session,
+                from_read_model=True,
+                by_title=True,
+                exclude=_STATION_TABLE_EXCLUDE,
+            )
+            used_station_ids: set[str] = (
+                {
+                    str(station_id)
+                    for station_id in session.exec(
+                        select(AimbatSeismogram.station_id)
+                        .where(AimbatSeismogram.event_id == current_event_id)
+                        .distinct()
+                    ).all()
+                }
+                if current_event_id is not None
+                else set()
+            )
 
             total = len(event_rows)
             completed = sum(1 for r in event_rows if r.get("Completed"))
@@ -634,7 +637,10 @@ class SeismogramPanel(Widget):
         )
 
     def refresh_data(
-        self, current_event_id: uuid.UUID | None, bound_iccs: BoundICCS | None
+        self,
+        session: Session,
+        current_event_id: uuid.UUID | None,
+        bound_iccs: BoundICCS | None,
     ) -> None:
         """Reload the seismogram table from the database and cache the bound ICCS instance.
 
@@ -646,6 +652,8 @@ class SeismogramPanel(Widget):
         settled.
 
         Args:
+            session: Database session to read from, shared with the other
+                panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
                 if no event is selected.
             bound_iccs: Current ICCS instance for the active event, or
@@ -665,23 +673,22 @@ class SeismogramPanel(Widget):
                     live_cc_map[str(iccs_seis.extra["id"])] = float(cc)
 
         with suppress(NoResultFound, RuntimeError):
-            with Session(engine) as session:
-                event = (
-                    session.get(AimbatEvent, current_event_id)
-                    if current_event_id is not None
-                    else None
+            event = (
+                session.get(AimbatEvent, current_event_id)
+                if current_event_id is not None
+                else None
+            )
+            rows = (
+                dump_seismogram_table(
+                    session,
+                    from_read_model=True,
+                    by_title=True,
+                    exclude=_SEISMOGRAM_TABLE_EXCLUDE,
+                    event_id=event.id,
                 )
-                rows = (
-                    dump_seismogram_table(
-                        session,
-                        from_read_model=True,
-                        by_title=True,
-                        exclude=_SEISMOGRAM_TABLE_EXCLUDE,
-                        event_id=event.id,
-                    )
-                    if event is not None
-                    else None
-                )
+                if event is not None
+                else None
+            )
 
             if rows is not None:
                 for row in rows:
@@ -884,7 +891,9 @@ class SnapshotPanel(Widget):
             "Snapshots",
         )
 
-    def refresh_data(self, current_event_id: uuid.UUID | None) -> None:
+    def refresh_data(
+        self, session: Session, current_event_id: uuid.UUID | None
+    ) -> None:
         """Reload the snapshot table for the active event from the database.
 
         Clears the table if no event is active. Preserves cursor position
@@ -892,6 +901,8 @@ class SnapshotPanel(Widget):
         settled.
 
         Args:
+            session: Database session to read from, shared with the other
+                panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
                 if no event is selected.
         """
@@ -900,17 +911,16 @@ class SnapshotPanel(Widget):
         table.clear()
         with suppress(NoResultFound, RuntimeError):
             if current_event_id is not None:
-                with Session(engine) as session:
-                    event = session.get(AimbatEvent, current_event_id)
-                    if event is not None:
-                        snapshots = dump_snapshot_table(
-                            session,
-                            from_read_model=True,
-                            by_title=True,
-                            exclude=_SNAPSHOT_TABLE_EXCLUDE,
-                            event_id=event.id,
-                        )
-                        _populate_rows(table, snapshots, AimbatSnapshotRead)
+                event = session.get(AimbatEvent, current_event_id)
+                if event is not None:
+                    snapshots = dump_snapshot_table(
+                        session,
+                        from_read_model=True,
+                        by_title=True,
+                        exclude=_SNAPSHOT_TABLE_EXCLUDE,
+                        event_id=event.id,
+                    )
+                    _populate_rows(table, snapshots, AimbatSnapshotRead)
         self._refreshing = True
         if table.row_count == 0:
             self._highlighted_id = None

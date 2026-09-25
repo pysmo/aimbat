@@ -7,8 +7,8 @@ from typing import Any
 from uuid import UUID
 
 from pandas import Timedelta
-from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import SessionTransaction
 from sqlmodel import Session, select
 
 from pysmo import Event, MiniStationCode, Station
@@ -18,9 +18,7 @@ from pysmo.tools.iccs import IccsSeismogram
 from aimbat import settings
 from aimbat.io import (
     DataType,
-    create_event,
-    create_seismogram,
-    create_station,
+    read_source_records,
     supports_event_creation,
     supports_seismogram_creation,
     supports_station_creation,
@@ -35,7 +33,7 @@ from aimbat.models._models import (
     AimbatStation,
     _AimbatDataSourceCreate,
 )
-from aimbat.utils import get_title_map
+from aimbat.utils import check_field_name_flags, dump_models, exception_message
 from aimbat.utils.formatters import fmt_timedelta
 
 __all__ = [
@@ -92,15 +90,6 @@ def _link_station(
         )
         _warn_on_station_location_mismatch(label, new_aimbat_station, aimbat_station)
     return aimbat_station
-
-
-def _create_station(
-    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
-) -> AimbatStation:
-    """Create a new AimbatStation if it doesn't exist yet, or use existing one."""
-
-    new_aimbat_station = create_station(datasource, datatype)
-    return _link_station(session, new_aimbat_station, str(datasource))
 
 
 def _format_gap_prefix(
@@ -257,21 +246,6 @@ def _link_event(
     return aimbat_event, None
 
 
-def _create_event(
-    session: Session,
-    datasource: os.PathLike[str] | str,
-    datatype: DataType,
-    dry_run: bool,
-    known_event_ids: set[UUID],
-) -> tuple[AimbatEvent, str | None]:
-    """Create a new AimbatEvent if it doesn't exist yet, or use existing one."""
-
-    new_aimbat_event = create_event(datasource, datatype)
-    return _link_event(
-        session, new_aimbat_event, dry_run, known_event_ids, str(datasource)
-    )
-
-
 def _format_seismogram_collision_message(label: str, sourcename: str) -> str:
     """Build the message for a seismogram whose deterministic path collides with an already-ingested one."""
     return (
@@ -305,15 +279,6 @@ def _link_seismogram(
     return aimbat_seismogram
 
 
-def _create_seismogram(
-    session: Session, datasource: os.PathLike[str] | str, datatype: DataType
-) -> AimbatSeismogram:
-    """Create a new AimbatSeismogram if it doesn't exist yet, or use existing one."""
-
-    new_aimbat_seismogram = create_seismogram(datasource, datatype)
-    return _link_seismogram(session, new_aimbat_seismogram, str(datasource))
-
-
 def _link_datasource(
     session: Session,
     sourcename: str,
@@ -341,6 +306,24 @@ def _link_datasource(
     return aimbat_data_source
 
 
+def _already_ingested_datasource(
+    session: Session, sourcename: str, datatype: DataType
+) -> AimbatDataSource | None:
+    """Return the project's data source of this name and type, if it has one.
+
+    The cheap key every ingested source is deduped on, queried before the
+    source itself is read: re-running `data add` over a mostly-imported
+    directory would otherwise parse each file only to discard what it built.
+    """
+
+    statement = (
+        select(AimbatDataSource)
+        .where(AimbatDataSource.sourcename == sourcename)
+        .where(AimbatDataSource.datatype == datatype)
+    )
+    return session.exec(statement).one_or_none()
+
+
 def _process_datasource(
     session: Session,
     datasource: os.PathLike[str] | str,
@@ -354,6 +337,14 @@ def _process_datasource(
 
     Returns an `AimbatDataSource` when seismogram data are created, or `None`
     for station-only or event-only imports.
+
+    A source already ingested under the same name and data type is returned
+    as it stands, without being read: its seismogram, station and event are
+    already linked, and none of them is updated from the source on a re-add
+    anyway. A station or event override (`station_id` / `event_id`) asks for
+    a re-link, so it takes the full path instead. One consequence of not
+    reading the source: a location mismatch that appeared in it since the
+    first ingest is no longer warned about on every re-add.
 
     Args:
         session: Database session.
@@ -392,6 +383,23 @@ def _process_datasource(
 
     duplicate_warning: str | None = None
 
+    if station_id is None and event_id is None:
+        ingested = _already_ingested_datasource(session, str(datasource), datatype)
+        if ingested is not None:
+            logger.debug(
+                f"Data source {datasource} is already in the project; reusing "
+                + "its records without reading it."
+            )
+            return ingested, None
+
+    records = read_source_records(
+        datasource,
+        datatype,
+        station=station_id is None and supports_station_creation(datatype),
+        event=event_id is None and supports_event_creation(datatype),
+        seismogram=supports_seismogram_creation(datatype),
+    )
+
     # Resolve station: use the provided UUID, extract from the source, or skip
     if station_id is not None:
         aimbat_station: AimbatStation | None = session.get(AimbatStation, station_id)
@@ -401,8 +409,8 @@ def _process_datasource(
             f"Using station {getattr(aimbat_station, 'name', 'Unknown')} - "
             + f"{getattr(aimbat_station, 'network', 'Unknown')} (ID={station_id})."
         )
-    elif supports_station_creation(datatype):
-        aimbat_station = _create_station(session, datasource, datatype)
+    elif records.station is not None:
+        aimbat_station = _link_station(session, records.station, str(datasource))
     else:
         aimbat_station = None
 
@@ -412,15 +420,15 @@ def _process_datasource(
         if aimbat_event is None:
             raise ValueError(f"No event found with ID={event_id}.")
         logger.debug(f"Using event {aimbat_event.time} (ID={event_id}).")
-    elif supports_event_creation(datatype):
-        aimbat_event, duplicate_warning = _create_event(
-            session, datasource, datatype, dry_run, known_event_ids
+    elif records.event is not None:
+        aimbat_event, duplicate_warning = _link_event(
+            session, records.event, dry_run, known_event_ids, str(datasource)
         )
     else:
         aimbat_event = None
 
     # No seismogram creation → station/event-only import, nothing more to do
-    if not supports_seismogram_creation(datatype):
+    if records.seismogram is None:
         return None, duplicate_warning
 
     # Seismogram creation requires both a station and an event to link to
@@ -435,7 +443,7 @@ def _process_datasource(
             + "via --use-event."
         )
 
-    aimbat_seismogram = _create_seismogram(session, datasource, datatype)
+    aimbat_seismogram = _link_seismogram(session, records.seismogram, str(datasource))
     # TODO: perhaps updating station/event info from the source should be optional
     aimbat_seismogram.station = aimbat_station
     aimbat_seismogram.event = aimbat_event
@@ -449,6 +457,42 @@ def _process_datasource(
         session, str(datasource), datatype, aimbat_seismogram
     )
     return aimbat_data_source, duplicate_warning
+
+
+def _existing_entity_ids(session: Session) -> tuple[set[UUID], set[UUID], set[UUID]]:
+    """Return the station, event and seismogram IDs already in the project.
+
+    Read before ingestion starts, and before the savepoint is opened, so a
+    caller can tell the records a call created from the ones it reused.
+    """
+    return (
+        set(session.exec(select(AimbatStation.id)).all()),
+        set(session.exec(select(AimbatEvent.id)).all()),
+        set(session.exec(select(AimbatSeismogram.id)).all()),
+    )
+
+
+def _roll_back_dry_run(
+    session: Session,
+    nested: SessionTransaction,
+    added_datasources: Sequence[AimbatDataSource],
+) -> None:
+    """Undo everything an ingestion call staged, leaving it readable.
+
+    Flushing first fills in the database-assigned values on the records the
+    caller is about to return for display; rolling the savepoint back then
+    leaves the project unchanged.
+
+    Args:
+        session: Database session.
+        nested: Savepoint the ingestion ran in.
+        added_datasources: Data sources staged so far, flushed if any.
+    """
+    logger.info("Dry run: displaying data that would be added.")
+    if added_datasources:
+        session.flush()
+    nested.rollback()
+    logger.info("Dry run complete. Rolling back changes.")
 
 
 def add_data_to_project(
@@ -509,6 +553,10 @@ def add_data_to_project(
     Raises:
         ValueError: If a near-duplicate event falls in the "ambiguous gap"
             band (see above).
+
+    Anything raised while a data source is being processed carries a
+    `Data source: <name>` note identifying it, which
+    `utils.exception_message` renders alongside the message.
     """
 
     logger.info(f"Adding {len(data_sources)} {data_type} data sources to project.")
@@ -524,11 +572,9 @@ def add_data_to_project(
     if event_id is not None and session.get(AimbatEvent, event_id) is None:
         raise NoResultFound(f"No event found with ID {event_id}.")
 
-    # Snapshot existing IDs before entering the savepoint so we can identify
-    # what is new vs reused, for a dry run or otherwise.
-    existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
-    existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
-    existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
+    existing_station_ids, existing_event_ids, existing_seismogram_ids = (
+        _existing_entity_ids(session)
+    )
 
     # Mutated in place as new events are created, so near-duplicate
     # detection also covers events created earlier in this same batch,
@@ -542,15 +588,23 @@ def add_data_to_project(
         total = len(data_sources)
         with session.begin_nested() as nested:
             for done, datasource in enumerate(data_sources, start=1):
-                result, duplicate_warning = _process_datasource(
-                    session,
-                    datasource,
-                    data_type,
-                    station_id,
-                    event_id,
-                    dry_run,
-                    known_event_ids,
-                )
+                try:
+                    result, duplicate_warning = _process_datasource(
+                        session,
+                        datasource,
+                        data_type,
+                        station_id,
+                        event_id,
+                        dry_run,
+                        known_event_ids,
+                    )
+                except Exception as e:
+                    # A note rather than a wrapping exception, so callers
+                    # catching the documented ValidationError/ValueError/
+                    # NoResultFound still do. Displayed by
+                    # `utils.exception_message`.
+                    e.add_note(f"Data source: {datasource}")
+                    raise
                 if result is not None:
                     added_datasources.append(result)
                 if duplicate_warning is not None:
@@ -559,11 +613,7 @@ def add_data_to_project(
                     on_progress(done, total)
 
             if dry_run:
-                logger.info("Dry run: displaying data that would be added.")
-                if added_datasources:
-                    session.flush()
-                nested.rollback()
-                logger.info("Dry run complete. Rolling back changes.")
+                _roll_back_dry_run(session, nested, added_datasources)
                 return (
                     added_datasources,
                     existing_station_ids,
@@ -583,7 +633,9 @@ def add_data_to_project(
         )
 
     except Exception as e:
-        logger.error(f"Failed to add data. Rolling back changes. Error: {e}")
+        logger.error(
+            "Failed to add data. Rolling back changes. Error: " + exception_message(e)
+        )
         raise
 
 
@@ -691,9 +743,9 @@ def add_seismograms_to_project(
 
     data_dir = Path(data_dir)
 
-    existing_station_ids = set(session.exec(select(AimbatStation.id)).all())
-    existing_event_ids = set(session.exec(select(AimbatEvent.id)).all())
-    existing_seismogram_ids = set(session.exec(select(AimbatSeismogram.id)).all())
+    existing_station_ids, existing_event_ids, existing_seismogram_ids = (
+        _existing_entity_ids(session)
+    )
 
     known_event_ids = set(existing_event_ids)
 
@@ -767,11 +819,7 @@ def add_seismograms_to_project(
                     on_progress(done, total)
 
             if dry_run:
-                logger.info("Dry run: displaying data that would be added.")
-                if added_datasources:
-                    session.flush()
-                nested.rollback()
-                logger.info("Dry run complete. Rolling back changes.")
+                _roll_back_dry_run(session, nested, added_datasources)
                 return (
                     added_datasources,
                     existing_station_ids,
@@ -854,28 +902,17 @@ def dump_data_table(
     """
     logger.debug("Dumping AIMBAT datasources table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    exclude_map: dict[str, set[str]] | None = None
-    if exclude is not None:
-        exclude_map = {"__all__": exclude}
-
-    adapter: TypeAdapter[Sequence[AimbatDataSource]] = TypeAdapter(
-        Sequence[AimbatDataSource]
-    )
+    check_field_name_flags(by_alias, by_title)
 
     if event_id is not None:
         data_source = get_data_for_event(session, event_id)
     else:
         data_source = session.exec(select(AimbatDataSource)).all()
 
-    data = adapter.dump_python(
-        data_source, exclude=exclude_map, by_alias=by_alias, mode="json"
+    return dump_models(
+        data_source,
+        AimbatDataSource,
+        by_alias=by_alias,
+        by_title=by_title,
+        exclude=exclude,
     )
-
-    if by_title:
-        title_map = get_title_map(AimbatDataSource)
-        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-    return data

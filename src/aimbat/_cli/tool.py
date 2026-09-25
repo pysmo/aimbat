@@ -5,8 +5,9 @@ Each subcommand opens an interactive matplotlib plot for an event. Use
 which event to work with. Interact with the plot (click or scroll, depending
 on the tool) to set the chosen value, then close the window to save it.
 
-Each command keeps its database session open for as long as the plot
-window is: closing the window promptly releases the connection.
+The database session is closed before the window opens, and a new one is
+opened to save the new value once it closes, so an open plot holds no
+database connection.
 """
 
 from typing import Annotated
@@ -55,15 +56,17 @@ def cli_update_bandpass(
     with Session(engine) as session:
         event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
-        update_bandpass(
-            session,
-            event,
-            iccs,
-            context=iccs_plot_parameters.context,
-            all_seismograms=iccs_plot_parameters.all_seismograms,
-            use_matrix_image=use_matrix_image,
-            return_fig=False,
-        )
+        resolved_id = event.id
+        session.commit()
+
+    update_bandpass(
+        resolved_id,
+        iccs,
+        context=iccs_plot_parameters.context,
+        all_seismograms=iccs_plot_parameters.all_seismograms,
+        use_matrix_image=use_matrix_image,
+        return_fig=False,
+    )
 
 
 @app.command(name="phase")
@@ -90,15 +93,18 @@ def cli_update_phase_pick(
     with Session(engine) as session:
         event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
-        update_pick(
-            session,
-            iccs,
-            context=iccs_plot_parameters.context,
-            all_seismograms=iccs_plot_parameters.all_seismograms,
-            use_matrix_image=use_matrix_image,
-            causal=causal,
-            return_fig=False,
-        )
+        resolved_id = event.id
+        session.commit()
+
+    update_pick(
+        resolved_id,
+        iccs,
+        context=iccs_plot_parameters.context,
+        all_seismograms=iccs_plot_parameters.all_seismograms,
+        use_matrix_image=use_matrix_image,
+        causal=causal,
+        return_fig=False,
+    )
 
 
 @app.command(name="window")
@@ -126,16 +132,18 @@ def cli_pick_timewindow(
     with Session(engine) as session:
         event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
-        update_timewindow(
-            session,
-            event,
-            iccs,
-            iccs_plot_parameters.context,
-            all_seismograms=iccs_plot_parameters.all_seismograms,
-            use_matrix_image=use_matrix_image,
-            causal=causal,
-            return_fig=False,
-        )
+        resolved_id = event.id
+        session.commit()
+
+    update_timewindow(
+        resolved_id,
+        iccs,
+        iccs_plot_parameters.context,
+        all_seismograms=iccs_plot_parameters.all_seismograms,
+        use_matrix_image=use_matrix_image,
+        causal=causal,
+        return_fig=False,
+    )
 
 
 @app.command(name="cc")
@@ -163,15 +171,17 @@ def cli_pick_min_cc(
     with Session(engine) as session:
         event = resolve_event(session, event_id)
         iccs = create_iccs_instance(session, event).iccs
-        update_min_cc(
-            session,
-            event,
-            iccs,
-            iccs_plot_parameters.context,
-            all_seismograms=iccs_plot_parameters.all_seismograms,
-            causal=causal,
-            return_fig=False,
-        )
+        resolved_id = event.id
+        session.commit()
+
+    update_min_cc(
+        resolved_id,
+        iccs,
+        iccs_plot_parameters.context,
+        all_seismograms=iccs_plot_parameters.all_seismograms,
+        causal=causal,
+        return_fig=False,
+    )
 
 
 if __name__ == "__main__":

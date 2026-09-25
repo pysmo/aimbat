@@ -23,12 +23,15 @@ from aimbat.logger import logger
 
 from ._base import (
     SeismogramReadContext,
+    SourceRecords,
+    SourceRecordsRequest,
     event_creator,
     file_source_present,
     seismogram_creator,
     seismogram_data_reader,
     seismogram_data_writer,
     source_probe,
+    source_records_reader,
     station_creator,
 )
 from ._data import DataType
@@ -41,6 +44,7 @@ __all__ = [
     "create_seismogram_from_sacfile",
     "create_seismogram_from_sacfile_and_pick_header",
     "create_station_from_sacfile",
+    "read_records_from_sacfile",
     "read_seismogram_data_from_sacfile",
     "sac_source_present",
     "write_seismogram_data_to_sacfile",
@@ -98,6 +102,81 @@ def write_seismogram_data_to_sacfile(
     sac.write(sacfile)
 
 
+def _station_from_sac(sac: SAC) -> AimbatStation:
+    """Build an `AimbatStation` from an already-read SAC file."""
+
+    from aimbat.models import AimbatStation
+
+    return AimbatStation.model_validate(sac.station)
+
+
+def _event_from_sac(sac: SAC) -> AimbatEvent:
+    """Build an `AimbatEvent` from an already-read SAC file."""
+
+    from aimbat.models import AimbatEvent, AimbatEventParameters
+
+    return AimbatEvent.model_validate(
+        sac.event, update={"parameters": AimbatEventParameters()}
+    )
+
+
+def _seismogram_from_sac(sac: SAC, sac_pick_header: str) -> AimbatSeismogram:
+    """Build an `AimbatSeismogram` from an already-read SAC file.
+
+    Raises:
+        ValueError: If `sac_pick_header` is not a SAC pick header, or if the
+            file has no pick stored in it.
+    """
+
+    from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
+
+    if not hasattr(sac.timestamps, sac_pick_header):
+        raise ValueError(
+            f"{sac_pick_header!r} is not a SAC pick header. Point the "
+            + "sac_pick_header setting (AIMBAT_SAC_PICK_HEADER) at one that is."
+        )
+    t0 = getattr(sac.timestamps, sac_pick_header)
+    if t0 is None:
+        raise ValueError(
+            f"No initial pick found in SAC header {sac_pick_header!r}. Either add "
+            + "the pick, or point the sac_pick_header setting "
+            + "(AIMBAT_SAC_PICK_HEADER) at a header that has one."
+        )
+    return AimbatSeismogram.model_validate(
+        sac.seismogram, update={"t0": t0, "parameters": AimbatSeismogramParameters()}
+    )
+
+
+@source_records_reader(DataType.SAC)
+def read_records_from_sacfile(request: SourceRecordsRequest) -> SourceRecords:
+    """Build every record a request asks for from one read of a SAC file.
+
+    Args:
+        request: The records wanted, and the SAC file to build them from.
+
+    Returns:
+        The requested records.
+
+    Raises:
+        ValueError: If a seismogram is wanted and the configured
+            `sac_pick_header` is not a SAC pick header, or the file has no
+            pick stored in it.
+    """
+
+    logger.debug(f"Reading records from {request.sourcename}.")
+
+    sac = SAC.from_file(request.sourcename)
+    return SourceRecords(
+        station=_station_from_sac(sac) if request.station else None,
+        event=_event_from_sac(sac) if request.event else None,
+        seismogram=(
+            _seismogram_from_sac(sac, settings.sac_pick_header)
+            if request.seismogram
+            else None
+        ),
+    )
+
+
 @station_creator(DataType.SAC)
 def create_station_from_sacfile(sacfile: str | PathLike[str]) -> AimbatStation:
     """Create an `AimbatStation` instance from a SAC file.
@@ -109,13 +188,9 @@ def create_station_from_sacfile(sacfile: str | PathLike[str]) -> AimbatStation:
         A new `AimbatStation` instance.
     """
 
-    from aimbat.models import AimbatStation
-
     logger.debug(f"Reading station data from {sacfile}.")
 
-    station = SAC.from_file(sacfile).station
-    aimbat_station = AimbatStation.model_validate(station)
-    return aimbat_station
+    return _station_from_sac(SAC.from_file(sacfile))
 
 
 @event_creator(DataType.SAC)
@@ -129,15 +204,9 @@ def create_event_from_sacfile(sacfile: str | PathLike[str]) -> AimbatEvent:
         A new `AimbatEvent` instance.
     """
 
-    from aimbat.models import AimbatEvent, AimbatEventParameters
-
     logger.debug(f"Reading event data from {sacfile}.")
 
-    event = SAC.from_file(sacfile).event
-    aimbat_event = AimbatEvent.model_validate(
-        event, update={"parameters": AimbatEventParameters()}
-    )
-    return aimbat_event
+    return _event_from_sac(SAC.from_file(sacfile))
 
 
 def create_seismogram_from_sacfile_and_pick_header(
@@ -151,19 +220,15 @@ def create_seismogram_from_sacfile_and_pick_header(
 
     Returns:
         A new `AimbatSeismogram` instance, with `t0` set from `sac_pick_header`.
-    """
 
-    from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
+    Raises:
+        ValueError: If `sac_pick_header` is not a SAC pick header, or if the
+            file has no pick stored in it.
+    """
 
     logger.debug(f"Reading seismogram metadata from {sacfile}.")
 
-    sac = SAC.from_file(sacfile)
-    t0 = getattr(sac.timestamps, sac_pick_header)
-    seismogram = sac.seismogram
-    aimbat_seismogram = AimbatSeismogram.model_validate(
-        seismogram, update={"t0": t0, "parameters": AimbatSeismogramParameters()}
-    )
-    return aimbat_seismogram
+    return _seismogram_from_sac(SAC.from_file(sacfile), sac_pick_header)
 
 
 @seismogram_creator(DataType.SAC)

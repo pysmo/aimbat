@@ -820,6 +820,40 @@ class TestSyncFromMatchingHash:
         loaded_session.refresh(eq)
         assert eq.mccc_rmse is not None
 
+    def test_missing_live_event_quality_reports_unsynced(
+        self, loaded_session: Session
+    ) -> None:
+        """A skipped event-level restore must not report as a completed sync.
+
+        Callers read `mccc_synced` to decide whether to fall back to
+        `clear_mccc_quality`, so reporting `True` on a restore that couldn't
+        write the event level leaves the event with neither a restored RMSE
+        nor a cleared one.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        seis_ids = [s.id for s in event.seismograms]
+        select_flags = [s.parameters.select for s in event.seismograms]
+        _write_mock_mccc_quality(
+            loaded_session, event.id, seis_ids, select_flags, all_seismograms=True
+        )
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        mccc_hash = compute_mccc_hash(event)
+
+        eq = loaded_session.exec(
+            select(AimbatEventQuality).where(
+                col(AimbatEventQuality.event_id) == event.id
+            )
+        ).one()
+        loaded_session.delete(eq)
+        loaded_session.commit()
+
+        result = sync_from_matching_hash(loaded_session, event.id, mccc_hash=mccc_hash)
+        loaded_session.commit()
+        assert result.mccc_synced is False
+
     def test_no_match_returns_unsynced_result(self, loaded_session: Session) -> None:
         """No candidate snapshot leaves both flags False."""
         event = loaded_session.exec(select(AimbatEvent)).first()
@@ -1047,6 +1081,86 @@ class TestSyncFromMatchingHash:
         # Ask on behalf of `other` with `event`'s hash - must not match.
         result = sync_from_matching_hash(loaded_session, other.id, mccc_hash=mccc_hash)
         assert result.mccc_synced is False
+
+
+class TestRestoreWithPreloadedQuality:
+    """Restoring quality onto rows the triggers changed behind the ORM's back.
+
+    The quality-invalidation triggers null columns with raw SQL the ORM never
+    sees, so a quality row already in the session's identity map keeps
+    reporting its pre-trigger value. Writing the snapshot's value back onto
+    such a stale instance looks like no change, emits no UPDATE, and leaves
+    the trigger's NULL in place while `SyncResult` claims a successful sync.
+    """
+
+    @staticmethod
+    def _raw_iccs_ccs(session: Session) -> list[float | None]:
+        """Read every `iccs_cc` straight from the database, bypassing the identity map.
+
+        Unfiltered because this test is the only thing that writes quality
+        rows into the fixture, so every row belongs to the event under test.
+        """
+        rows = session.connection().exec_driver_sql(
+            "SELECT iccs_cc FROM aimbatseismogramquality"
+        )
+        return [row[0] for row in rows]
+
+    def test_iccs_cc_restored_when_quality_rows_are_already_loaded(
+        self, loaded_session: Session
+    ) -> None:
+        """`iccs_cc` reaches the database even with the live rows preloaded."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        for offset, seis in enumerate(event.seismograms):
+            loaded_session.add(
+                AimbatSeismogramQuality(
+                    id=uuid.uuid4(),
+                    seismogram_id=seis.id,
+                    iccs_cc=0.9 - offset / 100,
+                )
+            )
+        loaded_session.commit()
+
+        loaded_session.refresh(event)
+        create_snapshot(loaded_session, event)
+        iccs_hash = compute_iccs_hash(event)
+
+        # Pull the live quality rows into the identity map *before* the
+        # triggers fire, which is what makes the stale-instance path reachable.
+        preloaded = loaded_session.exec(select(AimbatSeismogramQuality)).all()
+        assert all(q.iccs_cc is not None for q in preloaded)
+
+        # Nudge a stack parameter and put it straight back. Each flush fires
+        # the null-all-quality trigger; the round trip leaves the ICCS hash
+        # equal to the snapshot's, so the snapshot is still a restore
+        # candidate - the "tweaked it and changed my mind" case.
+        original_window_pre = event.parameters.window_pre
+        event.parameters.window_pre = original_window_pre - Timedelta(seconds=1)
+        loaded_session.flush()
+        event.parameters.window_pre = original_window_pre
+        loaded_session.flush()
+
+        assert self._raw_iccs_ccs(loaded_session) == [None for _ in preloaded], (
+            "Precondition: the triggers should have nulled every iccs_cc."
+        )
+        assert all(q.iccs_cc is not None for q in preloaded), (
+            "Precondition: the ORM should still be holding the pre-trigger values, "
+            "otherwise this test is not exercising the stale-instance path."
+        )
+
+        result = sync_from_matching_hash(loaded_session, event.id, iccs_hash=iccs_hash)
+        loaded_session.commit()
+
+        assert result.iccs_synced is True
+        restored = self._raw_iccs_ccs(loaded_session)
+        assert all(cc is not None for cc in restored), (
+            "sync_from_matching_hash reported iccs_synced, so the values must "
+            f"actually be in the database, got {restored}."
+        )
+        assert sorted(cc for cc in restored if cc is not None) == sorted(
+            0.9 - offset / 100 for offset in range(len(preloaded))
+        )
 
 
 class TestDumpSnapshotTable:
@@ -1607,3 +1721,86 @@ class TestDumpSnapshotResults:
         assert "event_time" not in result
         assert "seismogramId" in result["seismograms"][0]
         assert "seismogram_id" not in result["seismograms"][0]
+
+
+class TestResyncQuality:
+    """The one invalidation policy every parameter change goes through.
+
+    `set_event_parameters`, `set_seismogram_parameter`,
+    `reset_seismogram_parameters` and `rollback_to_snapshot` all delegate to
+    `resync_quality`, so a change back to parameters a snapshot already
+    measured restores its MCCC diagnostics whichever path made the change.
+    The database triggers null quality on their own; only this path puts it
+    back, so a parameter-changing path that skips it fails here.
+    """
+
+    @staticmethod
+    def _snapshot_with_mccc_quality(session: Session, event: AimbatEvent) -> None:
+        """Give the event MCCC quality and freeze it in a snapshot."""
+        _write_mock_mccc_quality(
+            session,
+            event.id,
+            [s.id for s in event.seismograms],
+            [s.parameters.select for s in event.seismograms],
+            all_seismograms=True,
+        )
+        session.refresh(event)
+        create_snapshot(session, event)
+
+    @staticmethod
+    def _event_quality(session: Session, event: AimbatEvent) -> AimbatEventQuality:
+        return session.exec(
+            select(AimbatEventQuality).where(
+                col(AimbatEventQuality.event_id) == event.id
+            )
+        ).one()
+
+    @pytest.mark.parametrize(
+        "path", ["event_parameter", "seismogram_parameter", "seismogram_reset"]
+    )
+    def test_change_and_change_back_restores_mccc_quality(
+        self, loaded_session: Session, path: str
+    ) -> None:
+        """Verifies each parameter-change path restores quality it can vouch for."""
+        from aimbat.core._event import set_event_parameter
+        from aimbat.core._seismogram import (
+            reset_seismogram_parameters,
+            set_seismogram_parameter,
+        )
+        from aimbat.types import EventParameter, SeismogramParameter
+
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seismogram = event.seismograms[0]
+        window_pre = event.parameters.window_pre
+
+        self._snapshot_with_mccc_quality(loaded_session, event)
+        assert self._event_quality(loaded_session, event).mccc_rmse is not None
+
+        # Change a parameter the MCCC hash covers, then change it back.
+        if path == "event_parameter":
+            set_event_parameter(
+                loaded_session,
+                event.id,
+                EventParameter.WINDOW_PRE,
+                window_pre - Timedelta(seconds=1),
+            )
+        else:
+            set_seismogram_parameter(
+                loaded_session, seismogram.id, SeismogramParameter.FLIP, True
+            )
+
+        assert self._event_quality(loaded_session, event).mccc_rmse is None
+
+        if path == "event_parameter":
+            set_event_parameter(
+                loaded_session, event.id, EventParameter.WINDOW_PRE, window_pre
+            )
+        elif path == "seismogram_parameter":
+            set_seismogram_parameter(
+                loaded_session, seismogram.id, SeismogramParameter.FLIP, False
+            )
+        else:
+            reset_seismogram_parameters(loaded_session, seismogram.id)
+
+        assert self._event_quality(loaded_session, event).mccc_rmse is not None

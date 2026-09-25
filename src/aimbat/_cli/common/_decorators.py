@@ -19,9 +19,12 @@ def print_error_panel(e: Exception) -> None:
     from rich.console import Console
     from rich.panel import Panel
 
+    from aimbat.utils import exception_message
+
     console = Console(stderr=True)
     panel = Panel(
-        f"{e}\n\n(run with --debug or AIMBAT_LOG_LEVEL=DEBUG for a full traceback)",
+        exception_message(e)
+        + "\n\n(run with --debug or AIMBAT_LOG_LEVEL=DEBUG for a full traceback)",
         title="Error",
         title_align="left",
         border_style="red",

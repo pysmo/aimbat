@@ -85,6 +85,37 @@ class TestIsStale:
         assert lifecycle.is_stale(other_event) is True
 
 
+class TestBoundIccsIsStale:
+    """Tests for BoundICCS.is_stale."""
+
+    def test_change_inside_the_created_at_millisecond_is_stale(self) -> None:
+        """The triggers stamp `stack_modified` to millisecond precision.
+
+        A commit landing a few microseconds after `created_at` is stamped
+        with a truncated timestamp that reads as *older*, so comparing the
+        two at their raw precisions never rebuilds the instance.
+        """
+        event_id = uuid.uuid4()
+        bound = _make_bound(event_id, Timestamp("2020-01-01T00:00:00.123456", tz="UTC"))
+        event = _make_event(
+            event_id=event_id,
+            stack_modified=Timestamp("2020-01-01T00:00:00.123", tz="UTC"),
+        )
+
+        assert bound.is_stale(event) is True
+
+    def test_change_in_an_earlier_millisecond_is_not_stale(self) -> None:
+        """A stamp from before the instance was created is not staleness."""
+        event_id = uuid.uuid4()
+        bound = _make_bound(event_id, Timestamp("2020-01-01T00:00:00.123456", tz="UTC"))
+        event = _make_event(
+            event_id=event_id,
+            stack_modified=Timestamp("2020-01-01T00:00:00.122", tz="UTC"),
+        )
+
+        assert bound.is_stale(event) is False
+
+
 class TestStartCreating:
     """Tests for IccsLifecycle.start_creating."""
 

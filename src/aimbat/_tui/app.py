@@ -85,6 +85,7 @@ from aimbat.models import (
 )
 from aimbat.plot import plot_matrix_image, plot_seismograms, plot_stack
 from aimbat.types import SeismogramParameter
+from aimbat.utils import exception_message
 from aimbat.utils.formatters import fmt_timestamp
 
 from ._format import tui_cell, tui_display_title
@@ -353,44 +354,50 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         panel's displayed data (including `column_property` counts and the
         live quality getters) is affected by the change; record that
         reasoning as a comment at the call site.
+
+        The event bar and all three panels share one session, so the id pool
+        `uuid_shortener` caches on it is fetched once for the whole refresh
+        rather than once per panel.
         """
         self.refresh_bindings()
-        self._refresh_event_bar()
-        self.query_one(ProjectPanel).refresh_data(self._current_event_id)
-        self.query_one(SeismogramPanel).refresh_data(
-            self._current_event_id, self._iccs_lifecycle.bound
-        )
-        self.query_one(SnapshotPanel).refresh_data(self._current_event_id)
+        with Session(engine) as session:
+            self._refresh_event_bar(session)
+            self.query_one(ProjectPanel).refresh_data(session, self._current_event_id)
+            self.query_one(SeismogramPanel).refresh_data(
+                session, self._current_event_id, self._iccs_lifecycle.bound
+            )
+            self.query_one(SnapshotPanel).refresh_data(session, self._current_event_id)
 
-    def _refresh_event_bar(self) -> None:
+    def _refresh_event_bar(self, session: Session) -> None:
         """Update the status bar with the current event's time, location and ICCS status.
 
         Shows a prompt to select an event or add data when no event is
         selected, or an error message if the current event could not be
         loaded.
+
+        Args:
+            session: Database session to read the current event with.
         """
         bar = self.query_one("#event-bar", Static)
         try:
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                iccs_status = (
-                    " ● ICCS ready" if self._iccs_lifecycle.ready else " ○ no ICCS"
-                )
-                time_str = fmt_timestamp(event.time) if event.time else "unknown"
-                lat = f"{event.latitude:.3f}°"
-                lon = f"{event.longitude:.3f}°"
-                modified = (
-                    f"  modified: {fmt_timestamp(event.last_modified)}"
-                    if event.last_modified is not None
-                    else ""
-                )
-                bar.update(
-                    f"▶ {time_str}  |  {lat}, {lon}{modified}  [dim]{iccs_status}  switch "
-                    + "events on the Project tab[/dim]"
-                )
+            event = self._get_current_event(session)
+            iccs_status = (
+                " ● ICCS ready" if self._iccs_lifecycle.ready else " ○ no ICCS"
+            )
+            time_str = fmt_timestamp(event.time) if event.time else "unknown"
+            lat = f"{event.latitude:.3f}°"
+            lon = f"{event.longitude:.3f}°"
+            modified = (
+                f"  modified: {fmt_timestamp(event.last_modified)}"
+                if event.last_modified is not None
+                else ""
+            )
+            bar.update(
+                f"▶ {time_str}  |  {lat}, {lon}{modified}  [dim]{iccs_status}  switch "
+                + "events on the Project tab[/dim]"
+            )
         except NoResultFound:
-            with Session(engine) as session:
-                has_events = session.exec(select(AimbatEvent)).first() is not None
+            has_events = session.exec(select(AimbatEvent)).first() is not None
             if has_events:
                 bar.update(
                     "[red]No event selected: select one on the Project tab[/red]"
@@ -784,7 +791,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     self.refresh_all()
                 except Exception as exc:
                     logger.exception(f"Failed to add data file {path}: {exc}")
-                    self.notify(str(exc), severity="error")
+                    self.notify(exception_message(exc), severity="error")
 
             self.push_screen(
                 FileOpen(
@@ -845,16 +852,20 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         )
 
         try:
+            with Session(engine) as session:
+                event_id = self._get_current_event(session).id
+
+            # No session is held across the tool: it blocks for as long as its
+            # plot window is open, and opens a short-lived one of its own
+            # afterwards if it has something to save.
             with self._suspend(label):
-                with Session(engine) as session:
-                    event = self._get_current_event(session)
-                    if is_causal_tool:
-                        assert causal is not None
-                        CAUSAL_TOOL_REGISTRY[tool][1](
-                            session, event, iccs, context, all_seis, causal
-                        )
-                    else:
-                        TOOL_REGISTRY[tool][1](session, event, iccs, context, all_seis)
+                if is_causal_tool:
+                    assert causal is not None
+                    CAUSAL_TOOL_REGISTRY[tool][1](
+                        event_id, iccs, context, all_seis, causal
+                    )
+                else:
+                    TOOL_REGISTRY[tool][1](event_id, iccs, context, all_seis)
         except KeyboardInterrupt:
             self.notify(f"{label} cancelled", timeout=2)
             return
@@ -882,8 +893,16 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             return
 
         def on_result(result: tuple[str, bool, bool, bool] | None) -> None:
-            if result is not None:
-                self._run_align_tool(self._iccs_lifecycle.bound, *result)
+            if result is None:
+                return
+            # Re-checked here, not just in the guard above: the modal is
+            # async, so the staleness poll can clear the instance via
+            # `_create_iccs()` while it is open.
+            bound = self._iccs_lifecycle.bound
+            if bound is None:
+                self.notify("ICCS not ready: please wait", severity="warning")
+                return
+            self._run_align_tool(bound, *result)
 
         self.push_screen(AlignModal(), on_result)
 
@@ -1005,11 +1024,19 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 def main() -> None:
     """Run the AIMBAT TUI until it exits.
 
+    Configures logging first, for the same reason `aimbat.app.main` does: the
+    `aimbat-tui` script reaches this function without passing through the CLI
+    entrypoint.
+
     Raises:
         RuntimeError: If the TUI exited after an unhandled exception (a
             non-zero `App.return_code`), so the process reports failure
             rather than exiting 0 despite the crash.
     """
+    from aimbat.logger import configure_logging
+
+    configure_logging()
+
     app = AimbatTUI()
     app.run()
     if app.return_code:

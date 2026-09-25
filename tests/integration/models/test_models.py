@@ -4,11 +4,13 @@ Tests cover cascade deletes, the single-default-event constraint,
 type validation, and round-trip persistence of custom time types.
 """
 
+from collections.abc import Callable
 from datetime import UTC
 
 import pytest
 from pandas import Timedelta, Timestamp
 from pydantic import ValidationError
+from sqlalchemy import event
 from sqlmodel import Session, SQLModel, select
 
 from aimbat.io import DataType
@@ -83,6 +85,37 @@ def _make_event(
     session.add(params)
     session.flush()
     return ev
+
+
+def _record_statements(session: Session, run: Callable[[], object]) -> list[str]:
+    """Return the SQL statements `run` causes `session` to execute.
+
+    Args:
+        session (Session): Database session.
+        run (Callable): The work to record statements for.
+
+    Returns:
+        list[str]: The recorded statements, in the order they were executed.
+    """
+    statements: list[str] = []
+    bind = session.get_bind()
+
+    def record(
+        conn: object,
+        cursor: object,
+        statement: str,
+        parameters: object,
+        context: object,
+        executemany: bool,
+    ) -> None:
+        statements.append(statement)
+
+    event.listen(bind, "before_cursor_execute", record)
+    try:
+        run()
+    finally:
+        event.remove(bind, "before_cursor_execute", record)
+    return statements
 
 
 def _make_seismogram(
@@ -737,6 +770,39 @@ class TestCountColumnPropertiesMatchTypeCheckingStubs:
             if isinstance(prop, ColumnProperty) and prop.key not in table_column_names
         }
         assert derived_column_properties == expected_count_attrs
+
+    def test_counts_are_left_out_of_an_ordinary_select(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies a plain `select` of an event carries no count subquery.
+
+        Regression test: the counts used to be attached to every `SELECT`
+        of the owning model, so the processing paths that load an event to
+        run ICCS paid for three correlated subqueries they never read.
+        """
+        _make_event(patched_session)
+        statements = _record_statements(
+            patched_session,
+            lambda: patched_session.exec(select(AimbatEvent)).all(),
+        )
+        assert statements, "expected the select itself to be recorded"
+        assert not any("count(" in s.lower() for s in statements)
+
+    def test_undefer_counts_loads_them_in_the_same_query(
+        self, patched_session: Session
+    ) -> None:
+        """Verifies the opt-in brings the counts back into the main query."""
+        from aimbat.models import undefer_counts
+
+        _make_event(patched_session)
+        statements = _record_statements(
+            patched_session,
+            lambda: patched_session.exec(
+                select(AimbatEvent).options(*undefer_counts(AimbatEvent))
+            ).all(),
+        )
+        assert len(statements) == 1
+        assert statements[0].lower().count("count(") == 3
 
     def test_second_event_quality_rejected(self, patched_session: Session) -> None:
         from sqlalchemy.exc import IntegrityError

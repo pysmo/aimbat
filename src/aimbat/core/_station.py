@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from typing import Any, Literal, overload
 from uuid import UUID
 
-from pydantic import TypeAdapter
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
@@ -17,8 +16,9 @@ from aimbat.models import (
     AimbatStation,
     AimbatStationRead,
     SeismogramQualityStats,
+    undefer_counts,
 )
-from aimbat.utils import get_title_map, rel
+from aimbat.utils import check_field_name_flags, dump_models, rel
 
 __all__ = [
     "delete_station",
@@ -111,6 +111,8 @@ def get_stations_in_event(
             selectinload(rel(AimbatStation.seismograms)).selectinload(
                 rel(AimbatSeismogram.event)
             ),
+            # Only the read model reads the counts.
+            *(undefer_counts(AimbatStation) if as_json else ()),
         )
     )
 
@@ -123,11 +125,8 @@ def get_stations_in_event(
     read_stations = [
         AimbatStationRead.from_station(station=s, session=session) for s in results
     ]
-    read_adapter: TypeAdapter[Sequence[AimbatStationRead]] = TypeAdapter(
-        Sequence[AimbatStationRead]
-    )
 
-    return read_adapter.dump_python(read_stations, mode="json")
+    return dump_models(read_stations, AimbatStationRead)
 
 
 def get_station_iccs_ccs(
@@ -213,16 +212,9 @@ def dump_station_table(
         ValueError: If `by_title` is True but `from_read_model` is False.
     """
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    if not from_read_model and by_title:
-        raise ValueError("'by_title' is only supported when 'from_read_model' is True.")
+    check_field_name_flags(by_alias, by_title, from_read_model)
 
     logger.debug("Dumping AIMBAT station table to json.")
-
-    if exclude is not None:
-        exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
 
     if event_id is not None:
         statement = (
@@ -244,6 +236,8 @@ def dump_station_table(
         selectinload(rel(AimbatStation.seismograms)).selectinload(
             rel(AimbatSeismogram.event)
         ),
+        # Only the read model reads the counts.
+        *(undefer_counts(AimbatStation) if from_read_model else ()),
     )
 
     stations = session.exec(statement).all()
@@ -256,23 +250,15 @@ def dump_station_table(
             )
             for s in stations
         ]
-        read_adapter: TypeAdapter[Sequence[AimbatStationRead]] = TypeAdapter(
-            Sequence[AimbatStationRead]
+        return dump_models(
+            read_stations,
+            AimbatStationRead,
+            by_alias=by_alias,
+            by_title=by_title,
+            exclude=exclude,
         )
-        data = read_adapter.dump_python(
-            read_stations, exclude=exclude, by_alias=by_alias, mode="json"
-        )
 
-        if by_title:
-            title_map = get_title_map(AimbatStationRead)
-            return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-        return data
-
-    adapter: TypeAdapter[Sequence[AimbatStation]] = TypeAdapter(Sequence[AimbatStation])
-    return adapter.dump_python(
-        stations, mode="json", by_alias=by_alias, exclude=exclude
-    )
+    return dump_models(stations, AimbatStation, by_alias=by_alias, exclude=exclude)
 
 
 def dump_station_quality_table(
@@ -299,11 +285,7 @@ def dump_station_quality_table(
 
     logger.debug("Dumping AIMBAT station quality table to json.")
 
-    if by_alias and by_title:
-        raise ValueError("Arguments 'by_alias' and 'by_title' are mutually exclusive.")
-
-    exclude = (exclude or set()) | {"event_id", "snapshot_id"}
-    exclude: dict[str, set[str]] = {"__all__": exclude}  # type: ignore[no-redef]
+    check_field_name_flags(by_alias, by_title)
 
     statement = select(AimbatStation).options(
         selectinload(rel(AimbatStation.seismograms)).selectinload(
@@ -316,13 +298,10 @@ def dump_station_quality_table(
     stations = session.exec(statement).all()
     stats = [SeismogramQualityStats.from_station(s) for s in stations]
 
-    adapter: TypeAdapter[Sequence[SeismogramQualityStats]] = TypeAdapter(
-        Sequence[SeismogramQualityStats]
+    return dump_models(
+        stats,
+        SeismogramQualityStats,
+        by_alias=by_alias,
+        by_title=by_title,
+        exclude=(exclude or set()) | {"event_id", "snapshot_id"},
     )
-    data = adapter.dump_python(stats, mode="json", exclude=exclude, by_alias=by_alias)
-
-    if by_title:
-        title_map = get_title_map(SeismogramQualityStats)
-        return [{title_map.get(k, k): v for k, v in row.items()} for row in data]
-
-    return data

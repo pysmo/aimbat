@@ -2,6 +2,7 @@
 
 import pytest
 from pandas import Timestamp
+from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from aimbat.core import (
@@ -411,3 +412,134 @@ class TestBuildIccsFromSnapshot:
             s for s in bound.iccs.seismograms if s.extra["id"] == seis.id
         )
         assert snapshot_seis.select == original_select
+
+
+class TestQualityWriteTransaction:
+    """Tests that quality writes belong to the caller's transaction."""
+
+    def test_iccs_cc_is_discarded_when_the_caller_rolls_back(
+        self, loaded_engine: Engine
+    ) -> None:
+        """Building an ICCS instance writes CC values only if the caller commits.
+
+        The write used to happen in a session of its own, so it survived a
+        caller rollback and left the quality table describing a parameter
+        state that was never persisted.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+        """
+        clear_iccs_cache()
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            create_iccs_instance(session, event)
+            assert any(
+                q.iccs_cc is not None
+                for q in session.exec(select(AimbatSeismogramQuality)).all()
+            ), "the CC values should be visible inside the transaction"
+            session.rollback()
+
+        with Session(loaded_engine) as session:
+            assert all(
+                q.iccs_cc is None
+                for q in session.exec(select(AimbatSeismogramQuality)).all()
+            )
+
+    def test_rollback_evicts_the_instance_so_the_next_build_rewrites_cc(
+        self, loaded_engine: Engine
+    ) -> None:
+        """A rolled-back build is not served from the cache afterwards.
+
+        A cache hit skips the CC write, so a surviving entry would leave
+        `iccs_cc` empty indefinitely.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+        """
+        from aimbat.core import _iccs as core_iccs
+
+        clear_iccs_cache()
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            create_iccs_instance(session, event)
+            assert event.id in core_iccs._iccs_cache
+            session.rollback()
+            assert event.id not in core_iccs._iccs_cache
+
+            create_iccs_instance(session, event)
+            session.commit()
+
+        with Session(loaded_engine) as session:
+            assert any(
+                q.iccs_cc is not None
+                for q in session.exec(select(AimbatSeismogramQuality)).all()
+            )
+
+    def test_commit_keeps_the_instance_cached(self, loaded_engine: Engine) -> None:
+        """A commit leaves the cache entry alone, and a later rollback too.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+        """
+        from aimbat.core import _iccs as core_iccs
+
+        clear_iccs_cache()
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            create_iccs_instance(session, event)
+            session.commit()
+            session.rollback()
+            assert event.id in core_iccs._iccs_cache
+
+    def test_failed_mccc_quality_write_rolls_back_the_picks(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A failure partway through `run_mccc` leaves nothing half-written.
+
+        The three writes `run_mccc` makes used to be three commits across two
+        sessions: failing on the last one left the picks committed, `iccs_cc`
+        freshly repopulated and every MCCC column nulled by the triggers.
+
+        Args:
+            loaded_engine: The monkeypatched engine with data loaded.
+            monkeypatch: The pytest monkeypatch fixture.
+        """
+        from aimbat.core import _iccs as core_iccs
+
+        clear_iccs_cache()
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            create_iccs_instance(session, event)
+            session.commit()
+            before = {
+                q.seismogram_id: q.iccs_cc
+                for q in session.exec(select(AimbatSeismogramQuality)).all()
+            }
+            picks_before = {s.id: s.parameters.t1 for s in event.seismograms}
+        assert any(cc is not None for cc in before.values())
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("quality write failed")
+
+        monkeypatch.setattr(core_iccs, "_write_mccc_quality", _boom)
+
+        clear_iccs_cache()
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            iccs = create_iccs_instance(session, event).iccs
+            with pytest.raises(RuntimeError, match="quality write failed"):
+                run_mccc(session, event, iccs, all_seismograms=True)
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            assert {s.id: s.parameters.t1 for s in event.seismograms} == picks_before
+            assert {
+                q.seismogram_id: q.iccs_cc
+                for q in session.exec(select(AimbatSeismogramQuality)).all()
+            } == before

@@ -526,3 +526,46 @@ class TestSacSeismogram:
 
         session.rollback()
         np.testing.assert_array_equal(seis.data, original_data)
+
+
+class TestStaleWaveformCache:
+    """The waveform cache against a SAC file written by something else."""
+
+    def test_write_that_bypasses_the_cache_is_still_noticed(
+        self, sac_file_good: Path
+    ) -> None:
+        """`write_seismogram_data_to_sacfile` is public and evicts nothing.
+
+        Args:
+            sac_file_good (Path): Path to a valid SAC file.
+        """
+        from aimbat.io import read_seismogram_data
+        from aimbat.io.sac import write_seismogram_data_to_sacfile
+
+        original = read_seismogram_data(sac_file_good, DataType.SAC)
+        replacement = np.zeros(len(original) // 2, dtype=original.dtype)
+
+        write_seismogram_data_to_sacfile(sac_file_good, replacement)
+
+        np.testing.assert_array_equal(
+            read_seismogram_data(sac_file_good, DataType.SAC), replacement
+        )
+
+    def test_seismogram_data_reflects_an_outside_edit(
+        self, sac_file_good: Path, session: Session
+    ) -> None:
+        """A SAC file edited outside AIMBAT is re-read through the model too.
+
+        Args:
+            sac_file_good (Path): Path to a valid SAC file.
+            session (Session): Database session.
+        """
+        seis = _persist_sac(session, sac_file_good)
+        session.commit()
+        original = seis.data.copy()
+
+        sac = SAC.from_file(sac_file_good)
+        sac.seismogram.data = np.zeros(len(original) // 2, dtype=original.dtype)
+        sac.write(sac_file_good)
+
+        assert len(seis.data) == len(original) // 2

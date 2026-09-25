@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "SeismogramReadContext",
+    "SourceRecords",
+    "SourceRecordsRequest",
     "SourceUnavailableError",
     "clear_seismogram_data_cache",
     "create_event",
@@ -49,17 +51,20 @@ __all__ = [
     "event_creator",
     "file_source_present",
     "read_seismogram_data",
+    "read_source_records",
     "register_event_creator",
     "register_seismogram_creator",
     "register_seismogram_data_reader",
     "register_seismogram_data_writer",
     "register_source_probe",
+    "register_source_records_reader",
     "register_station_creator",
     "seismogram_creator",
     "seismogram_data_reader",
     "seismogram_data_writer",
     "source_present",
     "source_probe",
+    "source_records_reader",
     "stage_seismogram_data",
     "station_creator",
     "supports_event_creation",
@@ -67,6 +72,7 @@ __all__ = [
     "supports_seismogram_data_reading",
     "supports_seismogram_data_writing",
     "supports_source_probe",
+    "supports_source_records_reading",
     "supports_station_creation",
     "write_seismogram_data",
 ]
@@ -90,8 +96,35 @@ class SeismogramReadContext:
     session: Session | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SourceRecordsRequest:
+    """Which records one read of a data source is asked to produce."""
+
+    sourcename: str
+    datatype: DataType
+    station: bool
+    event: bool
+    seismogram: bool
+
+
+@dataclass(frozen=True, slots=True)
+class SourceRecords:
+    """The records built from a single read of one data source.
+
+    A field is `None` when it was not asked for, or when the source has
+    nothing to build it from.
+    """
+
+    station: AimbatStation | None = None
+    event: AimbatEvent | None = None
+    seismogram: AimbatSeismogram | None = None
+
+
 type SeismogramDataReader = Callable[[SeismogramReadContext], npt.NDArray[np.floating]]
 """A registered seismogram-data reader: given a read context, return the waveform data as a NumPy array."""
+
+type SourceRecordsReader = Callable[[SourceRecordsRequest], SourceRecords]
+"""A registered source-records reader: given a request, build every record it asks for from one read of the source."""
 
 type SourcePresenceProbe = Callable[[SeismogramReadContext], bool]
 """A registered source-presence probe: given a read context, return whether the source still provides this seismogram.
@@ -101,14 +134,23 @@ Returns `True` when the source is reachable and provides the seismogram,
 `SourceUnavailableError` when it cannot tell.
 """
 
+
+@dataclass(frozen=True, slots=True)
+class _CacheEntry:
+    """A cached waveform, and the stamp its source had when it was read."""
+
+    stamp: tuple[int, int] | None
+    data: npt.NDArray[np.floating]
+
+
 # LRU cache of waveform arrays keyed by (datasource, datatype); evicting an
 # entry only costs a re-read. Mutated without a lock: a concurrent first-read
 # of the same key from two threads just duplicates the read, it doesn't
-# corrupt the dict (each thread's `_cache[key] = arr` assignment is atomic
+# corrupt the dict (each thread's `_cache[key] = entry` assignment is atomic
 # under the GIL). Worth revisiting only if the TUI's worker-thread usage
 # grows into genuinely concurrent reads of the same seismogram.
 _CACHE_MAX_ENTRIES = 1024
-_cache: OrderedDict[tuple[str, DataType], npt.NDArray[np.floating]] = OrderedDict()
+_cache: OrderedDict[tuple[str, DataType], _CacheEntry] = OrderedDict()
 
 # Per-session staged waveform writes, keyed weakly by the owning `Session`.
 # `stage_seismogram_data` fills this; the listeners in `aimbat.io._flush`
@@ -128,6 +170,7 @@ _event_creators: dict[DataType, Callable[[str | PathLike[str]], AimbatEvent]] = 
 _seismogram_creators: dict[
     DataType, Callable[[str | PathLike[str]], AimbatSeismogram]
 ] = {}
+_source_records_readers: dict[DataType, SourceRecordsReader] = {}
 _seismogram_data_readers: dict[DataType, SeismogramDataReader] = {}
 _seismogram_data_writers: dict[
     DataType, Callable[[str | PathLike[str], npt.NDArray[np.floating]], None]
@@ -184,6 +227,28 @@ def register_seismogram_creator(
         logger.warning(f"Overwriting existing seismogram creator for {datatype}.")
     logger.debug(f"Registering seismogram creator for {datatype}.")
     _seismogram_creators[datatype] = fn
+
+
+def register_source_records_reader(
+    datatype: DataType,
+    fn: SourceRecordsReader,
+) -> None:
+    """Register a function that builds several records from one read of a data source.
+
+    Optional: a data type with no reader of its own is served by calling its
+    individual creators instead (see `read_source_records`). Registering one
+    is worth it when a single read yields more than one record, as it does
+    for SAC.
+
+    Args:
+        datatype: The data type this reader handles.
+        fn: Callable that accepts a `SourceRecordsRequest` and returns the
+            requested records as a `SourceRecords`.
+    """
+    if datatype in _source_records_readers:
+        logger.warning(f"Overwriting existing source records reader for {datatype}.")
+    logger.debug(f"Registering source records reader for {datatype}.")
+    _source_records_readers[datatype] = fn
 
 
 def register_seismogram_data_reader(
@@ -323,6 +388,30 @@ def seismogram_creator(
     return decorator
 
 
+def source_records_reader(
+    datatype: DataType,
+) -> Callable[[SourceRecordsReader], SourceRecordsReader]:
+    """Decorator that registers a function as a source-records reader for `datatype`.
+
+    Args:
+        datatype: The data type the decorated function reads records from.
+
+    Example:
+        ```python
+        @source_records_reader(DataType.SAC)
+        def read_records_from_sacfile(
+            request: SourceRecordsRequest,
+        ) -> SourceRecords: ...
+        ```
+    """
+
+    def decorator(fn: SourceRecordsReader) -> SourceRecordsReader:
+        register_source_records_reader(datatype, fn)
+        return fn
+
+    return decorator
+
+
 def seismogram_data_reader(
     datatype: DataType,
 ) -> Callable[[SeismogramDataReader], SeismogramDataReader]:
@@ -411,6 +500,11 @@ def supports_event_creation(datatype: DataType) -> bool:
 def supports_seismogram_creation(datatype: DataType) -> bool:
     """Return whether `datatype` has a registered seismogram creator."""
     return datatype in _seismogram_creators
+
+
+def supports_source_records_reading(datatype: DataType) -> bool:
+    """Return whether `datatype` has a registered source-records reader."""
+    return datatype in _source_records_readers
 
 
 def supports_seismogram_data_reading(datatype: DataType) -> bool:
@@ -558,6 +652,73 @@ def create_seismogram(
     return creator(datasource)
 
 
+def read_source_records(
+    datasource: str | PathLike[str],
+    datatype: DataType,
+    *,
+    station: bool = True,
+    event: bool = True,
+    seismogram: bool = True,
+) -> SourceRecords:
+    """Build the requested records from a data source, reading it once where possible.
+
+    Data types with a registered source-records reader (SAC) read the source
+    a single time and build everything asked for from it. The rest fall back
+    to their individual creators, one read each.
+
+    Args:
+        datasource: Logical source identifier for the data source.
+        datatype: Data type of the source.
+        station: Whether an `AimbatStation` is wanted.
+        event: Whether an `AimbatEvent` is wanted.
+        seismogram: Whether an `AimbatSeismogram` is wanted.
+
+    Returns:
+        The requested records; the fields that were not asked for are `None`.
+
+    Raises:
+        NotImplementedError: If a record is asked for that `datatype` has no
+            registered creator for.
+    """
+    if not (station or event or seismogram):
+        return SourceRecords()
+
+    reader = _source_records_readers.get(datatype)
+    if reader is not None:
+        return reader(
+            SourceRecordsRequest(
+                sourcename=str(datasource),
+                datatype=datatype,
+                station=station,
+                event=event,
+                seismogram=seismogram,
+            )
+        )
+
+    return SourceRecords(
+        station=create_station(datasource, datatype) if station else None,
+        event=create_event(datasource, datatype) if event else None,
+        seismogram=create_seismogram(datasource, datatype) if seismogram else None,
+    )
+
+
+def _source_stamp(sourcename: str) -> tuple[int, int] | None:
+    """Return `(mtime_ns, size)` for a filesystem-backed source, or `None`.
+
+    Lets a cached waveform be dropped when its source was written by
+    something other than `write_seismogram_data` - a lower-level writer,
+    pysmo directly, or an external process. `None` for anything that is not
+    a reachable file, which then caches exactly as it did before.
+    """
+    try:
+        st = os.stat(sourcename)
+    except OSError:
+        return None
+    # Coarse filesystem mtime granularity can still hide a same-size rewrite
+    # made within one tick of the read that filled the cache.
+    return st.st_mtime_ns, st.st_size
+
+
 def read_seismogram_data(
     datasource: str | PathLike[str],
     datatype: DataType,
@@ -565,8 +726,10 @@ def read_seismogram_data(
 ) -> npt.NDArray[np.floating]:
     """Read seismogram waveform data from a data source.
 
-    Results are cached in memory by `(datasource, datatype)` key. The returned
-    array is read-only.
+    Results are cached in memory by `(datasource, datatype)` key, alongside
+    the source's modification time and size; a cached array is re-read when
+    either has changed since, so a source written behind AIMBAT's back does
+    not keep serving stale data. The returned array is read-only.
 
     If `session` is given and has a staged write for this key (from
     `stage_seismogram_data`), the staged value is returned instead of reading
@@ -598,19 +761,23 @@ def read_seismogram_data(
         raise NotImplementedError(
             f"{datatype} does not support reading seismogram data."
         )
-    if key in _cache:
+    stamp = _source_stamp(key[0])
+    entry = _cache.get(key)
+    if entry is not None and entry.stamp == stamp:
         logger.debug(f"Retrieved seismogram data from cache for {datasource}.")
         _cache.move_to_end(key)
-    else:
-        context = SeismogramReadContext(
-            sourcename=key[0], datatype=datatype, session=session
-        )
-        arr = reader(context)
-        arr.flags.writeable = False
-        _cache[key] = arr
-        if len(_cache) > _CACHE_MAX_ENTRIES:
-            _cache.popitem(last=False)
-    return _cache[key]
+        return entry.data
+
+    context = SeismogramReadContext(
+        sourcename=key[0], datatype=datatype, session=session
+    )
+    arr = reader(context)
+    arr.flags.writeable = False
+    _cache[key] = _CacheEntry(stamp, arr)
+    _cache.move_to_end(key)
+    if len(_cache) > _CACHE_MAX_ENTRIES:
+        _cache.popitem(last=False)
+    return arr
 
 
 def write_seismogram_data(

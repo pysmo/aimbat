@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Engine
+from sqlalchemy import Connection, Engine
 
 from aimbat.logger import logger
 
@@ -139,13 +139,15 @@ def _migrations_dir() -> Path:
     return Path(aimbat._migrations.__file__).parent
 
 
-def _alembic_config(engine: Engine) -> "Config":
-    """Build an Alembic `Config` bound to `engine`.
+def _alembic_config(bind: Engine | Connection) -> "Config":
+    """Build an Alembic `Config` bound to `bind`.
 
     `config.attributes["connection"]` is the standard Alembic "connection
     sharing" pattern (see `aimbat._migrations.env`): it makes `env.py`
     operate on exactly this engine rather than re-deriving its own from
     `aimbat.db.engine`, which matters for tests that use a different engine.
+    Passing an open `Connection` instead of an `Engine` keeps Alembic inside
+    a transaction the caller owns.
     """
     from alembic.config import Config
 
@@ -153,7 +155,7 @@ def _alembic_config(engine: Engine) -> "Config":
 
     config = Config()
     config.set_main_option("script_location", str(_migrations_dir()))
-    config.attributes["connection"] = engine
+    config.attributes["connection"] = bind
     return config
 
 
@@ -261,8 +263,8 @@ def get_head_revision() -> str | None:
     return script_dir.get_current_head()
 
 
-def stamp_head(engine: Engine) -> None:
-    """Mark `engine`'s database as being at the latest Alembic revision.
+def stamp_head(bind: Engine | Connection) -> None:
+    """Mark a database as being at the latest Alembic revision.
 
     Writes Alembic's bookkeeping only, and runs no migration DDL. Intended for
     a database whose schema is already known to match `head`, e.g.
@@ -270,12 +272,48 @@ def stamp_head(engine: Engine) -> None:
     `SQLModel.metadata.create_all()` rather than via a migration.
 
     Args:
-        engine: The SQLAlchemy/SQLModel Engine instance connected to the
-            target database.
+        bind: Engine connected to the target database, or an open connection
+            to it - the latter so the stamp can share a transaction with the
+            schema it describes.
     """
     from alembic import command
 
-    command.stamp(_alembic_config(engine), "head")
+    command.stamp(_alembic_config(bind), "head")
+
+
+def _checkpoint_wal(engine: Engine) -> None:
+    """Fold the write-ahead log back into the main database file.
+
+    Without this, a copy of the database file alone is only as complete as
+    the last checkpoint, and the `-wal` file has to be copied with it to stay
+    recoverable - two files captured at two different instants.
+    """
+    with engine.connect() as connection:
+        result = connection.exec_driver_sql(
+            "PRAGMA wal_checkpoint(TRUNCATE)"
+        ).one_or_none()
+    # (busy, wal_pages, checkpointed_pages); busy=1 means readers or writers
+    # held it open and some of the log is still outstanding.
+    if result is not None and result[0]:
+        logger.warning(
+            "Could not fully checkpoint the write-ahead log before backing up; "
+            + "the backup's `-wal` sidecar is needed to restore it."
+        )
+
+
+def _unused_backup_path(db_path: Path, label: str) -> Path:
+    """Return a `<db>.pre-<label>.bak` path that no file occupies yet.
+
+    Retrying a failed upgrade takes a second backup at the same revision, so
+    the revision alone doesn't identify one - and overwriting is at its worst
+    exactly then, with the first backup the only intact copy left.
+    """
+    candidate = db_path.with_name(f"{db_path.name}.pre-{label}.bak")
+    attempt = 1
+    while candidate.exists():
+        candidate = db_path.with_name(f"{db_path.name}.pre-{label}.{attempt}.bak")
+        attempt += 1
+    return candidate
 
 
 def _backup_before_upgrade(engine: Engine, from_revision: str | None) -> None:
@@ -285,6 +323,10 @@ def _backup_before_upgrade(engine: Engine, from_revision: str | None) -> None:
     migration script) can leave a half-applied schema with no recovery path,
     so a copy is made first. No-op for `:memory:` databases, non-SQLite
     backends, or a database file that doesn't exist yet.
+
+    The write-ahead log is checkpointed first, and an existing backup is never
+    overwritten. The `-shm` file is not copied: it is rebuildable shared
+    memory, not durable data.
 
     Args:
         engine: The SQLAlchemy/SQLModel Engine instance connected to the
@@ -301,13 +343,13 @@ def _backup_before_upgrade(engine: Engine, from_revision: str | None) -> None:
     if not db_path.exists():
         return
 
-    label = from_revision or "unstamped"
-    backup_path = db_path.with_name(f"{db_path.name}.pre-{label}.bak")
+    _checkpoint_wal(engine)
+
+    backup_path = _unused_backup_path(db_path, from_revision or "unstamped")
     shutil.copy2(db_path, backup_path)
-    for suffix in ("-wal", "-shm"):
-        sidecar = db_path.with_name(db_path.name + suffix)
-        if sidecar.exists():
-            shutil.copy2(sidecar, backup_path.with_name(backup_path.name + suffix))
+    wal = db_path.with_name(db_path.name + "-wal")
+    if wal.exists() and wal.stat().st_size > 0:
+        shutil.copy2(wal, backup_path.with_name(backup_path.name + "-wal"))
     logger.info(f"Backed up project database to {backup_path} before upgrading.")
 
 

@@ -1,6 +1,8 @@
 """Unit tests for the bounded waveform cache in `aimbat.io._base`."""
 
+import os
 from collections import OrderedDict
+from pathlib import Path
 from weakref import WeakKeyDictionary
 
 import numpy as np
@@ -154,3 +156,87 @@ def test_clear_cache_keeps_staged_pages(monkeypatch: pytest.MonkeyPatch) -> None
     assert _base.read_seismogram_data("x", DataType.SAC, session=session).tolist() == [
         5.0
     ]
+
+
+def _file_backed_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Register a reader that returns whatever numbers its source file holds."""
+    monkeypatch.setitem(
+        _base._seismogram_data_readers,
+        DataType.SAC,
+        lambda context: np.array(
+            [float(x) for x in Path(context.sourcename).read_text().split(",")]
+        ),
+    )
+
+
+def test_source_written_behind_our_back_is_re_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A write that never goes through `write_seismogram_data` still invalidates."""
+    _file_backed_reader(monkeypatch)
+    source = tmp_path / "waveform"
+    source.write_text("1.0")
+
+    assert _base.read_seismogram_data(source, DataType.SAC).tolist() == [1.0]
+
+    source.write_text("1.0,2.0")
+
+    assert _base.read_seismogram_data(source, DataType.SAC).tolist() == [1.0, 2.0]
+
+
+def test_same_sized_rewrite_is_re_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Size alone would miss this one; the modification time catches it."""
+    _file_backed_reader(monkeypatch)
+    source = tmp_path / "waveform"
+    source.write_text("1.0")
+
+    assert _base.read_seismogram_data(source, DataType.SAC).tolist() == [1.0]
+
+    stat = source.stat()
+    source.write_text("2.0")
+    # Set the time explicitly: two writes can land in one tick of a coarse
+    # filesystem clock, which is the case this cache cannot detect.
+    os.utime(source, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+
+    assert _base.read_seismogram_data(source, DataType.SAC).tolist() == [2.0]
+
+
+def test_unchanged_source_is_served_from_the_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads: list[str] = []
+
+    def counting_reader(context: _base.SeismogramReadContext) -> np.ndarray:
+        reads.append(context.sourcename)
+        return np.array([1.0])
+
+    monkeypatch.setitem(_base._seismogram_data_readers, DataType.SAC, counting_reader)
+    source = tmp_path / "waveform"
+    source.write_text("1.0")
+
+    first = _base.read_seismogram_data(source, DataType.SAC)
+    second = _base.read_seismogram_data(source, DataType.SAC)
+
+    assert first is second
+    assert len(reads) == 1
+
+
+def test_source_that_is_not_a_file_caches_as_before(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An identifier that no `stat()` can answer for keeps its cached array."""
+    reads: list[str] = []
+
+    def counting_reader(context: _base.SeismogramReadContext) -> np.ndarray:
+        reads.append(context.sourcename)
+        return np.array([1.0])
+
+    monkeypatch.setitem(_base._seismogram_data_readers, DataType.SAC, counting_reader)
+
+    first = _base.read_seismogram_data("not-a-path", DataType.SAC)
+    second = _base.read_seismogram_data("not-a-path", DataType.SAC)
+
+    assert first is second
+    assert len(reads) == 1

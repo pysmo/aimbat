@@ -4,21 +4,27 @@ import uuid
 
 import pytest
 from pandas import Timedelta
+from pydantic import ValidationError
 from sqlalchemy import Engine
+from sqlalchemy import event as sa_event
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from aimbat.core import (
+    IccsValidationError,
     delete_event,
     dump_event_parameter_table,
     dump_event_table,
     get_completed_events,
     get_events_using_station,
     set_event_parameter,
+    set_event_parameters,
     toggle_event_completed,
 )
+from aimbat.core import _iccs as core_iccs
 from aimbat.models import AimbatEvent, AimbatEventQuality, AimbatStation
 from aimbat.types import EventParameter
+from aimbat.utils import format_validation_error
 
 # ===================================================================
 # Default event
@@ -194,12 +200,39 @@ class TestSetEventParameter:
 
         # Test invalid change (e.g., window that would result in no data)
         # Very large window might fail construction if it exceeds data bounds
-        with pytest.raises(ValueError, match="ICCS validation failed"):
+        with pytest.raises(IccsValidationError, match="ICCS validation failed"):
             set_event_parameter(
                 loaded_session,
                 event.id,
                 EventParameter.WINDOW_POST,
                 Timedelta(seconds=10000),
+                validate_iccs=True,
+            )
+        assert event.parameters.window_post == new_value
+
+    def test_validate_iccs_does_not_relabel_a_bug(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Verifies a non-parameter failure propagates instead of becoming a ValueError.
+
+        Args:
+            loaded_session: The database session.
+            monkeypatch: Pytest monkeypatch fixture.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise TypeError("not a parameter problem")
+
+        monkeypatch.setattr(core_iccs, "_build_iccs", _boom)
+
+        with pytest.raises(TypeError, match="not a parameter problem"):
+            set_event_parameter(
+                loaded_session,
+                event.id,
+                EventParameter.WINDOW_POST,
+                Timedelta(seconds=2),
                 validate_iccs=True,
             )
 
@@ -231,6 +264,42 @@ class TestSetEventParameter:
             assert event is not None
             assert event.parameters.window_post == new_value
             assert event.last_modified is not None
+
+    def test_rejected_bandpass_bound_names_the_order_that_works(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies a rejected bandpass bound says how to move the band.
+
+        The TUI parameters modal and the CLI both write one bound at a time,
+        so moving the band up fails if `bandpass_fmin` is set first. That is
+        recoverable - widening before narrowing always validates - but only
+        if the message says so.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        set_event_parameters(
+            loaded_session,
+            event.id,
+            {
+                EventParameter.BANDPASS_FMIN: 0.5,
+                EventParameter.BANDPASS_FMAX: 1.0,
+            },
+        )
+
+        with pytest.raises(ValidationError) as excinfo:
+            set_event_parameter(
+                loaded_session, event.id, EventParameter.BANDPASS_FMIN, 1.5
+            )
+        message = format_validation_error(excinfo.value)
+        assert "bandpass_fmax (1 Hz)" in message
+        assert "bandpass_fmin (1.5 Hz)" in message
+        assert "raise bandpass_fmax before bandpass_fmin" in message
+
+        # The order the message gives: widen first, then narrow.
+        set_event_parameter(loaded_session, event.id, EventParameter.BANDPASS_FMAX, 2.0)
+        set_event_parameter(loaded_session, event.id, EventParameter.BANDPASS_FMIN, 1.5)
+        assert event.parameters.bandpass_fmin == 1.5
+        assert event.parameters.bandpass_fmax == 2.0
 
 
 class TestSetEventParameters:
@@ -422,6 +491,67 @@ class TestDumpEventTableToJson:
         assert len(result) > 0
         assert "lastModified" in result[0]
         assert "last_modified" not in result[0]
+
+    def test_read_model_counts_are_loaded_with_the_events(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies the counts the read model renders cost no extra queries.
+
+        The count columns are deferred so that the processing paths do not
+        pay for them; this path does read them, so it has to undefer them
+        rather than let each one load on access, per row.
+        """
+        statements: list[str] = []
+
+        def record(
+            conn: object,
+            cursor: object,
+            statement: str,
+            parameters: object,
+            context: object,
+            executemany: bool,
+        ) -> None:
+            statements.append(statement)
+
+        bind = loaded_session.get_bind()
+        sa_event.listen(bind, "before_cursor_execute", record)
+        try:
+            result = dump_event_table(loaded_session, from_read_model=True)
+        finally:
+            sa_event.remove(bind, "before_cursor_execute", record)
+
+        assert len(result) > 0
+        assert all(row["seismogram_count"] > 0 for row in result)
+        counting = [s for s in statements if "count(" in s.lower()]
+        assert len(counting) == 1, "counts should come from the events query itself"
+
+    def test_orm_dump_does_not_query_counts(self, loaded_session: Session) -> None:
+        """Verifies the ORM dump skips the count subqueries it never serialises.
+
+        Args:
+            loaded_session: The database session.
+        """
+        statements: list[str] = []
+
+        def record(
+            conn: object,
+            cursor: object,
+            statement: str,
+            parameters: object,
+            context: object,
+            executemany: bool,
+        ) -> None:
+            statements.append(statement)
+
+        bind = loaded_session.get_bind()
+        sa_event.listen(bind, "before_cursor_execute", record)
+        try:
+            result = dump_event_table(loaded_session, from_read_model=False)
+        finally:
+            sa_event.remove(bind, "before_cursor_execute", record)
+
+        assert len(result) > 0
+        assert not [s for s in statements if "count(" in s.lower()]
 
 
 class TestDumpEventParameterTableToJson:

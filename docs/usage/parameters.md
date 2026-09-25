@@ -42,6 +42,13 @@ Filtering is off by default. When on, the same filter is applied to the
 seismograms and the stack, so the cross-correlation always compares like with
 like.
 
+!!! tip "Widen the band before narrowing it"
+
+    `bandpass_fmax` must stay above `bandpass_fmin`, and the CLI and TUI set
+    one bound at a time. Moving a 0.5-1 Hz band up to 1.5-2 Hz is therefore
+    rejected if `bandpass_fmin` goes first. Raise `bandpass_fmax` first and it
+    works; moving the band down, lower `bandpass_fmin` first.
+
 ## The phase pick (t1)
 
 `t1` is the per-seismogram pick ICCS refines each run: one value per seismogram,
@@ -88,7 +95,8 @@ with Session(engine) as session:
 
 `set_event_parameter` validates the new value on its own. Pass
 `validate_iccs=True` to also check it doesn't break ICCS construction, the
-same check the CLI performs. [`set_event_parameters`][aimbat.core.set_event_parameters]
+same check the CLI performs; a value ICCS rejects raises `IccsValidationError`
+and leaves the parameter unchanged. [`set_event_parameters`][aimbat.core.set_event_parameters]
 sets several event parameters as one validated batch, for values only valid
 together (e.g. a new `bandpass_fmin` above the old `bandpass_fmax`).
 

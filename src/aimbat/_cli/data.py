@@ -72,6 +72,7 @@ from .common import (
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
+    print_json_dump,
     print_warning,
     use_event_parameter,
     use_station_parameter,
@@ -82,6 +83,20 @@ if TYPE_CHECKING:
     from aimbat.models import AimbatDataSource
 
 app = App(name="data", help=__doc__, help_format="markdown")
+
+
+def _format_added_skipped(
+    label: str, ids: set[uuid.UUID], existing_ids: set[uuid.UUID]
+) -> str:
+    """Format one `N label(s) added, M skipped` clause of the dry-run summary.
+
+    Args:
+        label: Singular noun for the entity kind, e.g. `"station"`.
+        ids: Distinct IDs of that kind touched by the ingestion call.
+        existing_ids: IDs of that kind that already existed beforehand.
+    """
+    added = len(ids - existing_ids)
+    return f"{added} {label}(s) added, {len(ids) - added} skipped"
 
 
 def _print_dry_run_results(
@@ -116,22 +131,26 @@ def _print_dry_run_results(
         model=_DryRunRow,
         title="Dry Run: Data to be added",
     )
-    new_stations = sum(
-        ds.seismogram.station_id not in existing_station_ids for ds in added_datasources
-    )
-    new_events = sum(
-        ds.seismogram.event_id not in existing_event_ids for ds in added_datasources
-    )
-    new_seismograms = sum(
-        ds.seismogram_id not in existing_seismogram_ids for ds in added_datasources
-    )
+    # Counted over distinct entities, not over data sources: many sources
+    # routinely resolve to one station or one event (a whole event's worth of
+    # SAC files is the normal case), and counting per source reported that as
+    # one station added per file.
+    station_ids = {ds.seismogram.station_id for ds in added_datasources}
+    event_ids = {ds.seismogram.event_id for ds in added_datasources}
+    seismogram_ids = {ds.seismogram_id for ds in added_datasources}
+
     console = Console()
     console.print(
-        f"\n{new_stations} station(s) added, "
-        + f"{len(added_datasources) - new_stations} skipped. {new_events} "
-        + f"event(s) added, {len(added_datasources) - new_events} skipped. "
-        + f"{new_seismograms} seismogram(s) added, "
-        + f"{len(added_datasources) - new_seismograms} skipped."
+        "\n"
+        + ". ".join(
+            _format_added_skipped(label, ids, existing)
+            for label, ids, existing in (
+                ("station", station_ids, existing_station_ids),
+                ("event", event_ids, existing_event_ids),
+                ("seismogram", seismogram_ids, existing_seismogram_ids),
+            )
+        )
+        + "."
     )
 
     for message in duplicate_warnings:
@@ -267,13 +286,9 @@ def cli_data_dump(
 
     Output can be piped or redirected for use in external tools or scripts.
     """
-    from rich import print_json
-
     from aimbat.core import dump_data_table
-    from aimbat.db import engine
 
-    with Session(engine) as session:
-        print_json(data=dump_data_table(session, by_alias=dump_parameters.by_alias))
+    print_json_dump(dump_data_table, by_alias=dump_parameters.by_alias)
 
 
 @app.command(name="list")

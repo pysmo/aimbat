@@ -116,13 +116,17 @@ def _check_iccs(
         with Session(engine) as session:
             event = resolve_event(session, event_id)
             bound = create_iccs_instance(session, event)
+            resolved_id = event.id
+            # Building the instance writes each seismogram's CC value; it is
+            # only kept if this session commits.
+            session.commit()
         changed = (
             prev is None
             or prev.event_id != bound.event_id
             or bound.created_at != prev.created_at
         )
         if startup or changed:
-            console.print(f"[green]ICCS ready[/green] (event {str(event.id)[:8]})")
+            console.print(f"[green]ICCS ready[/green] (event {str(resolved_id)[:8]})")
         return bound
     except Exception as exc:
         if startup or prev is not None:

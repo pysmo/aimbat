@@ -17,9 +17,19 @@ from aimbat.models import AimbatEvent, AimbatStation
 
 from ._plot_utils import clean_timedelta, event_seismograms, station_seismograms
 
-__all__ = ["plot_seismograms"]
+__all__ = ["plot_seismograms", "show_figure"]
 
 _VISIBLE_SEISMOGRAMS = 7
+
+
+def show_figure(fig: plt.Figure) -> None:
+    """Show a figure and block until the user closes its window.
+
+    Args:
+        fig: Figure to show.
+    """
+    plt.show()
+    plt.close(fig)
 
 
 def _add_scroll_pan(ax: plt.Axes) -> None:
@@ -215,6 +225,10 @@ def plot_seismograms(
 
     Note:
         The seismograms use the filter settings specified in the event parameters.
+        `plot_for` is read while the figure is built, so it must still be attached
+        to a session at that point; nothing touches it afterwards. Pass
+        `return_fig=True` and call `show_figure` separately to close the session
+        before the window opens.
     """
     logger.info(f"Plotting seismograms for {type(plot_for).__name__}: {plot_for.id}.")
 
@@ -223,6 +237,5 @@ def plot_seismograms(
 
     if return_fig:
         return fig, ax
-    plt.show()
-    plt.close(fig)
+    show_figure(fig)
     return None

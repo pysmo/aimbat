@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 from pandas import Timedelta, Timestamp
-from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
@@ -32,6 +31,7 @@ from aimbat.models import (
     AimbatSeismogram,
     AimbatStation,
 )
+from aimbat.utils import exception_message
 
 # ---------------------------------------------------------------------------
 # Module-level fixtures
@@ -199,7 +199,7 @@ class TestAddDataToProject:
     def test_add_sac_file_with_missing_pick(
         self, sac_file_good: Path, patched_session: Session
     ) -> None:
-        """Verifies that adding a SAC file missing required pick information raises ValidationError.
+        """Verifies that a SAC file missing its pick names the header and the file.
 
         Args:
             sac_file_good (Path): Path to a valid SAC file.
@@ -208,12 +208,39 @@ class TestAddDataToProject:
         sac = SAC.from_file(sac_file_good)
         sac.timestamps.t0 = None
         sac.write(sac_file_good)
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValueError, match="No initial pick found") as excinfo:
             add_data_to_project(
                 patched_session,
                 [sac_file_good],
                 data_type=DataType.SAC,
             )
+        message = exception_message(excinfo.value)
+        assert "sac_pick_header" in message, "should name the setting to change"
+        assert str(sac_file_good) in message, "should name the offending data source"
+
+    def test_add_sac_file_with_invalid_pick_header(
+        self,
+        sac_file_good: Path,
+        patched_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Verifies that a pick header that doesn't exist is reported as such.
+
+        Args:
+            sac_file_good (Path): Path to a valid SAC file.
+            patched_session (Session): Database session.
+            monkeypatch: The pytest monkeypatch fixture.
+        """
+        monkeypatch.setattr(aimbat.settings, "sac_pick_header", "not_a_header")
+        with pytest.raises(ValueError, match="is not a SAC pick header") as excinfo:
+            add_data_to_project(
+                patched_session,
+                [sac_file_good],
+                data_type=DataType.SAC,
+            )
+        assert str(sac_file_good) in exception_message(excinfo.value), (
+            "should name the offending data source"
+        )
 
     def test_dry_run_all_new(
         self,
@@ -1294,3 +1321,111 @@ class TestAddSeismogramsToProject:
 
         assert list(tmp_path.glob("*.mseed")) == []
         assert len(patched_session.exec(select(AimbatSeismogram)).all()) == 0
+
+
+class TestSourceReadCount:
+    """How often ingestion reads each data source off disk."""
+
+    @pytest.fixture()
+    def sac_reads(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        """Record every SAC file pysmo is asked to parse.
+
+        Args:
+            monkeypatch: The pytest monkeypatch fixture.
+
+        Returns:
+            The list the reads are appended to.
+        """
+        reads: list[str] = []
+        original = SAC.from_file
+
+        def counting_from_file(filename: Path | str) -> SAC:
+            reads.append(str(filename))
+            return original(filename)
+
+        monkeypatch.setattr(SAC, "from_file", staticmethod(counting_from_file))
+        return reads
+
+    def test_each_source_is_read_once(
+        self,
+        multi_event_data: list[Path],
+        patched_session: Session,
+        sac_reads: list[str],
+    ) -> None:
+        """Station, event and seismogram all come out of a single read.
+
+        Args:
+            multi_event_data (list[Path]): List of paths to SAC files.
+            patched_session (Session): Database session.
+            sac_reads (list[str]): Recorded SAC reads.
+        """
+        sac_reads.clear()
+
+        add_data_to_project(
+            patched_session,
+            multi_event_data,
+            data_type=DataType.SAC,
+        )
+
+        assert sorted(sac_reads) == sorted(str(path) for path in multi_event_data)
+
+    def test_an_already_ingested_source_is_not_read_again(
+        self,
+        multi_event_data: list[Path],
+        patched_session: Session,
+        sac_reads: list[str],
+    ) -> None:
+        """Re-running `data add` over an imported directory opens nothing.
+
+        Args:
+            multi_event_data (list[Path]): List of paths to SAC files.
+            patched_session (Session): Database session.
+            sac_reads (list[str]): Recorded SAC reads.
+        """
+        add_data_to_project(
+            patched_session,
+            multi_event_data,
+            data_type=DataType.SAC,
+        )
+        sac_reads.clear()
+
+        add_data_to_project(
+            patched_session,
+            multi_event_data,
+            data_type=DataType.SAC,
+        )
+
+        assert sac_reads == []
+        assert len(patched_session.exec(select(AimbatDataSource)).all()) == len(
+            multi_event_data
+        )
+
+    def test_a_station_override_reads_the_source(
+        self,
+        sac_file_good: Path,
+        patched_session: Session,
+        sac_reads: list[str],
+    ) -> None:
+        """Re-linking to a given station still needs the event and seismogram.
+
+        Args:
+            sac_file_good (Path): Path to a valid SAC file.
+            patched_session (Session): Database session.
+            sac_reads (list[str]): Recorded SAC reads.
+        """
+        add_data_to_project(
+            patched_session,
+            [sac_file_good],
+            data_type=DataType.SAC,
+        )
+        station = patched_session.exec(select(AimbatStation)).one()
+        sac_reads.clear()
+
+        add_data_to_project(
+            patched_session,
+            [sac_file_good],
+            data_type=DataType.SAC,
+            station_id=station.id,
+        )
+
+        assert sac_reads == [str(sac_file_good)]
