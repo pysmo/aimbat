@@ -113,6 +113,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core)** Add direct seismogram-triple ingestion and miniSEED support
 - **(io)** Defer waveform writes until session commit
 - **(data)** Add data prune for seismograms whose source has vanished
+- **(plot)** Mark t0 and t1 picks on seismogram plots
 
 ### 🧪 Testing
 
