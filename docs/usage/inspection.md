@@ -13,7 +13,8 @@ Two views help.
 
 A record section: every seismogram for one event, sorted by epicentral distance,
 with absolute time on the x-axis. Coherent arrivals show as a roughly linear
-moveout across the traces.
+moveout across the traces. A dashed line marks each trace's initial pick (`t0`)
+and, once set, a solid line marks the working pick (`t1`).
 
 === "CLI"
 
@@ -47,12 +48,11 @@ moveout across the traces.
     show_figure(fig)
     ```
 
-    Building the figure reads the event from the database, so it happens
-    inside the session; showing it blocks until the window is closed, so it
-    happens outside.
+    Building the figure reads the event from the database, so it happens inside the
+    session; showing it blocks until the window is closed, so it happens outside.
 
-With many traces, only a subset shows at first. Scrolling pans through the
-rest; scrolling with **Shift** held pans the time axis.
+With many traces, only a subset shows at first. Scrolling pans through the rest;
+scrolling with **Shift** held pans the time axis.
 
 Look for:
 
@@ -65,9 +65,10 @@ Look for:
 ## By station
 
 Every seismogram recorded at one station across all events in the project,
-aligned on the initial pick (`t0`) and stacked vertically in time order. Useful
-for telling whether a station is consistently problematic or the issue is
-isolated to one event.
+aligned on the working pick (`t1`, or `t0` if not yet set) and stacked
+vertically in pick order. The `t0` and `t1` picks are marked as in the event
+view. Useful for telling whether a station is consistently problematic or the
+issue is isolated to one event.
 
 === "CLI"
 
@@ -101,9 +102,9 @@ isolated to one event.
     show_figure(fig)
     ```
 
-    Building the figure reads the station from the database, so it happens
-    inside the session; showing it blocks until the window is closed, so it
-    happens outside.
+    Building the figure reads the station from the database, so it happens inside
+    the session; showing it blocks until the window is closed, so it happens
+    outside.
 
 Same scroll behaviour: scrolling pans traces, shift+scroll pans time.
 
@@ -116,7 +117,8 @@ never modified.
 2. **Bandpass filter** *(optional)*. Applied only if `bandpass_apply` is enabled
     in the event parameters, using that event's `bandpass_fmin` /
     `bandpass_fmax`. Off by default, so inspection shows the waveforms as
-    imported. Data pre-filtered before import can be inspected with it left off.
+    imported. Data pre-filtered before import can be inspected with it left
+    off.
 3. **Resample.** To a common 10 Hz for consistent display.
 4. **Normalise.** Each trace to unit amplitude, so shapes are comparable
     regardless of gain.
