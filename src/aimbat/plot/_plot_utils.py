@@ -53,7 +53,16 @@ def _prepare_seismogram_for_plotting(seismogram: AimbatSeismogram) -> MiniSeismo
 
 def event_seismograms(
     event: AimbatEvent,
-) -> list[tuple[MiniSeismogram, AimbatStation, float, uuid.UUID]]:
+) -> list[
+    tuple[
+        MiniSeismogram,
+        AimbatStation,
+        float,
+        pd.Timestamp,
+        pd.Timestamp | None,
+        uuid.UUID,
+    ]
+]:
     """Get all seismograms for a particular event ordered by descending great circle distance.
 
     Note:
@@ -68,7 +77,8 @@ def event_seismograms(
 
     Returns:
         List of tuples containing the seismogram, station, distance from the
-            event, and seismogram ID for each seismogram.
+            event, initial pick `t0`, working pick `t1` (or `None` if not
+            set), and seismogram ID for each seismogram.
     """
 
     data = [
@@ -76,6 +86,8 @@ def event_seismograms(
             _prepare_seismogram_for_plotting(s),
             s.station,
             distance(s.station, s.event) / 1000,
+            s.t0,
+            s.parameters.t1,
             s.id,
         )
         for s in event.seismograms
@@ -86,8 +98,10 @@ def event_seismograms(
 
 def station_seismograms(
     station: AimbatStation,
-) -> list[tuple[MiniSeismogram, AimbatEvent, pd.Timestamp, uuid.UUID]]:
-    """Get all seismograms for a particular station ordered by event time.
+) -> list[
+    tuple[MiniSeismogram, AimbatEvent, pd.Timestamp, pd.Timestamp | None, uuid.UUID]
+]:
+    """Get all seismograms for a particular station ordered by pick time.
 
     Note:
         See `event_seismograms` - the same synchronous, unbatched
@@ -97,12 +111,13 @@ def station_seismograms(
         station: AimbatStation.
 
     Returns:
-        List of tuples containing the seismogram, event, pick time, and
-            seismogram ID for each seismogram.
+        List of tuples containing the seismogram, event, initial pick `t0`,
+            working pick `t1` (or `None` if not set), and seismogram ID for
+            each seismogram.
     """
     data = [
-        (_prepare_seismogram_for_plotting(s), s.event, s.parameters.t1 or s.t0, s.id)
+        (_prepare_seismogram_for_plotting(s), s.event, s.t0, s.parameters.t1, s.id)
         for s in station.seismograms
     ]
-    data.sort(key=lambda x: x[2])
+    data.sort(key=lambda x: x[3] or x[2])
     return data

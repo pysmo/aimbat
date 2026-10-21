@@ -2,8 +2,11 @@
 
 import uuid
 
+import matplotlib.dates as mdates
 import pytest
+from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
+from pandas import Timedelta
 from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
@@ -358,6 +361,57 @@ class TestPlotSeismograms:
         assert event is not None
         fig, _ = plot_seismograms(plot_for=event, return_fig=True)
         assert isinstance(fig, Figure)
+
+    def test_plot_event_marks_picks(self, loaded_session: Session) -> None:
+        """Verifies that the event plot marks t0 and t1 at their times on each seismogram.
+
+        Args:
+            loaded_session: The database session.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        picked = event.seismograms[0]
+        picked.parameters.t1 = picked.t0 + Timedelta(seconds=2)
+        loaded_session.add(picked)
+        loaded_session.commit()
+
+        _, ax = plot_seismograms(plot_for=event, return_fig=True)
+
+        marks = {
+            c.get_label(): c for c in ax.collections if isinstance(c, LineCollection)
+        }
+        t0_x = sorted(seg[0][0] for seg in marks["t0"].get_segments())
+        assert t0_x == pytest.approx(
+            sorted(mdates.date2num(s.t0) for s in event.seismograms)
+        )
+        t1_segments = marks["t1"].get_segments()
+        assert len(t1_segments) == 1
+        assert t1_segments[0][0][0] == pytest.approx(
+            mdates.date2num(picked.parameters.t1)
+        )
+
+    def test_plot_station_marks_picks(
+        self, loaded_session: Session, station: AimbatStation
+    ) -> None:
+        """Verifies that the station plot marks t1 at zero and t0 at its offset from t1.
+
+        Args:
+            loaded_session: The database session.
+            station: An AimbatStation instance.
+        """
+        seismogram = station.seismograms[0]
+        seismogram.parameters.t1 = seismogram.t0 + Timedelta(seconds=2)
+        loaded_session.add(seismogram)
+        loaded_session.commit()
+
+        _, ax = plot_seismograms(plot_for=station, return_fig=True)
+
+        marks = {
+            c.get_label(): c for c in ax.collections if isinstance(c, LineCollection)
+        }
+        t1_x = [seg[0][0] for seg in marks["t1"].get_segments()]
+        assert t1_x and all(x == 0.0 for x in t1_x)
+        assert -2.0 in [seg[0][0] for seg in marks["t0"].get_segments()]
 
     def test_plot_station_returns_figure(
         self, loaded_session: Session, station: AimbatStation

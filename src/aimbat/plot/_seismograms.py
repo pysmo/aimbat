@@ -22,6 +22,43 @@ __all__ = ["plot_seismograms", "show_figure"]
 _VISIBLE_SEISMOGRAMS = 7
 
 
+def _draw_picks(
+    ax: plt.Axes,
+    t0: list[tuple[float, float, float]],
+    t1: list[tuple[float, float, float]],
+) -> None:
+    """Mark the `t0` and `t1` picks with a short vertical line on each seismogram.
+
+    Args:
+        ax: Axes to draw on.
+        t0: `(x, ymin, ymax)` of the `t0` marker for each seismogram.
+        t1: `(x, ymin, ymax)` of the `t1` marker for each seismogram that has one.
+    """
+    colour = ax.spines["bottom"].get_edgecolor()
+    marks: list[tuple[list[tuple[float, float, float]], str, Literal["--", "-"]]] = [
+        (t0, "t0", "--"),
+        (t1, "t1", "-"),
+    ]
+    handles = []
+    for picks, label, style in marks:
+        if not picks:
+            continue
+        x, ymin, ymax = zip(*picks)
+        handles.append(
+            ax.vlines(
+                x,
+                ymin,
+                ymax,
+                colors=colour,
+                linestyles=style,
+                linewidth=1.5,
+                label=label,
+            )
+        )
+    # Explicit handles keep the per-seismogram line labels out of the legend.
+    ax.legend(handles=handles, loc="upper right")
+
+
 def show_figure(fig: plt.Figure) -> None:
     """Show a figure and block until the user closes its window.
 
@@ -115,12 +152,18 @@ def _(event: AimbatEvent) -> tuple[plt.Figure, plt.Axes]:
         distance_spacing = (distance_max - distance_min) / (len(seismograms) - 1)
         scaling_factor = distance_spacing * 0.8
 
-    for seismogram, station, distance_km, id in seismograms:
+    t0_marks, t1_marks = [], []
+    for seismogram, station, distance_km, t0, t1, id in seismograms:
         data = seismogram.data * scaling_factor + distance_km
         times = time_array(seismogram)
         pd.Series(data, index=times).plot(
             ax=ax, scalex=True, scaley=True, label=f"Seismogram: {id}"
         )
+        ymin, ymax = distance_km - scaling_factor / 2, distance_km + scaling_factor / 2
+        t0_marks.append((mdates.date2num(t0), ymin, ymax))
+        if t1 is not None:
+            t1_marks.append((mdates.date2num(t1), ymin, ymax))
+    _draw_picks(ax, t0_marks, t1_marks)
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
     # Keep a strong reference alive on the figure: mplcursors stops working
@@ -171,10 +214,16 @@ def _(station: AimbatStation) -> tuple[plt.Figure, plt.Axes]:
 
     fig, ax = plt.subplots(figsize=(10, 6), layout="tight")
 
-    for i, (seismogram, event, pick, id) in enumerate(seismograms):
+    t0_marks, t1_marks = [], []
+    for i, (seismogram, event, t0, t1, id) in enumerate(seismograms):
+        pick = t1 or t0
         data = seismogram.data * 0.4 + i
         rel_times = relative_time_array(seismogram, pick)
         ax.plot(rel_times, data, label=f"Seismogram: {id}")
+        t0_marks.append(((t0 - pick).total_seconds(), i - 0.2, i + 0.2))
+        if t1 is not None:
+            t1_marks.append((0.0, i - 0.2, i + 0.2))
+    _draw_picks(ax, t0_marks, t1_marks)
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
     # See the matching comment in the AimbatEvent branch above: this
@@ -187,7 +236,7 @@ def _(station: AimbatStation) -> tuple[plt.Figure, plt.Axes]:
 
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(clean_timedelta))
     ax.yaxis.set_visible(False)
-    plt.xlabel(xlabel="Time relative to pick")
+    plt.xlabel(xlabel="Time relative to pick (t1, or t0 if unset)")
     plt.title(f"Station {station.network} -- {station.name}")
 
     if len(seismograms) > _VISIBLE_SEISMOGRAMS:
