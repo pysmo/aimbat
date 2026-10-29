@@ -823,7 +823,11 @@ class SeismogramPanel(Widget):
             plot_widget.clear()
             return
         parent = iccs.seismograms[idx]
-        pick = parent.t1 if parent.t1 is not None else parent.t0
+        pick = (
+            parent.refined_pick
+            if parent.refined_pick is not None
+            else parent.initial_pick
+        )
         try:
             cc_seis = iccs.cc_seismograms[idx]
             ctx_seis = iccs.context_seismograms[idx]

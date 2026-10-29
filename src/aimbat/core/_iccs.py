@@ -334,8 +334,8 @@ def _build_iccs(
             begin_time=seis.begin_time,
             delta=seis.delta,
             data=seis.data,
-            t0=seis.t0,
-            t1=seis.parameters.t1,
+            initial_pick=seis.t0,
+            refined_pick=seis.parameters.t1,
             flip=seis.parameters.flip,
             select=seis.parameters.select,
             extra={"id": seis.id},
@@ -710,8 +710,8 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
                 begin_time=seis.begin_time,
                 delta=seis.delta,
                 data=seis.data,
-                t0=seis.t0,
-                t1=seis_params.t1,
+                initial_pick=seis.t0,
+                refined_pick=seis_params.t1,
                 flip=seis_params.flip,
                 select=seis_params.select,
                 extra={"id": seis.id},
@@ -782,7 +782,7 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     for seis in iccs.seismograms:
         db_seis = session.get(AimbatSeismogram, seis.extra["id"])
         if db_seis is not None:
-            db_seis.parameters.t1 = seis.t1
+            db_seis.parameters.t1 = seis.refined_pick
             db_seis.parameters.flip = seis.flip
             db_seis.parameters.select = seis.select
     session.flush()
@@ -791,6 +791,10 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
 # AimbatEventParametersBase fields with no corresponding ICCS attribute -
 # excluded from the sync loop below by design, not by a silent hasattr() skip.
 _NON_ICCS_EVENT_PARAMETER_FIELDS = frozenset({"completed", "mccc_damp", "mccc_min_cc"})
+
+# AIMBAT seismogram parameter fields whose ICCS seismogram attribute is named
+# differently.
+_ICCS_SEISMOGRAM_ATTRIBUTE_NAMES = {"t1": "refined_pick"}
 
 
 def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
@@ -827,7 +831,11 @@ def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> No
                 db_seis.parameters
             )
             for field_name in AimbatSeismogramParametersBase.model_fields:
-                setattr(iccs_seis, field_name, getattr(seis_params, field_name))
+                setattr(
+                    iccs_seis,
+                    _ICCS_SEISMOGRAM_ATTRIBUTE_NAMES.get(field_name, field_name),
+                    getattr(seis_params, field_name),
+                )
 
     iccs.clear_cache()
 

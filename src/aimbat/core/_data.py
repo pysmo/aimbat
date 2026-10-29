@@ -795,7 +795,7 @@ def add_seismograms_to_project(
                 new_aimbat_seismogram = AimbatSeismogram.model_validate(
                     seismogram,
                     update={
-                        "t0": seismogram.t0,
+                        "t0": seismogram.initial_pick,
                         "parameters": AimbatSeismogramParameters(),
                     },
                 )
