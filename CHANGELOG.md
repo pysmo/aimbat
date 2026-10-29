@@ -98,6 +98,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(app,core)** Configure logging at the entrypoints, create projects atomically
 - **(core,plot)** Write quality on the caller's session, free the plot window
 - **(core,models)** Run the ICCS parameter check in core, not in the model
+- **(iccs)** Adopt pysmo initial_pick/refined_pick names
 
 ### 🚀 New Features
 
