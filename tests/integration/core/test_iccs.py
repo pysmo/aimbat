@@ -1,7 +1,7 @@
 """Integration tests for ICCS alignment and MCCC quality clearing."""
 
 import pytest
-from pandas import Timestamp
+from pandas import Timedelta, Timestamp
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 
@@ -15,6 +15,7 @@ from aimbat.core import (
     delete_event,
     run_iccs,
     run_mccc,
+    sync_iccs_parameters,
 )
 from aimbat.models import (
     AimbatEvent,
@@ -412,6 +413,36 @@ class TestBuildIccsFromSnapshot:
             s for s in bound.iccs.seismograms if s.extra["id"] == seis.id
         )
         assert snapshot_seis.select == original_select
+
+
+class TestSyncIccsParameters:
+    """Tests for `sync_iccs_parameters`."""
+
+    def test_syncs_changed_seismogram_parameters(self, loaded_session: Session) -> None:
+        """Verifies that changed per-seismogram parameters, including the pick,
+        are copied onto the existing ICCS seismograms.
+
+        Args:
+            loaded_session: The database session with data loaded.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs = create_iccs_instance(loaded_session, event).iccs
+
+        seis = event.seismograms[0]
+        new_pick = seis.t0 + Timedelta(seconds=1)
+        seis.parameters.t1 = new_pick
+        seis.parameters.flip = not seis.parameters.flip
+        seis.parameters.select = not seis.parameters.select
+        loaded_session.add(seis.parameters)
+        loaded_session.commit()
+
+        sync_iccs_parameters(loaded_session, event, iccs)
+
+        iccs_seis = next(s for s in iccs.seismograms if s.extra["id"] == seis.id)
+        assert iccs_seis.refined_pick == new_pick
+        assert iccs_seis.flip == seis.parameters.flip
+        assert iccs_seis.select == seis.parameters.select
 
 
 class TestQualityWriteTransaction:

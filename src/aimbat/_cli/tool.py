@@ -82,7 +82,7 @@ def cli_update_phase_pick(
     """Interactively pick a new phase arrival time (t1) for an event.
 
     Opens an interactive plot; click to place the new pick, then close the window
-    to save. The pick is stored as `t1` for each seismogram in the ICCS instance.
+    to save. The pick is stored as `t1` for each seismogram.
     """
     from sqlmodel import Session
 

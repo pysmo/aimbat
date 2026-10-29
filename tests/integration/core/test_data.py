@@ -1084,7 +1084,7 @@ class TestAddSeismogramsToProject:
             begin_time=begin_time,
             delta=Timedelta(seconds=0.05),
             data=np.arange(100.0),
-            t0=begin_time + Timedelta(seconds=10),
+            initial_pick=begin_time + Timedelta(seconds=10),
         )
         return seismogram, station, event
 
@@ -1098,7 +1098,7 @@ class TestAddSeismogramsToProject:
 
         assert len(added) == 1
         aimbat_seismogram = added[0].seismogram
-        assert aimbat_seismogram.t0 == seismogram.t0
+        assert aimbat_seismogram.t0 == seismogram.initial_pick
         assert aimbat_seismogram.station.name == station.name
         assert aimbat_seismogram.event.time == event.time
 

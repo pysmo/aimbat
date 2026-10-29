@@ -72,10 +72,11 @@ class ToMiniIccsSeismogramWithResponseRemoved:
         corrected = remove_response(
             seismogram, response, pre_filt=self.pre_filt, replace=True
         )
-        # t0 is set from the predicted arrival - AimbatSeismogram.t0 needs no
-        # further fallback, since IccsSeismogram.t0 is a required field.
+        # initial_pick is set from the predicted arrival - AimbatSeismogram.t0
+        # needs no further fallback, since IccsSeismogram.initial_pick is a
+        # required field.
         return clone_to_mini(
-            MiniIccsSeismogram, corrected, update={"t0": context.reference}
+            MiniIccsSeismogram, corrected, update={"initial_pick": context.reference}
         )
 
 
