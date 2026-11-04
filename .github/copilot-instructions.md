@@ -28,7 +28,7 @@ uv run pytest tests/unit/test_foo.py::test_specific_function
 make test-figs
 ```
 
-Configuration: `pyproject.toml` (pytest, mypy, ruff, coverage). Tests run against Python 3.12–3.14 in CI via tox.
+Configuration: `pyproject.toml` (pytest, mypy, ruff, coverage). Tests run against Python 3.13–3.15 in CI via tox.
 
 ## Design goals
 
@@ -161,7 +161,7 @@ Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it wi
 ### Code Formatting
 
 - All code must pass **Ruff** formatting and linting
-  - Target Python versions: 3.12, 3.13, 3.14
+  - Target Python versions: 3.13, 3.14, 3.15
   - Line length: 88 characters
   - Run `ruff format .` before committing (replaces black)
   - Run `ruff check --fix .` to auto-fix linting issues
@@ -216,7 +216,7 @@ Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it wi
 #### Type Hints
 
 - Use type hints for all function parameters and return values
-- Use modern Python type syntax (Python 3.12+):
+- Use modern Python type syntax (Python 3.13+):
   - `list[str]` not `List[str]`
   - `dict[str, int]` not `Dict[str, int]`
   - `type1 | type2` not `Union[type1, type2]`
@@ -255,7 +255,7 @@ Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it wi
 
 ### Dependencies
 
-- Minimum Python version: 3.12
+- Minimum Python version: 3.13, maximum 3.15
 - Core dependencies: pysmo, sqlmodel, numpy, scipy, matplotlib
 - Keep dependencies up to date
 

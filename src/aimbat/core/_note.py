@@ -1,7 +1,7 @@
 """Read and write notes attached to events, stations, seismograms, or snapshots."""
 
 import uuid
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 
 from sqlmodel import Session, select
 from sqlmodel.sql.expression import ColumnElement
@@ -72,7 +72,8 @@ def save_note(
         and (note.content if note is not None else "") != expected_previous
     )
     if note is None:
-        note = AimbatNote(**{f"{target}_id": target_id, "content": content})
+        kwargs: dict[str, Any] = {f"{target}_id": target_id}
+        note = AimbatNote(**kwargs, content=content)
     else:
         note.content = content
     session.add(note)

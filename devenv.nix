@@ -1,6 +1,7 @@
 {pkgs, ...}: {
   packages = with pkgs; [
     python313
+    python315
   ];
   languages.python = {
     enable = true;

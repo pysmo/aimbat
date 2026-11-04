@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from pymseed.exceptions import MiniSEEDError  # type: ignore[import-untyped]
+from pymseed.exceptions import MiniSEEDError
 
 from pysmo import MiniSeismogram, MiniStationCode
 from pysmo.classes import MSeed
