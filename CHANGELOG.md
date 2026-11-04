@@ -8,6 +8,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 
 - Add stale management workflow
 - Add Python 3.15 support
+- Pin setup-uv to v10.3.3
 
 ### ⚡ Performance Improvements
 
