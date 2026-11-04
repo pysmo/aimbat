@@ -7,6 +7,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 ### ⚙️ DevOps & Infrastructure
 
 - Add stale management workflow
+- Add Python 3.15 support
 
 ### ⚡ Performance Improvements
 
