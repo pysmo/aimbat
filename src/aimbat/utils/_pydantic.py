@@ -111,7 +111,7 @@ def dump_models[T: BaseModel](
 
     exclude_spec: dict[str, set[str]] | None = {"__all__": exclude} if exclude else None
 
-    adapter: TypeAdapter[Sequence[T]] = TypeAdapter(Sequence[model_class])  # type: ignore[valid-type]
+    adapter: TypeAdapter[Sequence[T]] = TypeAdapter(Sequence[model_class])  # type: ignore[valid-type, type-abstract]
     data: list[dict[str, Any]] = adapter.dump_python(
         records, mode="json", by_alias=by_alias, exclude=exclude_spec
     )

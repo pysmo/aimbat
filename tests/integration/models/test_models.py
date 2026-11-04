@@ -375,7 +375,7 @@ class TestEventValidation:
             patched_session (Session): Database session.
         """
         ev = AimbatEvent(
-            time="2010-02-27T06:34:14+00:00",
+            time="2010-02-27T06:34:14+00:00",  # type: ignore[arg-type]
             latitude=0.0,
             longitude=0.0,
         )
