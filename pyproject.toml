@@ -21,6 +21,7 @@ dependencies = [
   "alembic>=1.16.5",
   "loguru>=0.7.3",
   "sqlmodel>=0.0.24",
+  "sqlalchemy>=2.1.8",
   "rich>=13.9.4",
   "matplotlib>=3.10.6",
   "cyclopts>=5.4.1",

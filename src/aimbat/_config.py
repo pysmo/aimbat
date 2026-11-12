@@ -10,6 +10,7 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+from sqlalchemy.engine import URL
 
 from aimbat.types import (
     PydanticNegativeTimedelta,
@@ -221,18 +222,13 @@ class Settings(BaseSettings):
     def set_computed_defaults(self) -> Self:
         """Derive `db_url` from `project` when not set explicitly.
 
-        `?` and `#` in `project` are percent-encoded first: SQLite URL
-        parsing otherwise treats them as the start of a query string or
-        fragment, silently truncating everything from that point onwards off
-        the path SQLAlchemy actually opens. A literal `%` is left alone -
-        SQLAlchemy does not decode `%XX` escapes back out of the database
-        component of a sqlite URL, so escaping `%` here would instead corrupt
-        a `project` path that already contains one (e.g. `data%set.db` would
-        open `data%25set.db`).
+        Built with `URL.create` so SQLAlchemy escapes `?`, `#` and `%` in
+        `project` and opens exactly that file.
         """
         if self.db_url == "":
-            escaped_project = str(self.project).replace("?", "%3F").replace("#", "%23")
-            self.db_url = f"sqlite+pysqlite:///{escaped_project}"
+            self.db_url = URL.create(
+                "sqlite+pysqlite", database=str(self.project)
+            ).render_as_string()
         return self
 
     @model_validator(mode="after")
