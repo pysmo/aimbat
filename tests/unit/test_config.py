@@ -62,29 +62,20 @@ class TestSettings:
         s = Settings(db_url="sqlite:///custom.db")
         assert s.db_url == "sqlite:///custom.db"
 
-    def test_db_url_escapes_question_mark_in_project(self) -> None:
-        """A literal `?` in `project` must not truncate the derived db_url.
+    @pytest.mark.parametrize(
+        "name",
+        ["weird?name.db", "hash#name.db", "data%set.db", "data%41.db", "a%3Fb.db"],
+    )
+    def test_db_url_round_trips_special_characters_in_project(self, name: str) -> None:
+        """`?`, `#` and `%` in `project` must map back to exactly that file.
 
-        Regression test: SQLAlchemy's URL parsing otherwise treats `?` as the
-        start of a query string, silently opening a different (truncated)
-        database file than the one configured.
+        Regression test: unescaped, `?` and `#` truncate the path, and a `%XX`
+        sequence is decoded into a different file name.
         """
         from sqlalchemy.engine import make_url
 
-        s = Settings(project=Path("weird?name.db"))
-        assert make_url(s.db_url).database == "weird%3Fname.db"
-
-    def test_db_url_preserves_literal_percent_in_project(self) -> None:
-        """A literal `%` in `project` must not be escaped to `%25`.
-
-        Regression test: SQLAlchemy does not decode `%XX` escapes back out of
-        a sqlite URL's database component, so escaping a literal `%` here
-        would open a different file than the one configured.
-        """
-        from sqlalchemy.engine import make_url
-
-        s = Settings(project=Path("data%set.db"))
-        assert make_url(s.db_url).database == "data%set.db"
+        s = Settings(project=Path(name))
+        assert make_url(s.db_url).database == name
 
     def test_env_prefix(self) -> None:
         """Verifies that the environment variable prefix is 'aimbat_'."""
