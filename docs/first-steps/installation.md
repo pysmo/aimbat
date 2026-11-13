@@ -81,6 +81,34 @@ uv tool upgrade aimbat
 uv tool uninstall aimbat
 ```
 
+### Tab completion
+
+A permanent installation supports tab completion of `aimbat` commands, options
+and option values in bash, zsh, fish and PowerShell. To install the completion
+script:
+
+```bash
+aimbat utils completion install
+```
+
+The script is written to the standard location for the detected shell. Use
+`--shell` to select a different one. The target path is shown for
+confirmation first (`--yes` skips the prompt). The command also prints any
+line that must be added to the shell's startup file (e.g. `~/.zshrc`). The
+`--add-to-startup` option adds that line automatically. Completion takes
+effect in a new shell session.
+
+Where startup files are managed by other means (e.g. a dotfiles repository),
+`#!bash aimbat utils completion show` prints the script instead. For zsh, the
+file must be saved in a directory on `$fpath` under a name starting with an
+underscore (e.g. `_aimbat`).
+
+!!! tip "After upgrading"
+
+    The script reflects the commands and options of the installed version.
+    Re-run `#!bash aimbat utils completion install` after
+    `#!bash uv tool upgrade aimbat`.
+
 ## Using AIMBAT as a library
 
 To call the Python API from other code (see [Recipes](../usage/recipes.md) for
