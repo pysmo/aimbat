@@ -117,6 +117,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(io)** Defer waveform writes until session commit
 - **(data)** Add data prune for seismograms whose source has vanished
 - **(plot)** Mark t0 and t1 picks on seismogram plots
+- **(cli)** Add tab completion for the aimbat command
 
 ### 🧪 Testing
 
