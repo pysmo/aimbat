@@ -15,7 +15,8 @@ aimbat <command> [options]
 
 One operation per invocation: it runs, prints its result, and exits non-zero on
 error. Commands are grouped (`data`, `event`, `align`, ...), and `--help` works
-at every level.
+at every level. Commands and options can be completed with **Tab** once
+[tab completion](../first-steps/installation.md#tab-completion) is installed.
 
 A full CLI session:
 

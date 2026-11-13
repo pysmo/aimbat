@@ -187,6 +187,9 @@ def cli_shell(
     completion_dict = _build_completion_dict(aimbat_app)
     completion_dict.pop("shell", None)
     completion_dict.pop("tui", None)
+    utils_completions = completion_dict.get("utils")
+    if isinstance(utils_completions, dict):
+        utils_completions.pop("completion", None)
 
     # Inject the shell-only `event switch` subcommand into tab completion.
     event_completions = completion_dict.get("event")

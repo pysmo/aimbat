@@ -28,7 +28,13 @@ except Exception:
 
 console = Console()
 
-app = App(version=__version__, help=__doc__, help_format="markdown", console=console)
+app = App(
+    name="aimbat",
+    version=__version__,
+    help=__doc__,
+    help_format="markdown",
+    console=console,
+)
 app.command(cli.align)
 app.command(cli.data)
 app.command(cli.db)
