@@ -16,6 +16,7 @@ from uuid import UUID
 from pandas import NaT, Timedelta, to_datetime
 from pydantic import BaseModel
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from aimbat.models._format import RichColSpec
@@ -176,7 +177,7 @@ def json_to_table(
             else:
                 field = model.model_fields[name]
                 label = field.title if field.title else name
-            table.add_row(label, _fmt_val(name, data[name]))
+            table.add_row(label, escape(_fmt_val(name, data[name])))
     else:
         # Horizontal table: restrict to fields present in data.
         data_keys: set[str] = set()
@@ -208,7 +209,7 @@ def json_to_table(
             table.add_column(header, **kwargs)
 
         for item in data:
-            table.add_row(*[_fmt_val(n, item.get(n)) for n in visible_fields])
+            table.add_row(*[escape(_fmt_val(n, item.get(n))) for n in visible_fields])
 
     console.print(table)
 

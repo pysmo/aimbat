@@ -17,13 +17,14 @@ __all__ = [
 def print_error_panel(e: Exception) -> None:
     """Print an exception to the console in a red panel."""
     from rich.console import Console
+    from rich.markup import escape
     from rich.panel import Panel
 
     from aimbat.utils import exception_message
 
     console = Console(stderr=True)
     panel = Panel(
-        exception_message(e)
+        escape(exception_message(e))
         + "\n\n(run with --debug or AIMBAT_LOG_LEVEL=DEBUG for a full traceback)",
         title="Error",
         title_align="left",
