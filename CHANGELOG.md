@@ -63,6 +63,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(io,core)** Read a data source once, and notice when it changes
 - **(models)** Say how to move the bandpass when a bound is rejected
 - **(core,plot)** Evict cached ICCS on rollback, let plot writes take an engine
+- **(cli)** Show brackets in table cells and errors literally
 
 ### 📚 Documentation
 
@@ -119,6 +120,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(plot)** Mark t0 and t1 picks on seismogram plots
 - **(cli)** Add tab completion for the aimbat command
 - **(shell)** Complete choices and record IDs with Tab
+- **(cli)** Add `utils lookup` to identify records by ID
 
 ### 🧪 Testing
 
