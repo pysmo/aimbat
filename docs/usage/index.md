@@ -50,6 +50,13 @@ aimbat> event switch 6a4a
 aimbat [6a4a]> align iccs
 ```
 
+**Tab** also completes fixed values such as parameter names, and the IDs of
+events, stations, seismograms and snapshots from the project. Each ID is
+listed with a short description, such as an event's time or a seismogram's
+station. With an event selected, only that event's seismograms and snapshots
+are offered. ID completion is available only in the shell, not on the
+command line.
+
 After each command the shell reports whether the current event's ICCS instance
 is still valid, and rejects a parameter change that would invalidate it before
 it reaches the database. Exit with `exit`, `quit`, `q`, or **Ctrl+D**.

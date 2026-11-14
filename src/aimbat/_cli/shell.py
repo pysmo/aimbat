@@ -1,7 +1,7 @@
 """Interactive AIMBAT shell with tab-completion and command history.
 
-All CLI commands are available. Press Tab to complete commands, Ctrl+D
-or type `exit` to leave.
+All CLI commands are available. Press Tab to complete commands, options
+and IDs, Ctrl+D or type `exit` to leave.
 
 Shell-only commands:
   event switch [ID]  Switch the shell's event context.
@@ -22,6 +22,7 @@ from .common import (
 if TYPE_CHECKING:
     from rich.console import Console
 
+    from aimbat._cli._shell_completer import ShellCompleter
     from aimbat.core import BoundICCS
 
 app = App(name="shell", help=__doc__, help_format="markdown")
@@ -52,6 +53,37 @@ def _build_completion_dict(cyclopts_app: App) -> _CompletionDict:
         nested = _build_completion_dict(sub)
         result[name] = nested if nested else None
     return result
+
+
+def _shell_completer(cyclopts_app: App) -> "ShellCompleter":
+    """Return the shell's tab completer, with shell-only commands added.
+
+    Commands that make no sense inside the shell (`shell`, `tui` and
+    `utils completion`) are left out, and `event switch` and `exit` are added.
+    """
+    from prompt_toolkit.completion import NestedCompleter
+
+    from aimbat.models import AimbatEvent
+
+    from ._shell_completer import ShellCompleter
+    from .common import UuidConverter
+
+    completion_dict = _build_completion_dict(cyclopts_app)
+    completion_dict.pop("shell", None)
+    completion_dict.pop("tui", None)
+    utils_completions = completion_dict.get("utils")
+    if isinstance(utils_completions, dict):
+        utils_completions.pop("completion", None)
+    event_completions = completion_dict.get("event")
+    if isinstance(event_completions, dict):
+        event_completions["switch"] = None
+    completion_dict["exit"] = None
+
+    return ShellCompleter(
+        cyclopts_app,
+        NestedCompleter.from_nested_dict(completion_dict),
+        shell_only={("event", "switch"): UuidConverter(AimbatEvent)},
+    )
 
 
 def _extract_event_flag(tokens: list[str]) -> str | None:
@@ -157,7 +189,6 @@ def cli_shell(
 
     from cyclopts import CycloptsError
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.completion import NestedCompleter
     from prompt_toolkit.history import FileHistory
     from rich.console import Console
 
@@ -184,25 +215,14 @@ def cli_shell(
 
     _set_shell_event(shell_event_id)
 
-    completion_dict = _build_completion_dict(aimbat_app)
-    completion_dict.pop("shell", None)
-    completion_dict.pop("tui", None)
-    utils_completions = completion_dict.get("utils")
-    if isinstance(utils_completions, dict):
-        utils_completions.pop("completion", None)
-
-    # Inject the shell-only `event switch` subcommand into tab completion.
-    event_completions = completion_dict.get("event")
-    if isinstance(event_completions, dict):
-        event_completions["switch"] = None
-
     import sys
 
+    completer = _shell_completer(aimbat_app)
     pt_session: PromptSession[str] | None = None
     if sys.stdin.isatty():
         pt_session = PromptSession(
             history=FileHistory(str(Path.home() / ".aimbat_history")),
-            completer=NestedCompleter.from_nested_dict(completion_dict),
+            completer=completer,
             complete_while_typing=True,
         )
 
@@ -235,6 +255,8 @@ def cli_shell(
 
             if not text:
                 continue
+            # Commands can add or delete records, so re-read IDs next time.
+            completer.invalidate()
             if text in ("exit", "quit", "q"):
                 break
 

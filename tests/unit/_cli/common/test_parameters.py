@@ -11,9 +11,9 @@ from aimbat import settings
 from aimbat._cli.common import (
     IccsPlotParameters,
     TableParameters,
+    UuidConverter,
     handle_issues,
 )
-from aimbat._cli.common._parameters import _make_uuid_converter
 from aimbat.core._migrations import SchemaStaleWarning
 from aimbat.models import AimbatEvent
 
@@ -226,7 +226,7 @@ class TestHandleIssues:
 
 
 class TestUuidConverterErrorHandling:
-    """Tests for `_make_uuid_converter`'s failure-reporting behaviour.
+    """Tests for `UuidConverter`'s failure-reporting behaviour.
 
     Cyclopts converters run during argument parsing, before any
     `handle_issues`-wrapped command body executes, so a failure resolving a
@@ -255,7 +255,7 @@ class TestUuidConverterErrorHandling:
 
         monkeypatch.setattr("aimbat.utils.string_to_uuid", _boom)
 
-        converter = _make_uuid_converter(AimbatEvent)
+        converter = UuidConverter(AimbatEvent)
         with pytest.raises(SystemExit) as exc_info:
             converter(object, (Token(value="not-a-uuid"),))
 
@@ -279,7 +279,7 @@ class TestUuidConverterErrorHandling:
 
         monkeypatch.setattr("aimbat.utils.string_to_uuid", _boom)
 
-        converter = _make_uuid_converter(AimbatEvent)
+        converter = UuidConverter(AimbatEvent)
         with pytest.raises(RuntimeError, match="db lookup exploded"):
             converter(object, (Token(value="not-a-uuid"),))
 
@@ -302,7 +302,7 @@ class TestUuidConverterErrorHandling:
 
         monkeypatch.setattr("aimbat.utils.string_to_uuid", _boom)
 
-        converter = _make_uuid_converter(AimbatEvent)
+        converter = UuidConverter(AimbatEvent)
         with pytest.raises(RuntimeError, match="db lookup exploded"):
             converter(object, (Token(value="not-a-uuid"),))
 

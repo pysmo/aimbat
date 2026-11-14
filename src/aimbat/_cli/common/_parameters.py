@@ -1,9 +1,8 @@
 """Common parameters and functions for the AIMBAT CLI."""
 
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Annotated, Literal, TypeIs, overload
+from typing import Annotated, Literal, TypeIs
 from uuid import UUID
 
 from cyclopts import Parameter, Token
@@ -20,6 +19,7 @@ __all__ = [
     "IccsPlotParameters",
     "JsonDumpParameters",
     "TableParameters",
+    "UuidConverter",
     "causal",
     "event_parameter",
     "event_parameter_is_all",
@@ -39,34 +39,26 @@ __all__ = [
 # -----------------------------------------------------------------------
 
 
-@overload
-def _make_uuid_converter(
-    model_class: type, allow_all: Literal[False] = ...
-) -> Callable[..., UUID]: ...
+@dataclass(frozen=True)
+class UuidConverter:
+    """Cyclopts converter that resolves a UUID or unique prefix for a model.
 
+    `aimbat shell` reads `model_class` and `allow_all` to complete IDs.
 
-@overload
-def _make_uuid_converter(
-    model_class: type, allow_all: Literal[True]
-) -> Callable[..., UUID | Literal["all"]]: ...
-
-
-def _make_uuid_converter(
-    model_class: type, allow_all: bool = False
-) -> Callable[..., UUID | Literal["all"]]:
-    """Return a cyclopts converter that resolves a UUID prefix for the given model.
-
-    Args:
+    Attributes:
         model_class: AIMBAT model class to resolve the UUID against.
-        allow_all: If True, the converter will also accept the string "all"
-            (case-insensitive) and return it as a literal.
+        allow_all: Whether the string "all" (case-insensitive) is also accepted
+            and returned as a literal.
     """
 
-    def _converter(hint: type, tokens: tuple[Token, ...]) -> UUID | Literal["all"]:
+    model_class: type
+    allow_all: bool = False
+
+    def __call__(self, hint: type, tokens: tuple[Token, ...]) -> UUID | Literal["all"]:
         (token,) = tokens
         value = token.value
 
-        if allow_all and value.lower() == "all":
+        if self.allow_all and value.lower() == "all":
             return "all"
         try:
             return UUID(value)
@@ -80,11 +72,9 @@ def _make_uuid_converter(
 
             def _resolve() -> UUID:
                 with Session(engine) as session:
-                    return string_to_uuid(session, value, model_class)
+                    return string_to_uuid(session, value, self.model_class)
 
             return run_reporting_issues(_resolve)
-
-    return _converter
 
 
 def id_parameter(model_class: type, help: str = "") -> Parameter:
@@ -97,7 +87,7 @@ def id_parameter(model_class: type, help: str = "") -> Parameter:
     return Parameter(
         name="id",
         help=help or "UUID (or any unique prefix).",
-        converter=_make_uuid_converter(model_class),
+        converter=UuidConverter(model_class),
     )
 
 
@@ -113,7 +103,7 @@ def event_parameter(help: str | None = None) -> Parameter:
         name=["event", "event-id"],
         help=help or "UUID (or unique prefix) of event to process.",
         env_var="DEFAULT_EVENT_ID",
-        converter=_make_uuid_converter(AimbatEvent),
+        converter=UuidConverter(AimbatEvent),
     )
 
 
@@ -130,7 +120,7 @@ def event_parameter_with_all(help: str | None = None) -> Parameter:
         help=help
         or '"all" for all events, or UUID (or unique prefix) of event to process.',
         env_var="DEFAULT_EVENT_ID",
-        converter=_make_uuid_converter(AimbatEvent, allow_all=True),
+        converter=UuidConverter(AimbatEvent, allow_all=True),
         show_choices=False,
     )
 
@@ -154,7 +144,7 @@ def station_parameter_with_all(help: str | None = None) -> Parameter:
         name=["station", "station-id"],
         help=help
         or '"all" for all stations, or UUID (or unique prefix) of station to process.',
-        converter=_make_uuid_converter(AimbatStation, allow_all=True),
+        converter=UuidConverter(AimbatStation, allow_all=True),
         show_choices=False,
     )
 
@@ -178,7 +168,7 @@ def use_station_parameter() -> Parameter:
             "UUID (or unique prefix) of an existing station to link to instead of"
             + " extracting one from each data source."
         ),
-        converter=_make_uuid_converter(AimbatStation),
+        converter=UuidConverter(AimbatStation),
     )
 
 
@@ -192,7 +182,7 @@ def use_event_parameter() -> Parameter:
             "UUID (or unique prefix) of an existing event to link to instead of "
             + "extracting one from each data source."
         ),
-        converter=_make_uuid_converter(AimbatEvent),
+        converter=UuidConverter(AimbatEvent),
     )
 
 
