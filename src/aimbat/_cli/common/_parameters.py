@@ -2,7 +2,7 @@
 
 import sys
 from dataclasses import dataclass
-from typing import Annotated, Literal, TypeIs
+from typing import TYPE_CHECKING, Annotated, Literal, TypeIs
 from uuid import UUID
 
 from cyclopts import Parameter, Token
@@ -10,6 +10,9 @@ from cyclopts import Parameter, Token
 from aimbat import settings
 
 from ._decorators import print_warning
+
+if TYPE_CHECKING:
+    from aimbat.models import AimbatTypes
 
 __all__ = [
     "CAUSAL_DEFAULTS",
@@ -51,7 +54,7 @@ class UuidConverter:
             and returned as a literal.
     """
 
-    model_class: type
+    model_class: "type[AimbatTypes]"
     allow_all: bool = False
 
     def __call__(self, hint: type, tokens: tuple[Token, ...]) -> UUID | Literal["all"]:
@@ -77,7 +80,7 @@ class UuidConverter:
             return run_reporting_issues(_resolve)
 
 
-def id_parameter(model_class: type, help: str = "") -> Parameter:
+def id_parameter(model_class: "type[AimbatTypes]", help: str = "") -> Parameter:
     """Return a cyclopts `Parameter` for selecting a record by UUID or unique prefix.
 
     Args:

@@ -119,8 +119,8 @@ Every item in a project is identified internally by a
 ```
 
 Typing these in full is impractical, so AIMBAT displays and accepts truncated
-forms, using only as many leading characters as needed to be unambiguous within
-the project. Four seismograms with these IDs:
+forms, using only as many leading characters as needed to distinguish an item
+from others of the same type. Four seismograms with these IDs:
 
 ```text
 6a4acdf7-6c7b-4523-aaaa-0a674cdc5f2d
@@ -139,6 +139,13 @@ c9
 ```
 
 If two characters are not enough, three are used, and so on.
+
+!!! tip "Identifying an item from its ID"
+
+    `#!bash aimbat utils lookup 6a` lists every event, station, seismogram and
+    snapshot whose ID starts with `6a`, each with a short description such as a
+    station's network and name. The same characters may belong to items of
+    different types, such as a station and a seismogram.
 
 [^1]: Deleting items from a project drops them from the database only. AIMBAT
     will *never* delete or modify any files.

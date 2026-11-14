@@ -3,7 +3,7 @@
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from cyclopts import App, Argument
 from prompt_toolkit.completion import (
@@ -14,14 +14,12 @@ from prompt_toolkit.completion import (
 )
 from prompt_toolkit.document import Document
 
-from .common import UuidConverter
+from .common import UuidConverter, describe_records
 
 if TYPE_CHECKING:
-    from sqlmodel import Session
+    from aimbat.models import AimbatTypes
 
 __all__ = ["ShellCompleter"]
-
-_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 # What an argument's value is completed from: an ID lookup or fixed choices.
 type _Values = UuidConverter | tuple[str, ...]
@@ -156,7 +154,7 @@ class ShellCompleter(Completer):
             if choice.clean.startswith(typed):
                 yield word.completion(choice.short, choice.meta)
 
-    def _choices(self, model_class: type) -> list[_IdChoice]:
+    def _choices(self, model_class: "type[AimbatTypes]") -> list[_IdChoice]:
         if model_class not in self._cache:
             try:
                 self._cache[model_class] = _read_choices(model_class)
@@ -197,7 +195,7 @@ def _values(arg: Argument) -> _Values | None:
     return arg.get_choices(force=True) or None
 
 
-def _read_choices(model_class: type) -> list[_IdChoice]:
+def _read_choices(model_class: "type[AimbatTypes]") -> list[_IdChoice]:
     """Read the IDs of `model_class` records, shortened as in AIMBAT's tables."""
     from sqlmodel import Session
 
@@ -206,7 +204,9 @@ def _read_choices(model_class: type) -> list[_IdChoice]:
     with Session(engine) as session:
         return [
             _IdChoice(short, str(record_id).replace("-", ""), meta)
-            for record_id, short, meta in _describe(session, model_class)
+            for record_id, short, meta in describe_records(
+                session, model_class, event_id=_shell_event_id()
+            )
         ]
 
 
@@ -222,59 +222,3 @@ def _shell_event_id() -> uuid.UUID | None:
         return uuid.UUID(os.environ.get("DEFAULT_EVENT_ID", ""))
     except ValueError:
         return None
-
-
-def _describe(
-    session: "Session", model_class: type
-) -> Iterator[tuple[uuid.UUID, str, str]]:
-    """Yield each record's ID, short ID and a description for the menu.
-
-    Seismograms and snapshots are limited to the shell's event, if set.
-    """
-    from sqlmodel import col, select
-
-    from aimbat.models import (
-        AimbatEvent,
-        AimbatSeismogram,
-        AimbatSnapshot,
-        AimbatStation,
-    )
-    from aimbat.utils import uuid_shortener
-
-    def short(record: Any) -> str:
-        return uuid_shortener(session, record)
-
-    event_id = _shell_event_id()
-    if model_class is AimbatEvent:
-        events = select(AimbatEvent).order_by(col(AimbatEvent.time))
-        for event in session.exec(events):
-            yield event.id, short(event), f"{event.time:{_TIME_FORMAT}}"
-    elif model_class is AimbatStation:
-        stations = select(AimbatStation).order_by(
-            col(AimbatStation.network), col(AimbatStation.name)
-        )
-        for station in session.exec(stations):
-            yield station.id, short(station), f"{station.network}.{station.name}"
-    elif model_class is AimbatSeismogram:
-        seismograms = (
-            select(AimbatSeismogram, AimbatStation, AimbatEvent)
-            .join(AimbatStation)
-            .join(AimbatEvent)
-            .order_by(col(AimbatStation.network), col(AimbatStation.name))
-        )
-        if event_id is not None:
-            seismograms = seismograms.where(AimbatSeismogram.event_id == event_id)
-        for seismogram, station, event in session.exec(seismograms):
-            meta = f"{station.network}.{station.name} {event.time:{_TIME_FORMAT}}"
-            yield seismogram.id, short(seismogram), meta
-    elif model_class is AimbatSnapshot:
-        snapshots = select(AimbatSnapshot).order_by(col(AimbatSnapshot.time))
-        if event_id is not None:
-            snapshots = snapshots.where(AimbatSnapshot.event_id == event_id)
-        for snapshot in session.exec(snapshots):
-            meta = f"{snapshot.time:{_TIME_FORMAT}} {snapshot.comment or ''}"
-            yield snapshot.id, short(snapshot), meta.strip()
-    else:
-        records: Any = session.exec(select(model_class))
-        for record in records:
-            yield record.id, short(record), ""
