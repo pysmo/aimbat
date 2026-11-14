@@ -25,3 +25,14 @@ class TestPrintErrorPanel:
         captured = capsys.readouterr().err
         assert "something failed" in captured
         assert "Data source: somefile.sac" in captured
+
+    def test_brackets_shown_literally(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Verifies a message is not parsed as Rich markup.
+
+        Messages can quote user input, such as an ID, that contains brackets.
+
+        Args:
+            capsys: The pytest capsys fixture.
+        """
+        print_error_panel(ValueError("bad ID [red] or [/red]"))
+        assert "bad ID [red] or [/red]" in capsys.readouterr().err

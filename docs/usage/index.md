@@ -146,6 +146,21 @@ database immediately. There is no save step and no undo. See
 [Snapshots](snapshots.md) to capture a state to roll back to, and
 [The ICCS Stack](iccs-stack.md#live-data) for what the live data includes.
 
+## Record IDs
+
+Events, stations, seismograms and snapshots are identified by ID. Tables show
+a shortened form, and commands accept either the full ID or any prefix that is
+unique among records of the required type. `aimbat utils lookup` lists the
+records an ID belongs to:
+
+```bash
+aimbat utils lookup 5e
+```
+
+Each match is shown with a short description, such as an event's time or a
+station's network and name. A shortened ID is unique only among records of the
+same type, so it may match records of several types.
+
 ## Notes
 
 Every event, station, seismogram, and snapshot can carry a freeform Markdown

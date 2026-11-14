@@ -3,7 +3,7 @@
 from bisect import bisect_left
 from uuid import UUID
 
-from sqlalchemy import String, cast, func
+from sqlalchemy import ColumnElement, String, cast, func
 from sqlmodel import Session, select
 
 from aimbat import settings
@@ -11,6 +11,7 @@ from aimbat.logger import logger
 from aimbat.models import AimbatTypes
 
 __all__ = [
+    "id_prefix_filter",
     "string_to_uuid",
     "uuid_shortener",
 ]
@@ -25,6 +26,20 @@ def _escape_like(value: str) -> str:
         value.replace(_LIKE_ESCAPE_CHAR, _LIKE_ESCAPE_CHAR * 2)
         .replace("%", f"{_LIKE_ESCAPE_CHAR}%")
         .replace("_", f"{_LIKE_ESCAPE_CHAR}_")
+    )
+
+
+def id_prefix_filter(aimbat_class: type[AimbatTypes], id: str) -> ColumnElement[bool]:
+    """Return a SQL condition matching records whose ID starts with `id`.
+
+    Dashes are ignored in both `id` and the stored IDs.
+
+    Args:
+        aimbat_class: Aimbat class whose IDs are matched.
+        id: A full ID or the first few characters of one.
+    """
+    return func.replace(cast(aimbat_class.id, String), "-", "").like(
+        f"{_escape_like(id.replace('-', ''))}%", escape=_LIKE_ESCAPE_CHAR
     )
 
 
@@ -48,11 +63,7 @@ def string_to_uuid(
     Raises:
         ValueError: If no record matches `id`, or more than one record does.
     """
-    statement = select(aimbat_class.id).where(
-        func.replace(cast(aimbat_class.id, String), "-", "").like(
-            f"{_escape_like(id.replace('-', ''))}%", escape=_LIKE_ESCAPE_CHAR
-        )
-    )
+    statement = select(aimbat_class.id).where(id_prefix_filter(aimbat_class, id))
     uuid_set = set(session.exec(statement).all())
     if len(uuid_set) == 1:
         resolved = uuid_set.pop()

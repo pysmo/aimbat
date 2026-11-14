@@ -3,6 +3,7 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
 from pandas import Timedelta
 from pydantic import BaseModel, Field
 
@@ -181,3 +182,21 @@ class TestJsonToTable:
         assert cols["Value"].justify == "right"
         # Name is str -> "left" (Rich default)
         assert cols["Name"].justify == "left"
+
+
+class TestJsonToTableMarkup:
+    """Tests that cell values are not parsed as Rich markup."""
+
+    @pytest.mark.parametrize("name", ["before [/red] ICCS", "x [pre-ICCS]"])
+    def test_brackets_shown_literally(
+        self, name: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Verifies bracketed text in a cell is printed as typed.
+
+        Args:
+            name: A cell value containing brackets.
+            capsys: The pytest capsys fixture.
+        """
+        json_to_table([{"id": 1, "name": name}], MockModel)
+        json_to_table({"id": 1, "name": name}, MockModel)
+        assert capsys.readouterr().out.count(name) == 2
