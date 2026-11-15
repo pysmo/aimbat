@@ -2,9 +2,11 @@ import json
 import os
 import random
 import shutil
+import sqlite3
 import subprocess
 import uuid
 from collections.abc import Callable, Generator, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -15,8 +17,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pytest
 from pandas import Timedelta
-from sqlalchemy import Engine, event
+from sqlalchemy import Connection, Engine, event, text
 from sqlmodel import Session, create_engine
+from testkit.fixtures import ICCS_EVENTS_DIR
 
 from pysmo.classes import SAC
 
@@ -106,13 +109,17 @@ def clear_waveform_state() -> Generator[None]:
     """Drop cached and staged waveform data after every test.
 
     An uncommitted staged page left behind by one test would otherwise be
-    flushed to disk by a later test's unrelated `commit()`.
+    flushed to disk by a later test's unrelated `commit()`. Loaded projects
+    share event IDs across tests, so a cached ICCS instance would otherwise
+    be handed to a later test's database.
     """
     yield
+    from aimbat.core import clear_iccs_cache
     from aimbat.io import _base
 
     _base._cache.clear()
     _base._pending.clear()
+    clear_iccs_cache()
 
 
 @pytest.fixture(autouse=True)
@@ -293,27 +300,127 @@ def patched_engine(
     yield engine
 
 
+@dataclass(frozen=True)
+class _LoadedProjectTemplate:
+    """A project with the multi-event data ingested, frozen as a database image."""
+
+    image: bytes
+    data_dir: Path
+
+
+def _ingestion_settings_key() -> str:
+    """Identify the settings state ingestion would run under."""
+    return aimbat.settings.model_dump_json(exclude={"logfile", "log_level"})
+
+
+def _sqlite_connection(connection: Connection) -> sqlite3.Connection:
+    """Return the `sqlite3` connection underneath a SQLAlchemy connection."""
+    raw = connection.connection.driver_connection
+    assert isinstance(raw, sqlite3.Connection)
+    return raw
+
+
+def _build_loaded_project_template(data_dir: Path) -> _LoadedProjectTemplate:
+    """Ingest the multi-event data into a fresh project and freeze the result."""
+    for event_dir in sorted(ICCS_EVENTS_DIR.iterdir()):
+        if event_dir.is_dir():
+            for orgfile in sorted(event_dir.glob("*.BHZ")):
+                shutil.copy(orgfile, data_dir / orgfile.name)
+    datasources = sorted(data_dir.glob("*.bhz", case_sensitive=False))
+
+    template_engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+    )
+    try:
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(aimbat.db, "engine", template_engine)
+            create_project(template_engine)
+            with Session(template_engine) as session:
+                add_data_to_project(session, datasources, DataType.SAC)
+        with template_engine.connect() as connection:
+            image = _sqlite_connection(connection).serialize()
+    finally:
+        template_engine.dispose()
+    return _LoadedProjectTemplate(image=image, data_dir=data_dir)
+
+
+@pytest.fixture(scope="session")
+def _loaded_project_templates() -> dict[str, _LoadedProjectTemplate]:
+    """Templates built so far in this worker, keyed by settings state."""
+    return {}
+
+
 @pytest.fixture()
-def loaded_engine(patched_engine: Engine, multi_event_data: Sequence[Path]) -> Engine:
+def loaded_project_template(
+    _loaded_project_templates: dict[str, _LoadedProjectTemplate],
+    tmp_path_factory: pytest.TempPathFactory,
+) -> _LoadedProjectTemplate:
+    """The ingested multi-event project for the current settings.
+
+    Ingestion runs once per worker and settings state. Tests get a copy of
+    the result, which is much cheaper than ingesting again.
+    """
+    key = _ingestion_settings_key()
+    if key not in _loaded_project_templates:
+        _loaded_project_templates[key] = _build_loaded_project_template(
+            tmp_path_factory.mktemp("aimbat_template")
+        )
+    return _loaded_project_templates[key]
+
+
+def _point_datasources_at(
+    engine: Engine, template: _LoadedProjectTemplate, datasources: Sequence[Path]
+) -> None:
+    """Rewrite the template's source names to this test's copies of the files."""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE aimbatdatasource "
+                "SET sourcename = replace(sourcename, :old, :new)"
+            ),
+            {
+                "old": f"{template.data_dir}{os.sep}",
+                "new": f"{datasources[0].parent}{os.sep}",
+            },
+        )
+        stored = set(
+            connection.execute(
+                text("SELECT sourcename FROM aimbatdatasource")
+            ).scalars()
+        )
+    assert stored == {str(path) for path in datasources}, (
+        "The template project and this test's copies name different data sources."
+    )
+
+
+@pytest.fixture()
+def loaded_engine(
+    patched_engine: Engine,
+    multi_event_data: Sequence[Path],
+    loaded_project_template: _LoadedProjectTemplate,
+) -> Engine:
     """A patched engine pre-populated with multi-event data and an default event.
 
     Args:
         patched_engine: The monkeypatched SQLAlchemy Engine.
         multi_event_data: Paths to temporary copies of multi-event SAC files.
+        loaded_project_template: The ingested project to copy.
 
     Returns:
         The monkeypatched SQLAlchemy Engine with data loaded.
     """
-
-    datasources = multi_event_data
-    with Session(patched_engine) as session:
-        add_data_to_project(session, datasources, DataType.SAC)
+    with patched_engine.connect() as connection:
+        _sqlite_connection(connection).deserialize(loaded_project_template.image)
+    _point_datasources_at(patched_engine, loaded_project_template, multi_event_data)
     return patched_engine
 
 
 @pytest.fixture()
 def loaded_engine_from_file(
-    engine_from_file: Engine, multi_event_data: Sequence[Path]
+    engine_from_file: Engine,
+    db_path: Path,
+    multi_event_data: Sequence[Path],
+    loaded_project_template: _LoadedProjectTemplate,
 ) -> Engine:
     """A file-backed engine pre-populated with multi-event data.
 
@@ -325,14 +432,16 @@ def loaded_engine_from_file(
 
     Args:
         engine_from_file: The monkeypatched, file-backed SQLAlchemy Engine.
+        db_path: Path to the temporary project database file.
         multi_event_data: Paths to temporary copies of multi-event SAC files.
+        loaded_project_template: The ingested project to copy.
 
     Returns:
         The monkeypatched SQLAlchemy Engine with a project and data loaded.
     """
-    create_project(engine_from_file)
-    with Session(engine_from_file) as session:
-        add_data_to_project(session, multi_event_data, DataType.SAC)
+    # The engine has not connected yet, so the image becomes its database.
+    db_path.write_bytes(loaded_project_template.image)
+    _point_datasources_at(engine_from_file, loaded_project_template, multi_event_data)
     return engine_from_file
 
 
