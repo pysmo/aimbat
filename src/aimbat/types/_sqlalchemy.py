@@ -34,7 +34,7 @@ class SAPandasTimestamp(TypeDecorator[Timestamp]):
         """Convert a value to a UTC-aware `datetime` for storage.
 
         Naive values are assumed to already be UTC; aware values are
-        converted to UTC. Precision is truncated to microseconds, since
+        converted to UTC. Precision is rounded to microseconds, since
         `datetime` cannot represent nanoseconds.
 
         `PydanticTimestamp` validation is expected to have already rejected

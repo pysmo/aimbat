@@ -177,18 +177,8 @@ class TestSubMicrosecondPick:
         "nanoseconds",
         [
             pytest.param(400, id="rounds-down"),
-            pytest.param(
-                600,
-                id="rounds-up",
-                marks=pytest.mark.xfail(
-                    strict=True,
-                    reason=(
-                        "The hash truncates t1 to microseconds where the "
-                        "database rounds, so the digest changes once the pick "
-                        "has been stored."
-                    ),
-                ),
-            ),
+            pytest.param(500, id="tie"),
+            pytest.param(600, id="rounds-up"),
         ],
     )
     def test_hash_survives_storing(self, engine: Engine, nanoseconds: int) -> None:

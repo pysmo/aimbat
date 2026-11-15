@@ -126,6 +126,18 @@ when it does happen. Covered by
 """
 
 
+def _stored_seismogram_parameters(
+    seismogram: AimbatSeismogram,
+) -> AimbatSeismogramParametersBase:
+    """Return a seismogram's parameters as the database would store them."""
+    parameters = AimbatSeismogramParametersBase.model_validate(seismogram.parameters)
+    if parameters.t1 is not None:
+        # Match `SAPandasTimestamp.process_bind_param`, which rounds to
+        # microseconds; serialising would truncate.
+        parameters.t1 = parameters.t1.round("us")
+    return parameters
+
+
 def _compute_parameters_hash(
     event: AimbatEvent,
     *,
@@ -145,9 +157,9 @@ def _compute_parameters_hash(
         (
             {
                 "seismogram_id": str(seis.id),
-                **AimbatSeismogramParametersBase.model_validate(
-                    seis.parameters
-                ).model_dump(mode="json", exclude=seismogram_exclude),
+                **_stored_seismogram_parameters(seis).model_dump(
+                    mode="json", exclude=seismogram_exclude
+                ),
             }
             for seis in event.seismograms
         ),
