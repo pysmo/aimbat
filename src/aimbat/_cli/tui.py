@@ -14,6 +14,7 @@ def cli_tui(*, _: DebugParameter = DebugParameter()) -> None:
     import warnings
 
     from aimbat._tui.app import main
+    from aimbat.core import ignore_run_summary_warnings
     from aimbat.core._migrations import SchemaStaleWarning
 
     # The TUI has its own complete handling for a stale schema - a blocking
@@ -25,4 +26,7 @@ def cli_tui(*, _: DebugParameter = DebugParameter()) -> None:
     # runs. Scoped to this call only; restored automatically on exit.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", SchemaStaleWarning)
+        # Alignment notifications report these. Set here, before the worker
+        # threads start, because the filters are process-wide.
+        ignore_run_summary_warnings()
         main()

@@ -46,6 +46,7 @@ from aimbat._tui.modals import (
 )
 from aimbat.core import (
     BoundICCS,
+    RunSummary,
     add_data_to_project,
     build_iccs_from_snapshot,
     create_project,
@@ -62,6 +63,8 @@ from aimbat.core import (
     run_iccs,
     run_mccc,
     set_seismogram_parameter,
+    summarise_iccs_result,
+    summarise_mccc_result,
     toggle_event_completed,
     upgrade_project,
 )
@@ -940,21 +943,17 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             f"Alignment worker starting: algorithm={algorithm!r}, autoflip="
             + f"{autoflip!r}, autoselect={autoselect!r}, all_seis={all_seis!r}."
         )
-        notify_msg = "Alignment complete"
-        notify_severity: Literal["information", "warning", "error"] = "information"
+        summary = RunSummary("Alignment complete", warning=False)
         try:
             with Session(engine) as session:
                 event = self._get_current_event(session)
                 if algorithm == "iccs":
                     result = run_iccs(session, event, bound.iccs, autoflip, autoselect)
-                    n = len(result.convergence)
-                    status = "converged" if result.converged else "did not converge"
-                    noun = "iteration" if n == 1 else "iterations"
-                    notify_msg = f"ICCS {status} after {n} {noun}"
-                    notify_severity = "information" if result.converged else "warning"
+                    summary = summarise_iccs_result(result, len(bound.iccs.seismograms))
                 elif algorithm == "mccc":
-                    run_mccc(session, event, bound.iccs, all_seis)
-                    notify_msg = "MCCC complete"
+                    summary = summarise_mccc_result(
+                        run_mccc(session, event, bound.iccs, all_seis)
+                    )
         except Exception as exc:
             logger.exception(f"Alignment worker error ({algorithm}): {exc}")
             self.call_from_thread(self.notify, str(exc), severity="error")
@@ -963,7 +962,11 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         # staleness poller cannot observe last_modified > created_at between
         # this call_from_thread and _post_align_complete actually running.
         bound.created_at = Timestamp.now("UTC")
-        self.call_from_thread(self._post_align_complete, notify_msg, notify_severity)
+        self.call_from_thread(
+            self._post_align_complete,
+            summary.message,
+            "warning" if summary.warning else "information",
+        )
 
     def _post_align_complete(
         self, msg: str, severity: Literal["information", "warning", "error"]
@@ -975,7 +978,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             severity: Notification severity level.
         """
         self.refresh_all()
-        self.notify(msg, severity=severity, timeout=4)
+        # About 25 characters a second, so a multi-sentence summary stays readable.
+        self.notify(msg, severity=severity, timeout=max(4, len(msg) / 25))
 
     def action_new_snapshot(self) -> None:
         """Prompt for an optional comment and create a snapshot of the current event's parameters."""
