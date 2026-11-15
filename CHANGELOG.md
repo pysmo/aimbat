@@ -64,6 +64,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(models)** Say how to move the bandpass when a bound is rejected
 - **(core,plot)** Evict cached ICCS on rollback, let plot writes take an engine
 - **(cli)** Show brackets in table cells and errors literally
+- **(align)** Report refused picks and ICCS runs that moved nothing
 
 ### 📚 Documentation
 
