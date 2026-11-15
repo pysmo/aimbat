@@ -20,6 +20,7 @@ from sqlmodel import Session, col, select
 from pysmo.tools.iccs import (
     ICCS,
     IccsResult,
+    IccsStatus,
     McccResult,
     MiniIccsSeismogram,
 )
@@ -45,14 +46,18 @@ __all__ = [
     "IccsLifecycle",
     "IccsValidationError",
     "NoSeismogramsError",
+    "RunSummary",
     "build_iccs_from_snapshot",
     "cc_stats",
     "clear_iccs_cache",
     "clear_mccc_quality",
     "create_iccs_instance",
     "evict_iccs_cache_entry",
+    "ignore_run_summary_warnings",
     "run_iccs",
     "run_mccc",
+    "summarise_iccs_result",
+    "summarise_mccc_result",
     "sync_iccs_parameters",
     "validate_iccs_construction",
     "write_back_seismograms",
@@ -482,13 +487,14 @@ def _write_mccc_quality(
     event_id: UUID,
     iccs: ICCS,
     result: McccResult,
-    all_seismograms: bool,
 ) -> None:
     """Write MCCC quality results to the live quality tables.
 
     Upserts the event-level RMSE, clears MCCC fields for all seismograms in
     the ICCS instance, then writes the per-seismogram metrics for the seismograms
-    that were actually used in the inversion. The `iccs_cc` field is preserved
+    that were actually used in the inversion. A seismogram whose MCCC shift was
+    refused keeps its previous pick, so its error is stored as `NULL` rather
+    than the error of the pick it did not receive. The `iccs_cc` field is preserved
     when an existing quality row is found; seismograms with no prior quality row
     will have `iccs_cc = NULL` until ICCS stats are written separately.
 
@@ -501,24 +507,7 @@ def _write_mccc_quality(
         event_id: UUID of the event that was processed.
         iccs: ICCS instance used for the MCCC run.
         result: McccResult returned by `ICCS.run_mccc`.
-        all_seismograms: Whether the run included all seismograms (`True`) or
-            only the selected ones (`False`).
     """
-    used_seis = (
-        iccs.seismograms
-        if all_seismograms
-        else [s for s in iccs.seismograms if s.select]
-    )
-
-    n_used = len(used_seis)
-    if not len(result.errors) == len(result.cc_means) == len(result.cc_stds) == n_used:
-        raise RuntimeError(
-            f"MCCC returned {len(result.errors)} error / {len(result.cc_means)} "
-            + f"cc_mean / {len(result.cc_stds)} cc_std values for {n_used} "
-            + "seismograms; per-seismogram metrics cannot be attributed. The pysmo "
-            + "MCCC result is expected to align 1:1 with the used seismograms."
-        )
-
     logger.debug(f"Writing MCCC quality for event {event_id}.")
     # Event quality
     existing_eq = session.exec(
@@ -549,10 +538,12 @@ def _write_mccc_quality(
     # their valid ranges (mean [0, 1], std >= 0) to absorb floating-point
     # overshoot, matching `_write_iccs_stats`: table models skip the
     # Pydantic bounds so nothing else enforces them here.
-    for iccs_seis, error, cc_mean, cc_std in zip(
-        used_seis, result.errors, result.cc_means, result.cc_stds, strict=True
+    for index, error, cc_mean, cc_std in zip(
+        result.indices, result.errors, result.cc_means, result.cc_stds, strict=True
     ):
-        seis_id = iccs_seis.extra["id"]
+        seis_id = iccs.seismograms[index].extra["id"]
+        if index in result.refused:
+            error = None
         cc_mean_val = max(0.0, min(1.0, float(cc_mean)))
         cc_std_val = max(0.0, float(cc_std))
         sq = _find_seismogram_quality(session, seis_id)
@@ -840,6 +831,132 @@ def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> No
     iccs.clear_cache()
 
 
+@dataclass(frozen=True)
+class RunSummary:
+    """A one-paragraph account of an ICCS or MCCC run for the user."""
+
+    message: str
+    """What the run did, in full sentences."""
+
+    warning: bool
+    """Whether the outcome needs the user's attention."""
+
+
+_WINDOW_DOES_NOT_FIT = (
+    "the time window (including its taper ramp) would extend beyond the data"
+)
+
+
+def ignore_run_summary_warnings() -> None:
+    """Ignore the pysmo warnings that a `RunSummary` already reports.
+
+    Covers refused ICCS and MCCC shifts and the autoselect fallback. Adds a
+    process-wide filter, so call it inside `warnings.catch_warnings()` and
+    before any thread that runs ICCS or MCCC starts.
+    """
+    import warnings
+
+    warnings.filterwarnings(
+        "ignore",
+        message=r"(ICCS|MCCC) refused|autoselect left no seismograms",
+        category=UserWarning,
+    )
+
+
+def _plural(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def summarise_iccs_result(result: IccsResult, n_seismograms: int) -> RunSummary:
+    """Describe the outcome of an ICCS run.
+
+    Args:
+        result: Result returned by the ICCS run.
+        n_seismograms: Number of seismograms in the ICCS instance.
+
+    Returns:
+        The summary, flagged as a warning when the run did not converge, moved
+        no picks, refused any pick, or had to keep a seismogram selected.
+    """
+    iterations = _plural(len(result.convergence), "iteration")
+    if result.status is IccsStatus.nothing_applied:
+        sentences = [
+            f"ICCS moved no picks in {iterations} because, for every "
+            + f"seismogram, {_WINDOW_DOES_NOT_FIT}. Shorten the time window "
+            + "or the taper ramp."
+        ]
+    else:
+        if result.status is IccsStatus.converged:
+            sentences = [f"ICCS converged after {iterations}."]
+        else:
+            sentences = [f"ICCS did not converge after {iterations}."]
+        if result.refused:
+            n_refused = len(result.refused)
+            sentences.append(
+                f"In the final iteration, {n_refused} of "
+                + f"{_plural(n_seismograms, 'pick')} could not be updated "
+                + f"because {_WINDOW_DOES_NOT_FIT}."
+            )
+
+    changes = [
+        f"{len(indices)} {label}"
+        for label, indices in (
+            ("flipped", result.flipped),
+            ("deselected", result.deselected),
+            ("reselected", result.reselected),
+        )
+        if indices
+    ]
+    if changes:
+        sentences.append(f"Seismograms changed: {', '.join(changes)}.")
+    if result.fallback is not None:
+        sentences.append(
+            "Autoselect would have deselected every seismogram, so the "
+            + "best-correlating one was kept selected."
+        )
+
+    warning = (
+        result.status is not IccsStatus.converged
+        or bool(result.refused)
+        or result.fallback is not None
+    )
+    return RunSummary(" ".join(sentences), warning)
+
+
+def summarise_mccc_result(result: McccResult) -> RunSummary:
+    """Describe the outcome of an MCCC run.
+
+    Args:
+        result: Result returned by the MCCC run.
+
+    Returns:
+        The summary, flagged as a warning when any pick was not refined.
+    """
+    n_used = len(result.indices)
+    n_refused = len(result.refused)
+    if not n_refused:
+        return RunSummary(f"MCCC refined {_plural(n_used, 'pick')}.", False)
+    return RunSummary(
+        f"MCCC refined {n_used - n_refused} of {_plural(n_used, 'pick')}. "
+        + f"{n_refused} {'was' if n_refused == 1 else 'were'} left unchanged "
+        + f"because {_WINDOW_DOES_NOT_FIT}.",
+        True,
+    )
+
+
+def _log_summary(
+    summary: RunSummary, iccs: ICCS, groups: dict[str, frozenset[int]]
+) -> None:
+    """Log a run summary, then the IDs of the seismograms in each group."""
+    logger.log("WARNING" if summary.warning else "INFO", summary.message)
+    for label, indices in groups.items():
+        if indices:
+            ids = ", ".join(
+                str(iccs.seismograms[i].extra["id"]) for i in sorted(indices)
+            )
+            logger.info(f"{label}: {ids}")
+
+
 def run_iccs(
     session: Session, event: AimbatEvent, iccs: ICCS, autoflip: bool, autoselect: bool
 ) -> IccsResult:
@@ -865,9 +982,16 @@ def run_iccs(
     # before an autoselect run picks up a stale threshold.
     iccs.min_cc = event.parameters.min_cc
     result = iccs(autoflip=autoflip, autoselect=autoselect)
-    n_iter = len(result.convergence)
-    status = "converged" if result.converged else "did not converge"
-    logger.info(f"ICCS {status} after {n_iter} iterations.")
+    _log_summary(
+        summarise_iccs_result(result, len(iccs.seismograms)),
+        iccs,
+        {
+            "ICCS refused picks": result.refused,
+            "ICCS flipped": result.flipped,
+            "ICCS deselected": result.deselected,
+            "ICCS reselected": result.reselected,
+        },
+    )
     # Writing the picks back nulls `iccs_cc` via the invalidation triggers, so
     # `_write_iccs_stats` must come after that flush to repopulate it (see
     # `run_mccc` for the fuller ordering note). Both happen on `session`, so
@@ -902,6 +1026,9 @@ def run_mccc(
         min_cc=event.parameters.mccc_min_cc,
         damping=event.parameters.mccc_damp,
     )
+    _log_summary(
+        summarise_mccc_result(result), iccs, {"MCCC refused picks": result.refused}
+    )
     # Order is load-bearing. Writing back `t1`/`flip`/`select` flushes an UPDATE
     # that fires the quality-invalidation triggers, nulling `iccs_cc` and every
     # MCCC quality column for this event. `_write_iccs_stats` must then
@@ -911,6 +1038,6 @@ def run_mccc(
     # tables half-nulled.
     write_back_seismograms(session, iccs)
     _write_iccs_stats(session, event.id, iccs)
-    _write_mccc_quality(session, event.id, iccs, result, all_seismograms)
+    _write_mccc_quality(session, event.id, iccs, result)
     session.commit()
     return result

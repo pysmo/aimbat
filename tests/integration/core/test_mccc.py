@@ -91,20 +91,30 @@ class TestMccc:
 
 
 def _fake_mccc_result(
-    n: int, cc_means: list[float], cc_stds: list[float]
+    indices: list[int],
+    cc_means: list[float],
+    cc_stds: list[float],
+    refused: frozenset[int] = frozenset(),
 ) -> McccResult:
-    """Build an `McccResult` with `n` picks/errors and the given CC lists."""
+    """Build an `McccResult` for the given `ICCS.seismograms` indices."""
+    n = len(indices)
     return McccResult(
+        indices=indices,
         picks=[Timestamp("2010-02-27T06:40:00", tz="UTC")] * n,
         errors=[Timedelta(seconds=0.1)] * n,
         rmse=Timedelta(seconds=0.2),
         cc_means=cc_means,
         cc_stds=cc_stds,
+        refused=refused,
     )
 
 
+def _selected_indices(iccs: ICCS) -> list[int]:
+    return [i for i, s in enumerate(iccs.seismograms) if s.select]
+
+
 class TestWriteMcccQualityGuards:
-    """`_write_mccc_quality` hardening: 1:1 length check and CC clamping."""
+    """`_write_mccc_quality` attribution, refusal handling and CC clamping."""
 
     def test_clamps_out_of_range_cc_values(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
@@ -113,7 +123,8 @@ class TestWriteMcccQualityGuards:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         iccs = create_iccs_instance(loaded_session, event).iccs
-        n = sum(1 for s in iccs.seismograms if s.select)
+        indices = _selected_indices(iccs)
+        n = len(indices)
         assert n >= 2
 
         cc_means = [1.5, -0.3] + [0.8] * (n - 2)
@@ -121,7 +132,7 @@ class TestWriteMcccQualityGuards:
         monkeypatch.setattr(
             ICCS,
             "run_mccc",
-            lambda self, **kw: _fake_mccc_result(n, cc_means, cc_stds),
+            lambda self, **kw: _fake_mccc_result(indices, cc_means, cc_stds),
         )
         run_mccc(loaded_session, event, iccs, all_seismograms=False)
 
@@ -136,23 +147,62 @@ class TestWriteMcccQualityGuards:
             assert sq.mccc_cc_mean is not None and 0.0 <= sq.mccc_cc_mean <= 1.0
             assert sq.mccc_cc_std is not None and sq.mccc_cc_std >= 0.0
 
-    def test_raises_on_result_length_mismatch(
+    def test_metrics_follow_result_indices(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A result that does not align 1:1 with the used seismograms raises."""
+        """Metrics go to `ICCS.seismograms[indices[i]]`, not to position `i`."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         iccs = create_iccs_instance(loaded_session, event).iccs
-        n = sum(1 for s in iccs.seismograms if s.select)
-
-        short = McccResult(
-            picks=[Timestamp("2010-02-27T06:40:00", tz="UTC")] * n,
-            errors=[Timedelta(seconds=0.1)] * (n - 1),  # one short
-            rmse=Timedelta(seconds=0.2),
-            cc_means=[0.8] * n,
-            cc_stds=[0.05] * n,
+        indices = _selected_indices(iccs)[::-1]
+        n = len(indices)
+        cc_means = [round(0.5 + i / (2 * n), 3) for i in range(n)]
+        monkeypatch.setattr(
+            ICCS,
+            "run_mccc",
+            lambda self, **kw: _fake_mccc_result(indices, cc_means, [0.05] * n),
         )
-        monkeypatch.setattr(ICCS, "run_mccc", lambda self, **kw: short)
+        run_mccc(loaded_session, event, iccs, all_seismograms=False)
 
-        with pytest.raises(RuntimeError, match="cannot be attributed"):
-            run_mccc(loaded_session, event, iccs, all_seismograms=False)
+        loaded_session.expire_all()
+        for index, cc_mean in zip(indices, cc_means, strict=True):
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    AimbatSeismogramQuality.seismogram_id
+                    == iccs.seismograms[index].extra["id"]
+                )
+            ).one()
+            assert sq.mccc_cc_mean == pytest.approx(cc_mean)
+
+    def test_refused_seismogram_has_no_error(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A refused pick stores no error, but keeps its CC metrics."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        iccs = create_iccs_instance(loaded_session, event).iccs
+        indices = _selected_indices(iccs)
+        n = len(indices)
+        refused = indices[0]
+        monkeypatch.setattr(
+            ICCS,
+            "run_mccc",
+            lambda self, **kw: _fake_mccc_result(
+                indices, [0.8] * n, [0.05] * n, frozenset({refused})
+            ),
+        )
+        run_mccc(loaded_session, event, iccs, all_seismograms=False)
+
+        loaded_session.expire_all()
+        for index in indices:
+            sq = loaded_session.exec(
+                select(AimbatSeismogramQuality).where(
+                    AimbatSeismogramQuality.seismogram_id
+                    == iccs.seismograms[index].extra["id"]
+                )
+            ).one()
+            assert sq.mccc_cc_mean == pytest.approx(0.8)
+            if index == refused:
+                assert sq.mccc_error is None
+            else:
+                assert sq.mccc_error == Timedelta(seconds=0.1)
