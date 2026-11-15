@@ -131,6 +131,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Write per-worker log files to gitignored tests/.logs/
 - **(models)** Pin count column_property attrs against their TYPE_CHECKING stubs
 - **(tui)** Drop timing-sensitive assertion from debounce test
+- Speed up loaded-project fixtures and pin validity behaviour
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
