@@ -6,7 +6,6 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Literal
 
-from pandas import Timestamp
 from rich.console import Console
 from rich.panel import Panel
 from sqlalchemy.exc import NoResultFound
@@ -391,13 +390,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             time_str = fmt_timestamp(event.time) if event.time else "unknown"
             lat = f"{event.latitude:.3f}°"
             lon = f"{event.longitude:.3f}°"
-            modified = (
-                f"  modified: {fmt_timestamp(event.last_modified)}"
-                if event.last_modified is not None
-                else ""
-            )
             bar.update(
-                f"▶ {time_str}  |  {lat}, {lon}{modified}  [dim]{iccs_status}  switch "
+                f"▶ {time_str}  |  {lat}, {lon}  [dim]{iccs_status}  switch "
                 + "events on the Project tab[/dim]"
             )
         except NoResultFound:
@@ -546,20 +540,17 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     raise ValueError(f"Seismogram {item_id} not found")
                 new_value = not getattr(seis.parameters, param)
                 set_seismogram_parameter(session, seis_uuid, param, new_value)
-            bound = self._iccs_lifecycle.bound
-            if bound is not None:
-                for iccs_seis in bound.iccs.seismograms:
-                    if iccs_seis.extra.get("id") == seis_uuid:
-                        setattr(iccs_seis, param, new_value)
-                        bound.iccs.clear_cache()
-                        bound.created_at = Timestamp.now("UTC")
-                        break
-            # A select/flip change fires the quality-invalidation triggers,
-            # nulling iccs_cc and the MCCC quality columns for the whole event
-            # - which the Project panel's event-quality and per-station
-            # cc_mean/cc_sem readouts display. Refresh everything so those
-            # panels drop the now-invalid values instead of showing them until
-            # the next unrelated refresh.
+                bound = self._iccs_lifecycle.bound
+                if bound is not None:
+                    for iccs_seis in bound.iccs.seismograms:
+                        if iccs_seis.extra.get("id") == seis_uuid:
+                            setattr(iccs_seis, param, new_value)
+                            bound.iccs.clear_cache()
+                            bound.mark_current(session)
+                            break
+            # A select/flip change makes the stored iccs_cc, and possibly the
+            # MCCC results, out of date. Refresh everything so the Project
+            # panel's quality readouts drop them.
             self.refresh_all()
             self.notify(f"{param} toggled", timeout=2)
         except Exception as exc:
@@ -879,15 +870,15 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 
         if tool in VIEW_ONLY_TOOLS:
             # A display-only tool changed nothing; just repaint. Deliberately
-            # leave bound.created_at alone - bumping it would mask an external
+            # leave the instance digest alone - updating it would mask an external
             # commit (a CLI edit, an align worker) made while the plot window
             # was open, so the staleness poller could no longer rebuild.
             self.refresh_all()
         else:
-            # The tool persisted a parameter or pick change: the triggers have
-            # nulled iccs_cc and the in-memory instance is now stale. Rebuild it
-            # (which re-persists iccs_cc and refreshes every panel), matching the
-            # Parameters modal's on-close behaviour.
+            # The tool persisted a parameter or pick change, so the stored
+            # iccs_cc is out of date. Rebuild the instance (which re-persists
+            # iccs_cc and refreshes every panel), matching the Parameters
+            # modal's on-close behaviour.
             self._create_iccs()
         self.notify("Done", timeout=2)
 
@@ -959,10 +950,6 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             logger.exception(f"Alignment worker error ({algorithm}): {exc}")
             self.call_from_thread(self.notify, str(exc), severity="error")
             return
-        # Stamp created_at here, before posting to the event loop, so the
-        # staleness poller cannot observe last_modified > created_at between
-        # this call_from_thread and _post_align_complete actually running.
-        bound.created_at = Timestamp.now("UTC")
         self.call_from_thread(
             self._post_align_complete,
             summary.message,

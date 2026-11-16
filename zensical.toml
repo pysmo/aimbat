@@ -52,7 +52,7 @@ nav = [
   ] },
   { "Development" = [
     { "Database Models" = "development/database-models.md" },
-    { "Quality Invalidation" = "development/quality-invalidation.md" },
+    { "Quality Validity" = "development/quality-validity.md" },
     { "Contributors" = "contributors.md" },
   ] },
   { "Changelog" = "changelog.md" },

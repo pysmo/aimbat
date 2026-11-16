@@ -85,7 +85,8 @@ def _evict_cached_iccs_on_failure(event_id: UUID) -> Iterator[None]:
     The widgets mutate the process-cached ICCS instance in place while the
     user interacts with the plot, and the new values are only written to the
     database afterwards. A rejected write leaves those values on the cached
-    instance without bumping `stack_modified`, so it never looks stale, and
+    instance while the stored parameters, and so its digest, are unchanged.
+    It never looks stale, and
     later callers in the same process (`aimbat shell`, the TUI) would keep
     being handed values the database refused.
     """

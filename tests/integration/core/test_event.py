@@ -22,6 +22,7 @@ from aimbat.core import (
     toggle_event_completed,
 )
 from aimbat.core import _iccs as core_iccs
+from aimbat.core._validity import compute_digests
 from aimbat.models import AimbatEvent, AimbatEventQuality, AimbatStation
 from aimbat.types import EventParameter
 from aimbat.utils import format_validation_error
@@ -244,16 +245,13 @@ class TestSetEventParameter:
         Callers (TUI, CLI) always call `set_event_parameter` inside a
         `with Session(engine) as session:` block and never commit
         themselves, so the write must be durable by the time that session
-        closes — whether via this function's own commit or one it triggers
-        indirectly (e.g. `clear_mccc_quality`). Guards against the change
-        (and the `last_modified` DB trigger it fires) being silently rolled
-        back on session close.
+        closes. Guards against the change being silently rolled back on
+        session close.
         """
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
             event_id = event.id
-            assert event.last_modified is None
             new_value = Timedelta(seconds=20)
             set_event_parameter(
                 session, event_id, EventParameter.WINDOW_POST, new_value
@@ -263,7 +261,6 @@ class TestSetEventParameter:
             event = session.get(AimbatEvent, event_id)
             assert event is not None
             assert event.parameters.window_post == new_value
-            assert event.last_modified is not None
 
     def test_rejected_bandpass_bound_names_the_order_that_works(
         self, loaded_session: Session
@@ -342,9 +339,9 @@ class TestSetEventParameters:
 
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
+        before = compute_digests(loaded_session, event.id)[event.id].tracked
         set_event_parameters(loaded_session, event.id, {})
-        loaded_session.refresh(event)
-        assert event.last_modified is None
+        assert compute_digests(loaded_session, event.id)[event.id].tracked == before
 
     def test_unknown_event_raises_even_with_empty_mapping(
         self, loaded_session: Session
@@ -423,30 +420,19 @@ class TestToggleEventCompleted:
         assert event.quality is not None
         assert event.quality.mccc_rmse == rmse
 
-    def test_toggle_does_not_bump_last_modified(self, loaded_session: Session) -> None:
-        """Verifies toggling `completed` leaves `last_modified` untouched.
-
-        Regression test: the `event_modified_on_params_update` trigger must
-        exclude `completed`, the same way the parameter hashes do, so that a
-        bookkeeping-only change does not force a live ICCS instance to be
-        treated as stale (see core/_project.py trigger 1).
-
-        Args:
-            loaded_session: The database session.
-        """
+    def test_toggle_leaves_the_tracked_digest_unchanged(
+        self, loaded_session: Session
+    ) -> None:
+        """`completed` is bookkeeping, so toggling it moves no digest and does
+        not repaint or rebuild anything."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        event.parameters.ramp_width = event.parameters.ramp_width + 0.5
-        loaded_session.add(event.parameters)
-        loaded_session.commit()
-        loaded_session.refresh(event)
-        last_modified_before = event.last_modified
-        assert last_modified_before is not None
+        before = compute_digests(loaded_session, event.id)[event.id]
 
         toggle_event_completed(loaded_session, event.id)
 
-        loaded_session.refresh(event)
-        assert event.last_modified == last_modified_before
+        after = compute_digests(loaded_session, event.id)[event.id]
+        assert (after.tracked, after.instance) == (before.tracked, before.instance)
 
 
 # ===================================================================
@@ -478,7 +464,7 @@ class TestDumpEventTableToJson:
         assert isinstance(result, list)
         assert len(result) > 0
         assert "id" in result[0]
-        assert "last_modified" in result[0]
+        assert "snapshot_count" in result[0]
 
     def test_from_read_model_with_alias(self, loaded_session: Session) -> None:
         """Verifies that aliases are used when by_alias=True.
@@ -489,8 +475,8 @@ class TestDumpEventTableToJson:
         result = dump_event_table(loaded_session, from_read_model=True, by_alias=True)
         assert isinstance(result, list)
         assert len(result) > 0
-        assert "lastModified" in result[0]
-        assert "last_modified" not in result[0]
+        assert "snapshotCount" in result[0]
+        assert "snapshot_count" not in result[0]
 
     def test_read_model_counts_are_loaded_with_the_events(
         self, loaded_session: Session

@@ -49,6 +49,7 @@ from aimbat.core import (
     BoundICCS,
     IccsLifecycle,
     create_snapshot,
+    current_instance_digest,
     get_current_revision,
 )
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
@@ -204,7 +205,7 @@ class TestTUISchemaStalenessModal:
                 await pilot.pause()
                 modal = pilot.app.screen
                 assert isinstance(modal, SchemaStaleModal)
-                assert "predates the current AIMBAT project format" in modal._message
+                assert "earlier development version of AIMBAT" in modal._message
                 assert not modal._upgradeable
 
         asyncio.run(_run())
@@ -527,8 +528,11 @@ class TestICCSStalenessRetry:
                 assert event is not None
                 app._current_event_id = event.id
                 # Mirror what `_check_iccs_staleness` records before a fresh
-                # attempt, so later polls see an unchanged `stack_modified`.
-                app._iccs_lifecycle.note_checked(event.stack_modified)
+                # attempt, so later polls see an unchanged instance digest.
+                with Session(loaded_engine_from_file) as session:
+                    app._iccs_lifecycle.note_checked(
+                        current_instance_digest(session, event.id)
+                    )
 
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -583,7 +587,10 @@ class TestICCSStalenessRetry:
                     event = session.exec(select(AimbatEvent)).first()
                 assert event is not None
                 app._current_event_id = event.id
-                app._iccs_lifecycle.note_checked(event.stack_modified)
+                with Session(loaded_engine_from_file) as session:
+                    app._iccs_lifecycle.note_checked(
+                        current_instance_digest(session, event.id)
+                    )
 
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -1691,10 +1698,10 @@ class TestRunToolRebuildsIccs:
         self._run_with_tool(loaded_engine_from_file, monkeypatch, "stack", calls)
         assert calls == []
 
-    def test_view_only_tool_leaves_created_at_untouched(
+    def test_view_only_tool_leaves_the_instance_digest_untouched(
         self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Bumping created_at after a view-only tool would mask an external
+        """Updating the digest after a view-only tool would mask an external
         commit made while the plot window was open, defeating the staleness
         poller.
         """
@@ -1712,10 +1719,11 @@ class TestRunToolRebuildsIccs:
                 await _wait_for_iccs_worker(app)
                 bound = app._iccs_lifecycle.bound
                 assert bound is not None
-                before = bound.created_at
+                # A value no recomputation produces, so any update shows.
+                bound.instance_digest = "sentinel"
                 app._run_tool("stack", True, False, None)
                 await pilot.pause()
-                return before, bound.created_at
+                return "sentinel", bound.instance_digest
 
         before, after = asyncio.run(_run())
         assert before == after

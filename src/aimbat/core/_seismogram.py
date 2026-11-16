@@ -20,6 +20,8 @@ from aimbat.models import (
 from aimbat.types import SeismogramParameter
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._validity import Validity
+
 __all__ = [
     "delete_seismogram",
     "dump_seismogram_parameter_table",
@@ -52,16 +54,6 @@ def delete_seismogram(session: Session, seismogram_id: UUID) -> None:
     if seismogram is None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
 
-    from ._iccs import _invalidate_event_quality
-
-    event_id = seismogram.event_id
-    # No AFTER DELETE trigger fires, so the surviving seismograms' iccs_cc and
-    # the event RMSE would otherwise be left computed against a stack that
-    # still counted this one. Invalidate while every row is persistent: doing
-    # it after the delete flush can hit a preloaded event collection that
-    # still holds this seismogram and try to re-add its cascade-deleted
-    # quality child.
-    _invalidate_event_quality(session, event_id)
     session.delete(seismogram)
     session.commit()
 
@@ -115,8 +107,9 @@ def dump_seismogram_table(
     seismograms = session.exec(statement).all()
 
     if from_read_model:
+        validity = Validity.read(session, event_id)
         seismogram_reads = [
-            AimbatSeismogramRead.from_seismogram(s, session=session)
+            AimbatSeismogramRead.from_seismogram(s, validity, session=session)
             for s in seismograms
         ]
         return dump_models(

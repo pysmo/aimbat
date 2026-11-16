@@ -8,31 +8,15 @@ run without a database session or SQLModel persistence, unlike most of
 import uuid
 from typing import cast
 
-from pandas import Timedelta, Timestamp
-
 from pysmo.tools.iccs import ICCS
 
 from aimbat.core._iccs import BoundICCS, IccsLifecycle
-from aimbat.models import AimbatEvent
 
 
-def _make_event(
-    *, event_id: uuid.UUID | None = None, stack_modified: Timestamp | None = None
-) -> AimbatEvent:
-    """Build a detached AimbatEvent with just the fields IccsLifecycle reads."""
-    return AimbatEvent(
-        id=event_id or uuid.uuid4(),
-        time=Timestamp("2020-01-01T00:00:00", tz="UTC"),
-        latitude=0.0,
-        longitude=0.0,
-        stack_modified=stack_modified,
-    )
-
-
-def _make_bound(event_id: uuid.UUID, created_at: Timestamp) -> BoundICCS:
+def _make_bound(event_id: uuid.UUID, instance_digest: str | None = "a") -> BoundICCS:
     """Build a BoundICCS with a dummy ICCS payload — is_stale never touches it."""
     return BoundICCS(
-        iccs=cast(ICCS, object()), event_id=event_id, created_at=created_at
+        iccs=cast(ICCS, object()), event_id=event_id, instance_digest=instance_digest
     )
 
 
@@ -46,74 +30,53 @@ class TestReady:
     def test_ready_once_assigned(self) -> None:
         """Ready becomes True once an instance is assigned."""
         lifecycle = IccsLifecycle()
-        lifecycle.assign(_make_bound(uuid.uuid4(), Timestamp.now("UTC")))
+        lifecycle.assign(_make_bound(uuid.uuid4()))
         assert lifecycle.ready is True
 
 
 class TestIsStale:
     """Tests for IccsLifecycle.is_stale."""
 
-    def test_no_bound_instance_falls_back_to_stack_modified_seen(self) -> None:
+    def test_no_bound_instance_falls_back_to_the_digest_seen(self) -> None:
         """With no bound instance, staleness compares against note_checked's value."""
         lifecycle = IccsLifecycle()
-        event = _make_event(stack_modified=Timestamp("2020-01-01T00:00:00", tz="UTC"))
+        event_id = uuid.uuid4()
 
         # Nothing recorded yet -> considered stale.
-        assert lifecycle.is_stale(event) is True
+        assert lifecycle.is_stale(event_id, "a") is True
 
-        lifecycle.note_checked(event.stack_modified)
-        assert lifecycle.is_stale(event) is False
-
-        event.stack_modified = Timestamp("2020-01-02T00:00:00", tz="UTC")
-        assert lifecycle.is_stale(event) is True
+        lifecycle.note_checked("a")
+        assert lifecycle.is_stale(event_id, "a") is False
+        assert lifecycle.is_stale(event_id, "b") is True
 
     def test_bound_instance_delegates_to_bound_is_stale(self) -> None:
         """With a bound instance, staleness delegates to BoundICCS.is_stale."""
         event_id = uuid.uuid4()
-        created_at = Timestamp("2020-01-01T00:00:00", tz="UTC")
-        lifecycle = IccsLifecycle(bound=_make_bound(event_id, created_at))
+        lifecycle = IccsLifecycle(bound=_make_bound(event_id, "a"))
 
-        fresh_event = _make_event(event_id=event_id, stack_modified=None)
-        assert lifecycle.is_stale(fresh_event) is False
-
-        modified_event = _make_event(
-            event_id=event_id, stack_modified=created_at + Timedelta(seconds=1)
-        )
-        assert lifecycle.is_stale(modified_event) is True
-
-        other_event = _make_event(event_id=uuid.uuid4())
-        assert lifecycle.is_stale(other_event) is True
+        assert lifecycle.is_stale(event_id, "a") is False
+        assert lifecycle.is_stale(event_id, "b") is True
+        assert lifecycle.is_stale(uuid.uuid4(), "a") is True
 
 
 class TestBoundIccsIsStale:
     """Tests for BoundICCS.is_stale."""
 
-    def test_change_inside_the_created_at_millisecond_is_stale(self) -> None:
-        """The triggers stamp `stack_modified` to millisecond precision.
-
-        A commit landing a few microseconds after `created_at` is stamped
-        with a truncated timestamp that reads as *older*, so comparing the
-        two at their raw precisions never rebuilds the instance.
-        """
+    def test_same_digest_is_fresh(self) -> None:
         event_id = uuid.uuid4()
-        bound = _make_bound(event_id, Timestamp("2020-01-01T00:00:00.123456", tz="UTC"))
-        event = _make_event(
-            event_id=event_id,
-            stack_modified=Timestamp("2020-01-01T00:00:00.123", tz="UTC"),
-        )
+        assert _make_bound(event_id, "a").is_stale(event_id, "a") is False
 
-        assert bound.is_stale(event) is True
-
-    def test_change_in_an_earlier_millisecond_is_not_stale(self) -> None:
-        """A stamp from before the instance was created is not staleness."""
+    def test_other_digest_is_stale(self) -> None:
         event_id = uuid.uuid4()
-        bound = _make_bound(event_id, Timestamp("2020-01-01T00:00:00.123456", tz="UTC"))
-        event = _make_event(
-            event_id=event_id,
-            stack_modified=Timestamp("2020-01-01T00:00:00.122", tz="UTC"),
-        )
+        assert _make_bound(event_id, "a").is_stale(event_id, "b") is True
 
-        assert bound.is_stale(event) is False
+    def test_other_event_is_stale(self) -> None:
+        assert _make_bound(uuid.uuid4(), "a").is_stale(uuid.uuid4(), "a") is True
+
+    def test_instance_from_a_snapshot_is_always_stale(self) -> None:
+        """An instance built from a snapshot does not reflect the live parameters."""
+        event_id = uuid.uuid4()
+        assert _make_bound(event_id, None).is_stale(event_id, "a") is True
 
 
 class TestStartCreating:
@@ -121,7 +84,7 @@ class TestStartCreating:
 
     def test_returns_true_and_resets_state(self) -> None:
         """Starting a fresh attempt discards any bound instance and pending retry."""
-        lifecycle = IccsLifecycle(bound=_make_bound(uuid.uuid4(), Timestamp.now("UTC")))
+        lifecycle = IccsLifecycle(bound=_make_bound(uuid.uuid4()))
         lifecycle.retry_pending = True
 
         assert lifecycle.start_creating() is True
@@ -187,7 +150,7 @@ class TestAssign:
         """A successful creation stores the instance and clears the in-progress guard."""
         lifecycle = IccsLifecycle()
         lifecycle.start_creating()
-        bound = _make_bound(uuid.uuid4(), Timestamp.now("UTC"))
+        bound = _make_bound(uuid.uuid4())
 
         lifecycle.assign(bound)
 
@@ -201,7 +164,7 @@ class TestClear:
 
     def test_discards_bound_without_arming_retry(self) -> None:
         """Clearing (e.g. the bound event was deleted) does not schedule a retry."""
-        lifecycle = IccsLifecycle(bound=_make_bound(uuid.uuid4(), Timestamp.now("UTC")))
+        lifecycle = IccsLifecycle(bound=_make_bound(uuid.uuid4()))
 
         lifecycle.clear()
 
@@ -212,11 +175,9 @@ class TestClear:
 class TestNoteChecked:
     """Tests for IccsLifecycle.note_checked."""
 
-    def test_updates_stack_modified_seen(self) -> None:
-        """The observed timestamp is recorded verbatim."""
+    def test_records_the_digest(self) -> None:
         lifecycle = IccsLifecycle()
-        ts = Timestamp("2020-01-01T00:00:00", tz="UTC")
 
-        lifecycle.note_checked(ts)
+        lifecycle.note_checked("a")
 
-        assert lifecycle.stack_modified_seen == ts
+        assert lifecycle.instance_digest_seen == "a"

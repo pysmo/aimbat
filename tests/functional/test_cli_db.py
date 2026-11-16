@@ -130,7 +130,7 @@ class TestSchemaStalenessWarning:
         result = aimbat_subprocess(["db", "current"])
 
         assert result.returncode != 0
-        assert "predates the current AIMBAT project format" in result.stderr
+        assert "earlier development version of AIMBAT" in result.stderr
         assert "aimbat project create" in result.stderr
         assert "run `aimbat db upgrade`" not in result.stderr
 
@@ -147,7 +147,7 @@ class TestSchemaStalenessWarning:
         result = aimbat_subprocess(["db", "upgrade"])
 
         assert result.returncode != 0
-        assert "predates the current AIMBAT project format" in result.stderr
+        assert "earlier development version of AIMBAT" in result.stderr
         assert "run `aimbat db upgrade`" not in result.stderr
 
     def test_warns_on_unrecognised_revision(
@@ -171,7 +171,7 @@ class TestSchemaStalenessWarning:
         result = aimbat_subprocess(["db", "current"])
 
         assert result.returncode != 0
-        assert "doesn't recognise" in result.stderr
+        assert "different version of AIMBAT" in result.stderr
         assert "not_a_real_revision" in result.stderr
         assert "run `aimbat db upgrade`" not in result.stderr
 
@@ -193,7 +193,7 @@ class TestSchemaStalenessWarning:
         result = aimbat_subprocess(["db", "upgrade"])
 
         assert result.returncode != 0
-        assert "doesn't recognise" in result.stderr
+        assert "different version of AIMBAT" in result.stderr
         assert "Can't locate revision" not in result.stderr
 
     def test_no_warning_when_no_project_exists(

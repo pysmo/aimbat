@@ -95,10 +95,9 @@ AIMBAT_DB_URL=sqlite+pysqlite:////absolute/path/to/project.db aimbat tui
 !!! warning "SQLite only"
 
     AIMBAT supports only `sqlite`-family URLs. A non-SQLite backend will not work
-    correctly even with a driver installed: the triggers that keep quality
-    metrics in sync with parameter changes are only ever created for SQLite, so
-    the database would come up without them and quality data would silently go
-    stale.
+    correctly even with a driver installed: AIMBAT tells whether stored quality
+    metrics are still up to date by comparing parameter values in the form
+    SQLite stores them.
 
 ### Precedence
 
@@ -154,10 +153,12 @@ parameters, or snapshots.
 
 !!! warning "Projects from development versions"
 
-    A project created before the current project format cannot be upgraded.
-    AIMBAT says so and refuses to open it. Move the old project file out of
-    the way (or point `AIMBAT_PROJECT` at a new one), create a new project
-    and add the data again.
+    A project made with an earlier development version of AIMBAT cannot be
+    upgraded, and AIMBAT will not open it. Your seismogram files are not
+    affected. Rename or move the project file (or point `AIMBAT_PROJECT` at a
+    new one), run `aimbat project create`, and add the same files again with
+    `aimbat data add`. Picks and parameters from the old project are not
+    carried over.
 
 Until a project is upgraded, every other `aimbat` command refuses to run against
 it: the CLI and shell report the error, and the TUI shows a blocking dialog.

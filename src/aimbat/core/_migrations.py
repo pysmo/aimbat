@@ -30,23 +30,25 @@ class SchemaMismatchError(RuntimeError):
 
 
 _RECREATE = (
-    "It cannot be upgraded. Move the project file out of the way, create a "
-    + "new project with `aimbat project create` and add the data again."
+    "Your seismogram files are not affected. To carry on, rename or move the "
+    + "project file, run `aimbat project create`, and add the same files again "
+    + "with `aimbat data add`. Picks and parameters from the old project are "
+    + "not carried over."
 )
 
 
 def _unrecognised_revision_message(revision: str) -> str:
     return (
-        f"This project's database is stamped at schema version '{revision}', "
-        + "which this AIMBAT installation doesn't recognise. It was created by "
-        + "an AIMBAT version from before the current project format, or by a "
-        + f"newer one. {_RECREATE}"
+        "This project was made with a different version of AIMBAT (schema "
+        + f"version '{revision}'), and this version can't open it. If it was "
+        + "made with a newer version, use that one instead. If it was made with "
+        + f"an earlier development version: {_RECREATE}"
     )
 
 
 _UNSTAMPED_MESSAGE = (
-    "This project's database has no schema version, so it predates the "
-    + f"current AIMBAT project format. {_RECREATE}"
+    "This project was made with an earlier development version of AIMBAT, and "
+    + f"this version can't open it. {_RECREATE}"
 )
 
 

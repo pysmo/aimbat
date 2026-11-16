@@ -333,13 +333,21 @@ class TestSnapshotDurability:
         ev = _make_event(patched_session)
         sta = _make_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
-        patched_session.add(AimbatSeismogramQuality(seismogram=seis, iccs_cc=0.8))
+        from aimbat.core import create_snapshot, delete_seismogram
+        from aimbat.core._validity import compute_digests
+
+        digests = compute_digests(patched_session, ev.id)[ev.id]
+        patched_session.add(
+            AimbatSeismogramQuality(
+                seismogram=seis,
+                iccs_cc=0.8,
+                iccs_fingerprint=digests.seismogram_cc[seis.id],
+            )
+        )
         patched_session.add(
             AimbatEventQuality(event=ev, mccc_rmse=Timedelta(milliseconds=1))
         )
         patched_session.commit()
-
-        from aimbat.core import create_snapshot, delete_seismogram
 
         create_snapshot(patched_session, ev)
         delete_seismogram(patched_session, seis.id)

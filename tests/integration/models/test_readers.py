@@ -2,6 +2,7 @@ import pytest
 from sqlmodel import Session, select
 
 from aimbat.core._snapshot import create_snapshot
+from aimbat.core._validity import Validity
 from aimbat.models import (
     AimbatEvent,
     AimbatSeismogram,
@@ -44,12 +45,12 @@ def test_station_read_short_id(
     loaded_session: Session, mock_station: AimbatStation
 ) -> None:
     # Without session
-    read = AimbatStationRead.from_station(mock_station)
+    read = AimbatStationRead.from_station(mock_station, Validity.read(loaded_session))
     assert read.short_id is None
 
     # With session
     read_with_session = AimbatStationRead.from_station(
-        mock_station, session=loaded_session
+        mock_station, Validity.read(loaded_session), session=loaded_session
     )
     assert read_with_session.short_id is not None
     assert len(read_with_session.short_id) >= 2
@@ -59,12 +60,14 @@ def test_seismogram_read_short_id(
     loaded_session: Session, mock_seismogram: AimbatSeismogram
 ) -> None:
     # Without session
-    read = AimbatSeismogramRead.from_seismogram(mock_seismogram)
+    read = AimbatSeismogramRead.from_seismogram(
+        mock_seismogram, Validity.read(loaded_session)
+    )
     assert read.short_id is None
 
     # With session
     read_with_session = AimbatSeismogramRead.from_seismogram(
-        mock_seismogram, session=loaded_session
+        mock_seismogram, Validity.read(loaded_session), session=loaded_session
     )
     assert read_with_session.short_id is not None
     assert len(read_with_session.short_id) >= 2

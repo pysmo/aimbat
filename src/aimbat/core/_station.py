@@ -12,7 +12,6 @@ from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
     AimbatSeismogram,
-    AimbatSeismogramQuality,
     AimbatStation,
     AimbatStationRead,
     SeismogramQualityStats,
@@ -20,11 +19,12 @@ from aimbat.models import (
 )
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._validity import Validity
+
 __all__ = [
     "delete_station",
     "dump_station_quality_table",
     "dump_station_table",
-    "get_station_iccs_ccs",
     "get_station_quality",
     "get_stations_in_event",
 ]
@@ -47,16 +47,6 @@ def delete_station(session: Session, station_id: UUID) -> None:
     if station is None:
         raise NoResultFound(f"No AimbatStation found with {station_id=}")
 
-    from ._iccs import _invalidate_event_quality
-
-    # Deleting a station cascades to its seismograms across every event it
-    # recorded; none of those events' quality is invalidated by a trigger.
-    # Invalidate before deleting, while every seismogram row is still
-    # persistent: a post-delete pass can hit a preloaded event collection
-    # that still holds a cascade-deleted seismogram and its quality child.
-    affected_event_ids = {seis.event_id for seis in station.seismograms}
-    for event_id in affected_event_ids:
-        _invalidate_event_quality(session, event_id)
     session.delete(station)
     session.commit()
 
@@ -122,34 +112,13 @@ def get_stations_in_event(
     if not as_json:
         return results
 
+    validity = Validity.read(session)
     read_stations = [
-        AimbatStationRead.from_station(station=s, session=session) for s in results
+        AimbatStationRead.from_station(station=s, validity=validity, session=session)
+        for s in results
     ]
 
     return dump_models(read_stations, AimbatStationRead)
-
-
-def get_station_iccs_ccs(
-    session: Session, station_id: UUID
-) -> tuple[float | None, ...]:
-    """Get ICCS cross-correlation coefficients for all seismograms of a station across all events.
-
-    Args:
-        session: Database session.
-        station_id: ID of the station.
-
-    Returns:
-        Tuple of ICCS CC values, one per seismogram (None if not yet computed).
-    """
-    logger.debug(f"Getting ICCS CCs for {station_id=}.")
-
-    statement = (
-        select(AimbatSeismogramQuality.iccs_cc)
-        .join(AimbatSeismogram)
-        .where(AimbatSeismogram.station_id == station_id)
-    )
-
-    return tuple(session.exec(statement).all())
 
 
 def get_station_quality(session: Session, station_id: UUID) -> SeismogramQualityStats:
@@ -180,7 +149,7 @@ def get_station_quality(session: Session, station_id: UUID) -> SeismogramQuality
     if station is None:
         raise NoResultFound(f"No AimbatStation found with id: {station_id}.")
 
-    return SeismogramQualityStats.from_station(station)
+    return SeismogramQualityStats.from_station(station, Validity.read(session))
 
 
 def dump_station_table(
@@ -243,9 +212,11 @@ def dump_station_table(
     stations = session.exec(statement).all()
 
     if from_read_model:
+        validity = Validity.read(session)
         read_stations = [
             AimbatStationRead.from_station(
                 station=s,
+                validity=validity,
                 session=session,
             )
             for s in stations
@@ -296,7 +267,8 @@ def dump_station_quality_table(
         statement = statement.where(AimbatStation.id == station_id)
 
     stations = session.exec(statement).all()
-    stats = [SeismogramQualityStats.from_station(s) for s in stations]
+    validity = Validity.read(session)
+    stats = [SeismogramQualityStats.from_station(s, validity) for s in stations]
 
     return dump_models(
         stats,

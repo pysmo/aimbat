@@ -152,11 +152,7 @@ def _check_iccs(
             # Building the instance writes each seismogram's CC value; it is
             # only kept if this session commits.
             session.commit()
-        changed = (
-            prev is None
-            or prev.event_id != bound.event_id
-            or bound.created_at != prev.created_at
-        )
+        changed = prev is None or prev.event_id != bound.event_id or bound is not prev
         if startup or changed:
             console.print(f"[green]ICCS ready[/green] (event {str(resolved_id)[:8]})")
         return bound

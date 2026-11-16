@@ -43,8 +43,6 @@ erDiagram
         float latitude
         float longitude
         float depth
-        timestamp last_modified
-        timestamp stack_modified
     }
 
     AimbatSeismogram {
@@ -91,6 +89,8 @@ erDiagram
         uuid id PK
         uuid event_id FK "unique"
         timedelta mccc_rmse
+        json mccc_members
+        string mccc_fingerprint
     }
 
     AimbatSeismogramQuality {
@@ -100,6 +100,7 @@ erDiagram
         float mccc_cc_mean
         float mccc_cc_std
         timedelta mccc_error
+        string iccs_fingerprint
     }
 
     AimbatSnapshot {
@@ -186,17 +187,18 @@ erDiagram
   `AimbatEventQuality.event_id`, `AimbatSeismogramQuality.seismogram_id`, and
   `AimbatDataSource.sourcename`.
 - **`AimbatSnapshot`** is keyed by `(event_id, sequence)`. `sequence` is a
-  monotonic per-event counter that defines snapshot order. `mccc_hash` /
-  `iccs_hash` are SHA-256 of the parameters affecting each algorithm's output at
-  capture time; both null until those parameters exist.
+  monotonic per-event counter that defines snapshot order. `iccs_hash` is the
+  event's instance digest at capture time and `mccc_hash` the MCCC digest of
+  the run it froze, null when it froze no MCCC results. See
+  [Quality metric validity](quality-validity.md).
 - **`AimbatNote`** holds exactly one of `event_id` / `station_id` /
   `seismogram_id` / `snapshot_id` (a `CHECK` constraint), with a partial unique
   index per FK so a parent has at most one note.
-- **`AimbatEvent.stack_modified`** bumps only on parameters that force an ICCS
-  rebuild (event window, ramp, bandpass, corners; per-seismogram `t1` / `flip` /
-  `select`); `last_modified` bumps on any parameter change. Both are maintained
-  by triggers, alongside the quality-nulling triggers in
-  [Quality metric invalidation](quality-invalidation.md).
+- **Quality fingerprints.** `iccs_fingerprint` and `mccc_fingerprint` are
+  digests of the parameters the values were computed from, and `mccc_members`
+  lists the seismograms in the MCCC run. A value counts only while its
+  fingerprint matches the current parameters; see
+  [Quality metric validity](quality-validity.md).
 - The `*Snapshot` parameter and quality tables inherit every column from the
   same base class as their live counterpart (`AimbatEventParametersBase`,
   `AimbatSeismogramParametersBase`, `AimbatEventQualityBase`,
