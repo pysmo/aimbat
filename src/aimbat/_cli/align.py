@@ -83,22 +83,11 @@ def cli_iccs_run(
     arrival time picks (`t1`). If `t1` is not yet set, `t0` is used as the
     starting point.
     """
-    from sqlmodel import Session
+    from aimbat.actions import run_iccs
 
-    from aimbat.core import (
-        create_iccs_instance,
-        resolve_event,
-        run_iccs,
-        summarise_iccs_result,
-    )
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        with _summarised_warnings():
-            result = run_iccs(session, event, iccs, autoflip, autoselect)
-        _print_run_summary(summarise_iccs_result(result, len(iccs.seismograms)))
+    with _summarised_warnings():
+        run = run_iccs(event_id, autoflip=autoflip, autoselect=autoselect)
+    _print_run_summary(run.summary)
 
 
 @app.command(name="mccc")
@@ -123,22 +112,11 @@ def cli_mccc_run(
     Multi-channel cross-correlation simultaneously determines the optimal time
     shifts for all seismograms. Results are stored in `t1`.
     """
-    from sqlmodel import Session
+    from aimbat.actions import run_mccc
 
-    from aimbat.core import (
-        create_iccs_instance,
-        resolve_event,
-        run_mccc,
-        summarise_mccc_result,
-    )
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        with _summarised_warnings():
-            result = run_mccc(session, event, iccs, all_seismograms)
-        _print_run_summary(summarise_mccc_result(result))
+    with _summarised_warnings():
+        run = run_mccc(event_id, all_seismograms=all_seismograms)
+    _print_run_summary(run.summary)
 
 
 if __name__ == "__main__":

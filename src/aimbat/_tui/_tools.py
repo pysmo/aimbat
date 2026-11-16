@@ -7,8 +7,8 @@ in `CAUSAL_TOOL_REGISTRY` additionally receive a causal argument from
 `InteractiveToolsModal`'s zero-phase toggle. Both return None.
 
 A tool blocks for as long as its plot window is open, so none of them is
-handed a database session: those that save a change open a short-lived one of
-their own after the window closes.
+handed a database session. Those that change a value save it through
+`aimbat.actions` once the window closes.
 """
 
 from collections.abc import Callable
@@ -16,6 +16,7 @@ from uuid import UUID
 
 from pysmo.tools.iccs import ICCS
 
+from aimbat.actions import set_event_parameters, set_picks
 from aimbat.plot import (
     plot_matrix_image,
     plot_stack,
@@ -37,8 +38,7 @@ def _tool_phase(
     causal: bool,
 ) -> None:
     """Launch the interactive phase-arrival (t1) picking tool."""
-    update_pick(
-        event_id,
+    picks = update_pick(
         iccs,
         context,
         all_seismograms=all_seismograms,
@@ -46,6 +46,7 @@ def _tool_phase(
         causal=causal,
         return_fig=False,
     )
+    set_picks(event_id, picks)
 
 
 def _tool_window(
@@ -56,8 +57,7 @@ def _tool_window(
     causal: bool,
 ) -> None:
     """Launch the interactive time-window selection tool."""
-    update_timewindow(
-        event_id,
+    changes = update_timewindow(
         iccs,
         context,
         all_seismograms=all_seismograms,
@@ -65,6 +65,7 @@ def _tool_window(
         causal=causal,
         return_fig=False,
     )
+    set_event_parameters(event_id, changes)
 
 
 def _tool_cc(
@@ -75,14 +76,14 @@ def _tool_cc(
     causal: bool,
 ) -> None:
     """Launch the interactive minimum-CC threshold tool."""
-    update_min_cc(
-        event_id,
+    changes = update_min_cc(
         iccs,
         context,
         all_seismograms=all_seismograms,
         causal=causal,
         return_fig=False,
     )
+    set_event_parameters(event_id, changes)
 
 
 def _tool_bandpass(
@@ -92,14 +93,14 @@ def _tool_bandpass(
     all_seismograms: bool,
 ) -> None:
     """Launch the interactive bandpass-filter tool."""
-    update_bandpass(
-        event_id,
+    changes = update_bandpass(
         iccs,
         context,
         all_seismograms=all_seismograms,
         use_matrix_image=False,
         return_fig=False,
     )
+    set_event_parameters(event_id, changes)
 
 
 def _tool_stack(

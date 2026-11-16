@@ -7,6 +7,7 @@ import pytest
 from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 from pandas import Timedelta
+from pydantic import ValidationError
 from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
@@ -18,6 +19,8 @@ from aimbat.core import (
     get_selected_seismograms,
     reset_seismogram_parameters,
     set_seismogram_parameter,
+    set_seismogram_parameters,
+    set_seismogram_picks,
 )
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
 from aimbat.models._parameters import AimbatSeismogramParametersBase
@@ -151,18 +154,11 @@ class TestSetSeismogramParameter:
                 loaded_session, uuid.uuid4(), SeismogramParameter.FLIP, True
             )
 
-    def test_set_parameter_persists_across_sessions(
-        self, loaded_engine: Engine
+    @pytest.mark.parametrize("commit", [False, True])
+    def test_change_is_kept_only_if_the_caller_commits(
+        self, loaded_engine: Engine, commit: bool
     ) -> None:
-        """Verifies a change survives the session it was made in being closed.
-
-        Callers (TUI, CLI) always call `set_seismogram_parameter` inside a
-        `with Session(engine) as session:` block and never commit
-        themselves, so the write must be durable by the time that session
-        closes — whether via this function's own commit or one it triggers
-        indirectly (e.g. `clear_mccc_quality`). Guards against the change
-        being silently rolled back on session close.
-        """
+        """`set_seismogram_parameter` leaves committing to the caller."""
         with Session(loaded_engine) as session:
             seismogram = session.exec(select(AimbatSeismogram)).first()
             assert seismogram is not None
@@ -171,14 +167,108 @@ class TestSetSeismogramParameter:
             set_seismogram_parameter(
                 session, seismogram_id, SeismogramParameter.SELECT, not original
             )
+            if commit:
+                session.commit()
 
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, seismogram_id)
             assert seismogram is not None
+            expected = (not original) if commit else original
             assert (
-                getattr(seismogram.parameters, SeismogramParameter.SELECT)
-                is not original
+                getattr(seismogram.parameters, SeismogramParameter.SELECT) is expected
             )
+
+
+class TestSetSeismogramParameters:
+    """Tests for setting parameters on several seismograms at once."""
+
+    @staticmethod
+    def _one_per_event(session: Session) -> list[AimbatSeismogram]:
+        events = session.exec(select(AimbatEvent)).all()
+        assert len(events) > 1
+        return [events[0].seismograms[0], events[1].seismograms[0]]
+
+    def test_sets_across_events(self, loaded_session: Session) -> None:
+        """Seismograms of different events are updated in one call."""
+        seismograms = self._one_per_event(loaded_session)
+
+        set_seismogram_parameters(
+            loaded_session,
+            [s.id for s in seismograms],
+            {SeismogramParameter.FLIP: True, SeismogramParameter.SELECT: False},
+        )
+
+        for seismogram in seismograms:
+            assert seismogram.parameters.flip is True
+            assert seismogram.parameters.select is False
+
+    def test_invalid_value_changes_nothing(self, loaded_engine: Engine) -> None:
+        """A value that fails validation leaves every seismogram as it was."""
+        with Session(loaded_engine) as session:
+            ids = [s.id for s in self._one_per_event(session)]
+            with pytest.raises(ValidationError):
+                set_seismogram_parameters(
+                    session, ids, {SeismogramParameter.FLIP: "maybe"}
+                )
+
+        with Session(loaded_engine) as session:
+            for seismogram_id in ids:
+                seismogram = session.get(AimbatSeismogram, seismogram_id)
+                assert seismogram is not None
+                assert seismogram.parameters.flip is False
+
+    def test_unknown_id_changes_nothing(self, loaded_engine: Engine) -> None:
+        """An unknown ID is named in the error, and nothing is changed."""
+        unknown = uuid.uuid4()
+        with Session(loaded_engine) as session:
+            known = self._one_per_event(session)[0].id
+            with pytest.raises(NoResultFound, match=str(unknown)):
+                set_seismogram_parameters(
+                    session, [known, unknown], {SeismogramParameter.FLIP: True}
+                )
+
+        with Session(loaded_engine) as session:
+            seismogram = session.get(AimbatSeismogram, known)
+            assert seismogram is not None
+            assert seismogram.parameters.flip is False
+
+
+class TestSetSeismogramPicks:
+    """Tests for setting each seismogram's refined pick to its own value."""
+
+    def test_sets_each_pick(self, loaded_session: Session) -> None:
+        """Every seismogram receives its own pick, across events."""
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        seismograms = [events[0].seismograms[0], events[1].seismograms[0]]
+        picks = {
+            s.id: s.t0 + Timedelta(seconds=i + 1) for i, s in enumerate(seismograms)
+        }
+
+        set_seismogram_picks(loaded_session, picks)
+
+        for seismogram in seismograms:
+            assert seismogram.parameters.t1 == picks[seismogram.id]
+
+    def test_unknown_id_changes_nothing(self, loaded_engine: Engine) -> None:
+        """An unknown ID is named in the error, and nothing is changed."""
+        unknown = uuid.uuid4()
+        with Session(loaded_engine) as session:
+            seismogram = session.exec(select(AimbatSeismogram)).first()
+            assert seismogram is not None
+            known, before = seismogram.id, seismogram.parameters.t1
+            with pytest.raises(NoResultFound, match=str(unknown)):
+                set_seismogram_picks(
+                    session,
+                    {
+                        known: seismogram.t0 + Timedelta(seconds=1),
+                        unknown: seismogram.t0,
+                    },
+                )
+
+        with Session(loaded_engine) as session:
+            seismogram = session.get(AimbatSeismogram, known)
+            assert seismogram is not None
+            assert seismogram.parameters.t1 == before
 
 
 class TestResetSeismogramParameters:

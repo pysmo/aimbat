@@ -45,6 +45,7 @@ from aimbat._tui.modals import (
     SnapshotDetailsModal,
     ToolLaunchResult,
 )
+from aimbat.actions import prepare_iccs
 from aimbat.core import (
     BoundICCS,
     IccsLifecycle,
@@ -504,14 +505,12 @@ class TestICCSStalenessRetry:
 
         call_count = 0
 
-        def _always_fails(session: Session, event: AimbatEvent) -> BoundICCS:
+        def _always_fails(event_id: uuid.UUID) -> BoundICCS:
             nonlocal call_count
             call_count += 1
             raise ValueError("simulated persistent failure")
 
-        monkeypatch.setattr(
-            aimbat._tui._iccs_lifecycle, "create_iccs_instance", _always_fails
-        )
+        monkeypatch.setattr(aimbat._tui._iccs_lifecycle, "prepare_iccs", _always_fails)
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
@@ -562,15 +561,15 @@ class TestICCSStalenessRetry:
 
         attempts = 0
 
-        def _fail_once_then_succeed(session: Session, event: AimbatEvent) -> BoundICCS:
+        def _fail_once_then_succeed(event_id: uuid.UUID) -> BoundICCS:
             nonlocal attempts
             attempts += 1
             if attempts == 1:
                 raise ValueError("simulated transient failure")
-            return _real_create_iccs_instance(session, event)
+            return prepare_iccs(event_id)
 
         monkeypatch.setattr(
-            aimbat._tui._iccs_lifecycle, "create_iccs_instance", _fail_once_then_succeed
+            aimbat._tui._iccs_lifecycle, "prepare_iccs", _fail_once_then_succeed
         )
 
         async def _run() -> None:
@@ -1094,6 +1093,7 @@ class TestRowActionMenuWiring:
             assert event is not None
             event_id = event.id
             create_snapshot(session, event, "wiring test snapshot")
+            session.commit()
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
@@ -1531,7 +1531,6 @@ class TestCausalZeroPhaseToggle:
         captured: dict[str, object] = {}
 
         def _fake_update_pick(
-            event_id: object,
             iccs: object,
             context: object,
             *,
@@ -1539,8 +1538,9 @@ class TestCausalZeroPhaseToggle:
             use_matrix_image: object,
             causal: object,
             return_fig: object,
-        ) -> None:
+        ) -> dict[object, object]:
             captured["causal"] = causal
+            return {}
 
         monkeypatch.setattr(aimbat._tui._tools, "update_pick", _fake_update_pick)
 
@@ -1580,8 +1580,11 @@ class TestCausalZeroPhaseToggle:
 
         calls: list[dict[str, object]] = []
 
-        def _fake_update_bandpass(*args: object, **kwargs: object) -> None:
+        def _fake_update_bandpass(
+            *args: object, **kwargs: object
+        ) -> dict[object, object]:
             calls.append(kwargs)
+            return {}
 
         monkeypatch.setattr(
             aimbat._tui._tools, "update_bandpass", _fake_update_bandpass
@@ -1652,7 +1655,7 @@ class TestRunToolRebuildsIccs:
     def _prepare(self, monkeypatch: pytest.MonkeyPatch, engine: Engine) -> list[str]:
         _patch_engine(monkeypatch, engine)
         monkeypatch.setattr(AimbatTUI, "_suspend", _noop_suspend)
-        monkeypatch.setattr(aimbat._tui._tools, "update_bandpass", lambda *a, **k: None)
+        monkeypatch.setattr(aimbat._tui._tools, "update_bandpass", lambda *a, **k: {})
         monkeypatch.setattr(aimbat._tui._tools, "plot_stack", lambda *a, **k: None)
         return []
 

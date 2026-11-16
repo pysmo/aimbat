@@ -91,6 +91,8 @@ with Session(engine) as session:
 
     seismogram = session.exec(select(AimbatSeismogram)).first()
     set_seismogram_parameter(session, seismogram.id, SeismogramParameter.SELECT, False)
+
+    session.commit()
 ```
 
 `set_event_parameter` validates the new value on its own. Pass
@@ -133,6 +135,7 @@ Resetting clears `t1`, so it falls back to `t0` on the next stack rebuild.
 
     with Session(engine) as session:
         reset_seismogram_parameters(session, seismogram_id)
+        session.commit()
     ```
 
 ## Interactive adjustment

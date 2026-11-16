@@ -1,11 +1,12 @@
-"""Functional tests exercising the AIMBAT CLI.
+"""Functional tests for the project, data, event, station and seismogram commands.
 
 All commands are invoked in-process via `app()` with `aimbat.db.engine`
-monkeypatched to the test fixture's in-memory database.
+monkeypatched to the test fixture's in-memory database. The rules behind each
+command are tested against `aimbat.actions` and `aimbat.core`. These tests
+check that arguments reach them and that results are shown.
 """
 
 import re
-from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -13,9 +14,8 @@ from typing import Any
 import pytest
 from sqlalchemy import Engine
 
-# ===================================================================
-# Project lifecycle (in-memory)
-# ===================================================================
+type _Cli = Callable[[str], None]
+type _CliJson = Callable[[str], list[Any] | dict[str, Any]]
 
 
 @pytest.mark.cli
@@ -23,273 +23,84 @@ class TestProjectLifecycle:
     """Tests for project commands against an in-memory database."""
 
     def test_create_project_twice_fails(
-        self,
-        patched_engine: Engine,
-        cli: Callable[[str], None],
+        self, patched_engine: Engine, cli: _Cli
     ) -> None:
-        """Verifies that creating a project when one already exists fails.
-
-        Args:
-            patched_engine: The monkeypatched in-memory engine (project already created).
-            cli: The in-process CLI callable.
-        """
+        """Verifies that creating a project when one already exists fails."""
         with pytest.raises((SystemExit, RuntimeError)):
             cli("project create")
 
     def test_project_info(
         self,
         patched_engine: Engine,
-        cli: Callable[[str], None],
+        cli: _Cli,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Verifies that project info displays a panel for an in-memory database.
-
-        Args:
-            patched_engine: The monkeypatched in-memory engine (project already created).
-            cli: The in-process CLI callable.
-            capsys: The pytest capsys fixture.
-        """
+        """Verifies that project info displays a panel for an in-memory database."""
         cli("project info")
         output = capsys.readouterr().out
-        assert "Project Info" in output, (
-            "Output should contain the 'Project Info' panel title"
-        )
-        assert "in-memory database" in output, (
-            "Output should indicate this is an in-memory database"
-        )
+        assert "Project Info" in output
+        assert "in-memory database" in output
 
     def test_delete_project_succeeds_for_in_memory(
-        self,
-        patched_engine: Engine,
-        cli: Callable[[str], None],
+        self, patched_engine: Engine, cli: _Cli
     ) -> None:
-        """Verifies that project delete completes without error for an in-memory database.
-
-        Args:
-            patched_engine: The monkeypatched in-memory engine (project already created).
-            cli: The in-process CLI callable.
-        """
-        cli("project delete --yes")  # should not raise for in-memory
-
-
-# ===================================================================
-# Data management
-# ===================================================================
+        """Verifies that project delete completes without error in memory."""
+        cli("project delete --yes")
 
 
 @pytest.mark.cli
-class TestDataManagement:
-    """Tests for adding and managing data."""
+class TestDataAdd:
+    """Tests for `data add`."""
 
     def test_add_data(
         self,
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
+        cli: _Cli,
+        cli_json: _CliJson,
     ) -> None:
-        """Verifies that data can be added to the project."""
-        files = " ".join(f.as_posix() for f in multi_event_data)
-        cli(f"data add {files} --no-progress")
-        events = cli_json("event dump")
-        assert len(events) > 0
-
-    def test_add_data_creates_automatic_snapshot_per_event(
-        self,
-        patched_engine: Engine,
-        multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """A fresh `data add` creates one automatic snapshot per touched event.
-
-        Each snapshot's comment must reflect the count of newly added
-        seismograms *for that event specifically*, not the total across all
-        events touched in the same call.
-        """
+        """Verifies that data are added and snapshotted automatically."""
         files = " ".join(f.as_posix() for f in multi_event_data)
         cli(f"data add {files} --no-progress")
 
-        seismograms = cli_json("seismogram dump")
-        assert isinstance(seismograms, list)
-        counts_by_event: Counter[str] = Counter(s["event_id"] for s in seismograms)
+        assert len(cli_json("seismogram dump")) == len(multi_event_data)
+        snapshots = cli_json("snapshot dump")
+        assert isinstance(snapshots, dict)
+        assert snapshots["snapshots"]
 
-        snapshot_data = cli_json("snapshot dump")
-        assert isinstance(snapshot_data, dict)
-        snapshots = snapshot_data["snapshots"]
-        assert len(snapshots) == len(counts_by_event)
-
-        for snap in snapshots:
-            assert snap["automatic"] is True
-            n = counts_by_event[snap["event_id"]]
-            expected_comment = f"Added {n} seismogram{'' if n == 1 else 's'}"
-            assert snap["comment"] == expected_comment
-
-    def test_add_data_snapshot_failure_does_not_cascade(
+    def test_no_snapshot_flag(
         self,
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-        monkeypatch: pytest.MonkeyPatch,
+        cli: _Cli,
+        cli_json: _CliJson,
     ) -> None:
-        """One event's automatic snapshot failing must not knock out the rest.
-
-        Regression test: a failed `create_snapshot` call leaves the session
-        unusable until rolled back. If `create_snapshots_for_added_data`
-        doesn't roll back after catching the exception, every event
-        processed after the failing one silently fails too, even though
-        nothing is wrong with them.
-        """
-        from sqlmodel import Session
-
-        from aimbat.core import _snapshot
-        from aimbat.models import AimbatEvent
-
-        real_create_snapshot = _snapshot.create_snapshot
-        calls = {"n": 0}
-
-        def flaky_create_snapshot(
-            session: Session,
-            event: AimbatEvent,
-            comment: str | None = None,
-            **kwargs: object,
-        ) -> None:
-            calls["n"] += 1
-            if calls["n"] == 1:
-                # Force a genuine flush failure inside create_snapshot's own
-                # commit by queuing a row that violates the unique constraint
-                # on AimbatEvent.time, rather than raising before any DB
-                # interaction happens.
-                session.add(
-                    AimbatEvent(time=event.time, latitude=0.0, longitude=0.0, depth=0.0)
-                )
-            return real_create_snapshot(session, event, comment=comment, **kwargs)  # type: ignore[arg-type]
-
-        # create_snapshots_for_added_data calls create_snapshot as a module-local
-        # name, so the patch target is _snapshot itself, not the re-exported
-        # aimbat.core.create_snapshot.
-        monkeypatch.setattr(_snapshot, "create_snapshot", flaky_create_snapshot)
-
-        files = " ".join(f.as_posix() for f in multi_event_data)
-        cli(f"data add {files} --no-progress")
-
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        assert len(events) > 1, "fixture should touch more than one event"
-
-        snapshot_data = cli_json("snapshot dump")
-        assert isinstance(snapshot_data, dict)
-        snapshots = snapshot_data["snapshots"]
-        assert len(snapshots) == len(events) - 1, (
-            "only the first (failing) event's snapshot should be missing"
-        )
-
-    def test_add_data_singular_seismogram_comment(
-        self,
-        patched_engine: Engine,
-        sac_file_good: Path,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """A single new seismogram produces singular wording, not "1 seismograms"."""
-        cli(f"data add {sac_file_good.as_posix()} --no-progress")
-
-        snapshot_data = cli_json("snapshot dump")
-        assert isinstance(snapshot_data, dict)
-        snapshots = snapshot_data["snapshots"]
-        assert len(snapshots) == 1
-        assert snapshots[0]["comment"] == "Added 1 seismogram"
-
-    def test_add_data_no_snapshot_flag(
-        self,
-        patched_engine: Engine,
-        multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """`--no-snapshot` suppresses automatic snapshot creation for this call."""
+        """Verifies that `--no-snapshot` suppresses automatic snapshots."""
         files = " ".join(f.as_posix() for f in multi_event_data)
         cli(f"data add {files} --no-progress --no-snapshot")
 
-        snapshot_data = cli_json("snapshot dump")
-        assert isinstance(snapshot_data, dict)
-        assert snapshot_data["snapshots"] == []
-
-    def test_add_data_idempotent(
-        self,
-        loaded_engine: Engine,
-        multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Adding the same files twice does not duplicate data, nor snapshot."""
-        events_before = cli_json("event dump")
-
-        files = " ".join(f.as_posix() for f in multi_event_data)
-        cli(f"data add {files} --no-progress")
-
-        events_after = cli_json("event dump")
-        assert len(events_after) == len(events_before)
-
-        snapshot_data = cli_json("snapshot dump")
-        assert isinstance(snapshot_data, dict)
-        assert snapshot_data["snapshots"] == [], (
-            "Re-adding unchanged data should not create an automatic snapshot."
-        )
-
-    def test_data_list(self, loaded_engine: Engine, cli: Callable[[str], None]) -> None:
-        """Verifies that data list command runs successfully."""
-        cli("data list --event-id all")
-
-    def test_data_dump(
-        self,
-        loaded_engine: Engine,
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that data dump returns a list of data items."""
-        data = cli_json("data dump")
-        assert isinstance(data, list)
-        assert len(data) > 0
-
-    def test_dry_run_does_not_add(
-        self,
-        patched_engine: Engine,
-        multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that dry-run mode does not modify the database."""
-        files = " ".join(f.as_posix() for f in multi_event_data)
-        cli(f"data add {files} --no-progress --dry-run")
-        events = cli_json("event dump")
-        assert len(events) == 0
-
-        snapshot_data = cli_json("snapshot dump")
-        assert isinstance(snapshot_data, dict)
-        assert snapshot_data["snapshots"] == [], (
-            "A dry run should never create a snapshot."
-        )
+        snapshots = cli_json("snapshot dump")
+        assert isinstance(snapshots, dict)
+        assert snapshots["snapshots"] == []
 
     def test_dry_run_summary_predicts_the_real_add(
         self,
         patched_engine: Engine,
         multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
+        cli: _Cli,
+        cli_json: _CliJson,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Verifies the dry-run summary counts distinct entities, not data sources.
+        """Verifies the dry-run summary counts distinct records, not data sources.
 
         Many SAC files routinely resolve to one event, so counting per data
-        source reported one event added per file. Asserted by running the same
-        add for real and comparing against what actually landed in the
-        database, rather than against numbers hardcoded from the fixture.
+        source reported one event added per file.
         """
         files = " ".join(f.as_posix() for f in multi_event_data)
         capsys.readouterr()
         cli(f"data add {files} --no-progress --dry-run")
         summary = capsys.readouterr().out.splitlines()[-1].strip()
+        assert cli_json("event dump") == []
 
         match = re.fullmatch(
             r"(\d+) station\(s\) added, (\d+) skipped\. "
@@ -310,576 +121,102 @@ class TestDataManagement:
             "station": stations,
             "event": events,
             "seismogram": seismograms,
-        } == actual, (
-            "The dry-run summary should predict exactly what a real add creates."
-        )
+        } == actual
         assert actual["event"] < len(multi_event_data), (
             "Fixture no longer exercises the bug: it needs several data sources "
             "sharing one event for a per-source count to differ from a per-event one."
         )
 
-    def test_add_data_with_use_flags(
+    def test_use_station_and_event(
         self,
         patched_engine: Engine,
         sac_file_good: Path,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies adding data using existing station and event IDs."""
-        # 1. Add a station and event first
-        cli(f"data add {sac_file_good.as_posix()} --no-progress")
-        stations = cli_json("station dump")
-        assert isinstance(stations, list)
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        station_id = stations[0]["id"]
-        event_id = events[0]["id"]
-
-        # 2. Add another file (or same file) using these IDs
-        # We'll use a different file if available, or just re-add to test the flags
-        cli(
-            f"data add {sac_file_good.as_posix()} --no-progress "
-            f"--use-station {station_id} --use-event {event_id}"
-        )
-
-        # 3. Verify it still works (idempotent in this case, but flags were exercised)
-        data = cli_json("data dump")
-        assert isinstance(data, list)
-        assert len(data) == 1
-        assert data[0]["seismogram_id"] is not None
-
-    def test_add_json_data(
-        self,
-        patched_engine: Engine,
+        cli: _Cli,
+        cli_json: _CliJson,
         tmp_path: Path,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
     ) -> None:
-        """Verifies adding station and event data from JSON files via CLI."""
-        # 1. Create a JSON station file
+        """Verifies that `--use-station` and `--use-event` link to existing records."""
         station_json = tmp_path / "station.json"
         station_json.write_text(
             '{"name": "STAT", "network": "NW", "location": "00", "channel": "BHZ", '
             '"latitude": 10.0, "longitude": 20.0, "elevation": 100.0}'
         )
-
-        # 2. Add via CLI
-        cli(f"data add {station_json.as_posix()} --type json_station --no-progress")
-
-        # 3. Verify station was added
-        stations = cli_json("station dump")
-        assert isinstance(stations, list)
-        assert len(stations) == 1
-        assert stations[0]["name"] == "STAT"
-
-        # 4. Create a JSON event file
         event_json = tmp_path / "event.json"
         event_json.write_text(
             '{"time": "2020-01-01T00:00:00Z", "latitude": 30.0, '
             '"longitude": 40.0, "depth": 50.0}'
         )
-
-        # 5. Add via CLI
+        cli(f"data add {station_json.as_posix()} --type json_station --no-progress")
         cli(f"data add {event_json.as_posix()} --type json_event --no-progress")
-
-        # 6. Verify event was added
+        stations = cli_json("station dump")
         events = cli_json("event dump")
-        assert isinstance(events, list)
-        assert len(events) == 1
+        assert isinstance(stations, list) and isinstance(events, list)
+        assert stations[0]["name"] == "STAT"
         assert events[0]["latitude"] == 30.0
 
+        cli(
+            f"data add {sac_file_good.as_posix()} --no-progress "
+            f"--use-station {stations[0]['id']} --use-event {events[0]['id']}"
+        )
 
-# ===================================================================
-# Event operations
-# ===================================================================
-
-
-@pytest.mark.cli
-class TestEventOperations:
-    """Tests for event-related CLI commands."""
-
-    def test_event_list(
-        self, loaded_engine: Engine, cli: Callable[[str], None]
-    ) -> None:
-        """Verifies that event list command runs successfully."""
-        cli("event list")
-
-    def test_event_dump(
-        self,
-        loaded_engine: Engine,
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that event dump returns a list of events."""
-        events = cli_json("event dump")
-        assert len(events) > 1
-
-    def test_default_event(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-    ) -> None:
-        """Verifies that event default command was removed."""
-        # The default event concept was removed; this test verifies the command is gone
-        with pytest.raises((SystemExit, RuntimeError)):
-            cli("event default")
-
-    def test_default_switches_previous(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-    ) -> None:
-        """Verifies that event default command was removed."""
-        # The default event concept was removed; this test verifies the command is gone
-        with pytest.raises((SystemExit, RuntimeError)):
-            cli("event default")
-
-    def test_delete_event(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that an event can be deleted."""
-        events_before = cli_json("event dump")
-        assert isinstance(events_before, list)
-        target_id = events_before[0]["id"]
-
-        cli(f"event delete {target_id} --yes")
-
-        events_after = cli_json("event dump")
-        assert isinstance(events_after, list)
-        remaining_ids = [e["id"] for e in events_after]
-        assert target_id not in remaining_ids
-        assert len(events_after) == len(events_before) - 1
-
-    def test_default_event_with_short_id(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-    ) -> None:
-        """Verifies that event default command with short ID was removed."""
-        # The default event concept was removed; this test verifies the command is gone
-        with pytest.raises((SystemExit, RuntimeError)):
-            cli("event default 00000000")
-
-    def test_delete_event_with_short_id(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that an event can be deleted using a shortened ID.
-
-        Args:
-            loaded_engine: The monkeypatched engine with data loaded.
-            cli: The in-process CLI callable.
-            cli_json: The in-process CLI JSON dump callable.
-        """
-        events_before = cli_json("event dump")
-        assert isinstance(events_before, list)
-        target_id = events_before[0]["id"]
-        short_id = target_id[:8]
-
-        cli(f"event delete {short_id} --yes")
-
-        events_after = cli_json("event dump")
-        assert isinstance(events_after, list)
-        remaining_ids = [e["id"] for e in events_after]
-        assert target_id not in remaining_ids
-        assert len(events_after) == len(events_before) - 1
-
-    def test_delete_event_removes_seismograms(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that deleting an event also deletes its seismograms."""
-        seis_before = cli_json("seismogram dump")
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        target_id = events[0]["id"]
-
-        cli(f"event delete {target_id} --yes")
-
-        seis_after = cli_json("seismogram dump")
-        assert len(seis_after) < len(seis_before)
-
-
-# ===================================================================
-# Event parameters
-# ===================================================================
+        (seismogram,) = cli_json("seismogram dump")
+        assert isinstance(seismogram, dict)
+        assert seismogram["station_id"] == stations[0]["id"]
+        assert seismogram["event_id"] == events[0]["id"]
 
 
 @pytest.mark.cli
-class TestEventParameters:
-    """Tests for event parameter CLI commands."""
+class TestReads:
+    """Smoke tests for the list and dump commands."""
 
-    def test_parameter_list(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "data list --event-id all",
+            "event list",
+            "station list --event-id all",
+        ],
+    )
+    def test_list(self, loaded_engine: Engine, cli: _Cli, command: str) -> None:
+        """Verifies that the list command runs."""
+        cli(command)
+
+    def test_list_for_one_event(
+        self, loaded_engine: Engine, cli: _Cli, event_id: str
     ) -> None:
-        """Verifies that parameter list command runs successfully."""
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-        cli(f"event parameter list --event-id {event_id}")
-
-    def test_parameter_get_and_set(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Verifies getting and setting event parameters."""
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-
-        cli(f"event parameter get completed --event-id {event_id}")
-        assert "False" in capsys.readouterr().out
-
-        cli(f"event parameter set completed true --event-id {event_id}")
-
-        cli(f"event parameter get completed --event-id {event_id}")
-        assert "True" in capsys.readouterr().out
-
-    def test_parameter_dump(
-        self,
-        loaded_engine: Engine,
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that parameter dump returns parameter data."""
-        data = cli_json("event parameter dump")
-        assert isinstance(data, list)
-        assert len(data) > 0
-        assert "completed" in data[0]
-
-
-# ===================================================================
-# Station operations
-# ===================================================================
-
-
-@pytest.mark.cli
-class TestStationOperations:
-    """Tests for station-related CLI commands."""
-
-    def test_station_list(
-        self, loaded_engine: Engine, cli: Callable[[str], None]
-    ) -> None:
-        """Verifies that station list command runs successfully."""
-        cli("station list --event-id all")
-
-    def test_station_dump(
-        self,
-        loaded_engine: Engine,
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that station dump returns a list of stations."""
-        stations = cli_json("station dump")
-        assert len(stations) > 0
-
-    def test_delete_station(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that a station can be deleted."""
-        stations = cli_json("station dump")
-        assert isinstance(stations, list)
-        target_id = stations[0]["id"]
-
-        cli(f"station delete {target_id} --yes")
-
-        stations_after = cli_json("station dump")
-        assert len(stations_after) == len(stations) - 1
-
-    def test_delete_station_with_short_id(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that a station can be deleted using a shortened ID.
-
-        Args:
-            loaded_engine: The monkeypatched engine with data loaded.
-            cli: The in-process CLI callable.
-            cli_json: The in-process CLI JSON dump callable.
-        """
-        stations = cli_json("station dump")
-        assert isinstance(stations, list)
-        target_id = stations[0]["id"]
-        short_id = target_id[:8]
-
-        cli(f"station delete {short_id} --yes")
-
-        stations_after = cli_json("station dump")
-        assert len(stations_after) == len(stations) - 1
-
-
-# ===================================================================
-# Seismogram operations
-# ===================================================================
-
-
-@pytest.mark.cli
-class TestSeismogramOperations:
-    """Tests for seismogram-related CLI commands."""
-
-    def test_seismogram_list(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that seismogram list command runs successfully."""
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
+        """Verifies that `--event-id` selects one event."""
         cli(f"seismogram list --event-id {event_id}")
 
-    def test_seismogram_dump(
-        self,
-        loaded_engine: Engine,
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that seismogram dump returns a list of seismograms."""
-        data = cli_json("seismogram dump")
-        assert len(data) > 0
-
-    def test_delete_seismogram(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that a seismogram can be deleted."""
-        seis = cli_json("seismogram dump")
-        assert isinstance(seis, list)
-        target_id = seis[0]["id"]
-
-        cli(f"seismogram delete {target_id} --yes")
-
-        seis_after = cli_json("seismogram dump")
-        assert len(seis_after) == len(seis) - 1
-
-    def test_delete_seismogram_with_short_id(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that a seismogram can be deleted using a shortened ID.
-
-        Args:
-            loaded_engine: The monkeypatched engine with data loaded.
-            cli: The in-process CLI callable.
-            cli_json: The in-process CLI JSON dump callable.
-        """
-        seis = cli_json("seismogram dump")
-        assert isinstance(seis, list)
-        target_id = seis[0]["id"]
-        short_id = target_id[:8]
-
-        cli(f"seismogram delete {short_id} --yes")
-
-        seis_after = cli_json("seismogram dump")
-        assert len(seis_after) == len(seis) - 1
-
-
-# ===================================================================
-# Snapshot lifecycle
-# ===================================================================
+    @pytest.mark.parametrize("kind", ["data", "event", "station", "seismogram"])
+    def test_dump(self, loaded_engine: Engine, cli_json: _CliJson, kind: str) -> None:
+        """Verifies that the dump command returns a non-empty list."""
+        data = cli_json(f"{kind} dump")
+        assert isinstance(data, list)
+        assert data
 
 
 @pytest.mark.cli
-class TestSnapshotLifecycle:
-    """Tests for snapshot creation, deletion, and rollback."""
+class TestDelete:
+    """Tests for the delete commands."""
 
-    def test_create_snapshot(
+    @pytest.mark.parametrize("kind", ["event", "station", "seismogram"])
+    @pytest.mark.parametrize("short", [False, True], ids=["full-id", "short-id"])
+    def test_delete(
         self,
         loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
+        cli: _Cli,
+        cli_json: _CliJson,
+        kind: str,
+        short: bool,
     ) -> None:
-        """Verifies that a snapshot can be created."""
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-        cli(f"snapshot create --event-id {event_id} --comment initial")
-        data = cli_json("snapshot dump")
-        assert isinstance(data, dict)
-        snapshots = data["snapshots"]
-        assert len(snapshots) == 1
-        assert snapshots[0]["comment"] == "initial"
-        assert len(data["event_parameters"]) == 1
-        assert len(data["seismogram_parameters"]) > 0
+        """Verifies that a record is deleted by its full or shortened ID."""
+        before = cli_json(f"{kind} dump")
+        assert isinstance(before, list)
+        target = before[0]["id"]
 
-    def test_create_multiple_snapshots(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that multiple snapshots can be created."""
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-        cli(f"snapshot create --event-id {event_id} --comment first")
-        cli(f"snapshot create --event-id {event_id} --comment second")
-        data = cli_json("snapshot dump")
-        assert isinstance(data, dict)
-        snapshots = data["snapshots"]
-        assert len(snapshots) == 2
-        comments = {s["comment"] for s in snapshots}
-        assert comments == {"first", "second"}
+        cli(f"{kind} delete {target[:8] if short else target} --yes")
 
-    def test_delete_snapshot(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that a snapshot can be deleted."""
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-        cli(f"snapshot create --event-id {event_id} --comment to-delete")
-        data = cli_json("snapshot dump")
-        assert isinstance(data, dict)
-        snapshots = data["snapshots"]
-        assert len(snapshots) == 1
-
-        cli(f"snapshot delete {snapshots[0]['id']} --yes")
-
-        data_after = cli_json("snapshot dump")
-        assert isinstance(data_after, dict)
-        assert len(data_after["snapshots"]) == 0
-
-    def test_delete_snapshot_with_short_id(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that a snapshot can be deleted using a shortened ID.
-
-        Args:
-            loaded_engine: The monkeypatched engine with data loaded.
-            cli: The in-process CLI callable.
-            cli_json: The in-process CLI JSON dump callable.
-        """
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-        cli(f"snapshot create --event-id {event_id} --comment to-delete")
-        data = cli_json("snapshot dump")
-        assert isinstance(data, dict)
-        snapshots = data["snapshots"]
-        assert len(snapshots) == 1
-        short_id = snapshots[0]["id"][:8]
-
-        cli(f"snapshot delete {short_id} --yes")
-
-        data_after = cli_json("snapshot dump")
-        assert isinstance(data_after, dict)
-        assert len(data_after["snapshots"]) == 0
-
-    def test_rollback_snapshot(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Rollback restores parameter values from a snapshot."""
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-        cli(f"snapshot create --event-id {event_id} --comment before-change")
-
-        cli(f"event parameter set completed true --event-id {event_id}")
-        cli(f"event parameter get completed --event-id {event_id}")
-        assert "True" in capsys.readouterr().out
-
-        data = cli_json("snapshot dump")
-        assert isinstance(data, dict)
-        cli(f"snapshot rollback {data['snapshots'][0]['id']} --yes")
-
-        cli(f"event parameter get completed --event-id {event_id}")
-        assert "False" in capsys.readouterr().out
-
-    def test_rollback_snapshot_with_short_id(
-        self,
-        loaded_engine: Engine,
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Verifies that rollback works with a shortened snapshot ID.
-
-        Args:
-            loaded_engine: The monkeypatched engine with data loaded.
-            cli: The in-process CLI callable.
-            cli_json: The in-process CLI JSON dump callable.
-            capsys: The pytest capsys fixture.
-        """
-        events = cli_json("event dump")
-        assert isinstance(events, list)
-        event_id = events[0]["id"]
-        cli(f"snapshot create --event-id {event_id} --comment before-change")
-
-        cli(f"event parameter set completed true --event-id {event_id}")
-        cli(f"event parameter get completed --event-id {event_id}")
-        assert "True" in capsys.readouterr().out
-
-        data = cli_json("snapshot dump")
-        assert isinstance(data, dict)
-        short_id = data["snapshots"][0]["id"][:8]
-        cli(f"snapshot rollback {short_id} --yes")
-
-        cli(f"event parameter get completed --event-id {event_id}")
-        assert "False" in capsys.readouterr().out
-
-
-# ===================================================================
-# Full workflow: add → delete → re-add
-# ===================================================================
-
-
-@pytest.mark.cli
-class TestDataReaddWorkflow:
-    """Delete all data then add it back."""
-
-    def test_delete_all_events_and_readd(
-        self,
-        loaded_engine: Engine,
-        multi_event_data: Sequence[Path],
-        cli: Callable[[str], None],
-        cli_json: Callable[[str], list[Any] | dict[str, Any]],
-    ) -> None:
-        """Verifies that data can be re-added after deletion."""
-        events_before = cli_json("event dump")
-        assert isinstance(events_before, list)
-        assert len(events_before) > 0
-
-        for event in events_before:
-            cli(f"event delete {event['id']} --yes")
-
-        events_empty = cli_json("event dump")
-        assert len(events_empty) == 0
-
-        seis_empty = cli_json("seismogram dump")
-        assert len(seis_empty) == 0
-
-        files = " ".join(f.as_posix() for f in multi_event_data)
-        cli(f"data add {files} --no-progress")
-
-        events_after = cli_json("event dump")
-        assert len(events_after) == len(events_before)
+        after = cli_json(f"{kind} dump")
+        assert isinstance(after, list)
+        assert target not in {r["id"] for r in after}
+        assert len(after) == len(before) - 1

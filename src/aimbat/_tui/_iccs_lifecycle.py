@@ -21,11 +21,11 @@ from sqlmodel import Session
 from textual import work
 from textual.app import App
 
+from aimbat.actions import prepare_iccs
 from aimbat.core import (
     BoundICCS,
     IccsLifecycle,
     NoSeismogramsError,
-    create_iccs_instance,
 )
 from aimbat.core._validity import compute_digests
 from aimbat.db import engine
@@ -109,11 +109,8 @@ class _IccsLifecycleMixin(App[None]):
         """
         try:
             with Session(engine) as session:
-                event = self._get_current_event(session)
-                bound_iccs = create_iccs_instance(session, event)
-                # Building the instance writes each seismogram's CC value; it
-                # is only kept if this session commits.
-                session.commit()
+                event_id = self._get_current_event(session).id
+            bound_iccs = prepare_iccs(event_id)
         except (NoResultFound, NoSeismogramsError, RuntimeError):
             logger.debug(
                 "ICCS worker: no event selected, event has no seismograms, or "

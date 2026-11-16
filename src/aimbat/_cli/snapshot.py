@@ -62,14 +62,9 @@ def cli_snapshot_create(
         event_id: UUID (or unique prefix) of the event to snapshot.
         comment: Optional description to help identify this snapshot later.
     """
-    from sqlmodel import Session
+    from aimbat.actions import create_snapshot
 
-    from aimbat.core import create_snapshot, resolve_event
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        create_snapshot(session, event, comment)
+    create_snapshot(event_id, comment)
 
 
 @app.command(name="rollback")
@@ -96,16 +91,12 @@ def cli_snapshot_rollback(
     restored from the best matching snapshot (same parameter hash, most recent
     MCCC run).
     """
-    from sqlmodel import Session
-
-    from aimbat.core import rollback_to_snapshot
-    from aimbat.db import engine
+    from aimbat.actions import rollback_to_snapshot
 
     confirm_or_abort(
         "Overwrite current live parameters with this snapshot?", yes=confirm.yes
     )
-    with Session(engine) as session:
-        rollback_to_snapshot(session, snapshot_id)
+    rollback_to_snapshot(snapshot_id)
 
 
 @app.command(name="delete")
@@ -126,14 +117,10 @@ def cli_snapshot_delete(
     Only removes the snapshot's frozen parameter and quality records;
     current event and seismogram data are unaffected.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import delete_snapshot
-    from aimbat.db import engine
+    from aimbat.actions import delete_snapshots
 
     confirm_or_abort(f"Delete snapshot {snapshot_id}?", yes=confirm.yes)
-    with Session(engine) as session:
-        delete_snapshot(session, snapshot_id)
+    delete_snapshots([snapshot_id])
 
 
 @app.command(name="dump")

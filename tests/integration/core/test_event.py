@@ -237,30 +237,27 @@ class TestSetEventParameter:
                 validate_iccs=True,
             )
 
-    def test_set_parameter_persists_across_sessions(
-        self, loaded_engine: Engine
+    @pytest.mark.parametrize("commit", [False, True])
+    def test_change_is_kept_only_if_the_caller_commits(
+        self, loaded_engine: Engine, commit: bool
     ) -> None:
-        """Verifies a change survives the session it was made in being closed.
-
-        Callers (TUI, CLI) always call `set_event_parameter` inside a
-        `with Session(engine) as session:` block and never commit
-        themselves, so the write must be durable by the time that session
-        closes. Guards against the change being silently rolled back on
-        session close.
-        """
+        """`set_event_parameter` leaves committing to the caller."""
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            event_id = event.id
+            event_id, before = event.id, event.parameters.window_post
             new_value = Timedelta(seconds=20)
             set_event_parameter(
                 session, event_id, EventParameter.WINDOW_POST, new_value
             )
+            if commit:
+                session.commit()
 
         with Session(loaded_engine) as session:
             event = session.get(AimbatEvent, event_id)
             assert event is not None
-            assert event.parameters.window_post == new_value
+            expected = new_value if commit else before
+            assert event.parameters.window_post == expected
 
     def test_rejected_bandpass_bound_names_the_order_that_works(
         self, loaded_session: Session

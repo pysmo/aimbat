@@ -54,7 +54,6 @@ experimental parameter change.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
@@ -79,33 +78,26 @@ from .common import (
 )
 
 if TYPE_CHECKING:
-    from aimbat.core import PruneReport
-    from aimbat.models import AimbatDataSource
+    from aimbat.actions import AddDataResult, PruneResult
 
 app = App(name="data", help=__doc__, help_format="markdown")
 
 
 def _format_added_skipped(
-    label: str, ids: set[uuid.UUID], existing_ids: set[uuid.UUID]
+    label: str, ids: set[uuid.UUID], new_ids: set[uuid.UUID]
 ) -> str:
     """Format one `N label(s) added, M skipped` clause of the dry-run summary.
 
     Args:
         label: Singular noun for the entity kind, e.g. `"station"`.
         ids: Distinct IDs of that kind touched by the ingestion call.
-        existing_ids: IDs of that kind that already existed beforehand.
+        new_ids: Those of `ids` that did not exist beforehand.
     """
-    added = len(ids - existing_ids)
+    added = len(new_ids)
     return f"{added} {label}(s) added, {len(ids) - added} skipped"
 
 
-def _print_dry_run_results(
-    added_datasources: Sequence[AimbatDataSource],
-    existing_station_ids: set[uuid.UUID],
-    existing_event_ids: set[uuid.UUID],
-    existing_seismogram_ids: set[uuid.UUID],
-    duplicate_warnings: Sequence[str],
-) -> None:
+def _print_dry_run_results(result: AddDataResult) -> None:
     """Print a summary table showing which entities were added vs skipped."""
     from pydantic import BaseModel, Field
     from rich.console import Console
@@ -121,12 +113,12 @@ def _print_dry_run_results(
     json_to_table(
         [
             {
-                "source": str(ds.sourcename),
-                "station": ds.seismogram.station_id not in existing_station_ids,
-                "event": ds.seismogram.event_id not in existing_event_ids,
-                "seismogram": ds.seismogram_id not in existing_seismogram_ids,
+                "source": source.sourcename,
+                "station": source.new_station,
+                "event": source.new_event,
+                "seismogram": source.new_seismogram,
             }
-            for ds in added_datasources
+            for source in result.sources
         ],
         model=_DryRunRow,
         title="Dry Run: Data to be added",
@@ -135,25 +127,34 @@ def _print_dry_run_results(
     # routinely resolve to one station or one event (a whole event's worth of
     # SAC files is the normal case), and counting per source reported that as
     # one station added per file.
-    station_ids = {ds.seismogram.station_id for ds in added_datasources}
-    event_ids = {ds.seismogram.event_id for ds in added_datasources}
-    seismogram_ids = {ds.seismogram_id for ds in added_datasources}
-
+    sources = result.sources
     console = Console()
     console.print(
         "\n"
         + ". ".join(
-            _format_added_skipped(label, ids, existing)
-            for label, ids, existing in (
-                ("station", station_ids, existing_station_ids),
-                ("event", event_ids, existing_event_ids),
-                ("seismogram", seismogram_ids, existing_seismogram_ids),
+            _format_added_skipped(label, ids, new_ids)
+            for label, ids, new_ids in (
+                (
+                    "station",
+                    {s.station_id for s in sources},
+                    {s.station_id for s in sources if s.new_station},
+                ),
+                (
+                    "event",
+                    {s.event_id for s in sources},
+                    {s.event_id for s in sources if s.new_event},
+                ),
+                (
+                    "seismogram",
+                    {s.seismogram_id for s in sources},
+                    {s.seismogram_id for s in sources if s.new_seismogram},
+                ),
             )
         )
         + "."
     )
 
-    for message in duplicate_warnings:
+    for message in result.duplicate_warnings:
         print_warning(message)
 
 
@@ -230,50 +231,30 @@ def cli_data_add(
     """
     from rich.progress import Progress
 
-    from aimbat.core import add_data_to_project
-    from aimbat.db import engine
+    from aimbat.actions import add_data
 
-    with Session(engine) as session:
-        with Progress(disable=not show_progress_bar) as progress:
-            task = progress.add_task("Adding data ...", total=len(data_sources))
+    with Progress(disable=not show_progress_bar) as progress:
+        task = progress.add_task("Adding data ...", total=len(data_sources))
 
-            def on_progress(done: int, _total: int) -> None:
-                progress.update(task, completed=done)
+        def on_progress(done: int, _total: int) -> None:
+            progress.update(task, completed=done)
 
-            (
-                added_datasources,
-                existing_station_ids,
-                existing_event_ids,
-                existing_seismogram_ids,
-                duplicate_warnings,
-            ) = add_data_to_project(
-                session,
-                data_sources,
-                data_type,
-                station_id=station_id,
-                event_id=event_id,
-                dry_run=dry_run,
-                on_progress=on_progress,
-            )
+        result = add_data(
+            data_sources,
+            data_type,
+            station_id=station_id,
+            event_id=event_id,
+            dry_run=dry_run,
+            auto_snapshot=auto_snapshot,
+            on_progress=on_progress,
+        )
 
-        if dry_run:
-            _print_dry_run_results(
-                added_datasources,
-                existing_station_ids,
-                existing_event_ids,
-                existing_seismogram_ids,
-                duplicate_warnings,
-            )
-        elif auto_snapshot:
-            from aimbat.core import create_snapshots_for_added_data
-
-            _snapshotted, failures = create_snapshots_for_added_data(
-                session, added_datasources, existing_seismogram_ids
-            )
-            for event_id, error in failures:
-                print_warning(
-                    f"Could not create an automatic snapshot for event {event_id}: {error}"
-                )
+    if dry_run:
+        _print_dry_run_results(result)
+    for failed_id, error in result.snapshot_failures:
+        print_warning(
+            f"Could not create an automatic snapshot for event {failed_id}: {error}"
+        )
 
 
 @app.command(name="dump")
@@ -346,9 +327,9 @@ def cli_data_list(
 
 
 def _print_prune_report(
-    report: PruneReport, *, will_prune_stations: bool, will_prune_events: bool
+    report: PruneResult, *, will_prune_stations: bool, will_prune_events: bool
 ) -> None:
-    """Print a `PruneReport` as a table plus follow-up warning lines."""
+    """Print a `PruneResult` as a table plus follow-up warning lines."""
     from pydantic import BaseModel, Field
     from rich.console import Console
 
@@ -356,7 +337,7 @@ def _print_prune_report(
 
     console = Console()
 
-    if not report.orphan_seismograms:
+    if not report.orphans:
         console.print("No vanished data sources found.")
     else:
 
@@ -368,38 +349,37 @@ def _print_prune_report(
             reason: str = Field(title="Reason")
 
         rows = []
-        for seis in report.orphan_seismograms:
-            sourcename, datatype = report.orphan_sources[seis.id]
+        for orphan in report.orphans:
             rows.append(
                 {
-                    "source": sourcename,
-                    "type": str(datatype),
-                    "station": seis.station.name,
-                    "event": seis.event.time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "source": orphan.sourcename,
+                    "type": str(orphan.datatype),
+                    "station": orphan.station_name,
+                    "event": orphan.event_time.strftime("%Y-%m-%d %H:%M:%S"),
                     "reason": "source file missing",
                 }
             )
         json_to_table(rows, model=_OrphanRow, title="Data sources to prune")
 
-    for event in report.events_losing_seismograms:
+    for event_time in report.events_losing_seismograms.values():
         console.print(
             "Event "
-            + event.time.strftime("%Y-%m-%d %H:%M:%S")
+            + event_time.strftime("%Y-%m-%d %H:%M:%S")
             + " loses seismograms: its ICCS/MCCC quality may need re-running "
             + "(align / mccc)."
         )
 
-    if report.emptied_stations:
+    if report.emptied_station_ids:
         verb = "removed" if will_prune_stations else "left empty"
-        console.print(f"{len(report.emptied_stations)} station(s) will be {verb}.")
-    if report.emptied_events:
+        console.print(f"{len(report.emptied_station_ids)} station(s) will be {verb}.")
+    if report.emptied_event_ids:
         if will_prune_events:
             console.print(
-                f"{len(report.emptied_events)} emptied event(s) will be deleted."
+                f"{len(report.emptied_event_ids)} emptied event(s) will be deleted."
             )
         else:
             console.print(
-                f"{len(report.emptied_events)} event(s) will be left with no "
+                f"{len(report.emptied_event_ids)} event(s) will be left with no "
                 + "seismograms (pass --prune-empty-events to delete them)."
             )
 
@@ -477,44 +457,41 @@ def cli_data_prune(
     from a deleted one. Pass `--prune-empty-stations` / `--prune-empty-events`
     to also clean up stations or events left with no seismograms.
     """
-    from aimbat.core import prune_project
-    from aimbat.db import engine
+    from aimbat.actions import prune_data
 
-    def confirm_prune(report: PruneReport) -> bool:
+    def confirm_prune(report: PruneResult) -> bool:
         _print_prune_report(
             report,
             will_prune_stations=prune_empty_stations,
             will_prune_events=prune_empty_events,
         )
-        stations = len(report.emptied_stations) if prune_empty_stations else 0
-        events = len(report.emptied_events) if prune_empty_events else 0
+        stations = len(report.emptied_station_ids) if prune_empty_stations else 0
+        events = len(report.emptied_event_ids) if prune_empty_events else 0
         confirm_or_abort(
-            f"Delete {len(report.orphan_seismograms)} seismogram(s) "
+            f"Delete {len(report.orphans)} seismogram(s) "
             + f"(+ {stations} station(s), {events} event(s), "
             + f"{report.total_snapshots} snapshot(s), {report.total_notes} note(s))?",
             yes=confirm.yes,
         )
         return True
 
-    with Session(engine) as session:
-        report = prune_project(
-            session,
-            event_id,
-            dry_run=dry_run,
-            prune_empty_stations=prune_empty_stations,
-            prune_empty_events=prune_empty_events,
-            auto_snapshot=auto_snapshot,
-            force=force,
-            confirm=None if dry_run else confirm_prune,
+    report = prune_data(
+        event_id,
+        dry_run=dry_run,
+        prune_empty_stations=prune_empty_stations,
+        prune_empty_events=prune_empty_events,
+        auto_snapshot=auto_snapshot,
+        force=force,
+        confirm=None if dry_run else confirm_prune,
+    )
+    # A dry run, or a live run with nothing to prune, never reaches the
+    # confirm callback, so the report is still unprinted here.
+    if dry_run or not report.orphans:
+        _print_prune_report(
+            report,
+            will_prune_stations=prune_empty_stations,
+            will_prune_events=prune_empty_events,
         )
-        # A dry run, or a live run with nothing to prune, never reaches the
-        # confirm callback, so the report is still unprinted here.
-        if dry_run or not report.orphan_seismograms:
-            _print_prune_report(
-                report,
-                will_prune_stations=prune_empty_stations,
-                will_prune_events=prune_empty_events,
-            )
 
 
 if __name__ == "__main__":

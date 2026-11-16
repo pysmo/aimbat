@@ -63,6 +63,7 @@ for a final [MCCC](mccc.md) pass.
         event = session.exec(select(AimbatEvent)).first()
         bound = create_iccs_instance(session, event)
         run_iccs(session, event, bound.iccs, autoflip=True, autoselect=True)
+        session.commit()
     ```
 
 The stack and matrix image after each run show what to change next. See

@@ -14,7 +14,8 @@ from textual.widget import Widget
 from textual.widgets import DataTable, Markdown, TabbedContent, TabPane, TextArea
 from textual_plotext import PlotextPlot
 
-from aimbat.core import NoteTarget, get_note_content, save_note
+from aimbat.actions import save_note
+from aimbat.core import NoteTarget, get_note_content
 from aimbat.db import engine
 
 __all__ = ["NoteWidget", "SeismogramPlotWidget", "VimDataTable"]
@@ -219,8 +220,7 @@ class NoteWidget(Widget):
         if content == self._saved_content:
             return
         try:
-            with Session(engine) as session:
-                save_note(session, self._target_type, self._target_id, content)
+            save_note(self._target_type, self._target_id, content)
         except Exception as exc:
             self.app.notify(f"Could not save note: {exc}", severity="error")
             return

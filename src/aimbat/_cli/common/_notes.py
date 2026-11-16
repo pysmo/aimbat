@@ -82,7 +82,8 @@ def make_note_app(
     ) -> None:
         from sqlmodel import Session
 
-        from aimbat.core import get_note_content, save_note
+        from aimbat.actions import save_note
+        from aimbat.core import get_note_content
         from aimbat.db import engine
 
         with Session(engine) as session:
@@ -93,10 +94,7 @@ def make_note_app(
         updated = open_in_editor(original)
 
         if updated != original:
-            with Session(engine) as session:
-                raced = save_note(
-                    session, target, record_id, updated, expected_previous=original
-                )
+            raced = save_note(target, record_id, updated, expected_previous=original)
             if raced:
                 print_warning(
                     "Note changed elsewhere while the editor was open; your edit has"

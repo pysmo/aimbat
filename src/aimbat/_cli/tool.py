@@ -5,9 +5,8 @@ Each subcommand opens an interactive matplotlib plot for an event. Use
 which event to work with. Interact with the plot (click or scroll, depending
 on the tool) to set the chosen value, then close the window to save it.
 
-The database session is closed before the window opens, and a new one is
-opened to save the new value once it closes, so an open plot holds no
-database connection.
+No database session is open while the window is, so an open plot holds no
+database connection. The new value is saved once the window closes.
 """
 
 from typing import Annotated
@@ -47,26 +46,18 @@ def cli_update_bandpass(
     filter and adjusting the minimum and maximum frequencies. Close the window
     to save the updated parameters.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import create_iccs_instance, resolve_event
-    from aimbat.db import engine
+    from aimbat.actions import prepare_iccs, set_event_parameters
     from aimbat.plot import update_bandpass
 
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        resolved_id = event.id
-        session.commit()
-
-    update_bandpass(
-        resolved_id,
-        iccs,
+    bound = prepare_iccs(event_id)
+    changes = update_bandpass(
+        bound.iccs,
         context=iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         use_matrix_image=use_matrix_image,
         return_fig=False,
     )
+    set_event_parameters(bound.event_id, changes)
 
 
 @app.command(name="phase")
@@ -84,27 +75,19 @@ def cli_update_phase_pick(
     Opens an interactive plot; click to place the new pick, then close the window
     to save. The pick is stored as `t1` for each seismogram.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import create_iccs_instance, resolve_event
-    from aimbat.db import engine
+    from aimbat.actions import prepare_iccs, set_picks
     from aimbat.plot import update_pick
 
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        resolved_id = event.id
-        session.commit()
-
-    update_pick(
-        resolved_id,
-        iccs,
+    bound = prepare_iccs(event_id)
+    picks = update_pick(
+        bound.iccs,
         context=iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         use_matrix_image=use_matrix_image,
         causal=causal,
         return_fig=False,
     )
+    set_picks(bound.event_id, picks)
 
 
 @app.command(name="window")
@@ -123,27 +106,19 @@ def cli_pick_timewindow(
     then close the window to save. The window controls which portion of each
     seismogram is used during ICCS alignment.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import create_iccs_instance, resolve_event
-    from aimbat.db import engine
+    from aimbat.actions import prepare_iccs, set_event_parameters
     from aimbat.plot import update_timewindow
 
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        resolved_id = event.id
-        session.commit()
-
-    update_timewindow(
-        resolved_id,
-        iccs,
+    bound = prepare_iccs(event_id)
+    changes = update_timewindow(
+        bound.iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         use_matrix_image=use_matrix_image,
         causal=causal,
         return_fig=False,
     )
+    set_event_parameters(bound.event_id, changes)
 
 
 @app.command(name="cc")
@@ -162,26 +137,18 @@ def cli_pick_min_cc(
     whose cross-correlation with the stack falls below this value will be
     automatically de-selected when running ICCS with `--autoselect`.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import create_iccs_instance, resolve_event
-    from aimbat.db import engine
+    from aimbat.actions import prepare_iccs, set_event_parameters
     from aimbat.plot import update_min_cc
 
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        resolved_id = event.id
-        session.commit()
-
-    update_min_cc(
-        resolved_id,
-        iccs,
+    bound = prepare_iccs(event_id)
+    changes = update_min_cc(
+        bound.iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         causal=causal,
         return_fig=False,
     )
+    set_event_parameters(bound.event_id, changes)
 
 
 if __name__ == "__main__":

@@ -55,14 +55,10 @@ def cli_seismogram_delete(
     Also removes this seismogram's parameter and quality data from every
     snapshot that recorded it, including snapshots taken before deletion.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import delete_seismogram
-    from aimbat.db import engine
+    from aimbat.actions import delete_seismograms
 
     confirm_or_abort(f"Delete seismogram {seismogram_id}?", yes=confirm.yes)
-    with Session(engine) as session:
-        delete_seismogram(session, seismogram_id)
+    delete_seismograms([seismogram_id])
 
 
 @app.command(name="dump")
@@ -173,13 +169,9 @@ def cli_seismogram_parameter_set(
         value: Value of the seismogram parameter.
         seismogram_id: UUID (or unique prefix) of the seismogram to modify.
     """
-    from sqlmodel import Session
+    from aimbat.actions import set_seismogram_parameters
 
-    from aimbat.core import set_seismogram_parameter
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        set_seismogram_parameter(session, seismogram_id, name, value)
+    set_seismogram_parameters([seismogram_id], {name: value})
 
 
 @parameter.command(name="reset")
@@ -196,13 +188,9 @@ def cli_seismogram_parameter_reset(
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Reset all processing parameters to their default values."""
-    from sqlmodel import Session
+    from aimbat.actions import reset_seismogram_parameters
 
-    from aimbat.core import reset_seismogram_parameters
-    from aimbat.db import engine
-
-    with Session(engine) as session:
-        reset_seismogram_parameters(session, seismogram_id)
+    reset_seismogram_parameters([seismogram_id])
 
 
 @parameter.command(name="dump")

@@ -79,11 +79,11 @@ what window, whether to filter) is done beforehand with ICCS.
         event = session.exec(select(AimbatEvent)).first()
         bound = create_iccs_instance(session, event)
         run_mccc(session, event, bound.iccs, all_seismograms=False)
+        session.commit()
     ```
 
-MCCC updates `t1` for all participating seismograms and writes the results to the
-database immediately. The stack and matrix image afterwards show whether the
-picks improved.
+MCCC updates `t1` for all participating seismograms and stores the results with
+them. The stack and matrix image afterwards show whether the picks improved.
 
 ## Parameters
 

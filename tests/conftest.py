@@ -4,6 +4,7 @@ import random
 import shutil
 import sqlite3
 import subprocess
+import sys
 import uuid
 from collections.abc import Callable, Generator, Sequence
 from dataclasses import dataclass
@@ -34,6 +35,10 @@ from aimbat.logger import configure_logging
 # ---------------------------------------------------------------------------
 
 _AIMBAT_LOG_LEVEL: Literal["DEBUG"] = "DEBUG"
+
+# The installed console script, run directly: `uv run` per call is slow and
+# unsafe to run concurrently against one environment.
+_AIMBAT_SCRIPT = shutil.which("aimbat", path=Path(sys.executable).parent) or "aimbat"
 
 
 _LOG_DIR = Path(__file__).parent / ".logs"
@@ -564,7 +569,7 @@ def aimbat_subprocess(
         env["AIMBAT_LOG_LEVEL"] = _AIMBAT_LOG_LEVEL
         env["COLUMNS"] = "1000"
         return subprocess.run(
-            ["uv", "run", "aimbat", *args],
+            [_AIMBAT_SCRIPT, *args],
             capture_output=True,
             text=True,
             env=env,

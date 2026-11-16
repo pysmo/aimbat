@@ -68,19 +68,11 @@ def cli_plot_stack(
     value to the project database, so this command writes to the database
     despite being read-only from the user's point of view.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import create_iccs_instance, resolve_event
-    from aimbat.db import engine
+    from aimbat.actions import prepare_iccs
     from aimbat.plot import plot_stack
 
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        session.commit()
-
     plot_stack(
-        iccs,
+        prepare_iccs(event_id).iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         return_fig=False,
@@ -103,22 +95,11 @@ def cli_plot_matrix_image(
     this command writes to the database despite being read-only from the
     user's point of view.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import (
-        create_iccs_instance,
-        resolve_event,
-    )
-    from aimbat.db import engine
+    from aimbat.actions import prepare_iccs
     from aimbat.plot import plot_matrix_image
 
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        iccs = create_iccs_instance(session, event).iccs
-        session.commit()
-
     plot_matrix_image(
-        iccs,
+        prepare_iccs(event_id).iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         return_fig=False,

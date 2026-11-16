@@ -75,6 +75,7 @@ and event headers and an initial pick:
 
     with Session(engine) as session:
         add_data_to_project(session, sorted(Path().glob("*.sac")), DataType.SAC)
+        session.commit()
     ```
 
 Import deduplicates, so the same command is safe to re-run:
@@ -232,13 +233,15 @@ files already in the project creates no new snapshot, since nothing changed.
 === "API"
 
     [`add_data_to_project`][aimbat.core.add_data_to_project] never snapshots on
-    its own, unlike the CLI, shell, and TUI. Call
+    its own, unlike the CLI, shell, TUI and
+    [`actions.add_data`][aimbat.actions.add_data]. Call
     [`create_snapshot`][aimbat.core.create_snapshot] explicitly for one:
 
     ```python
     from aimbat.core import create_snapshot
 
     create_snapshot(session, event, comment="import")
+    session.commit()
     ```
 
 See [Snapshots](snapshots.md) for working with snapshots generally.
@@ -280,6 +283,7 @@ pre-existing event or station. Use the CLI, shell, or API instead.
         add_data_to_project(session, [event_json], DataType.JSON_EVENT)
         event = session.exec(select(AimbatEvent)).one()
         add_data_to_project(session, sac_files, DataType.SAC, event_id=event.id)
+        session.commit()
     ```
 
 `--use-event` accepts a full UUID or any unique prefix from `aimbat event list`.
@@ -315,6 +319,7 @@ pre-existing event or station. Use the CLI, shell, or API instead.
         add_data_to_project(
             session, [waveform_sac], DataType.SAC, station_id=station.id
         )
+        session.commit()
     ```
 
 ### JSON format
@@ -477,6 +482,7 @@ or were added deliberately via JSON.
         delete_seismogram(session, seismogram_id)
         delete_event(session, event_id)
         delete_station(session, station_id)
+        session.commit()
     ```
 
 !!! note "The file on disk is never touched"

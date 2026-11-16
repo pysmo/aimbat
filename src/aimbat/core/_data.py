@@ -533,7 +533,7 @@ def add_data_to_project(
             one from each data source.
         event_id: UUID of an existing event to use instead of extracting one
             from each data source.
-        dry_run: If True, do not commit changes to the database.
+        dry_run: If True, leave the session as it was.
         on_progress: Optional callback invoked as `on_progress(done, total)`
             after each data source is processed, for callers that want to
             display progress.
@@ -622,7 +622,7 @@ def add_data_to_project(
                     duplicate_warnings,
                 )
 
-        session.commit()
+        session.flush()
         logger.info("Data added successfully.")
         return (
             added_datasources,
@@ -633,9 +633,7 @@ def add_data_to_project(
         )
 
     except Exception as e:
-        logger.error(
-            "Failed to add data. Rolling back changes. Error: " + exception_message(e)
-        )
+        logger.error("Failed to add data. Error: " + exception_message(e))
         raise
 
 
@@ -713,7 +711,7 @@ def add_seismograms_to_project(
         items: Sequence of `(seismogram, station, event)` triples to add.
         data_dir: Directory the persisted miniSEED files are written to.
             Created (with any missing parents) if it does not exist yet.
-        dry_run: If True, do not commit changes to the database.
+        dry_run: If True, leave the session as it was and write no files.
         on_progress: Optional callback invoked as `on_progress(done, total)`
             after each triple is processed, for callers that want to
             display progress.
@@ -728,9 +726,10 @@ def add_seismograms_to_project(
             band (see `add_data_to_project`).
 
     Note:
-        Miniseed files are written to `data_dir` before the final commit. If
-        that commit fails (disk full, a constraint violation surfaced only
-        at commit time, a concurrent writer), the files already written
+        Miniseed files are written to `data_dir` before the caller commits.
+        If that commit fails or never happens (disk full, a constraint
+        violation surfaced only at commit time, a concurrent writer, a
+        rollback), the files already written
         survive on disk with no corresponding database row - an orphan
         `aimbat data prune` cannot detect, since prune only looks for
         database rows whose file has vanished, never the reverse. Low
@@ -844,7 +843,7 @@ def add_seismograms_to_project(
                         written_path.unlink(missing_ok=True)
                     raise
 
-        session.commit()
+        session.flush()
         logger.info("Data added successfully.")
         return (
             added_datasources,
@@ -855,7 +854,7 @@ def add_seismograms_to_project(
         )
 
     except Exception as e:
-        logger.error(f"Failed to add data. Rolling back changes. Error: {e}")
+        logger.error(f"Failed to add data. Error: {e}")
         raise
 
 

@@ -1,6 +1,6 @@
 """Query, update, and delete AimbatSeismogram records and their processing parameters."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Literal, overload
 from uuid import UUID
 
@@ -20,6 +20,7 @@ from aimbat.models import (
 from aimbat.types import SeismogramParameter
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._session import flush_deletes
 from ._validity import Validity
 
 __all__ = [
@@ -29,6 +30,8 @@ __all__ = [
     "get_selected_seismograms",
     "reset_seismogram_parameters",
     "set_seismogram_parameter",
+    "set_seismogram_parameters",
+    "set_seismogram_picks",
 ]
 
 type SeismogramParameterBool = Literal[
@@ -55,7 +58,7 @@ def delete_seismogram(session: Session, seismogram_id: UUID) -> None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
 
     session.delete(seismogram)
-    session.commit()
+    flush_deletes(session)
 
 
 def dump_seismogram_table(
@@ -241,6 +244,110 @@ def set_seismogram_parameter(
     setattr(seismogram.parameters, name, getattr(parameters, name))
     session.add(seismogram)
     resync_quality(session, seismogram.event)
+
+
+def set_seismogram_parameters(
+    session: Session,
+    seismogram_ids: Sequence[UUID],
+    values: Mapping[SeismogramParameter, Timestamp | bool | str],
+) -> None:
+    """Set the same parameter values on several seismograms at once.
+
+    Every seismogram and value is checked before anything changes, so an
+    unknown ID or an invalid value leaves all seismograms as they were. The
+    seismograms may belong to different events.
+
+    Args:
+        session: Database session.
+        seismogram_ids: IDs of the seismograms to update. Duplicates are
+            ignored. An empty sequence is a no-op.
+        values: New value for each parameter, keyed by parameter name. An
+            empty mapping is a no-op.
+
+    Raises:
+        NoResultFound: If any of the IDs is not a seismogram.
+        ValidationError: If any value fails Pydantic validation.
+    """
+    updates = {str(name): value for name, value in values.items()}
+    logger.debug(f"Setting {updates} for {len(seismogram_ids)} seismogram(s).")
+    _update_seismograms(session, dict.fromkeys(seismogram_ids, updates))
+
+
+def set_seismogram_picks(session: Session, picks: Mapping[UUID, Timestamp]) -> None:
+    """Set the refined pick (`t1`) of several seismograms, each to its own value.
+
+    Every seismogram and pick is checked before anything changes, so an
+    unknown ID or an invalid pick leaves all seismograms as they were. The
+    seismograms may belong to different events.
+
+    Args:
+        session: Database session.
+        picks: New refined pick for each seismogram, keyed by seismogram ID.
+            An empty mapping is a no-op.
+
+    Raises:
+        NoResultFound: If any of the IDs is not a seismogram.
+        ValidationError: If any pick fails Pydantic validation.
+    """
+    logger.debug(f"Setting t1 for {len(picks)} seismogram(s).")
+    _update_seismograms(
+        session,
+        {
+            seismogram_id: {str(SeismogramParameter.T1): pick}
+            for seismogram_id, pick in picks.items()
+        },
+    )
+
+
+def _update_seismograms(
+    session: Session, updates: Mapping[UUID, Mapping[str, Timestamp | bool | str]]
+) -> None:
+    """Apply per-seismogram parameter updates after validating all of them."""
+    from ._snapshot import resync_quality
+
+    ids = list(updates)
+
+    seismograms = session.exec(
+        select(AimbatSeismogram)
+        .where(col(AimbatSeismogram.id).in_(ids))
+        .options(
+            selectinload(rel(AimbatSeismogram.parameters)),
+            selectinload(rel(AimbatSeismogram.event)).options(
+                selectinload(rel(AimbatEvent.parameters)),
+                selectinload(rel(AimbatEvent.seismograms)).selectinload(
+                    rel(AimbatSeismogram.parameters)
+                ),
+            ),
+        )
+    ).all()
+    found = {seismogram.id for seismogram in seismograms}
+    missing = [i for i in ids if i not in found]
+    if missing:
+        raise NoResultFound(
+            "No AimbatSeismogram found with ID(s): " + ", ".join(map(str, missing))
+        )
+
+    seismograms = [s for s in seismograms if updates[s.id]]
+    if not seismograms:
+        return
+
+    validated = [
+        (
+            seismogram,
+            AimbatSeismogramParametersBase.model_validate(
+                seismogram.parameters, update=dict(updates[seismogram.id])
+            ),
+        )
+        for seismogram in seismograms
+    ]
+    for seismogram, parameters in validated:
+        for name in updates[seismogram.id]:
+            setattr(seismogram.parameters, name, getattr(parameters, name))
+        session.add(seismogram)
+
+    events = {seismogram.event.id: seismogram.event for seismogram in seismograms}
+    for event in events.values():
+        resync_quality(session, event)
 
 
 def get_selected_seismograms(
