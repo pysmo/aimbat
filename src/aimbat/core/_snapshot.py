@@ -1,20 +1,15 @@
 """Create, restore, and query AIMBAT snapshots of processing parameters and quality metrics.
 
-A snapshot freezes a copy of an event's live event/seismogram parameters and,
-when available, its live quality metrics (`AimbatSeismogramQuality.iccs_cc`
-and the MCCC diagnostics) for later inspection or rollback.
+A snapshot freezes a copy of an event's live event/seismogram parameters and
+its valid live quality metrics (`AimbatSeismogramQuality.iccs_cc` and the
+MCCC diagnostics) for later inspection or rollback.
 
-Snapshots are matched to the live state by two deterministic hashes:
-`compute_iccs_hash` covers the parameters (including `select`) that determine
-the ICCS stack a seismogram's `iccs_cc` is measured against, and
-`compute_mccc_hash` covers the parameters that determine the MCCC inversion.
-A live quality record can be repopulated from a matching prior snapshot
-instead of being recomputed: `iccs_cc` on an ICCS-hash match, the MCCC
-diagnostics on an MCCC-hash match (`sync_from_matching_hash`).
+A snapshot records two digests of the parameters (see `core._validity`):
+`iccs_hash` is the event's instance digest and `mccc_hash` the MCCC digest
+of the run it froze. Live quality that no longer matches the parameters can
+be restored from a snapshot whose digests match them (`resync_quality`).
 """
 
-import hashlib
-import json
 from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
@@ -43,11 +38,8 @@ from aimbat.models import (
     undefer_counts,
 )
 from aimbat.models._parameters import (
-    EVENT_PARAMETER_SPECS,
-    SEISMOGRAM_PARAMETER_SPECS,
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
-    Reach,
 )
 from aimbat.models._quality import (
     AimbatEventQualityBase,
@@ -55,10 +47,10 @@ from aimbat.models._quality import (
 )
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._validity import EventDigests, Validity
+
 __all__ = [
     "SyncResult",
-    "compute_iccs_hash",
-    "compute_mccc_hash",
     "create_snapshot",
     "create_snapshots_for_added_data",
     "delete_snapshot",
@@ -73,200 +65,20 @@ __all__ = [
     "get_snapshots",
     "resync_quality",
     "rollback_to_snapshot",
-    "sync_from_matching_hash",
 ]
 
 
 class SyncResult(NamedTuple):
-    """Which live quality metrics `sync_from_matching_hash` repopulated.
-
-    `resync_quality` falls back to `clear_mccc_quality` when `mccc_synced` is
-    `False`, so it reports whether the restore landed, not merely whether a
-    matching snapshot was found.
-    """
+    """Which live quality metrics `resync_quality` restored from a snapshot."""
 
     mccc_synced: bool
     iccs_synced: bool
 
 
-# The hashes cover the parameters whose spec makes them an input to the
-# result. `min_cc` is in neither: it only ever changes `iccs_cc` indirectly,
-# by changing which seismograms are `select`ed on the next run - and `select`
-# is already in the ICCS hash - so a bare threshold change should not block
-# reuse of still-valid `iccs_cc` values.
-_ICCS_HASH_EVENT_EXCLUDE = frozenset(
-    name for name, spec in EVENT_PARAMETER_SPECS.items() if spec.stack is Reach.NONE
-)
-_MCCC_HASH_EVENT_EXCLUDE = frozenset(
-    name for name, spec in EVENT_PARAMETER_SPECS.items() if spec.mccc is Reach.NONE
-)
-# Empty today: every seismogram parameter is an input to the stack.
-_ICCS_HASH_SEISMOGRAM_EXCLUDE = frozenset(
-    name
-    for name, spec in SEISMOGRAM_PARAMETER_SPECS.items()
-    if spec.stack is Reach.NONE
-)
-# `select` is excluded here: MCCC membership is recorded by the seismogram
-# quality snapshot rows, so changing it must not invalidate a prior MCCC result.
-_MCCC_HASH_SEISMOGRAM_EXCLUDE = frozenset(
-    name for name, spec in SEISMOGRAM_PARAMETER_SPECS.items() if spec.mccc is Reach.NONE
-)
-
 # Every seismogram-level quality field except `iccs_cc` is an MCCC diagnostic.
 _MCCC_SEISMOGRAM_QUALITY_FIELDS = tuple(
     k for k in AimbatSeismogramQualityBase.model_fields if k != "iccs_cc"
 )
-
-_RESTORE_POPULATE_EXISTING_NOTE = """Why the restore queries pass `populate_existing=True`.
-
-The quality-invalidation triggers (see `core/_project.py`) null the quality
-columns with raw SQL `UPDATE`s that SQLAlchemy never sees. A `SELECT` alone
-does not repair that: by default the ORM keeps the attribute values already
-loaded on an instance in the identity map and only fills in instances it has
-not seen, so a quality row loaded *before* the flush still reports its
-pre-trigger value afterwards.
-
-That turns a restore into a silent no-op. Assigning the snapshot's value back
-onto a stale instance that still holds the same value is not a change, so no
-`UPDATE` is emitted, the column keeps the `NULL` the trigger wrote, and
-`SyncResult` reports the metric as synced. `populate_existing=True` forces the
-freshly selected rows to overwrite the identity map, so the restore compares
-against what is actually in the database.
-
-No current caller reaches `sync_from_matching_hash` with live quality rows
-already loaded in the same session, so this was latent rather than an active
-bug - but nothing in the call graph enforces that, and the failure is silent
-when it does happen. Covered by
-`tests/integration/core/test_snapshots.py::TestRestoreWithPreloadedQuality`.
-"""
-
-
-def _stored_seismogram_parameters(
-    seismogram: AimbatSeismogram,
-) -> AimbatSeismogramParametersBase:
-    """Return a seismogram's parameters as the database would store them."""
-    parameters = AimbatSeismogramParametersBase.model_validate(seismogram.parameters)
-    if parameters.t1 is not None:
-        # Match `SAPandasTimestamp.process_bind_param`, which rounds to
-        # microseconds; serialising would truncate.
-        parameters.t1 = parameters.t1.round("us")
-    return parameters
-
-
-class _DumpedParameters(NamedTuple):
-    """An event's parameters, serialised once for hashing."""
-
-    event_id: str
-    event: dict[str, Any]
-    seismograms: list[tuple[str, dict[str, Any]]]
-    """Seismogram ID and parameters, sorted by ID so that a digest is
-    independent of load order."""
-
-
-def _dump_parameters(event: AimbatEvent) -> _DumpedParameters:
-    """Serialise the event and per-seismogram parameters for hashing."""
-    return _DumpedParameters(
-        event_id=str(event.id),
-        event=AimbatEventParametersBase.model_validate(event.parameters).model_dump(
-            mode="json"
-        ),
-        seismograms=sorted(
-            (
-                str(seis.id),
-                _stored_seismogram_parameters(seis).model_dump(mode="json"),
-            )
-            for seis in event.seismograms
-        ),
-    )
-
-
-def _digest(
-    dumped: _DumpedParameters,
-    *,
-    event_exclude: frozenset[str],
-    seismogram_exclude: frozenset[str],
-) -> str:
-    """Hash the event ID plus the parameters that are not excluded.
-
-    Including the event ID makes every digest event-scoped.
-    """
-    event_data = {k: v for k, v in dumped.event.items() if k not in event_exclude}
-    event_data["event_id"] = dumped.event_id
-    seis_data = [
-        {
-            "seismogram_id": seismogram_id,
-            **{k: v for k, v in parameters.items() if k not in seismogram_exclude},
-        }
-        for seismogram_id, parameters in dumped.seismograms
-    ]
-    payload = json.dumps(
-        {"event": event_data, "seismograms": seis_data}, sort_keys=True
-    )
-    return hashlib.sha256(payload.encode()).hexdigest()
-
-
-def _iccs_digest(dumped: _DumpedParameters) -> str:
-    return _digest(
-        dumped,
-        event_exclude=_ICCS_HASH_EVENT_EXCLUDE,
-        seismogram_exclude=_ICCS_HASH_SEISMOGRAM_EXCLUDE,
-    )
-
-
-def _mccc_digest(dumped: _DumpedParameters) -> str:
-    return _digest(
-        dumped,
-        event_exclude=_MCCC_HASH_EVENT_EXCLUDE,
-        seismogram_exclude=_MCCC_HASH_SEISMOGRAM_EXCLUDE,
-    )
-
-
-class _ParameterHashes(NamedTuple):
-    iccs: str
-    mccc: str
-
-
-def _compute_parameter_hashes(event: AimbatEvent) -> _ParameterHashes:
-    """Compute the ICCS and MCCC hashes from one pass over the parameters."""
-    logger.debug(f"Computing ICCS and MCCC parameters hashes for event {event.id}.")
-    dumped = _dump_parameters(event)
-    return _ParameterHashes(iccs=_iccs_digest(dumped), mccc=_mccc_digest(dumped))
-
-
-def compute_iccs_hash(event: AimbatEvent) -> str:
-    """Compute the hash identifying the ICCS stack these parameters produce.
-
-    Covers the window, taper and bandpass event parameters and the
-    per-seismogram `t1`, `flip` and `select` flags. A match means a snapshot's
-    `iccs_cc` values were measured against the same stack composition and can
-    be restored.
-
-    Args:
-        event: AimbatEvent whose current parameters should be hashed.
-
-    Returns:
-        Hex-encoded SHA-256 digest.
-    """
-    logger.debug(f"Computing ICCS parameters hash for event {event.id}.")
-    return _iccs_digest(_dump_parameters(event))
-
-
-def compute_mccc_hash(event: AimbatEvent) -> str:
-    """Compute the hash identifying the MCCC inversion these parameters produce.
-
-    Covers the window, taper and bandpass event parameters plus `mccc_damp`
-    and `mccc_min_cc`, and the per-seismogram `t1` and `flip` flags. `select`
-    is excluded: MCCC run membership is recorded by the snapshot's seismogram
-    quality rows, so a selection change does not invalidate a prior result.
-
-    Args:
-        event: AimbatEvent whose current parameters should be hashed.
-
-    Returns:
-        Hex-encoded SHA-256 digest.
-    """
-    logger.debug(f"Computing MCCC parameters hash for event {event.id}.")
-    return _mccc_digest(_dump_parameters(event))
 
 
 def create_snapshot(
@@ -278,9 +90,8 @@ def create_snapshot(
     """Create a snapshot of the AIMBAT processing parameters and quality metrics.
 
     Parameter snapshots are always created. Quality snapshots are created
-    whenever the corresponding live quality record has at least one non-None
-    field. Seismogram quality is omitted when all quality fields are `None`
-    (e.g. before any ICCS or MCCC run).
+    whenever the corresponding live quality record has at least one valid
+    value. A value that no longer matches the parameters is frozen as `None`.
 
     Args:
         session: Database session.
@@ -296,6 +107,7 @@ def create_snapshot(
         + "."
     )
 
+    validity = Validity.read(session, event.id)
     event = session.exec(
         select(AimbatEvent)
         .where(AimbatEvent.id == event.id)
@@ -339,7 +151,8 @@ def create_snapshot(
     event_quality_snap: AimbatEventQualitySnapshot | None = None
     seis_quality_snaps: list[AimbatSeismogramQualitySnapshot] = []
 
-    if event.quality is not None and event.quality.mccc_rmse is not None:
+    mccc_valid = validity.mccc(event.id)
+    if mccc_valid and event.quality is not None and event.quality.mccc_rmse is not None:
         logger.debug("Capturing event quality snapshot from live quality table.")
         event_quality_snap = AimbatEventQualitySnapshot.model_validate(
             event.quality,
@@ -353,10 +166,14 @@ def create_snapshot(
         sq = aimbat_seismogram.quality
         if sq is None:
             continue
-        if any(
-            v is not None
-            for v in [sq.iccs_cc, sq.mccc_cc_mean, sq.mccc_cc_std, sq.mccc_error]
-        ):
+        frozen = {
+            "iccs_cc": sq.iccs_cc if validity.iccs_cc(aimbat_seismogram.id) else None,
+            **{
+                k: getattr(sq, k) if mccc_valid else None
+                for k in _MCCC_SEISMOGRAM_QUALITY_FIELDS
+            },
+        }
+        if any(v is not None for v in frozen.values()):
             logger.debug(
                 f"Adding seismogram quality snapshot for seismogram {aimbat_seismogram.id}."
             )
@@ -364,6 +181,7 @@ def create_snapshot(
                 AimbatSeismogramQualitySnapshot.model_validate(
                     sq,
                     update={
+                        **frozen,
                         "id": uuid4(),
                         "seismogram_id": aimbat_seismogram.id,
                         "seismogram_quality_id": sq.id,
@@ -377,7 +195,10 @@ def create_snapshot(
         )
     ).one()
 
-    hashes = _compute_parameter_hashes(event)
+    digests = validity.digests(event.id)
+    frozen_members = (
+        event_quality_snap.mccc_members if event_quality_snap is not None else None
+    )
     aimbat_snapshot = AimbatSnapshot(
         event=event,
         sequence=(highest_sequence or 0) + 1,
@@ -387,8 +208,12 @@ def create_snapshot(
         seismogram_quality_snapshots=seis_quality_snaps,
         comment=comment,
         automatic=automatic,
-        mccc_hash=hashes.mccc,
-        iccs_hash=hashes.iccs,
+        mccc_hash=(
+            None
+            if frozen_members is None
+            else digests.mccc([UUID(hex=m) for m in frozen_members])
+        ),
+        iccs_hash=digests.instance,
     )
     session.add(aimbat_snapshot)
     session.commit()
@@ -468,11 +293,9 @@ def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
     """Rollback to an AIMBAT parameters snapshot.
 
     Restores the event's and its seismograms' live parameters to the values
-    frozen in the snapshot, then, in the same session, repopulates live
-    quality metrics from a matching snapshot where possible (see
-    `sync_from_matching_hash`), preferring the snapshot being rolled back to.
-    MCCC quality that cannot be restored is cleared, mirroring the parameter
-    setters.
+    frozen in the snapshot, then restores live quality from the snapshot,
+    or another one whose digests match, where possible (see
+    `resync_quality`).
 
     Args:
         session: Database session.
@@ -543,17 +366,21 @@ def rollback_to_snapshot(session: Session, snapshot_id: UUID) -> None:
 
 
 def _pick_candidate(
-    candidates: Sequence[AimbatSnapshot], prefer_snapshot_id: UUID | None
+    candidates: Sequence[AimbatSnapshot],
+    prefer_snapshot_id: UUID | None,
+    live_valid: bool,
 ) -> AimbatSnapshot | None:
-    """Choose one snapshot from `candidates`, preferring `prefer_snapshot_id`.
+    """Choose the snapshot to restore from, if any.
 
-    Falls back to the most recently created candidate.
+    The preferred snapshot wins when it is a candidate. Otherwise valid live
+    values are kept, and invalid ones are restored from the most recent
+    candidate.
     """
-    if not candidates:
-        return None
     preferred = next((c for c in candidates if c.id == prefer_snapshot_id), None)
     if preferred is not None:
         return preferred
+    if live_valid or not candidates:
+        return None
     return max(candidates, key=lambda s: s.sequence)
 
 
@@ -564,13 +391,7 @@ def _live_seismogram_quality_map(
 
     Keyed on the `seismogram_id` stored on each quality snapshot rather than
     its (possibly NULL) FK to the live quality row, so a snapshot still resolves
-    to the live records after the source quality row has been recreated. The
-    one-quality-row-per-seismogram invariant (`AimbatSeismogram.quality` is a
-    scalar relationship) is enforced by a unique index on
-    `AimbatSeismogramQuality.seismogram_id`.
-
-    `populate_existing` is load-bearing, not a micro-optimisation: see
-    `_RESTORE_POPULATE_EXISTING_NOTE`.
+    to the live records after the source quality row has been recreated.
     """
     seismogram_ids = {
         q.seismogram_id
@@ -580,146 +401,94 @@ def _live_seismogram_quality_map(
     if not seismogram_ids:
         return {}
     rows = session.exec(
-        select(AimbatSeismogramQuality)
-        .where(col(AimbatSeismogramQuality.seismogram_id).in_(seismogram_ids))
-        .execution_options(populate_existing=True)
+        select(AimbatSeismogramQuality).where(
+            col(AimbatSeismogramQuality.seismogram_id).in_(seismogram_ids)
+        )
     ).all()
     return {row.seismogram_id: row for row in rows}
 
 
-def _restore_mccc_quality(session: Session, snapshot: AimbatSnapshot) -> bool:
-    """Copy the frozen MCCC diagnostics from `snapshot` into the live records.
+def _restore_mccc_quality(
+    session: Session, snapshot: AimbatSnapshot, digests: EventDigests
+) -> None:
+    """Copy the frozen MCCC results from `snapshot` into the live records.
 
-    Returns:
-        Whether the event-level diagnostics (`mccc_rmse` among them) were
-        restored. `False` means the event has no live quality record, so the
-        seismogram-level values were restored without their event-level
-        counterpart and the caller should treat the sync as incomplete.
+    The restored results are stamped with the MCCC digest from `digests`.
     """
-    logger.info(f"Syncing MCCC quality from snapshot {snapshot.id}.")
+    logger.info(f"Restoring MCCC quality from snapshot {snapshot.id}.")
 
     event_quality_snap = snapshot.event_quality_snapshot
     assert event_quality_snap is not None  # guaranteed by the candidate filter
+    members = event_quality_snap.mccc_members
+    assert members is not None  # guaranteed by the candidate filter
 
     live_event_quality = session.exec(
-        select(AimbatEventQuality)
-        .where(col(AimbatEventQuality.event_id) == snapshot.event_id)
-        .execution_options(populate_existing=True)
+        select(AimbatEventQuality).where(
+            col(AimbatEventQuality.event_id) == snapshot.event_id
+        )
     ).one_or_none()
     if live_event_quality is None:
-        logger.warning(
-            f"No live event quality record for event {snapshot.event_id}; skipping event quality sync."
-        )
-    else:
-        for k in AimbatEventQualityBase.model_fields:
-            setattr(live_event_quality, k, getattr(event_quality_snap, k))
-        session.add(live_event_quality)
+        live_event_quality = AimbatEventQuality(event_id=snapshot.event_id)
+    for k in AimbatEventQualityBase.model_fields:
+        setattr(live_event_quality, k, getattr(event_quality_snap, k))
+    live_event_quality.mccc_fingerprint = digests.mccc(
+        [UUID(hex=member) for member in members]
+    )
+    session.add(live_event_quality)
 
-    live_quality = _live_seismogram_quality_map(session, snapshot)
-    for seis_quality_snap in snapshot.seismogram_quality_snapshots:
-        if seis_quality_snap.seismogram_id is None:
-            continue
-        live_seis_quality = live_quality.get(seis_quality_snap.seismogram_id)
-        if live_seis_quality is None:
-            continue
+    frozen = {
+        q.seismogram_id: q
+        for q in snapshot.seismogram_quality_snapshots
+        if q.seismogram_id is not None
+    }
+    live_quality = session.exec(
+        select(AimbatSeismogramQuality).where(
+            col(AimbatSeismogramQuality.seismogram_id).in_(list(digests.seismogram_cc))
+        )
+    ).all()
+    # The restored run replaces the live one, so a seismogram that was not in
+    # it keeps no MCCC values.
+    for live_seis_quality in live_quality:
+        seis_quality_snap = frozen.get(live_seis_quality.seismogram_id)
         for k in _MCCC_SEISMOGRAM_QUALITY_FIELDS:
-            setattr(live_seis_quality, k, getattr(seis_quality_snap, k))
+            value = None if seis_quality_snap is None else getattr(seis_quality_snap, k)
+            setattr(live_seis_quality, k, value)
         session.add(live_seis_quality)
 
-    return live_event_quality is not None
 
+def _restore_iccs_cc(
+    session: Session,
+    snapshot: AimbatSnapshot,
+    validity: Validity,
+    override_valid: bool,
+) -> None:
+    """Copy the frozen `iccs_cc` values from `snapshot` into the live records.
 
-def _restore_iccs_cc(session: Session, snapshot: AimbatSnapshot) -> None:
-    """Copy the frozen `iccs_cc` values from `snapshot` into the live records."""
-    logger.info(f"Syncing iccs_cc from snapshot {snapshot.id}.")
+    Valid live values are kept, unless `override_valid` is set and the
+    snapshot holds a value for that seismogram. Each restored value is stamped
+    with its seismogram's current digest.
+    """
+    logger.info(f"Restoring iccs_cc from snapshot {snapshot.id}.")
 
+    digests = validity.digests(snapshot.event_id)
     live_quality = _live_seismogram_quality_map(session, snapshot)
     for seis_quality_snap in snapshot.seismogram_quality_snapshots:
         if seis_quality_snap.seismogram_id is None:
             continue
         live_seis_quality = live_quality.get(seis_quality_snap.seismogram_id)
         if live_seis_quality is None:
+            continue
+        if validity.iccs_cc(seis_quality_snap.seismogram_id) and (
+            not override_valid or seis_quality_snap.iccs_cc is None
+        ):
             continue
         live_seis_quality.iccs_cc = seis_quality_snap.iccs_cc
+        live_seis_quality.iccs_fingerprint = (
+            None
+            if seis_quality_snap.iccs_cc is None
+            else digests.seismogram_cc.get(seis_quality_snap.seismogram_id)
+        )
         session.add(live_seis_quality)
-
-
-def sync_from_matching_hash(
-    session: Session,
-    event_id: UUID,
-    *,
-    iccs_hash: str | None = None,
-    mccc_hash: str | None = None,
-    prefer_snapshot_id: UUID | None = None,
-) -> SyncResult:
-    """Repopulate an event's live quality metrics from matching snapshots.
-
-    Considers only this event's snapshots. MCCC diagnostics are restored from
-    the most recent snapshot whose `mccc_hash` equals `mccc_hash` and that
-    froze MCCC quality; `iccs_cc` is restored from the most recent snapshot
-    whose `iccs_hash` equals `iccs_hash` and that froze at least one `iccs_cc`
-    value. The two are matched independently, so an ICCS-only snapshot can
-    still repopulate `iccs_cc`. `prefer_snapshot_id`, when among the
-    candidates, wins the tie-break.
-
-    Pending parameter changes are flushed first so the quality-invalidation
-    triggers have fired before the restored values are written, and the restore
-    queries re-read the live quality rows with `populate_existing=True` so they
-    see what those triggers actually wrote rather than a stale identity-map
-    value (see `_RESTORE_POPULATE_EXISTING_NOTE`). The caller owns the
-    transaction and must commit.
-
-    Args:
-        session: Database session.
-        event_id: Event whose live quality should be synced.
-        iccs_hash: Live ICCS hash to match; `None` skips `iccs_cc` restore.
-        mccc_hash: Live MCCC hash to match; `None` skips MCCC restore.
-        prefer_snapshot_id: Snapshot to prefer when several candidates match.
-
-    Returns:
-        `SyncResult` recording which metric groups were repopulated. A matching
-        MCCC snapshot whose event-level restore had to be skipped counts as
-        unsynced, so the caller still clears the stale diagnostics.
-    """
-    session.flush()
-
-    snapshots = get_snapshots(session, event_id)
-
-    mccc_synced = False
-    if mccc_hash is not None:
-        mccc_candidate = _pick_candidate(
-            [
-                s
-                for s in snapshots
-                if s.mccc_hash == mccc_hash
-                and s.event_quality_snapshot is not None
-                and s.event_quality_snapshot.mccc_rmse is not None
-            ],
-            prefer_snapshot_id,
-        )
-        if mccc_candidate is not None:
-            mccc_synced = _restore_mccc_quality(session, mccc_candidate)
-        else:
-            logger.debug("No snapshot with matching MCCC hash and quality found.")
-
-    iccs_synced = False
-    if iccs_hash is not None:
-        iccs_candidate = _pick_candidate(
-            [
-                s
-                for s in snapshots
-                if s.iccs_hash == iccs_hash
-                and any(q.iccs_cc is not None for q in s.seismogram_quality_snapshots)
-            ],
-            prefer_snapshot_id,
-        )
-        if iccs_candidate is not None:
-            _restore_iccs_cc(session, iccs_candidate)
-            iccs_synced = True
-        else:
-            logger.debug("No snapshot with matching ICCS hash and iccs_cc found.")
-
-    return SyncResult(mccc_synced=mccc_synced, iccs_synced=iccs_synced)
 
 
 def resync_quality(
@@ -728,37 +497,68 @@ def resync_quality(
     *,
     prefer_snapshot_id: UUID | None = None,
 ) -> SyncResult:
-    """Bring an event's live quality metrics back in line with its parameters.
+    """Restore an event's out-of-date live quality from a matching snapshot.
 
-    The invalidation policy every parameter change follows: restore whatever a
-    snapshot taken under the new parameters already measured, throw away the
-    MCCC diagnostics that nothing can vouch for, and commit. Call it after
-    changing event or seismogram parameters, with the change staged on
-    `session` but not yet committed.
+    Call after changing event or seismogram parameters, with the change
+    staged on `session`. Live values that no longer match the parameters are
+    restored from the most recent snapshot whose digests match them, if
+    there is one; otherwise they stay, and readers report them as absent.
+    Nothing is cleared. `iccs_cc` and the MCCC results are matched
+    independently. Commits.
 
     Args:
         session: Database session.
         event: Event whose parameters have just changed.
-        prefer_snapshot_id: Snapshot to prefer when several match, for a
-            rollback restoring the snapshot it is rolling back to.
+        prefer_snapshot_id: Snapshot to restore from whenever it matches,
+            even over valid live values, for a rollback to that snapshot.
 
     Returns:
-        `SyncResult` recording which metric groups were repopulated.
+        `SyncResult` recording which metric groups were restored.
     """
-    from ._iccs import clear_mccc_quality
+    validity = Validity.read(session, event.id)
+    digests = validity.digests(event.id)
+    snapshots = get_snapshots(session, event.id)
 
-    hashes = _compute_parameter_hashes(event)
-    result = sync_from_matching_hash(
-        session,
-        event.id,
-        iccs_hash=hashes.iccs,
-        mccc_hash=hashes.mccc,
-        prefer_snapshot_id=prefer_snapshot_id,
+    mccc_candidate = _pick_candidate(
+        [
+            s
+            for s in snapshots
+            if s.event_quality_snapshot is not None
+            and s.event_quality_snapshot.mccc_members is not None
+            and s.mccc_hash
+            == digests.mccc(
+                [UUID(hex=m) for m in s.event_quality_snapshot.mccc_members]
+            )
+        ],
+        prefer_snapshot_id,
+        live_valid=validity.mccc(event.id),
     )
-    if not result.mccc_synced:
-        clear_mccc_quality(session, event)
+    if mccc_candidate is not None:
+        _restore_mccc_quality(session, mccc_candidate, digests)
+
+    iccs_candidate = _pick_candidate(
+        [
+            s
+            for s in snapshots
+            if s.iccs_hash == digests.instance
+            and any(q.iccs_cc is not None for q in s.seismogram_quality_snapshots)
+        ],
+        prefer_snapshot_id,
+        live_valid=all(validity.iccs_cc(sid) for sid in digests.seismogram_cc),
+    )
+    if iccs_candidate is not None:
+        _restore_iccs_cc(
+            session,
+            iccs_candidate,
+            validity,
+            override_valid=iccs_candidate.id == prefer_snapshot_id,
+        )
+
     session.commit()
-    return result
+    return SyncResult(
+        mccc_synced=mccc_candidate is not None,
+        iccs_synced=iccs_candidate is not None,
+    )
 
 
 def delete_snapshot(session: Session, snapshot_id: UUID) -> None:

@@ -4,9 +4,8 @@ Uses real file-based databases rather than `:memory:`, since Alembic's
 `env.py` opens its own connection.
 """
 
-import re
 import shutil
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -20,43 +19,6 @@ from aimbat.core import (
     upgrade_project,
 )
 from aimbat.core._migrations import SchemaMismatchError
-from aimbat.core._project import _NULL_ICCS_FOR_EVENT, _NULL_ICCS_IF_SELECTED
-from aimbat.models._parameters import (
-    EVENT_PARAMETER_SPECS,
-    SEISMOGRAM_PARAMETER_SPECS,
-    ParameterSpec,
-    Reach,
-)
-
-
-def _triggers(engine: Engine) -> dict[str, str]:
-    """Maps trigger name to its normalised (whitespace-collapsed) SQL body.
-
-    Comparing bodies, not just names, matters: `create_project()` and the
-    baseline migration each hand-maintain a copy of the same trigger SQL
-    (triggers are invisible to Alembic autogenerate, so there's no way to
-    keep them in sync automatically) - a same-named trigger whose logic
-    silently drifted between the two would still compare equal under a
-    names-only check. Whitespace is collapsed because the two copies are
-    nested at different indentation levels in `_project.py` vs. the
-    migration file, which would otherwise make identical SQL compare
-    unequal as raw text.
-    """
-    with engine.connect() as connection:
-        rows = connection.execute(
-            text("SELECT name, sql FROM sqlite_master WHERE type = 'trigger'")
-        ).all()
-    return {name: " ".join(sql.split()) for name, sql in rows}
-
-
-def _when_columns(trigger_sql: str) -> set[str]:
-    """Extract the set of `NEW.<column>` names referenced in a trigger's `WHEN` clause.
-
-    Assumes the `CREATE TRIGGER ... WHEN (...) BEGIN ... END` shape used
-    throughout `core/_project.py`'s quality-invalidation triggers.
-    """
-    when_clause = trigger_sql.split("WHEN", 1)[1].split("BEGIN", 1)[0]
-    return set(re.findall(r'NEW\."?([A-Za-z_][A-Za-z0-9_]*)"?', when_clause))
 
 
 def _tables(engine: Engine) -> set[str]:
@@ -185,125 +147,6 @@ class TestCreateAllVsMigrateParity:
                 migrated_engine, table
             ), f"index mismatch in {table!r}"
 
-    def test_same_triggers(
-        self, create_all_engine: Engine, migrated_engine: Engine
-    ) -> None:
-        """Structural (names) and behavioural (bodies) parity - see `_triggers`."""
-        assert _triggers(create_all_engine) == _triggers(migrated_engine)
-
-
-def test_triggers_helper_detects_body_drift(tmp_path: Path) -> None:
-    """Guards `_triggers` itself: a same-named trigger with a different body
-    must compare unequal, proving `test_same_triggers` would actually catch
-    a trigger's logic silently drifting between `create_project()` and the
-    migration - not just a trigger being entirely missing or extra.
-    """
-    engine_a = create_engine(f"sqlite+pysqlite:///{tmp_path / 'a.db'}")
-    engine_b = create_engine(f"sqlite+pysqlite:///{tmp_path / 'b.db'}")
-    for engine in (engine_a, engine_b):
-        with engine.begin() as connection:
-            connection.execute(text("CREATE TABLE t (x INTEGER)"))
-
-    with engine_a.begin() as connection:
-        connection.execute(
-            text("CREATE TRIGGER trig AFTER INSERT ON t BEGIN SELECT 1; END")
-        )
-    with engine_b.begin() as connection:
-        connection.execute(
-            text("CREATE TRIGGER trig AFTER INSERT ON t BEGIN SELECT 2; END")
-        )
-
-    assert set(_triggers(engine_a)) == set(_triggers(engine_b))  # same names
-    assert _triggers(engine_a) != _triggers(engine_b)  # different bodies
-
-    engine_a.dispose()
-    engine_b.dispose()
-
-
-class TestTriggerWhenClausesFollowTheParameterSpecs:
-    """The trigger `WHEN` column lists are hand-written SQL in
-    `core/_project.py`. Each must list exactly the parameters whose specs (see
-    `models/_parameters.py`) say the trigger's effect applies, so a parameter
-    that is added or reclassified without editing the triggers fails here.
-    """
-
-    @pytest.fixture
-    def triggers(self, tmp_path: Path) -> Generator[dict[str, str]]:
-        engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'triggers.db'}")
-        create_project(engine)
-        yield _triggers(engine)
-        engine.dispose()
-
-    @pytest.mark.parametrize(
-        ("trigger", "expected"),
-        [
-            pytest.param(
-                "event_modified_on_params_update",
-                lambda spec: not spec.bookkeeping,
-                id="1-last-modified",
-            ),
-            pytest.param(
-                "event_stack_modified_on_params_update",
-                lambda spec: spec.stack is Reach.EVENT,
-                id="1b-stack-modified",
-            ),
-            pytest.param(
-                "null_all_quality_on_window_bandpass_change",
-                lambda spec: spec.stack is Reach.EVENT,
-                id="3-null-all-quality",
-            ),
-            pytest.param(
-                "null_mccc_quality_on_mccc_params_change",
-                lambda spec: spec.mccc is Reach.EVENT and spec.stack is Reach.NONE,
-                id="4-null-mccc-quality",
-            ),
-        ],
-    )
-    def test_event_parameter_trigger(
-        self,
-        triggers: dict[str, str],
-        trigger: str,
-        expected: Callable[[ParameterSpec], bool],
-    ) -> None:
-        assert _when_columns(triggers[trigger]) == {
-            name for name, spec in EVENT_PARAMETER_SPECS.items() if expected(spec)
-        }
-
-    @pytest.mark.parametrize(
-        "trigger",
-        [
-            pytest.param("event_modified_on_seis_params_update", id="2-last-modified"),
-            pytest.param(
-                "event_stack_modified_on_seis_params_update", id="2b-stack-modified"
-            ),
-        ],
-    )
-    def test_seismogram_parameter_trigger(
-        self, triggers: dict[str, str], trigger: str
-    ) -> None:
-        """Every seismogram parameter reaches the stack, at least conditionally."""
-        assert all(
-            spec.stack is not Reach.NONE for spec in SEISMOGRAM_PARAMETER_SPECS.values()
-        )
-        assert _when_columns(triggers[trigger]) == set(SEISMOGRAM_PARAMETER_SPECS)
-
-    @pytest.mark.parametrize("name", SEISMOGRAM_PARAMETER_SPECS)
-    def test_seismogram_quality_trigger(
-        self, triggers: dict[str, str], name: str
-    ) -> None:
-        """Triggers 5a/5b/5c: one per seismogram parameter. A conditional
-        parameter nulls `iccs_cc` for the event only if the seismogram is
-        selected; the others always do.
-        """
-        trigger = triggers[f"null_quality_on_seis_{name}_change"]
-        null_iccs = {
-            Reach.CONDITIONAL: _NULL_ICCS_IF_SELECTED,
-            Reach.EVENT: _NULL_ICCS_FOR_EVENT,
-        }[SEISMOGRAM_PARAMETER_SPECS[name].stack]
-
-        assert _when_columns(trigger) == {name}
-        assert " ".join(null_iccs.split()) in trigger
-
 
 def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:
     """Guards `_unique_constraints`/`_check_constraints`/`_indexes`
@@ -367,7 +210,7 @@ class TestUpgradeProject:
         with engine_from_file.begin() as connection:
             connection.exec_driver_sql("DROP TABLE alembic_version")
 
-        with pytest.raises(SchemaMismatchError, match="predates the current"):
+        with pytest.raises(SchemaMismatchError, match="earlier development version"):
             upgrade_project(engine_from_file)
 
     def test_upgrade_backs_up_database_file_first(
@@ -491,7 +334,7 @@ class TestUpgradeProject:
                 text("UPDATE alembic_version SET version_num = 'not_a_real_revision'")
             )
 
-        with pytest.raises(SchemaMismatchError, match="doesn't recognise"):
+        with pytest.raises(SchemaMismatchError, match="different version of AIMBAT"):
             upgrade_project(engine_from_file)
 
 
@@ -619,7 +462,7 @@ class TestBuildStalenessWarning:
 
         assert warning is not None
         assert not warning.upgradeable
-        assert "doesn't recognise" in str(warning)
+        assert "different version of AIMBAT" in str(warning)
         assert "aimbat project create" in str(warning)
         assert "run `aimbat db upgrade`" not in str(warning)
 
@@ -630,5 +473,5 @@ class TestBuildStalenessWarning:
 
         assert warning is not None
         assert not warning.upgradeable
-        assert "predates the current AIMBAT project format" in str(warning)
+        assert "earlier development version of AIMBAT" in str(warning)
         assert "run `aimbat db upgrade`" not in str(warning)

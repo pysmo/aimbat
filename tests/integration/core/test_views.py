@@ -7,6 +7,7 @@ import pytest
 from sqlmodel import Session, col, select
 
 from aimbat.core._snapshot import create_snapshot
+from aimbat.core._validity import Validity, compute_digests, encode_members
 from aimbat.models import (
     AimbatEvent,
     AimbatEventQuality,
@@ -15,6 +16,33 @@ from aimbat.models import (
     AimbatStation,
     SeismogramQualityStats,
 )
+
+
+def _stamp(session: Session) -> None:
+    """Stamp all live quality as computed from the current parameters.
+
+    The MCCC run's members are taken to be the seismograms with MCCC values.
+    """
+    for event_id, digests in compute_digests(session).items():
+        rows = session.exec(
+            select(AimbatSeismogramQuality).where(
+                col(AimbatSeismogramQuality.seismogram_id).in_(
+                    list(digests.seismogram_cc)
+                )
+            )
+        ).all()
+        for row in rows:
+            row.iccs_fingerprint = digests.seismogram_cc[row.seismogram_id]
+        eq = session.exec(
+            select(AimbatEventQuality).where(
+                col(AimbatEventQuality.event_id) == event_id
+            )
+        ).first()
+        if eq is not None:
+            members = {r.seismogram_id for r in rows if r.mccc_cc_mean is not None}
+            eq.mccc_members = encode_members(members)
+            eq.mccc_fingerprint = digests.mccc(members)
+    session.commit()
 
 
 def _write_seismogram_quality(
@@ -48,7 +76,8 @@ def _write_seismogram_quality(
             sq.mccc_cc_mean = None
             sq.mccc_cc_std = None
         session.add(sq)
-    session.commit()
+    session.flush()
+    _stamp(session)
 
 
 def _write_event_quality(session: Session, event_id: uuid.UUID) -> None:
@@ -70,7 +99,8 @@ def _write_event_quality(session: Session, event_id: uuid.UUID) -> None:
     else:
         eq.mccc_rmse = pd.Timedelta(milliseconds=1)
     session.add(eq)
-    session.commit()
+    session.flush()
+    _stamp(session)
 
 
 class TestSeismogramQualityStatsFromEvent:
@@ -82,7 +112,7 @@ class TestSeismogramQualityStatsFromEvent:
         assert event is not None
         total = len(event.seismograms)
 
-        stats = SeismogramQualityStats.from_event(event)
+        stats = SeismogramQualityStats.from_event(event, Validity.read(loaded_session))
 
         assert stats.count == total
         assert stats.cc_mean is None
@@ -98,7 +128,7 @@ class TestSeismogramQualityStatsFromEvent:
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=False)
         loaded_session.refresh(event)
 
-        stats = SeismogramQualityStats.from_event(event)
+        stats = SeismogramQualityStats.from_event(event, Validity.read(loaded_session))
 
         assert stats.count == len(seis_ids)
         assert stats.cc_mean == pytest.approx(0.8)
@@ -112,9 +142,10 @@ class TestSeismogramQualityStatsFromEvent:
         seis_ids = [s.id for s in event.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
+        _write_event_quality(loaded_session, event.id)
         loaded_session.refresh(event)
 
-        stats = SeismogramQualityStats.from_event(event)
+        stats = SeismogramQualityStats.from_event(event, Validity.read(loaded_session))
 
         assert stats.mccc_cc_mean == pytest.approx(0.9)
         assert stats.mccc_cc_std == pytest.approx(0.05)
@@ -129,7 +160,7 @@ class TestSeismogramQualityStatsFromEvent:
         _write_event_quality(loaded_session, event.id)
         loaded_session.refresh(event)
 
-        stats = SeismogramQualityStats.from_event(event)
+        stats = SeismogramQualityStats.from_event(event, Validity.read(loaded_session))
 
         assert stats.mccc_rmse == pd.Timedelta(milliseconds=1)
 
@@ -145,7 +176,7 @@ class TestSeismogramQualityStatsFromEvent:
         _write_seismogram_quality(loaded_session, partial_ids, with_mccc=False)
         loaded_session.refresh(event)
 
-        stats = SeismogramQualityStats.from_event(event)
+        stats = SeismogramQualityStats.from_event(event, Validity.read(loaded_session))
 
         assert stats.count == total
 
@@ -158,7 +189,9 @@ class TestSeismogramQualityStatsFromStation:
         station = loaded_session.exec(select(AimbatStation)).first()
         assert station is not None
 
-        stats = SeismogramQualityStats.from_station(station)
+        stats = SeismogramQualityStats.from_station(
+            station, Validity.read(loaded_session)
+        )
 
         assert stats.count == len(station.seismograms)
         assert stats.cc_mean is None
@@ -171,9 +204,13 @@ class TestSeismogramQualityStatsFromStation:
         seis_ids = [s.id for s in station.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
+        for event_id in {s.event_id for s in station.seismograms}:
+            _write_event_quality(loaded_session, event_id)
         loaded_session.refresh(station)
 
-        stats = SeismogramQualityStats.from_station(station)
+        stats = SeismogramQualityStats.from_station(
+            station, Validity.read(loaded_session)
+        )
 
         assert stats.cc_mean == pytest.approx(0.8)
         assert stats.mccc_cc_mean == pytest.approx(0.9)
@@ -187,7 +224,9 @@ class TestSeismogramQualityStatsFromStation:
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
         loaded_session.refresh(station)
 
-        stats = SeismogramQualityStats.from_station(station)
+        stats = SeismogramQualityStats.from_station(
+            station, Validity.read(loaded_session)
+        )
 
         assert stats.mccc_rmse is None
 

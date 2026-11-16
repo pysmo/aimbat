@@ -1,21 +1,16 @@
-"""Which derived values survive a parameter change.
+"""Which derived values stay valid after a parameter change.
 
 Each case seeds live quality for one event, changes one parameter, and checks
-what is still there afterwards. The tables below are the rules. Seeding and
+what is still valid afterwards. The tables below are the rules. Seeding and
 observing each go through a single helper (`_seed`, `_observe`), so a change
 of mechanism means porting those two functions and leaving the tables alone.
 
-The intended rule is that a result stays valid while the inputs it was
-computed from are unchanged. For the MCCC results those inputs are the window,
-taper and bandpass, the MCCC parameters, and the pick and polarity of the
-seismograms that took part in the run. Selection, `min_cc` and `completed` are
-not among them.
+A result stays valid while the inputs it was computed from are unchanged. For
+the MCCC results those inputs are the window, taper and bandpass, the MCCC
+parameters, and the pick and polarity of the seismograms that took part in
+the run. Selection, `min_cc` and `completed` are not among them.
 
-Every change is made in the three situations that exist today, because they
-do not always follow that rule. Each cell that departs from it is marked
-"Deviates" and pins what happens today, not what should. All of them err
-towards discarding a result that is still valid, never towards keeping a stale
-one.
+Every change is made in three situations, which must agree:
 
 - `orm`: the attribute is assigned and the session committed, as the ICCS and
   MCCC write-back and `toggle_event_completed` do.
@@ -23,6 +18,10 @@ one.
   snapshot holding the seeded results.
 - `api_with_snapshot`: the same, with a snapshot of the seeded state to
   restore from.
+
+Each rule also says which of the event's digests change: `tracked` (every
+parameter that is not bookkeeping) and `instance` (what a built ICCS
+instance reflects).
 """
 
 import uuid
@@ -40,6 +39,7 @@ from aimbat.core import (
     set_event_parameter,
     set_seismogram_parameter,
 )
+from aimbat.core._validity import Validity, compute_digests, encode_members
 from aimbat.models import (
     AimbatEvent,
     AimbatEventQuality,
@@ -52,36 +52,29 @@ from aimbat.types import EventParameter, SeismogramParameter
 type Situation = Literal["orm", "api", "api_with_snapshot"]
 _SITUATIONS: tuple[Situation, ...] = get_args(Situation.__value__)
 
-# What can survive a change.
+# What can stay valid after a change.
 _NOTHING: frozenset[str] = frozenset()
 _OTHER_ICCS = frozenset({"other_iccs"})
 _ICCS = frozenset({"target_iccs", "other_iccs"})
 _MCCC = frozenset({"mccc"})
 _EVERYTHING = _ICCS | _MCCC
 
-# How the event can be marked by a change.
-_UNMARKED: frozenset[str] = frozenset()
-_MODIFIED = frozenset({"modified"})
-_STACK_MODIFIED = frozenset({"modified", "stack_modified"})
+# Which digests a change moves.
+_UNCHANGED: frozenset[str] = frozenset()
+_TRACKED = frozenset({"tracked"})
+_INSTANCE = frozenset({"tracked", "instance"})
 
 
 @dataclass(frozen=True)
 class Rule:
-    """What survives a change in each situation, and how the event is marked."""
+    """What stays valid after a change, and which digests it moves."""
 
-    orm: frozenset[str]
-    api: frozenset[str]
-    api_with_snapshot: frozenset[str]
-    marks: frozenset[str]
+    survives: frozenset[str]
+    digests: frozenset[str]
 
 
-def _same(survives: frozenset[str], marks: frozenset[str]) -> Rule:
-    """A rule on which all three situations agree."""
-    return Rule(survives, survives, survives, marks)
-
-
-_CHANGES_THE_STACK = _same(_NOTHING, _STACK_MODIFIED)
-_CHANGES_MCCC_ONLY = _same(_ICCS, _MODIFIED)
+_CHANGES_THE_STACK = Rule(_NOTHING, _INSTANCE)
+_CHANGES_MCCC_ONLY = Rule(_ICCS, _TRACKED)
 
 EVENT_RULES: dict[EventParameter, Rule] = {
     EventParameter.WINDOW_PRE: _CHANGES_THE_STACK,
@@ -93,53 +86,27 @@ EVENT_RULES: dict[EventParameter, Rule] = {
     EventParameter.CORNERS: _CHANGES_THE_STACK,
     EventParameter.MCCC_DAMP: _CHANGES_MCCC_ONLY,
     EventParameter.MCCC_MIN_CC: _CHANGES_MCCC_ONLY,
-    # Deviates (`api`): neither parameter affects a result, but the set
-    # functions drop every MCCC result that no snapshot holds.
-    EventParameter.MIN_CC: Rule(
-        orm=_EVERYTHING, api=_ICCS, api_with_snapshot=_EVERYTHING, marks=_MODIFIED
-    ),
-    EventParameter.COMPLETED: Rule(
-        orm=_EVERYTHING, api=_ICCS, api_with_snapshot=_EVERYTHING, marks=_UNMARKED
-    ),
+    EventParameter.MIN_CC: Rule(_EVERYTHING, _TRACKED),
+    EventParameter.COMPLETED: Rule(_EVERYTHING, _UNCHANGED),
 }
 
 # Keyed by (parameter, target selected, target in the MCCC run).
 #
 # A pick or polarity change on a seismogram outside the stack leaves the other
-# seismograms' `iccs_cc` alone.
+# seismograms' `iccs_cc` alone, and one outside the MCCC run leaves the MCCC
+# results alone.
 _PICK_OR_POLARITY: dict[tuple[bool, bool], Rule] = {
-    (True, True): _same(_NOTHING, _STACK_MODIFIED),
-    # Deviates (`api`, `api_with_snapshot`): the seismogram was not in the
-    # MCCC run, so the MCCC results should stay. The MCCC hash covers every
-    # seismogram's pick and polarity, in the run or not.
-    (True, False): Rule(
-        orm=_MCCC, api=_NOTHING, api_with_snapshot=_NOTHING, marks=_STACK_MODIFIED
-    ),
-    (False, True): _same(_OTHER_ICCS, _STACK_MODIFIED),
-    # Deviates (`api`, `api_with_snapshot`): as above.
-    (False, False): Rule(
-        orm=_OTHER_ICCS | _MCCC,
-        api=_OTHER_ICCS,
-        api_with_snapshot=_OTHER_ICCS,
-        marks=_STACK_MODIFIED,
-    ),
+    (True, True): Rule(_NOTHING, _INSTANCE),
+    (True, False): Rule(_MCCC, _INSTANCE),
+    (False, True): Rule(_OTHER_ICCS, _INSTANCE),
+    (False, False): Rule(_OTHER_ICCS | _MCCC, _INSTANCE),
 }
 # Selection changes the stack, so no `iccs_cc` survives, but it is not an
-# input to MCCC, so the MCCC results should always stay.
+# input to MCCC, so the MCCC results always stay.
 _SELECTION: dict[tuple[bool, bool], Rule] = {
-    # Deviates (`orm`, `api`): the triggers drop the MCCC results when the
-    # seismogram was in the run, and the set functions drop them unless a
-    # snapshot holds them.
-    (selected, True): Rule(
-        orm=_NOTHING, api=_NOTHING, api_with_snapshot=_MCCC, marks=_STACK_MODIFIED
-    )
+    (selected, in_mccc): Rule(_MCCC, _INSTANCE)
     for selected in (True, False)
-} | {
-    # Deviates (`api`): dropped because no snapshot holds them.
-    (selected, False): Rule(
-        orm=_MCCC, api=_NOTHING, api_with_snapshot=_MCCC, marks=_STACK_MODIFIED
-    )
-    for selected in (True, False)
+    for in_mccc in (True, False)
 }
 
 SEISMOGRAM_RULES: dict[tuple[SeismogramParameter, bool, bool], Rule] = {
@@ -155,11 +122,13 @@ SEISMOGRAM_RULES: dict[tuple[SeismogramParameter, bool, bool], Rule] = {
 
 @dataclass(frozen=True)
 class Seeded:
-    """The event under test and the seismogram whose parameters change."""
+    """The event under test, the seismogram whose parameters change, and the
+    digests when seeded."""
 
     event_id: uuid.UUID
     target_id: uuid.UUID
-    in_mccc: bool
+    tracked: str
+    instance: str
 
 
 def _seed(
@@ -169,7 +138,7 @@ def _seed(
     selected: bool = True,
     in_mccc: bool = True,
 ) -> Seeded:
-    """Give one event a full set of live quality values.
+    """Give one event a full set of valid live quality values.
 
     Args:
         engine: Engine of a project with data loaded.
@@ -196,75 +165,71 @@ def _seed(
         target.parameters.select = selected
         session.commit()
 
+        digests = compute_digests(session, event.id)[event.id]
+        members = {
+            seismogram.id
+            for seismogram in event.seismograms
+            if in_mccc or seismogram.id != target.id
+        }
         for seismogram in event.seismograms:
-            quality = AimbatSeismogramQuality(seismogram_id=seismogram.id, iccs_cc=0.9)
-            if in_mccc or seismogram.id != target.id:
+            quality = AimbatSeismogramQuality(
+                seismogram_id=seismogram.id,
+                iccs_cc=0.9,
+                iccs_fingerprint=digests.seismogram_cc[seismogram.id],
+            )
+            if seismogram.id in members:
                 quality.mccc_cc_mean = 0.8
                 quality.mccc_cc_std = 0.1
                 quality.mccc_error = Timedelta(seconds=0.01)
             session.add(quality)
         session.add(
-            AimbatEventQuality(event_id=event.id, mccc_rmse=Timedelta(seconds=0.02))
+            AimbatEventQuality(
+                event_id=event.id,
+                mccc_rmse=Timedelta(seconds=0.02),
+                mccc_members=encode_members(members),
+                mccc_fingerprint=digests.mccc(members),
+            )
         )
         session.commit()
         if situation == "api_with_snapshot":
             create_snapshot(session, event)
 
-        event.last_modified = None
-        event.stack_modified = None
-        session.commit()
-        return Seeded(event_id=event.id, target_id=target.id, in_mccc=in_mccc)
+        validity = Validity.read(session, event.id)
+        assert validity.mccc(event.id)
+        assert all(validity.iccs_cc(s.id) for s in event.seismograms)
+        return Seeded(
+            event_id=event.id,
+            target_id=target.id,
+            tracked=digests.tracked,
+            instance=digests.instance,
+        )
 
 
 def _observe(engine: Engine, seeded: Seeded) -> tuple[frozenset[str], frozenset[str]]:
-    """Report what survived of the seeded state, and how the event is marked."""
+    """Report what is still valid, and which digests moved."""
     with Session(engine) as session:
-        event = session.get_one(AimbatEvent, seeded.event_id)
-        qualities = session.exec(
-            select(AimbatSeismogramQuality).where(
-                col(AimbatSeismogramQuality.seismogram_id).in_(
-                    [seismogram.id for seismogram in event.seismograms]
-                )
-            )
-        ).all()
-        target = next(q for q in qualities if q.seismogram_id == seeded.target_id)
-        others = [q for q in qualities if q.seismogram_id != seeded.target_id]
-
-        # Guards on what the rules take for granted: the other seismograms
-        # are treated alike, and the MCCC results stand or fall together.
-        other_iccs = {q.iccs_cc is not None for q in others}
-        assert len(other_iccs) == 1, (
-            "Some of the other seismograms kept `iccs_cc` and some did not: "
-            f"{[q.iccs_cc for q in others]}"
-        )
-        rmse = event.quality.mccc_rmse if event.quality is not None else None
-        target_stats = (target.mccc_cc_mean, target.mccc_cc_std, target.mccc_error)
-        stats = [(q.mccc_cc_mean, q.mccc_cc_std, q.mccc_error) for q in others]
-        if seeded.in_mccc:
-            stats.append(target_stats)
-        else:
-            assert target_stats == (None, None, None), (
-                f"A seismogram outside the MCCC run gained MCCC results: {target_stats}"
-            )
-        mccc = {value is not None for row in stats for value in row}
-        mccc.add(rmse is not None)
-        assert len(mccc) == 1, (
-            "Only part of the MCCC results survived: "
-            f"event RMSE {rmse}, per-seismogram stats {stats}"
-        )
+        validity = Validity.read(session, seeded.event_id)
+        digests = validity.digests(seeded.event_id)
+        other_iccs = {
+            validity.iccs_cc(seismogram_id)
+            for seismogram_id in digests.seismogram_cc
+            if seismogram_id != seeded.target_id
+        }
+        # The rules take for granted that the other seismograms are alike.
+        assert len(other_iccs) == 1, "Only some of the other seismograms' iccs_cc."
 
         survives = {
-            "target_iccs": target.iccs_cc is not None,
+            "target_iccs": validity.iccs_cc(seeded.target_id),
             "other_iccs": other_iccs.pop(),
-            "mccc": mccc.pop(),
+            "mccc": validity.mccc(seeded.event_id),
         }
-        marks = {
-            "modified": event.last_modified is not None,
-            "stack_modified": event.stack_modified is not None,
+        moved = {
+            "tracked": digests.tracked != seeded.tracked,
+            "instance": digests.instance != seeded.instance,
         }
         return (
             frozenset(name for name, kept in survives.items() if kept),
-            frozenset(name for name, marked in marks.items() if marked),
+            frozenset(name for name, changed in moved.items() if changed),
         )
 
 
@@ -331,10 +296,7 @@ class TestValidityRules:
 
         _change_event_parameter(loaded_engine, seeded, name, situation)
 
-        assert _observe(loaded_engine, seeded) == (
-            getattr(rule, situation),
-            rule.marks,
-        )
+        assert _observe(loaded_engine, seeded) == (rule.survives, rule.digests)
 
     @pytest.mark.parametrize("in_mccc", [True, False], ids=["in-mccc", "not-in-mccc"])
     @pytest.mark.parametrize("selected", [True, False], ids=["selected", "deselected"])
@@ -353,7 +315,4 @@ class TestValidityRules:
 
         _change_seismogram_parameter(loaded_engine, seeded, name, situation)
 
-        assert _observe(loaded_engine, seeded) == (
-            getattr(rule, situation),
-            rule.marks,
-        )
+        assert _observe(loaded_engine, seeded) == (rule.survives, rule.digests)

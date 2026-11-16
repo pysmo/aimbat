@@ -23,6 +23,8 @@ from aimbat.models._parameters import AimbatEventParametersBase
 from aimbat.types import EventParameter
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._validity import Validity
+
 __all__ = [
     "delete_event",
     "dump_event_parameter_table",
@@ -164,9 +166,8 @@ def get_events_using_station(
 def toggle_event_completed(session: Session, event_id: UUID) -> bool:
     """Flip the `completed` flag on an event's parameters.
 
-    `completed` is excluded from the parameters hash used for snapshot
-    matching (it does not affect seismogram processing), so this does not
-    go through `set_event_parameter`'s snapshot-sync/MCCC-invalidation path.
+    `completed` is bookkeeping and an input to no result, so this does not
+    go through `set_event_parameter`'s restore from snapshots.
 
     Args:
         session: Database session.
@@ -221,7 +222,7 @@ def get_event_quality(session: Session, event_id: UUID) -> SeismogramQualityStat
     if event is None:
         raise NoResultFound(f"No AimbatEvent found with id: {event_id}.")
 
-    return SeismogramQualityStats.from_event(event)
+    return SeismogramQualityStats.from_event(event, Validity.read(session, event.id))
 
 
 def dump_event_table(
@@ -502,7 +503,8 @@ def dump_event_quality_table(
         statement = statement.where(AimbatEvent.id == event_id)
 
     events = session.exec(statement).all()
-    stats = [SeismogramQualityStats.from_event(e) for e in events]
+    validity = Validity.read(session, event_id)
+    stats = [SeismogramQualityStats.from_event(e, validity) for e in events]
 
     return dump_models(
         stats,

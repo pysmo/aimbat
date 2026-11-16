@@ -381,11 +381,12 @@ def _print_prune_report(
             )
         json_to_table(rows, model=_OrphanRow, title="Data sources to prune")
 
-    for event in report.events_needing_invalidation:
+    for event in report.events_losing_seismograms:
         console.print(
-            "Live ICCS/MCCC quality will be reset for event "
+            "Event "
             + event.time.strftime("%Y-%m-%d %H:%M:%S")
-            + " (re-run align / mccc)."
+            + " loses seismograms: its ICCS/MCCC quality may need re-running "
+            + "(align / mccc)."
         )
 
     if report.emptied_stations:

@@ -12,7 +12,6 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
-from pandas import Timestamp
 from sqlalchemy import event as sa_event
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
@@ -42,6 +41,8 @@ from aimbat.models._parameters import (
 )
 from aimbat.utils import mean_and_sem, rel
 
+from ._validity import compute_digests, encode_members
+
 __all__ = [
     "BoundICCS",
     "CcStats",
@@ -52,8 +53,8 @@ __all__ = [
     "build_iccs_from_snapshot",
     "cc_stats",
     "clear_iccs_cache",
-    "clear_mccc_quality",
     "create_iccs_instance",
+    "current_instance_digest",
     "evict_iccs_cache_entry",
     "ignore_run_summary_warnings",
     "run_iccs",
@@ -87,36 +88,39 @@ class NoSeismogramsError(RuntimeError):
 class BoundICCS:
     """An ICCS instance explicitly bound to a specific event.
 
-    Use `is_stale` to detect whether a stack-affecting parameter has been
-    modified (e.g. by a CLI command) since this instance was created.
+    Use `is_stale` to detect whether a parameter the instance is built from
+    has changed (e.g. by a CLI command) since it was created.
     """
 
     iccs: ICCS
     event_id: UUID
-    created_at: Timestamp
+    instance_digest: str | None
+    """Instance digest of the parameters the instance reflects. `None` when
+    it does not reflect the live parameters (built from a snapshot)."""
 
-    def is_stale(self, event: AimbatEvent) -> bool:
+    def is_stale(self, event_id: UUID, instance_digest: str) -> bool:
         """Return True if this ICCS instance no longer matches the event.
 
-        Args:
-            event: The event to check against.
+        An MCCC-only or `min_cc` change does not make it stale (`run_iccs`
+        refreshes `min_cc` on the instance per run).
 
-        Returns:
-            True if `event.id` differs from the bound event, or if
-            `event.stack_modified` has advanced since this instance was
-            created. An MCCC-only or `min_cc` change does not make it stale
-            (`run_iccs` refreshes `min_cc` on the instance per run).
+        Args:
+            event_id: The event to check against.
+            instance_digest: The event's current instance digest.
         """
-        if event.id != self.event_id:
-            return True
-        if event.stack_modified is None:
-            return False
-        # The triggers stamp `stack_modified` to millisecond precision while
-        # `created_at` keeps microseconds, so the two are compared at the
-        # coarser one. A change landing in the same millisecond counts as
-        # stale: the worst case is one redundant rebuild, against silently
-        # serving values the database has already superseded.
-        return event.stack_modified >= self.created_at.floor("ms")
+        return event_id != self.event_id or instance_digest != self.instance_digest
+
+    def mark_current(self, session: Session) -> None:
+        """Record that the instance reflects the event's stored parameters.
+
+        Call after writing the instance's own changes to the database.
+        """
+        self.instance_digest = current_instance_digest(session, self.event_id)
+
+
+def current_instance_digest(session: Session, event_id: UUID) -> str:
+    """The instance digest of an event's stored parameters."""
+    return compute_digests(session, event_id)[event_id].instance
 
 
 @dataclass
@@ -127,7 +131,8 @@ class IccsLifecycle:
     asynchronously without blocking a UI thread: an in-progress guard so
     overlapping creation attempts collapse into one, a one-shot retry flag
     for recovering from a transient failure, and a fallback staleness check
-    (`event.stack_modified`) for the window before any instance exists yet.
+    (the instance digest last seen) for the window before any instance
+    exists yet.
 
     Callers own the actual I/O and threading (reading waveform data, running
     in a background thread, marshalling results back to a UI thread) and
@@ -137,7 +142,7 @@ class IccsLifecycle:
 
     bound: BoundICCS | None = None
     retry_pending: bool = False
-    stack_modified_seen: Timestamp | None = None
+    instance_digest_seen: str | None = None
     _creating: bool = field(default=False, repr=False, init=False)
 
     @property
@@ -145,19 +150,20 @@ class IccsLifecycle:
         """Whether a bound ICCS instance is currently available."""
         return self.bound is not None
 
-    def is_stale(self, event: AimbatEvent) -> bool:
+    def is_stale(self, event_id: UUID, instance_digest: str) -> bool:
         """Return True if the bound instance (or lack of one) needs rebuilding.
 
         Delegates to `BoundICCS.is_stale` when an instance exists; otherwise
-        falls back to comparing `event.stack_modified` against the value last
-        recorded via `note_checked`.
+        compares `instance_digest` with the one last recorded via
+        `note_checked`.
 
         Args:
-            event: The event to check against.
+            event_id: The event to check against.
+            instance_digest: The event's current instance digest.
         """
         if self.bound is not None:
-            return self.bound.is_stale(event)
-        return event.stack_modified != self.stack_modified_seen
+            return self.bound.is_stale(event_id, instance_digest)
+        return instance_digest != self.instance_digest_seen
 
     def start_creating(self) -> bool:
         """Begin a creation attempt, discarding any existing bound instance.
@@ -207,13 +213,13 @@ class IccsLifecycle:
         """
         self.bound = None
 
-    def note_checked(self, stack_modified: Timestamp | None) -> None:
-        """Record the `stack_modified` value observed at a staleness check.
+    def note_checked(self, instance_digest: str) -> None:
+        """Record the instance digest observed at a staleness check.
 
         Only meaningful while `bound` is `None`; used by `is_stale` to
         detect further changes before a new instance can be created.
         """
-        self.stack_modified_seen = stack_modified
+        self.instance_digest_seen = instance_digest
 
 
 @dataclass(frozen=True)
@@ -369,8 +375,7 @@ def _build_iccs(
         context_width=settings.context_width,
         # Includes `min_cc`, the autoselect threshold. Baked in here and
         # refreshed per run in `run_iccs` - a bare `min_cc` change does not
-        # rebuild the instance (it does not touch the stack; see trigger 1b
-        # in core/_project.py).
+        # rebuild the instance (it is not in the instance digest).
         **{
             attribute: getattr(p, name)
             for name, attribute in _ICCS_EVENT_ATTRIBUTES.items()
@@ -381,8 +386,8 @@ def _build_iccs(
 def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     """Return a BoundICCS instance for the given event.
 
-    Returns the cached instance when it is still fresh (i.e. `event.stack_modified`
-    has not advanced since the instance was created). Otherwise builds a new one
+    Returns the cached instance when it is still fresh (its instance digest
+    equals that of the stored parameters). Otherwise builds a new one
     and updates the cache. Building one writes each seismogram's ICCS CC value to
     the live quality table on `session`, flushed but not committed: the caller
     decides whether those values are kept. If `session` rolls back first, the
@@ -404,17 +409,15 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
         BoundICCS instance tied to the given event.
 
     """
+    instance_digest = current_instance_digest(session, event.id)
     cached = _iccs_cache.get(event.id)
-    if cached is not None and not cached.is_stale(event):
+    if cached is not None and not cached.is_stale(event.id, instance_digest):
         logger.debug(f"Returning cached BoundICCS for event {event.id}.")
         _iccs_cache.move_to_end(event.id)
         return cached
 
-    # Stamp before reading the event's parameters and waveforms below, so a
-    # modification committed while this instance is being built is caught as
-    # stale on the next check rather than silently baked in.
-    created_at = Timestamp.now("UTC")
-
+    # pysqlite runs SELECTs outside a transaction, so objects already in the
+    # identity map can be older than the rows the digest was computed from.
     event = session.exec(
         select(AimbatEvent)
         .where(AimbatEvent.id == event.id)
@@ -424,6 +427,7 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
                 rel(AimbatSeismogram.parameters)
             ),
         )
+        .execution_options(populate_existing=True)
     ).one()
 
     if not event.seismograms:
@@ -435,7 +439,7 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     bound = BoundICCS(
         iccs=_build_iccs(event),
         event_id=event.id,
-        created_at=created_at,
+        instance_digest=instance_digest,
     )
     # Cache only after the stats write succeeds: a half-initialised instance
     # left in the cache would be returned (without re-raising) on the next
@@ -454,13 +458,9 @@ def _find_seismogram_quality(
 ) -> AimbatSeismogramQuality | None:
     """Look up a seismogram's live quality row by seismogram ID, if one exists."""
     return session.exec(
-        select(AimbatSeismogramQuality)
-        .where(col(AimbatSeismogramQuality.seismogram_id) == seismogram_id)
-        # The quality columns are nulled by database triggers, which the session
-        # cannot see. Without a forced refresh a row it already holds keeps the
-        # pre-trigger value, the write below looks like a no-op, and the column
-        # stays NULL.
-        .execution_options(populate_existing=True)
+        select(AimbatSeismogramQuality).where(
+            col(AimbatSeismogramQuality.seismogram_id) == seismogram_id
+        )
     ).one_or_none()
 
 
@@ -473,7 +473,8 @@ def _write_iccs_stats(session: Session, event_id: UUID, iccs: ICCS) -> None:
 
     Writes on the caller's session and flushes, so the values are part of
     whatever transaction the caller is running and are discarded with it if
-    the caller rolls back.
+    the caller rolls back. Each value is stamped with the digest of the stored
+    parameters, so the parameters must match `iccs` when this is called.
 
     Args:
         session: Database session.
@@ -481,17 +482,23 @@ def _write_iccs_stats(session: Session, event_id: UUID, iccs: ICCS) -> None:
         iccs: ICCS instance whose `ccs` values are written.
     """
     logger.debug(f"Writing ICCS stats for event {event_id}.")
+    digests = compute_digests(session, event_id)[event_id]
     for iccs_seis, cc in zip(iccs.seismograms, iccs.ccs):
         seis_id = iccs_seis.extra["id"]
         existing = _find_seismogram_quality(session, seis_id)
         cc_val = max(-1.0, min(1.0, float(cc)))
+        fingerprint = digests.seismogram_cc[seis_id]
         if existing is None:
             row = AimbatSeismogramQuality(
-                id=uuid4(), seismogram_id=seis_id, iccs_cc=cc_val
+                id=uuid4(),
+                seismogram_id=seis_id,
+                iccs_cc=cc_val,
+                iccs_fingerprint=fingerprint,
             )
             session.add(row)
         else:
             existing.iccs_cc = cc_val
+            existing.iccs_fingerprint = fingerprint
             session.add(existing)
     session.flush()
 
@@ -514,7 +521,8 @@ def _write_mccc_quality(
 
     Writes on the caller's session and flushes, so the values are part of
     whatever transaction the caller is running and are discarded with it if
-    the caller rolls back.
+    the caller rolls back. The results are stamped with the digest of the
+    stored parameters, so the picks must have been written back first.
 
     Args:
         session: Database session.
@@ -523,20 +531,18 @@ def _write_mccc_quality(
         result: McccResult returned by `ICCS.run_mccc`.
     """
     logger.debug(f"Writing MCCC quality for event {event_id}.")
+    members = {iccs.seismograms[index].extra["id"] for index in result.indices}
+    fingerprint = compute_digests(session, event_id)[event_id].mccc(members)
     # Event quality
     existing_eq = session.exec(
-        select(AimbatEventQuality)
-        .where(col(AimbatEventQuality.event_id) == event_id)
-        # See `_find_seismogram_quality`: triggers null this behind the session's
-        # back, so the row has to be reloaded before it is written.
-        .execution_options(populate_existing=True)
+        select(AimbatEventQuality).where(col(AimbatEventQuality.event_id) == event_id)
     ).one_or_none()
     if existing_eq is None:
-        eq = AimbatEventQuality(id=uuid4(), event_id=event_id, mccc_rmse=result.rmse)
-        session.add(eq)
-    else:
-        existing_eq.mccc_rmse = result.rmse
-        session.add(existing_eq)
+        existing_eq = AimbatEventQuality(id=uuid4(), event_id=event_id)
+    existing_eq.mccc_rmse = result.rmse
+    existing_eq.mccc_members = encode_members(members)
+    existing_eq.mccc_fingerprint = fingerprint
+    session.add(existing_eq)
 
     # Clear MCCC fields for all seismograms first
     for iccs_seis in iccs.seismograms:
@@ -576,85 +582,6 @@ def _write_mccc_quality(
             sq.mccc_cc_std = cc_std_val
             session.add(sq)
 
-    session.flush()
-
-
-def clear_mccc_quality(session: Session, event: AimbatEvent) -> None:
-    """Clear MCCC quality metrics from the live quality tables for an event.
-
-    Sets all MCCC fields (`mccc_rmse`, `mccc_error`, `mccc_cc_mean`,
-    `mccc_cc_std`) to `None` for the event and all its seismograms.
-    ICCS CC values are not affected.
-
-    Args:
-        session: Database session.
-        event: AimbatEvent whose quality should be cleared.
-    """
-    logger.debug(f"Clearing MCCC quality for event {event.id}.")
-
-    if event.quality is not None:
-        event.quality.mccc_rmse = None
-        session.add(event.quality)
-
-    for seis in event.seismograms:
-        if seis.quality is not None:
-            seis.quality.mccc_error = None
-            seis.quality.mccc_cc_mean = None
-            seis.quality.mccc_cc_std = None
-            session.add(seis.quality)
-
-    session.commit()
-
-
-def _invalidate_event_quality(session: Session, event_id: UUID) -> None:
-    """Null an event's live ICCS/MCCC quality and bump its `stack_modified`.
-
-    AIMBAT's quality-invalidation triggers are all `AFTER UPDATE` on a
-    parameter table, so removing a seismogram from an event (a delete, a
-    prune) fires none of them and leaves `AimbatEventQuality.mccc_rmse`, the
-    surviving seismograms' `iccs_cc` / MCCC stats, and `AimbatEvent.stack_modified`
-    stale. Callers that change an event's seismogram set must call this so
-    `SeismogramQualityStats.from_event` does not report numbers computed
-    against a seismogram set that no longer exists, and a warm `BoundICCS`
-    sees itself as stale.
-
-    Flushes but does not commit; the caller owns the transaction.
-
-    Args:
-        session: Database session.
-        event_id: Event whose live quality should be invalidated.
-    """
-    logger.debug(f"Invalidating live quality for event {event_id}.")
-
-    event = session.exec(
-        select(AimbatEvent)
-        .where(AimbatEvent.id == event_id)
-        .options(
-            selectinload(rel(AimbatEvent.quality)),
-            selectinload(rel(AimbatEvent.seismograms)).selectinload(
-                rel(AimbatSeismogram.quality)
-            ),
-        )
-    ).one_or_none()
-    if event is None:
-        return
-
-    if event.quality is not None:
-        event.quality.mccc_rmse = None
-        session.add(event.quality)
-
-    for seis in event.seismograms:
-        if seis.quality is not None:
-            seis.quality.iccs_cc = None
-            seis.quality.mccc_error = None
-            seis.quality.mccc_cc_mean = None
-            seis.quality.mccc_cc_std = None
-            session.add(seis.quality)
-
-    # `event` is already persistent, so the attribute change is tracked
-    # without `session.add()` - and adding it would cascade save-update along
-    # `seismograms`, which may still hold a just-deleted instance.
-    event.stack_modified = Timestamp.now("UTC")
     session.flush()
 
 
@@ -738,7 +665,7 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     return BoundICCS(
         iccs=iccs,
         event_id=snapshot.event_id,
-        created_at=Timestamp.now("UTC"),
+        instance_digest=None,
     )
 
 
@@ -773,10 +700,8 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     """Write t1, flip, and select from ICCS seismograms back to the database.
 
     Flushes but does not commit; the caller owns the transaction and must
-    commit it. The flush fires the quality-invalidation triggers (SQLite
-    AFTER UPDATE triggers run at statement execution), but callers that
-    repopulate quality afterwards (some from their own separate sessions)
-    depend on controlling when that nulling becomes visible.
+    commit it. If `iccs` is cached and matched the stored parameters before
+    the write, its cached digest is updated to match them again.
 
     Args:
         session: Database session.
@@ -784,12 +709,20 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     """
     logger.debug(f"Writing back {len(iccs.seismograms)} seismogram parameters to DB.")
 
+    bound = next((b for b in _iccs_cache.values() if b.iccs is iccs), None)
+    was_current = bound is not None and not bound.is_stale(
+        bound.event_id, current_instance_digest(session, bound.event_id)
+    )
+
     for seis in iccs.seismograms:
         db_seis = session.get(AimbatSeismogram, seis.extra["id"])
         if db_seis is not None:
             for name, attribute in _ICCS_SEISMOGRAM_ATTRIBUTES.items():
                 setattr(db_seis.parameters, name, getattr(seis, attribute))
     session.flush()
+
+    if bound is not None and was_current:
+        bound.mark_current(session)
 
 
 def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
@@ -984,10 +917,8 @@ def run_iccs(
             "ICCS reselected": result.reselected,
         },
     )
-    # Writing the picks back nulls `iccs_cc` via the invalidation triggers, so
-    # `_write_iccs_stats` must come after that flush to repopulate it (see
-    # `run_mccc` for the fuller ordering note). Both happen on `session`, so
-    # the single commit below either publishes all of it or none of it.
+    # ICCS writes its own inputs, so the results are stamped after the picks
+    # are written back. One commit publishes all of it or none.
     write_back_seismograms(session, iccs)
     _write_iccs_stats(session, event.id, iccs)
     session.commit()
@@ -1021,13 +952,8 @@ def run_mccc(
     _log_summary(
         summarise_mccc_result(result), iccs, {"MCCC refused picks": result.refused}
     )
-    # Order is load-bearing. Writing back `t1`/`flip`/`select` flushes an UPDATE
-    # that fires the quality-invalidation triggers, nulling `iccs_cc` and every
-    # MCCC quality column for this event. `_write_iccs_stats` must then
-    # repopulate `iccs_cc`, and `_write_mccc_quality` the MCCC columns, in that
-    # sequence. All three write on `session` and only the last line commits, so
-    # a failure anywhere rolls the lot back rather than leaving the quality
-    # tables half-nulled.
+    # MCCC writes its own inputs, so the results are stamped after the picks
+    # are written back. One commit publishes all of it or none.
     write_back_seismograms(session, iccs)
     _write_iccs_stats(session, event.id, iccs)
     _write_mccc_quality(session, event.id, iccs, result)

@@ -12,6 +12,8 @@ from aimbat.core import (
     prune_project,
     run_mccc,
 )
+from aimbat.core._iccs import current_instance_digest
+from aimbat.core._validity import Validity
 from aimbat.io import DataType, SourceUnavailableError
 from aimbat.io._base import _source_probes
 from aimbat.models import (
@@ -20,7 +22,6 @@ from aimbat.models import (
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
-    AimbatSeismogramQuality,
     AimbatSnapshot,
     AimbatStation,
 )
@@ -112,7 +113,7 @@ class TestPruneProject:
         assert refreshed is not None
         assert refreshed.seismogram_count == count_before
 
-    def test_live_quality_is_nulled_for_affected_event(
+    def test_live_quality_is_out_of_date_for_affected_event(
         self, loaded_session: Session
     ) -> None:
         event = _first_event(loaded_session)
@@ -121,7 +122,7 @@ class TestPruneProject:
         run_mccc(loaded_session, event, iccs_bound.iccs, all_seismograms=False)
         loaded_session.refresh(event)
         assert event.quality is not None and event.quality.mccc_rmse is not None
-        stack_modified_before = event.stack_modified
+        instance_before = current_instance_digest(loaded_session, event_id)
 
         surviving_id = event.seismograms[1].id
         pruned = event.seismograms[0]
@@ -129,19 +130,10 @@ class TestPruneProject:
 
         prune_project(loaded_session, "all", auto_snapshot=False)
 
-        refreshed = loaded_session.get(AimbatEvent, event_id)
-        assert refreshed is not None
-        assert refreshed.quality is not None
-        assert refreshed.quality.mccc_rmse is None
-        assert refreshed.stack_modified != stack_modified_before
-        surviving_quality = loaded_session.exec(
-            select(AimbatSeismogramQuality).where(
-                AimbatSeismogramQuality.seismogram_id == surviving_id
-            )
-        ).one_or_none()
-        assert surviving_quality is not None
-        assert surviving_quality.iccs_cc is None
-        assert surviving_quality.mccc_cc_mean is None
+        validity = Validity.read(loaded_session, event_id)
+        assert not validity.mccc(event_id)
+        assert not validity.iccs_cc(surviving_id)
+        assert current_instance_digest(loaded_session, event_id) != instance_before
 
     def test_auto_snapshot_runs_before_delete(self, loaded_session: Session) -> None:
         event = _first_event(loaded_session)

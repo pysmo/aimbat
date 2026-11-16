@@ -306,6 +306,11 @@ class AimbatSeismogramQuality(AimbatSeismogramQualityBase, table=True):
         title="Seismogram ID",
         description="Foreign key referencing the parent seismogram.",
     )
+    iccs_fingerprint: str | None = Field(
+        default=None,
+        title="ICCS fingerprint",
+        description="Digest of the parameters `iccs_cc` was computed from.",
+    )
     seismogram: "AimbatSeismogram" = Relationship(back_populates="quality")
     "The seismogram these quality metrics belong to."
     snapshots: list["AimbatSeismogramQualitySnapshot"] = Relationship(
@@ -383,6 +388,11 @@ class AimbatEventQuality(AimbatEventQualityBase, table=True):
         ondelete="CASCADE",
         title="Event ID",
         description="Foreign key referencing the parent event.",
+    )
+    mccc_fingerprint: str | None = Field(
+        default=None,
+        title="MCCC fingerprint",
+        description="Digest of the parameters the MCCC results were computed from.",
     )
     event: "AimbatEvent" = Relationship(back_populates="quality")
     "The event these quality metrics belong to."
@@ -474,17 +484,14 @@ class AimbatSnapshot(SQLModel, table=True):
         default=None,
         title="MCCC hash",
         description=(
-            "SHA-256 hash of the parameters affecting MCCC output at creation "
-            + "time."
+            "MCCC digest of the run whose results the snapshot froze, or None "
+            + "if it froze none."
         ),
     )
     iccs_hash: str | None = Field(
         default=None,
         title="ICCS hash",
-        description=(
-            "SHA-256 hash of the parameters affecting ICCS output at creation "
-            + "time."
-        ),
+        description=("Instance digest of the event's parameters at creation time."),
     )
     event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
         back_populates="snapshot", cascade_delete=True
@@ -735,24 +742,6 @@ class AimbatEvent(SQLModel, table=True):
     )
     depth: float | None = Field(
         default=None, title="Depth", description="Event depth in metres."
-    )
-    last_modified: PydanticTimestamp | None = Field(
-        default=None,
-        sa_type=SAPandasTimestamp,
-        title="Last modified",
-        description="Timestamp of the last parameter modification.",
-    )
-    stack_modified: PydanticTimestamp | None = Field(
-        default=None,
-        sa_type=SAPandasTimestamp,
-        title="Stack modified",
-        description=(
-            "Timestamp of the last change to a parameter that requires the ICCS "
-            + "instance to be rebuilt (event window, ramp, bandpass, corners; "
-            + "per-seismogram t1, flip, select). Drives `BoundICCS.is_stale`. "
-            + "Unlike `last_modified`, an MCCC-only or `min_cc` change does not "
-            + "bump it."
-        ),
     )
     seismograms: list[AimbatSeismogram] = Relationship(
         back_populates="event", cascade_delete=True

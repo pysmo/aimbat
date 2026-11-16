@@ -1,5 +1,6 @@
 """Base classes defining AIMBAT alignment quality metrics."""
 
+from sqlalchemy import JSON
 from sqlmodel import Field, SQLModel
 
 from aimbat.types import (
@@ -24,6 +25,16 @@ class AimbatEventQualityBase(SQLModel):
         sa_type=SAPandasTimedelta,
         title="MCCC RMSE",
         description="Root-mean-square error of the MCCC inversion fit across the whole array.",
+    )
+
+    mccc_members: list[str] | None = Field(
+        default=None,
+        sa_type=JSON,
+        title="MCCC members",
+        description=(
+            "IDs (hex) of the seismograms in the MCCC run, sorted and without "
+            + "duplicates. `None` when there are no MCCC results."
+        ),
     )
 
 

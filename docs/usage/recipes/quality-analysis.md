@@ -11,6 +11,11 @@ building a DataFrame from them supports aggregation and plotting with pandas
 and matplotlib. See [Quality Assessment](../quality.md) for how to interpret
 these values.
 
+A stored value stays in the database after a parameter it was computed from
+changes, but it no longer applies. `Validity` tells you which values still
+match the current parameters. Build it once per session, after any changes,
+and use it to skip the values that do not.
+
 #### Build a per-seismogram DataFrame across all events
 
 The most flexible starting point is a flat DataFrame with one row per
@@ -21,11 +26,13 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 import pandas as pd
 
+from aimbat.core import Validity
 from aimbat.db import engine
 from aimbat.models import AimbatSeismogram
 from aimbat.utils import rel
 
 with Session(engine) as session:
+    validity = Validity.read(session)
     seismograms = session.exec(
         select(AimbatSeismogram).options(
             selectinload(rel(AimbatSeismogram.station)),
@@ -37,12 +44,14 @@ with Session(engine) as session:
     rows = []
     for seis in seismograms:
         q = seis.quality
+        iccs_ok = q is not None and validity.iccs_cc(seis.id)
+        mccc_ok = q is not None and validity.mccc(seis.event_id)
         rows.append({
             "station": f"{seis.station.network}.{seis.station.name}",
             "event_time": seis.event.time,
-            "iccs_cc": q.iccs_cc if q else None,
-            "mccc_cc_mean": q.mccc_cc_mean if q else None,
-            "mccc_error_s": q.mccc_error.total_seconds() if (q and q.mccc_error) else None,
+            "iccs_cc": q.iccs_cc if iccs_ok else None,
+            "mccc_cc_mean": q.mccc_cc_mean if mccc_ok else None,
+            "mccc_error_s": q.mccc_error.total_seconds() if (mccc_ok and q.mccc_error) else None,
         })
 
 df = pd.DataFrame(rows)
@@ -54,12 +63,14 @@ filtering by a quality threshold, or plotting directly with matplotlib.
 #### Station-level quality summary
 
 `SeismogramQualityStats.from_station` aggregates all per-seismogram metrics
-across every event recorded at a station:
+across every event recorded at a station, leaving out values that no longer
+apply:
 
 ```python
 from aimbat.models import AimbatSeismogram, AimbatStation, SeismogramQualityStats
 
 with Session(engine) as session:
+    validity = Validity.read(session)
     stations = session.exec(
         select(AimbatStation).options(
             selectinload(rel(AimbatStation.seismograms)).selectinload(
@@ -67,7 +78,7 @@ with Session(engine) as session:
             )
         )
     ).all()
-    stats = [SeismogramQualityStats.from_station(s) for s in stations]
+    stats = [SeismogramQualityStats.from_station(s, validity) for s in stations]
 ```
 
 Each `stats` item exposes `cc_mean`, `mccc_cc_mean`, and `mccc_error` as (mean,
@@ -82,6 +93,7 @@ single event and also carries the global `mccc_rmse` array-fit value:
 from aimbat.models import AimbatEvent, AimbatSeismogram, SeismogramQualityStats
 
 with Session(engine) as session:
+    validity = Validity.read(session)
     events = session.exec(
         select(AimbatEvent).options(
             selectinload(rel(AimbatEvent.seismograms)).selectinload(
@@ -90,7 +102,7 @@ with Session(engine) as session:
             selectinload(rel(AimbatEvent.quality)),
         )
     ).all()
-    stats = [SeismogramQualityStats.from_event(e) for e in events]
+    stats = [SeismogramQualityStats.from_event(e, validity) for e in events]
 ```
 
 `mccc_rmse` on each stats object is the global array fit for that event,

@@ -519,9 +519,10 @@ can be deselected with `select = False` instead.
 
 !!! tip "What prune repairs"
 
-    Pruning re-nulls the live ICCS/MCCC quality for every affected event. The
-    `align` and `mccc` steps need re-running afterwards. Each affected event is
-    snapshotted first, unless `--no-snapshot` is given.
+    Removing a seismogram that was in the stack or in the MCCC run leaves that
+    event's ICCS or MCCC quality out of date, so `align` and `mccc` may need
+    re-running afterwards. Each affected event is snapshotted first, unless
+    `--no-snapshot` is given.
 
     Frozen snapshot history is preserved. A snapshot-derived operation such as
     `build_iccs_from_snapshot` or a snapshot plot silently omits a pruned

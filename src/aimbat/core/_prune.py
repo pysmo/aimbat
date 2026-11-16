@@ -3,9 +3,8 @@
 `prune_project` probes every data source in scope (see
 `aimbat.io.source_present`), deletes the `AimbatSeismogram` rows whose source
 can no longer be read, and repairs the fallout a plain delete leaves behind:
-live ICCS/MCCC quality is re-nulled for every affected event (AIMBAT has no
-`AFTER DELETE` triggers), emptied stations and events are optionally cleaned
-up, and each affected event is snapshotted first.
+emptied stations and events are optionally cleaned up, and each affected
+event is snapshotted first.
 
 Frozen snapshot history survives a prune untouched: a pruned seismogram's
 `*Snapshot` rows keep their values and their own `seismogram_id`; only the
@@ -57,7 +56,7 @@ class PruneReport:
     """Stations left with no seismograms once the orphans are gone."""
     emptied_events: list[AimbatEvent]
     """Events left with no seismograms; pruned only if `prune_empty_events`."""
-    events_needing_invalidation: list[AimbatEvent]
+    events_losing_seismograms: list[AimbatEvent]
     """Events that lose at least one seismogram and are not themselves pruned."""
     deleted_snapshots: dict[UUID, int]
     """Event ID -> number of snapshots destroyed by pruning that event."""
@@ -225,7 +224,7 @@ def prune_project(
     ]
 
     pruned_event_ids = emptied_event_ids if prune_empty_events else set()
-    events_needing_invalidation = [e for e in events if e.id not in pruned_event_ids]
+    events_losing_seismograms = [e for e in events if e.id not in pruned_event_ids]
 
     deleted_snapshots: dict[UUID, int] = {}
     if prune_empty_events:
@@ -264,7 +263,7 @@ def prune_project(
         unprobeable=unprobeable,
         emptied_stations=emptied_stations,
         emptied_events=emptied_events,
-        events_needing_invalidation=events_needing_invalidation,
+        events_losing_seismograms=events_losing_seismograms,
         deleted_snapshots=deleted_snapshots,
         cascaded_notes=cascaded_notes,
         warnings=warnings,
@@ -278,10 +277,10 @@ def prune_project(
         logger.info("Prune cancelled before any deletion.")
         return report
 
-    from ._iccs import _invalidate_event_quality, clear_iccs_cache
+    from ._iccs import clear_iccs_cache
     from ._snapshot import create_snapshot
 
-    invalidate_event_ids = [e.id for e in events_needing_invalidation]
+    snapshot_event_ids = [e.id for e in events_losing_seismograms]
     prune_station_ids = [s.id for s in emptied_stations] if prune_empty_stations else []
     prune_event_ids = [e.id for e in emptied_events] if prune_empty_events else []
 
@@ -293,7 +292,7 @@ def prune_project(
     session.expunge_all()
 
     if auto_snapshot:
-        for event_uuid in invalidate_event_ids:
+        for event_uuid in snapshot_event_ids:
             snap_event = session.get(AimbatEvent, event_uuid)
             if snap_event is None:
                 continue
@@ -310,9 +309,6 @@ def prune_project(
                     f"Aborting prune: could not snapshot event {event_uuid} "
                     + f"first ({exc}). Nothing was deleted."
                 ) from exc
-
-    for event_uuid in invalidate_event_ids:
-        _invalidate_event_quality(session, event_uuid)
 
     # Every deletion below reloads its target by ID with no relationships
     # attached, so `session.delete()` leaves the 1:1 children (data source,

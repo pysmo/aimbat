@@ -59,14 +59,11 @@ class TestDeleteStation:
     def test_delete_station_with_preloaded_event_and_live_quality(
         self, loaded_session: Session
     ) -> None:
-        """Invalidation must not choke on an already-loaded event collection.
-
-        Regression: invalidating affected events after the cascade flush
-        could walk a cached `event.seismograms` still holding a
-        cascade-deleted seismogram and try to re-add its quality row.
-        """
+        """Deleting works with the event's seismograms already loaded, and
+        leaves the survivors' `iccs_cc` out of date."""
         from aimbat.core import create_iccs_instance
-        from aimbat.models import AimbatSeismogram, AimbatSeismogramQuality
+        from aimbat.core._validity import Validity
+        from aimbat.models import AimbatSeismogram
 
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
@@ -83,12 +80,7 @@ class TestDeleteStation:
         delete_station(loaded_session, station_id)
 
         assert loaded_session.get(AimbatSeismogram, doomed.id) is None
-        survivor_quality = loaded_session.exec(
-            select(AimbatSeismogramQuality).where(
-                AimbatSeismogramQuality.seismogram_id == survivor_id
-            )
-        ).one()
-        assert survivor_quality.iccs_cc is None
+        assert not Validity.read(loaded_session, event.id).iccs_cc(survivor_id)
 
 
 class TestGetStationsInEvent:

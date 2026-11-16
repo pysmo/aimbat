@@ -13,6 +13,8 @@ All functions take a SQLModel `Session` and work with the models in
   time windows, and correlation thresholds.
 - **Snapshots** — save, restore, and delete parameter snapshots
   (`create_snapshot`, `rollback_to_snapshot`).
+- **Validity** — check whether stored quality values still match the current
+  parameters (`Validity`).
 - **Project** — create and delete the project database (`create_project`,
   `delete_project`).
 - **Migrations** — bring an existing project database up to date with the
@@ -33,6 +35,7 @@ from ._prune import *
 from ._seismogram import *
 from ._snapshot import *
 from ._station import *
+from ._validity import Validity as Validity
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]
 

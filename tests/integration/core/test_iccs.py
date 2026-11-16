@@ -1,4 +1,4 @@
-"""Integration tests for ICCS alignment and MCCC quality clearing."""
+"""Integration tests for ICCS alignment and how it affects MCCC quality."""
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -13,10 +13,13 @@ from aimbat.core import (
     create_iccs_instance,
     create_snapshot,
     delete_event,
+    rollback_to_snapshot,
     run_iccs,
     run_mccc,
     sync_iccs_parameters,
 )
+from aimbat.core._iccs import current_instance_digest
+from aimbat.core._validity import Validity
 from aimbat.models import (
     AimbatEvent,
     AimbatEventParameters,
@@ -28,8 +31,10 @@ from aimbat.models import (
 class TestIccsMcccInterplay:
     """Tests for ICCS alignment affecting MCCC quality stats."""
 
-    def test_run_iccs_nulls_mccc_stats_on_change(self, loaded_session: Session) -> None:
-        """Verifies that running ICCS nulls MCCC stats if t1 changed."""
+    def test_run_iccs_makes_mccc_stats_out_of_date_on_change(
+        self, loaded_session: Session
+    ) -> None:
+        """Verifies that running ICCS leaves MCCC stats out of date if t1 changed."""
         from pandas import Timedelta
 
         event = loaded_session.exec(select(AimbatEvent)).first()
@@ -63,17 +68,8 @@ class TestIccsMcccInterplay:
             loaded_session, event, iccs_bound.iccs, autoflip=False, autoselect=False
         )
 
-        # 4. Verify MCCC stats are nulled
-        loaded_session.refresh(event)
-        if event.quality:
-            assert event.quality.mccc_rmse is None
-
-        # Check all seismograms of this event
-        for s in event.seismograms:
-            if s.quality:
-                assert s.quality.mccc_cc_mean is None
-                assert s.quality.mccc_cc_std is None
-                assert s.quality.mccc_error is None
+        # 4. Verify MCCC stats are out of date
+        assert not Validity.read(loaded_session, event.id).mccc(event.id)
 
     def test_run_iccs_preserves_mccc_stats_on_no_change(
         self, loaded_session: Session
@@ -132,10 +128,10 @@ class TestIccsMcccInterplay:
             assert s.quality is not None
             assert s.quality.mccc_cc_mean == 0.99
 
-    def test_run_iccs_t1_change_nulls_all_iccs_cc(
+    def test_run_iccs_t1_change_makes_all_iccs_cc_out_of_date(
         self, loaded_session: Session
     ) -> None:
-        """Verifies that changing t1 on a selected seismogram nulls iccs_cc for all seismograms.
+        """Changing t1 on a selected seismogram leaves every iccs_cc out of date.
 
         t1 affects the stack, so all iccs_cc values become stale when it changes
         on a selected seismogram.
@@ -156,7 +152,7 @@ class TestIccsMcccInterplay:
         initial_ccs = {s.id: s.quality.iccs_cc for s in event.seismograms if s.quality}
         assert len(initial_ccs) > 1
 
-        # 2. Change t1 on a selected seismogram — trigger 7b fires, stack is changed
+        # 2. Change t1 on a selected seismogram, which changes the stack
         seis_to_change = event.seismograms[0]
         assert seis_to_change.parameters.select is True
         assert seis_to_change.parameters.t1 is not None
@@ -165,11 +161,9 @@ class TestIccsMcccInterplay:
         loaded_session.commit()
         loaded_session.refresh(event)
 
-        # 3. Verify iccs_cc is nulled for ALL seismograms (stack changed)
-        for s in event.seismograms:
-            if s.id in initial_ccs:
-                assert s.quality is not None
-                assert s.quality.iccs_cc is None
+        # 3. Verify iccs_cc is out of date for ALL seismograms (stack changed)
+        validity = Validity.read(loaded_session, event.id)
+        assert not any(validity.iccs_cc(seismogram_id) for seismogram_id in initial_ccs)
 
     def test_run_iccs_refreshes_min_cc_from_db(self, loaded_session: Session) -> None:
         """A `min_cc` change does not rebuild the ICCS instance (it is not a
@@ -187,7 +181,9 @@ class TestIccsMcccInterplay:
         loaded_session.commit()
 
         # The instance is unchanged by the bare threshold edit...
-        assert not iccs_bound.is_stale(event)
+        assert not iccs_bound.is_stale(
+            event.id, current_instance_digest(loaded_session, event.id)
+        )
         assert iccs_bound.iccs.min_cc != 0.123
 
         # ...but run_iccs picks it up.
@@ -350,6 +346,56 @@ class TestIccsCacheEviction:
             "re-accessing first should have made second the eviction target"
         )
         assert third.id in iccs_module._iccs_cache
+
+
+class TestCachedInstanceAfterWriteBack:
+    """A cached instance's digest describes the picks it holds."""
+
+    def test_run_keeps_the_cached_instance(self, loaded_session: Session) -> None:
+        clear_iccs_cache()
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        bound = create_iccs_instance(loaded_session, event)
+
+        run_iccs(loaded_session, event, bound.iccs, autoflip=False, autoselect=False)
+
+        assert create_iccs_instance(loaded_session, event) is bound
+
+    def test_rollback_after_run_rebuilds(self, loaded_session: Session) -> None:
+        """Rolling back to the parameters the instance was built from must not
+        return the instance with the aligned picks."""
+        clear_iccs_cache()
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        bound = create_iccs_instance(loaded_session, event)
+        create_snapshot(loaded_session, event)
+        snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
+
+        run_iccs(loaded_session, event, bound.iccs, autoflip=False, autoselect=False)
+        rollback_to_snapshot(loaded_session, snapshot.id)
+
+        rebuilt = create_iccs_instance(loaded_session, event)
+        stored = {s.id: s.parameters.t1 for s in event.seismograms}
+        assert all(
+            seis.refined_pick == stored[seis.extra["id"]]
+            for seis in rebuilt.iccs.seismograms
+        )
+
+    def test_outside_change_is_not_marked_current(
+        self, loaded_session: Session
+    ) -> None:
+        """A parameter changed behind the instance's back keeps it stale after
+        a write-back."""
+        clear_iccs_cache()
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        bound = create_iccs_instance(loaded_session, event)
+        event.parameters.window_pre = event.parameters.window_pre - Timedelta(seconds=1)
+        loaded_session.commit()
+
+        run_iccs(loaded_session, event, bound.iccs, autoflip=False, autoselect=False)
+
+        assert create_iccs_instance(loaded_session, event) is not bound
 
 
 class TestBuildIccsFromSnapshot:

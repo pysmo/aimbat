@@ -31,6 +31,8 @@ from ._format import RichColSpec, TuiColSpec
 if TYPE_CHECKING:
     from sqlmodel import Session
 
+    from aimbat.core._validity import Validity
+
     from ._models import (
         AimbatEvent,
         AimbatSeismogram,
@@ -138,12 +140,12 @@ class SeismogramQualityStats(BaseModel):
         return fmt_timedelta(self.mccc_rmse)
 
     @classmethod
-    def from_event(cls, event: AimbatEvent) -> Self:
+    def from_event(cls, event: AimbatEvent, validity: Validity) -> Self:
         """Build quality stats from live quality records for an event.
 
         Aggregates `iccs_cc` and MCCC metrics across all seismograms that
-        have live quality records. `mccc_rmse` is taken from the event-level
-        quality record.
+        have valid live quality values. `mccc_rmse` is taken from the
+        event-level quality record.
 
         Warning:
             This method may trigger lazy-loading of `event.seismograms` and
@@ -153,28 +155,41 @@ class SeismogramQualityStats(BaseModel):
 
         Args:
             event: The event whose seismograms' live quality to aggregate.
+            validity: Validity covering the event.
 
         Returns:
             Aggregated quality statistics.
         """
         logger.debug(f"Building quality stats for event {event.id}.")
+        mccc_valid = validity.mccc(event.id)
         qualities = [
             seis.quality for seis in event.seismograms if seis.quality is not None
         ]
+        mccc_qualities = qualities if mccc_valid else []
 
         cc_mean, cc_mean_sem = mean_and_sem(
-            [q.iccs_cc for q in qualities if q.iccs_cc is not None]
+            [
+                seis.quality.iccs_cc
+                for seis in event.seismograms
+                if seis.quality is not None
+                and seis.quality.iccs_cc is not None
+                and validity.iccs_cc(seis.id)
+            ]
         )
         mccc_cc_mean, mccc_cc_mean_sem = mean_and_sem(
-            [q.mccc_cc_mean for q in qualities if q.mccc_cc_mean is not None]
+            [q.mccc_cc_mean for q in mccc_qualities if q.mccc_cc_mean is not None]
         )
         mccc_cc_std, mccc_cc_std_sem = mean_and_sem(
-            [q.mccc_cc_std for q in qualities if q.mccc_cc_std is not None]
+            [q.mccc_cc_std for q in mccc_qualities if q.mccc_cc_std is not None]
         )
         mccc_error, mccc_error_sem = mean_and_sem_timedelta(
-            [q.mccc_error for q in qualities if q.mccc_error is not None]
+            [q.mccc_error for q in mccc_qualities if q.mccc_error is not None]
         )
-        mccc_rmse = event.quality.mccc_rmse if event.quality is not None else None
+        mccc_rmse = (
+            event.quality.mccc_rmse
+            if mccc_valid and event.quality is not None
+            else None
+        )
 
         return cls(
             event_id=event.id,
@@ -191,11 +206,11 @@ class SeismogramQualityStats(BaseModel):
         )
 
     @classmethod
-    def from_station(cls, station: AimbatStation) -> Self:
+    def from_station(cls, station: AimbatStation, validity: Validity) -> Self:
         """Build quality stats from live quality records for a station.
 
         Aggregates `iccs_cc` and MCCC metrics across all seismograms at the
-        station that have live quality records.
+        station that have valid live quality values.
 
         Warning:
             This method may trigger lazy-loading of `station.seismograms` and
@@ -205,26 +220,34 @@ class SeismogramQualityStats(BaseModel):
 
         Args:
             station: The station whose seismograms' live quality to aggregate.
+            validity: Validity covering every event the station recorded.
 
         Returns:
             Aggregated quality statistics. `mccc_rmse` is always `None`.
         """
         logger.debug(f"Building quality stats for station {station.id}.")
-        qualities = [
-            seis.quality for seis in station.seismograms if seis.quality is not None
+        iccs_ccs = [
+            seis.quality.iccs_cc
+            for seis in station.seismograms
+            if seis.quality is not None
+            and seis.quality.iccs_cc is not None
+            and validity.iccs_cc(seis.id)
+        ]
+        mccc_qualities = [
+            seis.quality
+            for seis in station.seismograms
+            if seis.quality is not None and validity.mccc(seis.event_id)
         ]
 
-        cc_mean, cc_mean_sem = mean_and_sem(
-            [q.iccs_cc for q in qualities if q.iccs_cc is not None]
-        )
+        cc_mean, cc_mean_sem = mean_and_sem(iccs_ccs)
         mccc_cc_mean, mccc_cc_mean_sem = mean_and_sem(
-            [q.mccc_cc_mean for q in qualities if q.mccc_cc_mean is not None]
+            [q.mccc_cc_mean for q in mccc_qualities if q.mccc_cc_mean is not None]
         )
         mccc_cc_std, mccc_cc_std_sem = mean_and_sem(
-            [q.mccc_cc_std for q in qualities if q.mccc_cc_std is not None]
+            [q.mccc_cc_std for q in mccc_qualities if q.mccc_cc_std is not None]
         )
         mccc_error, mccc_error_sem = mean_and_sem_timedelta(
-            [q.mccc_error for q in qualities if q.mccc_error is not None]
+            [q.mccc_error for q in mccc_qualities if q.mccc_error is not None]
         )
 
         return cls(
@@ -356,15 +379,6 @@ class AimbatEventRead(BaseModel):
         title="Snapshots",
         description="Number of snapshots associated with this event",
     )
-    last_modified: PydanticTimestamp | None = Field(
-        default=None,
-        title="Last modified",
-        description="Timestamp of the last modification of this event's parameters",
-        json_schema_extra={
-            "tui": TuiColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
-            "rich": RichColSpec(formatter=fmt_timestamp),  # type: ignore[dict-item]
-        },
-    )
 
     @classmethod
     def from_event(cls, event: AimbatEvent, session: Session | None = None) -> Self:
@@ -454,9 +468,16 @@ class AimbatStationRead(BaseModel):
     def from_station(
         cls,
         station: AimbatStation,
+        validity: Validity,
         session: Session | None = None,
     ) -> Self:
-        """Create an AimbatStationRead from an AimbatStation ORM instance."""
+        """Create an AimbatStationRead from an AimbatStation ORM instance.
+
+        Args:
+            station: The station.
+            validity: Validity covering every event the station recorded.
+            session: Session for the short ID and the CC statistics.
+        """
         data = station.model_dump()
 
         if session is not None:
@@ -466,7 +487,9 @@ class AimbatStationRead(BaseModel):
             iccs_ccs = tuple(
                 seis.quality.iccs_cc
                 for seis in station.seismograms
-                if seis.quality is not None and seis.quality.iccs_cc is not None
+                if seis.quality is not None
+                and seis.quality.iccs_cc is not None
+                and validity.iccs_cc(seis.id)
             )
             data["cc_mean"], data["cc_sem"] = mean_and_sem(iccs_ccs)
 
@@ -573,9 +596,18 @@ class AimbatSeismogramRead(BaseModel):
 
     @classmethod
     def from_seismogram(
-        cls, seismogram: AimbatSeismogram, session: Session | None = None
+        cls,
+        seismogram: AimbatSeismogram,
+        validity: Validity,
+        session: Session | None = None,
     ) -> Self:
-        """Create an AimbatSeismogramRead from an AimbatSeismogram ORM instance."""
+        """Create an AimbatSeismogramRead from an AimbatSeismogram ORM instance.
+
+        Args:
+            seismogram: The seismogram.
+            validity: Validity covering the seismogram's event.
+            session: Session for the short IDs.
+        """
         name = (
             f"{seismogram.station.network}." if seismogram.station.network else ""
         ) + seismogram.station.name
@@ -594,6 +626,8 @@ class AimbatSeismogramRead(BaseModel):
             else None
         )
         quality = seismogram.quality
+        iccs_quality = quality if validity.iccs_cc(seismogram.id) else None
+        mccc_quality = quality if validity.mccc(seismogram.event_id) else None
         return cls(
             id=seismogram.id,
             short_id=short_id,
@@ -602,10 +636,10 @@ class AimbatSeismogramRead(BaseModel):
             select=seismogram.parameters.select,
             flip=seismogram.parameters.flip,
             delta_t=delta_t,
-            mccc_error=quality.mccc_error if quality else None,
-            iccs_cc=quality.iccs_cc if quality else None,
-            mccc_cc_mean=quality.mccc_cc_mean if quality else None,
-            mccc_cc_std=quality.mccc_cc_std if quality else None,
+            mccc_error=mccc_quality.mccc_error if mccc_quality else None,
+            iccs_cc=iccs_quality.iccs_cc if iccs_quality else None,
+            mccc_cc_mean=mccc_quality.mccc_cc_mean if mccc_quality else None,
+            mccc_cc_std=mccc_quality.mccc_cc_std if mccc_quality else None,
             event_id=seismogram.event_id,
             short_event_id=short_event_id,
         )
