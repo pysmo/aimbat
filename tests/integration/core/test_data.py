@@ -589,7 +589,7 @@ class TestNearDuplicateEventDetection:
         Uses a JSON event rather than a SAC file so both origin times are
         exact to the microsecond: SAC's 32-bit float header leaves the new
         event's time with sub-microsecond noise that a DB round trip (which
-        floors to microsecond precision) would not reproduce on the seeded
+        rounds to microsecond precision) would not reproduce on the seeded
         side, masking the exact boundary this test targets.
 
         Args:

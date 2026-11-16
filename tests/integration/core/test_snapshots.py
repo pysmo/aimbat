@@ -22,6 +22,7 @@ from aimbat.core._snapshot import (
     dump_snapshot_results,
     dump_snapshot_table,
     get_snapshots,
+    resync_quality,
     rollback_to_snapshot,
     sync_from_matching_hash,
 )
@@ -1081,6 +1082,50 @@ class TestSyncFromMatchingHash:
         # Ask on behalf of `other` with `event`'s hash - must not match.
         result = sync_from_matching_hash(loaded_session, other.id, mccc_hash=mccc_hash)
         assert result.mccc_synced is False
+
+
+class TestRestoreWithSubMicrosecondPick:
+    """Restoring quality for a pick finer than the database stores."""
+
+    def test_iccs_cc_restored_after_the_pick_has_been_stored(
+        self, loaded_session: Session
+    ) -> None:
+        """A snapshot taken before the pick was stored still matches afterwards."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+
+        # Flushed but not committed, so `create_snapshot` hashes the pick at
+        # full precision while the database holds the rounded value.
+        picked = event.seismograms[0]
+        picked.parameters.t1 = picked.t0 + Timedelta(nanoseconds=600)
+        loaded_session.flush()
+        for seis in event.seismograms:
+            loaded_session.add(
+                AimbatSeismogramQuality(
+                    id=uuid.uuid4(), seismogram_id=seis.id, iccs_cc=0.9
+                )
+            )
+        loaded_session.flush()
+        create_snapshot(loaded_session, event)
+
+        loaded_session.expire_all()
+        assert picked.parameters.t1 == picked.t0 + Timedelta(microseconds=1), (
+            "Precondition: the database should have rounded the pick up."
+        )
+
+        # Nudge a stack parameter and put it back, so the triggers null the
+        # live values and the snapshot is the only place they survive.
+        original_window_pre = event.parameters.window_pre
+        event.parameters.window_pre = original_window_pre - Timedelta(seconds=1)
+        loaded_session.flush()
+        event.parameters.window_pre = original_window_pre
+        loaded_session.flush()
+
+        result = resync_quality(loaded_session, event)
+
+        assert result.iccs_synced is True
+        restored = loaded_session.exec(select(AimbatSeismogramQuality)).all()
+        assert [q.iccs_cc for q in restored] == [0.9 for _ in event.seismograms]
 
 
 class TestRestoreWithPreloadedQuality:
