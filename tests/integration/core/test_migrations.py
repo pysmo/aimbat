@@ -10,9 +10,7 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, create_engine, event, inspect, text
-from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session, select
+from sqlalchemy import Engine, create_engine, inspect, text
 
 import aimbat._migrations
 from aimbat.core import (
@@ -23,7 +21,6 @@ from aimbat.core import (
 )
 from aimbat.core._migrations import SchemaMismatchError
 from aimbat.core._project import _NULL_ICCS_FOR_EVENT, _NULL_ICCS_IF_SELECTED
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 from aimbat.models._parameters import (
     EVENT_PARAMETER_SPECS,
     SEISMOGRAM_PARAMETER_SPECS,
@@ -342,7 +339,7 @@ def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:
 
 
 class TestUpgradeProject:
-    """Tests for the auto-verify-and-stamp behaviour of `upgrade_project()`."""
+    """`upgrade_project()` against AIMBAT's own migration chain."""
 
     def test_stamps_new_project_immediately(self, engine_from_file: Engine) -> None:
         """`create_project()` should stamp at head, not leave it un-versioned."""
@@ -360,24 +357,18 @@ class TestUpgradeProject:
 
         assert get_current_revision(engine_from_file) == revision_before
 
-    def test_upgrade_stamps_legacy_database_matching_baseline(
-        self, engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    def test_upgrade_rejects_unstamped_database_with_current_schema(
+        self, engine_from_file: Engine
     ) -> None:
-        """A pre-Alembic database (schema created but never stamped) should
-        be recognised and stamped automatically, not rejected.
+        """A database with no version history is refused even when its
+        schema is the current one.
         """
-        from aimbat.core import _migrations
-
-        # Simulate a database created before `create_project()` stamped at
-        # head, by preventing the stamp step it would normally perform.
-        monkeypatch.setattr(_migrations, "stamp_head", lambda engine: None)
         create_project(engine_from_file)
-        assert get_current_revision(engine_from_file) is None
+        with engine_from_file.begin() as connection:
+            connection.exec_driver_sql("DROP TABLE alembic_version")
 
-        monkeypatch.undo()
-        upgrade_project(engine_from_file)
-
-        assert get_current_revision(engine_from_file) is not None
+        with pytest.raises(SchemaMismatchError, match="predates the current"):
+            upgrade_project(engine_from_file)
 
     def test_upgrade_backs_up_database_file_first(
         self, engine_from_file: Engine, db_path: Path
@@ -457,10 +448,7 @@ class TestUpgradeProject:
         self, engine_from_file: Engine
     ) -> None:
         """Every migration's `downgrade()` should unwind cleanly, not just
-        `upgrade()` step forward - a fresh, empty project exercises the whole
-        chain without hitting any of the data-dependent downgrade caveats
-        (e.g. same-microsecond snapshot rows) documented on individual
-        migrations.
+        `upgrade()` step forward.
         """
         from alembic import command
 
@@ -478,8 +466,8 @@ class TestUpgradeProject:
     def test_upgrade_rejects_unstamped_database_with_unknown_schema(
         self, engine_from_file: Engine
     ) -> None:
-        """A database with *some* schema that doesn't match any known
-        revision must be rejected rather than silently stamped.
+        """A database with some schema but no version history must be
+        rejected rather than silently stamped.
         """
         with engine_from_file.begin() as connection:
             connection.execute(text("CREATE TABLE aimbatevent (id TEXT)"))
@@ -488,444 +476,14 @@ class TestUpgradeProject:
         with pytest.raises(SchemaMismatchError):
             upgrade_project(engine_from_file)
 
-    def test_upgrade_fails_clearly_on_pre_existing_duplicate_notes(
-        self, engine_from_file: Engine
-    ) -> None:
-        """The per-parent-unique-index migration must name the offending
-        parent rather than raising a bare "UNIQUE constraint failed" when the
-        project already has two notes for the same event.
-        """
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "ca35a8b78a91")  # one revision before the index
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
-                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            for note_id in ("n1", "n2"):
-                connection.execute(
-                    text(
-                        "INSERT INTO aimbatnote (id, content, event_id) "
-                        f"VALUES ('{note_id}', 'dupe', 'ev1')"
-                    )
-                )
-
-        with pytest.raises(
-            RuntimeError, match="more than one row for the same event_id"
-        ):
-            command.upgrade(config, "c7ba9d07fa0a")
-
-    def test_hash_split_renames_parameters_hash_and_adds_iccs_hash(
-        self, engine_from_file: Engine
-    ) -> None:
-        """The column rename preserves the stored value; `iccs_hash` starts NULL."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "c7ba9d07fa0a")  # one revision before the split
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
-                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatsnapshot (id, time, event_id, parameters_hash) "
-                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1', 'frozen-digest')"
-                )
-            )
-
-        command.upgrade(config, "490f0a998ee3")
-
-        with engine_from_file.begin() as connection:
-            row = connection.execute(
-                text("SELECT mccc_hash, iccs_hash FROM aimbatsnapshot WHERE id = 'sn1'")
-            ).one()
-        assert row.mccc_hash == "frozen-digest"
-        assert row.iccs_hash is None
-
-    def test_snapshot_durability_backfills_seismogram_id(
-        self, engine_from_file: Engine
-    ) -> None:
-        """The new `seismogram_id` column is filled from the live parameter /
-        quality row each snapshot record points at."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "490f0a998ee3")  # one revision before durability
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
-                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatstation "
-                    "(id, name, network, location, channel, latitude, longitude) "
-                    "VALUES ('st1', 'AAK', 'II', '00', 'BHZ', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogram "
-                    "(id, begin_time, delta, t0, event_id, station_id) "
-                    "VALUES ('se1', '2020-01-01 00:00:00', 20000000, "
-                    "'2020-01-01 00:00:10', 'ev1', 'st1')"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogramparameters "
-                    '(id, "select", flip, seismogram_id) '
-                    "VALUES ('sp1', 1, 0, 'se1')"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogramquality (id, iccs_cc, seismogram_id) "
-                    "VALUES ('sq1', 0.5, 'se1')"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatsnapshot (id, time, event_id) "
-                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1')"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogramparameterssnapshot "
-                    '(id, "select", flip, seismogram_parameters_id, snapshot_id) '
-                    "VALUES ('pps1', 1, 0, 'sp1', 'sn1')"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogramqualitysnapshot "
-                    "(id, iccs_cc, seismogram_quality_id, snapshot_id) "
-                    "VALUES ('qqs1', 0.5, 'sq1', 'sn1')"
-                )
-            )
-
-        command.upgrade(config, "d08f5f734f78")
-
-        with engine_from_file.begin() as connection:
-            pps = connection.execute(
-                text(
-                    "SELECT seismogram_id FROM aimbatseismogramparameterssnapshot "
-                    "WHERE id = 'pps1'"
-                )
-            ).one()
-            qqs = connection.execute(
-                text(
-                    "SELECT seismogram_id FROM aimbatseismogramqualitysnapshot "
-                    "WHERE id = 'qqs1'"
-                )
-            ).one()
-        assert pps.seismogram_id == "se1"
-        assert qqs.seismogram_id == "se1"
-
-    def test_sequence_backfill_numbers_snapshots_per_event_by_time(
-        self, engine_from_file: Engine
-    ) -> None:
-        """The `sequence` backfill numbers each event's snapshots 1..N in
-        `time` order."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "d08f5f734f78")  # one revision before sequence
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) VALUES "
-                    "('ev1', '2019-01-01 00:00:00', 0.0, 0.0), "
-                    "('ev2', '2019-02-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatsnapshot (id, time, event_id) VALUES "
-                    "('a', '2020-03-01 00:00:00', 'ev1'), "
-                    "('b', '2020-01-01 00:00:00', 'ev1'), "
-                    "('c', '2020-02-01 00:00:00', 'ev1'), "
-                    "('d', '2020-01-15 00:00:00', 'ev2')"
-                )
-            )
-
-        command.upgrade(config, "d52a54a8a665")
-
-        with engine_from_file.begin() as connection:
-            rows = {
-                row[0]: row[1]
-                for row in connection.execute(
-                    text("SELECT id, sequence FROM aimbatsnapshot")
-                ).all()
-            }
-        assert rows == {"b": 1, "c": 2, "a": 3, "d": 1}
-
-    def test_sequence_migration_keeps_snapshot_detail_rows(
-        self, engine_from_file: Engine
-    ) -> None:
-        """The batch rebuild of `aimbatsnapshot` must not cascade-delete the
-        four detail tables (it does if FK enforcement is left on)."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "d08f5f734f78")
-
-        base_params = (
-            "completed, ramp_width, window_pre, window_post, bandpass_apply, "
-            "bandpass_fmin, bandpass_fmax, min_cc, mccc_damp, mccc_min_cc, corners"
-        )
-        base_values = "0, 0.1, -1000000000, 1000000000, 0, 0.1, 1.0, 0.5, 1.0, 0.5, 2"
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
-                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatsnapshot (id, time, event_id) "
-                    "VALUES ('sn1', '2020-01-01 00:00:00', 'ev1')"
-                )
-            )
-            connection.execute(
-                text(
-                    f"INSERT INTO aimbateventparameterssnapshot (id, snapshot_id, "
-                    f"{base_params}) VALUES ('eps1', 'sn1', {base_values})"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbateventqualitysnapshot (id, snapshot_id, mccc_rmse) "
-                    "VALUES ('eqs1', 'sn1', 1000000)"
-                )
-            )
-
-        command.upgrade(config, "d52a54a8a665")
-
-        with engine_from_file.begin() as connection:
-            assert (
-                connection.execute(
-                    text("SELECT COUNT(*) FROM aimbateventparameterssnapshot")
-                ).scalar()
-                == 1
-            )
-            assert (
-                connection.execute(
-                    text("SELECT COUNT(*) FROM aimbateventqualitysnapshot")
-                ).scalar()
-                == 1
-            )
-
-    def test_one_to_one_link_index_rejects_duplicate_after_migration(
-        self, engine_from_file: Engine
-    ) -> None:
-        """`CREATE UNIQUE INDEX` on the link column makes a second row for one
-        parent fail at write time (checked on `aimbatseismogramquality`; the
-        four columns share one migration)."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "4386151d11e2")
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
-                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatstation (id, name, network, location, channel, "
-                    "latitude, longitude) VALUES "
-                    "('st1', 'AAK', 'II', '00', 'BHZ', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogram "
-                    "(id, begin_time, delta, t0, event_id, station_id) VALUES "
-                    "('se1', '2020-01-01 00:00:00', 50000000, "
-                    "'2020-01-01 00:00:00', 'ev1', 'st1')"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogramquality (id, seismogram_id) "
-                    "VALUES ('sq1', 'se1')"
-                )
-            )
-
-        with pytest.raises(IntegrityError):
-            with engine_from_file.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO aimbatseismogramquality (id, seismogram_id) "
-                        "VALUES ('sq2', 'se1')"
-                    )
-                )
-
-    def test_one_to_one_link_migration_fails_clearly_on_existing_duplicate(
-        self, engine_from_file: Engine
-    ) -> None:
-        """A project that already has two quality rows for one seismogram
-        must get a message naming the seismogram, not a bare
-        "UNIQUE constraint failed"."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "d52a54a8a665")  # one revision before the index
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
-                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatstation (id, name, network, location, channel, "
-                    "latitude, longitude) VALUES "
-                    "('st1', 'AAK', 'II', '00', 'BHZ', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatseismogram "
-                    "(id, begin_time, delta, t0, event_id, station_id) VALUES "
-                    "('se1', '2020-01-01 00:00:00', 50000000, "
-                    "'2020-01-01 00:00:00', 'ev1', 'st1')"
-                )
-            )
-            for row_id in ("sq1", "sq2"):
-                connection.execute(
-                    text(
-                        "INSERT INTO aimbatseismogramquality (id, seismogram_id) "
-                        f"VALUES ('{row_id}', 'se1')"
-                    )
-                )
-
-        with pytest.raises(
-            RuntimeError, match="more than one row for the same seismogram_id"
-        ):
-            command.upgrade(config, "4386151d11e2")
-
-    def test_stack_modified_seeded_from_last_modified(
-        self, engine_from_file: Engine
-    ) -> None:
-        """The new `stack_modified` column is backfilled from `last_modified`."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "4386151d11e2")  # one revision before stack_modified
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent "
-                    "(id, time, latitude, longitude, last_modified) VALUES "
-                    "('ev1', '2020-01-01 00:00:00', 0.0, 0.0, '2021-06-01 12:00:00'), "
-                    "('ev2', '2020-02-01 00:00:00', 0.0, 0.0, NULL)"
-                )
-            )
-
-        command.upgrade(config, "2baa7d628f32")
-
-        with engine_from_file.begin() as connection:
-            rows = {
-                row[0]: (row[1], row[2])
-                for row in connection.execute(
-                    text("SELECT id, last_modified, stack_modified FROM aimbatevent")
-                ).all()
-            }
-        assert rows["ev1"][1] == rows["ev1"][0]
-        assert rows["ev2"][1] is None
-
-    def test_stack_modified_trigger_ignores_mccc_params_after_migration(
-        self, engine_from_file: Engine
-    ) -> None:
-        """Post-migration, an MCCC-only parameter change bumps `last_modified`
-        but not `stack_modified`."""
-        from alembic import command
-
-        from aimbat.core._migrations import _alembic_config
-
-        config = _alembic_config(engine_from_file)
-        command.upgrade(config, "2baa7d628f32")
-
-        with engine_from_file.begin() as connection:
-            connection.execute(
-                text(
-                    "INSERT INTO aimbatevent (id, time, latitude, longitude) "
-                    "VALUES ('ev1', '2020-01-01 00:00:00', 0.0, 0.0)"
-                )
-            )
-            connection.execute(
-                text(
-                    "INSERT INTO aimbateventparameters "
-                    "(id, event_id, completed, ramp_width, window_pre, window_post, "
-                    "bandpass_apply, bandpass_fmin, bandpass_fmax, min_cc, mccc_damp, "
-                    "mccc_min_cc, corners) VALUES "
-                    "('ep1', 'ev1', 0, 0.1, -1000000000, 1000000000, 0, 0.1, 1.0, "
-                    "0.5, 1.0, 0.5, 2)"
-                )
-            )
-            connection.execute(
-                text(
-                    "UPDATE aimbateventparameters SET mccc_damp = 5.0 WHERE id = 'ep1'"
-                )
-            )
-            row = connection.execute(
-                text(
-                    "SELECT last_modified, stack_modified FROM aimbatevent "
-                    "WHERE id = 'ev1'"
-                )
-            ).one()
-
-        assert row.last_modified is not None
-        assert row.stack_modified is None
-
     def test_upgrade_rejects_stamped_database_with_unrecognised_revision(
         self, engine_from_file: Engine
     ) -> None:
         """A database stamped at a revision this installation's migration
-        scripts don't recognise at all (e.g. a different/newer AIMBAT
-        release, or a corrupted `alembic_version` value) must be rejected
-        with a friendly error, not `command.upgrade()`'s raw "Can't locate
-        revision" exception.
+        scripts don't recognise (from before the current project format, a
+        newer AIMBAT release, or a corrupted `alembic_version` value) must be
+        rejected with a friendly error, not `command.upgrade()`'s raw "Can't
+        locate revision" exception.
         """
         create_project(engine_from_file)
         with engine_from_file.begin() as connection:
@@ -935,71 +493,6 @@ class TestUpgradeProject:
 
         with pytest.raises(SchemaMismatchError, match="doesn't recognise"):
             upgrade_project(engine_from_file)
-
-
-class TestOldDatabaseRegressionFixture:
-    """Regression test against a real pre-Alembic database, not a freshly
-    generated one.
-
-    `tests/assets/pre_alembic_project.db` was built by running
-    `create_project()`/`add_data_to_project()`/`create_snapshot()` from the
-    last commit before Alembic was introduced (`7c1acd0`), against a small
-    ICCS dataset - one event, three seismograms, one snapshot. Every other
-    test in this module builds its database fresh at the current schema;
-    this is the one that represents what `aimbat db upgrade` actually has to
-    handle for an existing test user's project, and would have caught a
-    regression that a synthetic empty database wouldn't.
-    """
-
-    @pytest.fixture
-    def old_project_engine(self, tmp_path: Path) -> Generator[Engine]:
-        db_path = tmp_path / "pre_alembic_project.db"
-        shutil.copy(
-            Path(__file__).parents[2] / "assets" / "pre_alembic_project.db",
-            db_path,
-        )
-        engine = create_engine(f"sqlite+pysqlite:///{db_path}")
-
-        @event.listens_for(engine, "connect")
-        def _fk_pragma(dbapi_connection: object, _: object) -> None:
-            cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.close()
-
-        yield engine
-        engine.dispose()
-
-    def test_upgrade_brings_legacy_database_to_head(
-        self, old_project_engine: Engine
-    ) -> None:
-        assert get_current_revision(old_project_engine) is None
-
-        upgrade_project(old_project_engine)
-
-        assert get_current_revision(old_project_engine) == get_head_revision()
-
-    def test_upgrade_preserves_existing_rows(self, old_project_engine: Engine) -> None:
-        with old_project_engine.connect() as connection:
-            snapshot_detail_before = connection.execute(
-                text("SELECT COUNT(*) FROM aimbatseismogramparameterssnapshot")
-            ).scalar()
-        assert snapshot_detail_before and snapshot_detail_before > 0
-
-        upgrade_project(old_project_engine)
-
-        with Session(old_project_engine) as session:
-            events = session.exec(select(AimbatEvent)).all()
-            seismograms = session.exec(select(AimbatSeismogram)).all()
-            snapshots = session.exec(select(AimbatSnapshot)).all()
-        with old_project_engine.connect() as connection:
-            snapshot_detail_after = connection.execute(
-                text("SELECT COUNT(*) FROM aimbatseismogramparameterssnapshot")
-            ).scalar()
-
-        assert len(events) == 1
-        assert len(seismograms) == 3
-        assert len(snapshots) == 1
-        assert snapshot_detail_after == snapshot_detail_before
 
 
 _FIRST_REVISION = """
@@ -1048,9 +541,8 @@ def two_revision_migrations(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Generator[None]:
     """Points `core._migrations` at a disposable, hand-written two-revision
-    migration chain (unrelated to AIMBAT's real models), so multi-revision
-    matching can be tested against a genuine "older, non-head revision"
-    without needing a second real AIMBAT migration to exist yet.
+    migration chain (unrelated to AIMBAT's real models), so an upgrade from
+    an older revision can be tested while AIMBAT itself has only a baseline.
     """
     from aimbat.core import _migrations
 
@@ -1067,119 +559,76 @@ def two_revision_migrations(
     yield
 
 
-def _build_database_matching_first_revision_only(db_path: Path) -> Engine:
-    """Builds a database matching `aaa000000001` exactly, then un-stamps it -
-    simulating a legacy database that predates the second revision, created
-    before Alembic tracked it (rather than one that was actually migrated
-    and then had its `alembic_version` row deleted).
+class TestUpgradeAcrossRevisions:
+    """`upgrade_project` on a database stamped at an older revision."""
 
-    Built by running the *real* first migration rather than hand-written raw
-    SQL: a raw `CREATE TABLE t (id INTEGER PRIMARY KEY, ...)` reflects with
-    `nullable=True` on the primary key column (a SQLite reflection quirk),
-    while `op.create_table(..., sa.Column("id", ..., primary_key=True))`
-    renders it explicitly `NOT NULL` - a spurious mismatch that has nothing
-    to do with the logic under test. Going through the real migration avoids
-    it, and is more representative of how a real legacy database would have
-    been built in the first place.
-    """
-    from alembic import command
-
-    from aimbat.core._migrations import _alembic_config
-
-    engine = create_engine(f"sqlite+pysqlite:///{db_path}")
-    command.upgrade(_alembic_config(engine), "aaa000000001")
-    with engine.begin() as connection:
-        connection.exec_driver_sql("DROP TABLE alembic_version")
-    return engine
-
-
-class TestFindMatchingRevisionAcrossMultipleRevisions:
-    """`_find_matching_revision`/`upgrade_project` must correctly stamp a
-    database at an *older* known revision, not just head or nothing - the
-    scenario a names-only/head-only check gets wrong: a database that
-    skipped an intermediate AIMBAT release, matching an older revision
-    exactly. Only one real AIMBAT migration exists today, so this uses a
-    disposable synthetic two-revision chain (`two_revision_migrations`) to
-    actually exercise the multi-revision path.
-    """
-
-    def test_matches_older_revision_not_just_head(
+    @pytest.fixture
+    def old_engine(
         self, tmp_path: Path, two_revision_migrations: None
-    ) -> None:
-        from aimbat.core._migrations import _find_matching_revision
+    ) -> Generator[Engine]:
+        from alembic import command
 
-        engine = _build_database_matching_first_revision_only(tmp_path / "old.db")
+        from aimbat.core._migrations import _alembic_config
 
-        assert _find_matching_revision(engine) == "aaa000000001"
+        engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'old.db'}")
+        command.upgrade(_alembic_config(engine), "aaa000000001")
+        yield engine
         engine.dispose()
 
-    def test_upgrade_project_stamps_at_matched_older_revision_then_completes(
-        self, tmp_path: Path, two_revision_migrations: None
+    def test_runs_the_pending_migrations(self, old_engine: Engine) -> None:
+        assert get_current_revision(old_engine) == "aaa000000001"
+
+        upgrade_project(old_engine)
+
+        assert get_current_revision(old_engine) == get_head_revision() == "bbb000000002"
+        columns = {col["name"] for col in inspect(old_engine).get_columns("t")}
+        assert columns == {"id", "x", "y"}
+
+    def test_backup_is_labelled_with_the_old_revision(
+        self, old_engine: Engine, tmp_path: Path
     ) -> None:
-        """The full `upgrade_project()` path: stamp at the matched older
-        revision, then apply the remaining migrations on top - not reject
-        outright just because the live schema doesn't match head.
-        """
-        engine = _build_database_matching_first_revision_only(tmp_path / "old.db")
+        upgrade_project(old_engine)
 
-        assert get_current_revision(engine) is None
-        upgrade_project(engine)
+        assert (tmp_path / "old.db.pre-aaa000000001.bak").exists()
 
-        assert get_current_revision(engine) == "bbb000000002"
-        columns = {col["name"] for col in inspect(engine).get_columns("t")}
-        assert columns == {"id", "x", "y"}  # the second migration's column applied
-        engine.dispose()
+    def test_staleness_warning_suggests_upgrade(self, old_engine: Engine) -> None:
+        from aimbat.core import _migrations
+
+        warning = _migrations._build_staleness_warning(get_current_revision(old_engine))
+
+        assert warning is not None
+        assert warning.upgradeable
+        assert "run `aimbat db upgrade`" in str(warning)
 
 
 class TestBuildStalenessWarning:
-    """Tests for `_build_staleness_warning`'s three-way classification:
-    up to date, genuinely behind a *known* revision, or stamped at a
-    revision this installation doesn't recognise at all. The last case
-    can't be constructed with real data while only one migration exists
-    (any non-head, non-`None` value is definitionally unrecognised today),
-    so the "genuinely behind" case is simulated by monkeypatching the set
-    of known ancestors.
+    """`_build_staleness_warning` for databases that cannot be upgraded.
+
+    The upgradeable case is in `TestUpgradeAcrossRevisions`.
     """
 
+    def test_up_to_date_gives_no_warning(self) -> None:
+        from aimbat.core import _migrations
+
+        assert _migrations._build_staleness_warning(get_head_revision()) is None
+
     def test_unrecognised_revision_does_not_suggest_upgrade(self) -> None:
-        """The message must not tell the user to run `aimbat db upgrade`
-        for a revision that command can't actually resolve.
-        """
         from aimbat.core import _migrations
 
         warning = _migrations._build_staleness_warning("not_a_real_revision")
 
         assert warning is not None
+        assert not warning.upgradeable
         assert "doesn't recognise" in str(warning)
+        assert "aimbat project create" in str(warning)
         assert "run `aimbat db upgrade`" not in str(warning)
 
-    def test_known_ancestor_suggests_upgrade(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A revision that genuinely is a known ancestor of head must still
-        get the normal "run `aimbat db upgrade`" advice.
-        """
-        from aimbat.core import _migrations
-
-        monkeypatch.setattr(
-            _migrations,
-            "_known_ancestors_of_head",
-            lambda: {"some_old_revision", _migrations.get_head_revision()},
-        )
-
-        warning = _migrations._build_staleness_warning("some_old_revision")
-
-        assert warning is not None
-        assert "out of date" in str(warning)
-        assert "run `aimbat db upgrade`" in str(warning)
-
-    def test_none_still_means_legacy_predates_versioning(self) -> None:
-        """`None` (never stamped at all) keeps its own distinct message,
-        unaffected by the unrecognised-revision check.
-        """
+    def test_no_version_history_does_not_suggest_upgrade(self) -> None:
         from aimbat.core import _migrations
 
         warning = _migrations._build_staleness_warning(None)
 
         assert warning is not None
-        assert "predates AIMBAT's schema versioning" in str(warning)
+        assert not warning.upgradeable
+        assert "predates the current AIMBAT project format" in str(warning)
+        assert "run `aimbat db upgrade`" not in str(warning)

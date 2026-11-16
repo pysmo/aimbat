@@ -194,10 +194,8 @@ def create_project(engine: Engine) -> None:
             if engine.name == "sqlite":
                 _create_triggers(connection)
 
-            # Mark the new database as being at the latest Alembic revision so
-            # that `aimbat db upgrade` treats it consistently with a database
-            # that was brought up to date via a real migration, rather than as
-            # an unversioned legacy database.
+            # An unstamped database with tables is refused by
+            # `upgrade_project`, so stamp in the same transaction.
             stamp_head(connection)
         except Exception:
             connection.exec_driver_sql("ROLLBACK")

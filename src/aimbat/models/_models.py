@@ -584,6 +584,7 @@ class AimbatSeismogram(SQLModel, table=True):
         default=None,
         foreign_key="aimbatevent.id",
         ondelete="CASCADE",
+        index=True,
         title="Event ID",
         description="Foreign key referencing the parent event.",
     )

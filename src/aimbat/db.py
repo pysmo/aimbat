@@ -11,8 +11,9 @@ AIMBAT_DB_URL=sqlite+pysqlite:///absolute/path/to/project.db  # explicit overrid
 
 For SQLite connections, `PRAGMA foreign_keys=ON` is set automatically on every
 new connection to enforce referential integrity. If the project's schema is
-out of date, a one-time `aimbat.core.SchemaStaleWarning` is raised suggesting
-`aimbat db upgrade`; nothing is changed automatically. The same message is
+out of date, a one-time `aimbat.core.SchemaStaleWarning` is raised. It suggests
+`aimbat db upgrade`, or says that the project has to be recreated when it
+cannot be upgraded; nothing is changed automatically. The same message is
 also logged at `WARNING` level (see `aimbat.logger`), so it remains visible in
 `aimbat.log` even if the on-screen warning is missed.
 
@@ -146,7 +147,7 @@ if engine.name == "sqlite":
                     row = cursor.fetchone()
                     current_revision: str | None = row[0] if row else None
                 except sqlite3.OperationalError:
-                    current_revision = None  # pre-Alembic database
+                    current_revision = None  # no version history
             finally:
                 cursor.close()
 

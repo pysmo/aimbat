@@ -186,7 +186,8 @@ class SchemaStaleModal(ModalScreen[bool]):
     would crash with a raw `sqlalchemy.exc.OperationalError` from whichever
     panel happens to touch the drifted table first, rather than a clean,
     attributable message. Dismisses True if the user chose to upgrade now,
-    False to quit.
+    False to quit. Only quitting is offered when the database cannot be
+    upgraded.
     """
 
     BINDINGS = [
@@ -196,30 +197,35 @@ class SchemaStaleModal(ModalScreen[bool]):
         Binding("escape", "quit_app", show=False),
     ]
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, upgradeable: bool) -> None:
         """Initialise the modal.
 
         Args:
             message: The staleness message from `_build_staleness_warning`.
+            upgradeable: Whether an upgrade can bring the database up to date.
         """
         super().__init__()
         self._message = message
+        self._upgradeable = upgradeable
 
     def compose(self) -> ComposeResult:
         """Build the staleness message and upgrade/quit hint."""
         with Container(id="confirm-dialog"):
             yield Label(self._message, classes=_CSS.TITLE)
+            upgrade = (
+                "[@click='screen.upgrade'][bold]u[/bold] / ⏎ upgrade now[/]   "
+                if self._upgradeable
+                else ""
+            )
             yield Label(
-                (
-                    "[@click='screen.upgrade'][bold]u[/bold] / ⏎ upgrade now[/]   "
-                    + "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]"
-                ),
+                upgrade + "[@click='screen.quit_app'][bold]q[/bold] / ⎋ quit[/]",
                 classes=_CSS.HINT,
             )
 
     def action_upgrade(self) -> None:
         """Dismiss, indicating the database should be upgraded."""
-        self.dismiss(True)
+        if self._upgradeable:
+            self.dismiss(True)
 
     def action_quit_app(self) -> None:
         """Dismiss, indicating the application should quit."""

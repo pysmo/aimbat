@@ -115,8 +115,7 @@ Check what is in effect with `aimbat utils settings`, or
 ## Upgrading a project
 
 AIMBAT changes the database schema between some releases. A project created by an
-older version, including one predating schema versioning, must be brought up to
-date:
+older version must be brought up to date:
 
 === "CLI"
 
@@ -152,6 +151,13 @@ date:
 This is safe to run at any time. It does nothing if the project is already
 current, and otherwise upgrades the schema without touching events, seismograms,
 parameters, or snapshots.
+
+!!! warning "Projects from development versions"
+
+    A project created before the current project format cannot be upgraded.
+    AIMBAT says so and refuses to open it. Move the old project file out of
+    the way (or point `AIMBAT_PROJECT` at a new one), create a new project
+    and add the data again.
 
 Until a project is upgraded, every other `aimbat` command refuses to run against
 it: the CLI and shell report the error, and the TUI shows a blocking dialog.

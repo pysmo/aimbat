@@ -157,7 +157,7 @@ class TestHandleIssues:
 
         @handle_issues
         def stale() -> str:
-            warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def"))
+            warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def", True))
             return "done"
 
         with pytest.raises(SystemExit) as exc_info:
@@ -178,7 +178,7 @@ class TestHandleIssues:
 
         @handle_issues
         def stale() -> None:
-            warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def"))
+            warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def", True))
 
         with pytest.raises(SchemaStaleWarning):
             stale()
@@ -213,7 +213,7 @@ class TestHandleIssues:
 
         @handle_issues
         def stale() -> None:
-            warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def"))
+            warnings.warn(SchemaStaleWarning("schema is stale", "abc", "def", True))
 
         with warnings.catch_warnings():
             warnings.simplefilter("error", SchemaStaleWarning)

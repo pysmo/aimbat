@@ -50,7 +50,6 @@ from aimbat.core import (
     IccsLifecycle,
     create_snapshot,
     get_current_revision,
-    get_head_revision,
 )
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
 from aimbat.models import (
@@ -190,10 +189,12 @@ class TestTUISchemaStalenessModal:
     `aimbat.db`'s module docstring for the full reasoning.
     """
 
-    def test_modal_shown_for_legacy_unstamped_database(
+    def test_modal_shown_for_unstamped_database(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A pre-Alembic database (no `alembic_version` table) blocks on a modal."""
+        """A database with no `alembic_version` table blocks on a modal that
+        offers no upgrade.
+        """
         _patch_engine(monkeypatch, patched_engine)
         with patched_engine.begin() as connection:
             connection.exec_driver_sql("DROP TABLE alembic_version")
@@ -203,7 +204,8 @@ class TestTUISchemaStalenessModal:
                 await pilot.pause()
                 modal = pilot.app.screen
                 assert isinstance(modal, SchemaStaleModal)
-                assert "predates AIMBAT's schema versioning" in modal._message
+                assert "predates the current AIMBAT project format" in modal._message
+                assert not modal._upgradeable
 
         asyncio.run(_run())
 
@@ -223,10 +225,21 @@ class TestTUISchemaStalenessModal:
     def test_upgrade_action_upgrades_and_proceeds(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Pressing 'u' upgrades the database in place and enters the main UI."""
+        """Pressing 'u' runs the upgrade and enters the main UI.
+
+        A stale database that can be upgraded cannot be built while AIMBAT
+        has only a baseline revision, so the staleness check is stubbed.
+        """
+        from aimbat.core._migrations import SchemaStaleWarning
+
         _patch_engine(monkeypatch, patched_engine)
-        with patched_engine.begin() as connection:
-            connection.exec_driver_sql("DROP TABLE alembic_version")
+        monkeypatch.setattr(
+            aimbat._tui.app,
+            "_build_staleness_warning",
+            lambda _: SchemaStaleWarning("stale", "old", "new", upgradeable=True),
+        )
+        upgraded: list[Engine] = []
+        monkeypatch.setattr(aimbat._tui.app, "upgrade_project", upgraded.append)
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
@@ -237,9 +250,27 @@ class TestTUISchemaStalenessModal:
                 await pilot.pause()
 
                 assert not isinstance(pilot.app.screen, SchemaStaleModal)
-                assert get_current_revision(patched_engine) == get_head_revision()
 
         asyncio.run(_run())
+        assert upgraded == [patched_engine]
+
+    def test_upgrade_action_is_inert_when_not_upgradeable(
+        self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Pressing 'u' on a database that cannot be upgraded leaves the modal up."""
+        _patch_engine(monkeypatch, patched_engine)
+        with patched_engine.begin() as connection:
+            connection.exec_driver_sql("DROP TABLE alembic_version")
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                await pilot.pause()
+                await pilot.press("u")
+                await pilot.pause()
+                assert isinstance(pilot.app.screen, SchemaStaleModal)
+
+        asyncio.run(_run())
+        assert get_current_revision(patched_engine) is None
 
     def test_quit_action_declines_upgrade_and_exits(
         self, patched_engine: Engine, monkeypatch: pytest.MonkeyPatch

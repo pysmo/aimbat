@@ -26,7 +26,28 @@ __all__ = [
 
 
 class SchemaMismatchError(RuntimeError):
-    """An un-stamped database's live schema doesn't match a known revision."""
+    """A database is not at a schema version that this installation can upgrade."""
+
+
+_RECREATE = (
+    "It cannot be upgraded. Move the project file out of the way, create a "
+    + "new project with `aimbat project create` and add the data again."
+)
+
+
+def _unrecognised_revision_message(revision: str) -> str:
+    return (
+        f"This project's database is stamped at schema version '{revision}', "
+        + "which this AIMBAT installation doesn't recognise. It was created by "
+        + "an AIMBAT version from before the current project format, or by a "
+        + f"newer one. {_RECREATE}"
+    )
+
+
+_UNSTAMPED_MESSAGE = (
+    "This project's database has no schema version, so it predates the "
+    + f"current AIMBAT project format. {_RECREATE}"
+)
 
 
 class SchemaStaleWarning(UserWarning):
@@ -45,29 +66,34 @@ class SchemaStaleWarning(UserWarning):
 
     Attributes:
         current_revision: The revision the database is stamped at, or `None`
-            for a pre-Alembic database with no version history at all.
+            for a database with no version history at all.
         head_revision: The latest revision available in AIMBAT's migration
             scripts.
+        upgradeable: Whether `aimbat db upgrade` can bring the database up
+            to date.
     """
 
     def __init__(
-        self, message: str, current_revision: str | None, head_revision: str | None
+        self,
+        message: str,
+        current_revision: str | None,
+        head_revision: str | None,
+        upgradeable: bool,
     ) -> None:
         super().__init__(message)
         self.current_revision = current_revision
         self.head_revision = head_revision
+        self.upgradeable = upgradeable
 
 
 def _known_ancestors_of_head() -> set[str]:
     """All revision IDs that are ancestors of head, including head itself.
 
-    Distinguishes a genuinely stale (but recognisable, upgradeable) database
-    from one stamped at a revision this installation doesn't know about at
-    all - e.g. created by a different/newer AIMBAT release, or a corrupted
+    Distinguishes a stale but upgradeable database from one stamped at a
+    revision this installation doesn't know about - created before the
+    current project format, by a newer AIMBAT release, or with a corrupted
     `alembic_version` value. `aimbat db upgrade` can only resolve the
-    former; attempting it against the latter fails with a raw Alembic
-    "Can't locate revision identified by ..." error, and blindly telling a
-    user to "run `aimbat db upgrade`" in that case is actively wrong advice.
+    former.
     """
     from alembic.script import ScriptDirectory
 
@@ -89,8 +115,7 @@ def _build_staleness_warning(current_revision: str | None) -> SchemaStaleWarning
 
     Args:
         current_revision: The revision the database is currently stamped
-            at, or `None` for a pre-Alembic database with no version
-            history at all.
+            at, or `None` for a database with no version history at all.
 
     Returns:
         A `SchemaStaleWarning` describing the mismatch, or `None` if
@@ -100,29 +125,19 @@ def _build_staleness_warning(current_revision: str | None) -> SchemaStaleWarning
     if current_revision == head_revision:
         return None
 
-    if (
-        current_revision is not None
-        and current_revision not in _known_ancestors_of_head()
-    ):
-        message = (
-            "This project's database is stamped at schema version '"
-            + f"{current_revision}', which this AIMBAT installation doesn't "
-            + "recognise - it may have been created by a different or newer AIMBAT "
-            + "release, or the version record may be corrupted. `aimbat db upgrade`"
-            + " cannot resolve this automatically; manual inspection is required."
-        )
-    elif current_revision is None:
-        message = (
-            "This project predates AIMBAT's schema versioning; run `aimbat db "
-            + "upgrade` once to bring it up to date."
-        )
+    upgradeable = False
+    if current_revision is None:
+        message = _UNSTAMPED_MESSAGE
+    elif current_revision not in _known_ancestors_of_head():
+        message = _unrecognised_revision_message(current_revision)
     else:
+        upgradeable = True
         message = (
             f"This project's database schema is out of date (at {current_revision}"
             + f", latest is {head_revision}); run `aimbat db upgrade`."
         )
     logger.warning(message)
-    return SchemaStaleWarning(message, current_revision, head_revision)
+    return SchemaStaleWarning(message, current_revision, head_revision, upgradeable)
 
 
 def _migrations_dir() -> Path:
@@ -159,74 +174,6 @@ def _alembic_config(bind: Engine | Connection) -> "Config":
     return config
 
 
-def _find_matching_revision(engine: Engine) -> str | None:
-    """Find which known revision (if any) `engine`'s live schema matches.
-
-    A single disposable in-memory database is built once, replaying the
-    migration chain from base to head and reflecting a `MetaData` snapshot
-    after each step - rather than a fresh database rebuilt from base for
-    every candidate, which made an earlier version of this function
-    O(revisions²). Candidates are then compared against `engine`'s live
-    schema from head backwards, using Alembic's own comparator (the same one
-    that powers `--autogenerate`) fed each cached snapshot in turn - so the
-    common case (already caught up except for the very latest migration)
-    still returns after a single comparison, and the comparison isn't tied
-    to the current models, so it works for any historical revision, not just
-    head.
-
-    Comparing only against `head`/`SQLModel.metadata` (an earlier version of
-    this function) was wrong: a pre-Alembic database created before this
-    revision-matching logic shipped, then never touched again while a
-    *later* migration was added elsewhere, would have a schema matching the
-    baseline exactly but not head - and would be rejected outright instead
-    of being stamped at the baseline and upgraded the rest of the way.
-
-    Like the rest of this module's schema-matching, this only sees what
-    Alembic's comparator can see - not the hand-written triggers (see
-    `core._project.create_project`), which are invisible to it regardless
-    of what `MetaData` they're compared against. A live schema with correct
-    tables/columns but an outdated trigger would still be reported as
-    matching; that's an existing limitation carried over unchanged, not one
-    this function introduces.
-
-    Args:
-        engine: The SQLAlchemy/SQLModel Engine instance connected to the
-            target database.
-
-    Returns:
-        The revision ID of the closest-to-head matching revision, or `None`
-        if the live schema doesn't match any known revision.
-    """
-    from alembic import command
-    from alembic.autogenerate import compare_metadata
-    from alembic.runtime.migration import MigrationContext
-    from alembic.script import ScriptDirectory
-    from sqlalchemy import MetaData, create_engine
-
-    script_dir = ScriptDirectory(str(_migrations_dir()))
-    revisions_head_to_base = list(script_dir.walk_revisions(base="base", head="head"))
-
-    snapshots: dict[str, MetaData] = {}
-    scratch_engine = create_engine("sqlite://")
-    try:
-        for script in reversed(revisions_head_to_base):
-            command.upgrade(_alembic_config(scratch_engine), script.revision)
-            metadata = MetaData()
-            metadata.reflect(bind=scratch_engine)
-            snapshots[script.revision] = metadata
-    finally:
-        scratch_engine.dispose()
-
-    with engine.connect() as connection:
-        migration_context = MigrationContext.configure(connection)
-
-        for script in revisions_head_to_base:
-            if not compare_metadata(migration_context, snapshots[script.revision]):
-                return script.revision
-
-    return None
-
-
 def get_current_revision(engine: Engine) -> str | None:
     """Return the Alembic revision `engine`'s database is stamped at.
 
@@ -236,7 +183,7 @@ def get_current_revision(engine: Engine) -> str | None:
 
     Returns:
         The current revision ID, or `None` if the database has never been
-        stamped (e.g. a pre-Alembic database, or one that doesn't exist yet).
+        stamped (e.g. one that doesn't exist yet).
     """
     from alembic.runtime.migration import MigrationContext
 
@@ -356,45 +303,23 @@ def _backup_before_upgrade(engine: Engine, from_revision: str | None) -> None:
 def upgrade_project(engine: Engine) -> None:
     """Upgrade the project database to the latest Alembic revision.
 
-    Handles the normal case (an already-stamped database with pending
-    migrations), the legacy case (a pre-Alembic database with no
-    `alembic_version` table), and an unrecognised-revision case
-    automatically:
+    - A database stamped at a known ancestor of `head` (or `head` itself)
+      has any pending migrations run.
+    - A database with no schema at all is built by running the full
+      migration chain.
+    - Anything else is refused: a database stamped at a revision this
+      installation doesn't recognise, or one that has tables but no version
+      history. Neither can be brought to `head` by the migration scripts.
 
-    - If the database is already stamped at a revision this installation's
-      migration scripts recognise as an ancestor of `head` (including
-      `head` itself), this simply runs any pending migrations.
-    - If it's stamped at a revision this installation *doesn't* recognise
-      at all (e.g. created by a different/newer AIMBAT release, or a
-      corrupted `alembic_version` value), this raises `SchemaMismatchError`
-      immediately rather than calling into Alembic, which would otherwise
-      fail with a raw, unhelpful "Can't locate revision identified by ..."
-      error.
-    - If it has never been stamped but already has *some* schema (a
-      pre-Alembic database), that schema is checked against every known
-      revision, not just `head` (see `_find_matching_revision`) - a
-      database that skipped an AIMBAT release and matches an older
-      revision is stamped at *that* revision and then upgraded the rest of
-      the way, not rejected just because it isn't already at head. If it
-      doesn't match any known revision at all, this raises
-      `SchemaMismatchError` rather than guessing. Silently stamping a
-      database whose schema doesn't actually match would tell Alembic's
-      bookkeeping "this is up to date" while it is actually missing
-      columns/tables, turning a loud, safe failure into a silent one.
-    - If it has never been stamped *and* has no schema at all (a genuinely
-      empty/new database), it is built from scratch by running the full
-      migration chain, with no comparison or stamping shortcut needed, since
-      there is nothing pre-existing that could conflict.
+    A file-backed database is copied aside before any migration runs.
 
     Args:
         engine: The SQLAlchemy/SQLModel Engine instance connected to the
             target database.
 
     Raises:
-        SchemaMismatchError: If the database has no Alembic version history
-            and its live schema doesn't match any known AIMBAT schema
-            version, or if it's stamped at a revision this installation's
-            migration scripts don't recognise at all.
+        SchemaMismatchError: If the database is stamped at an unrecognised
+            revision, or has a schema but no version history.
     """
     from alembic import command
     from sqlalchemy import inspect
@@ -402,43 +327,12 @@ def upgrade_project(engine: Engine) -> None:
     config = _alembic_config(engine)
     current_revision = get_current_revision(engine)
 
-    if (
-        current_revision is not None
-        and current_revision not in _known_ancestors_of_head()
-    ):
-        raise SchemaMismatchError(
-            f"The database at {engine.url} is stamped at schema version '"
-            + f"{current_revision}', which this AIMBAT installation doesn't "
-            + "recognise - it may have been created by a different or newer AIMBAT "
-            + "release, or the version record may be corrupted. This can't be "
-            + "resolved automatically. Manual intervention is required."
-        )
-
     if current_revision is None:
         with engine.connect() as connection:
-            has_existing_schema = bool(inspect(connection).get_table_names())
-
-        if has_existing_schema:
-            matched_revision = _find_matching_revision(engine)
-
-            if matched_revision is None:
-                raise SchemaMismatchError(
-                    f"The database at {engine.url} has no Alembic version history, and its"
-                    + " schema doesn't match any known AIMBAT schema version, so it can't "
-                    + "be upgraded automatically. This usually means the project was "
-                    + "created by a very old version of AIMBAT. Manual intervention is "
-                    + "required."
-                )
-
-            logger.info(
-                f"No Alembic history found for {engine.url}, but its schema matches "
-                + f"revision {matched_revision!r} exactly - stamping at that revision "
-                + "before upgrading the rest of the way."
-            )
-            command.stamp(config, matched_revision)
-        # else: genuinely empty database - fall through to `command.upgrade`
-        # below, which builds the schema from scratch via the full
-        # migration chain, exactly like a brand new install.
+            if inspect(connection).get_table_names():
+                raise SchemaMismatchError(_UNSTAMPED_MESSAGE)
+    elif current_revision not in _known_ancestors_of_head():
+        raise SchemaMismatchError(_unrecognised_revision_message(current_revision))
 
     _backup_before_upgrade(engine, current_revision)
     command.upgrade(config, "head")
