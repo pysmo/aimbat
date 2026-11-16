@@ -6,7 +6,7 @@ Uses real file-based databases rather than `:memory:`, since Alembic's
 
 import re
 import shutil
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 
 import pytest
@@ -22,7 +22,14 @@ from aimbat.core import (
     upgrade_project,
 )
 from aimbat.core._migrations import SchemaMismatchError
+from aimbat.core._project import _NULL_ICCS_FOR_EVENT, _NULL_ICCS_IF_SELECTED
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
+from aimbat.models._parameters import (
+    EVENT_PARAMETER_SPECS,
+    SEISMOGRAM_PARAMETER_SPECS,
+    ParameterSpec,
+    Reach,
+)
 
 
 def _triggers(engine: Engine) -> dict[str, str]:
@@ -216,78 +223,89 @@ def test_triggers_helper_detects_body_drift(tmp_path: Path) -> None:
     engine_b.dispose()
 
 
-class TestTriggerWhenClauseInvariants:
-    """Several trigger `WHEN` column lists are supposed to track each other,
-    or a Python model's field set, exactly - per the comments in
-    `core/_project.py::create_project` (core-project-data M3). Nothing
-    previously enforced that beyond the comment itself; these tests parse
-    the actual `WHEN` clauses out of the created triggers and assert them
-    against the relevant source of truth, so an edit to one side of a pair
-    that forgets the other fails a test instead of drifting silently.
+class TestTriggerWhenClausesFollowTheParameterSpecs:
+    """The trigger `WHEN` column lists are hand-written SQL in
+    `core/_project.py`. Each must list exactly the parameters whose specs (see
+    `models/_parameters.py`) say the trigger's effect applies, so a parameter
+    that is added or reclassified without editing the triggers fails here.
     """
 
     @pytest.fixture
-    def engine(self, tmp_path: Path) -> Generator[Engine]:
+    def triggers(self, tmp_path: Path) -> Generator[dict[str, str]]:
         engine = create_engine(f"sqlite+pysqlite:///{tmp_path / 'triggers.db'}")
         create_project(engine)
-        yield engine
+        yield _triggers(engine)
         engine.dispose()
 
-    def test_trigger1_when_matches_event_parameters_minus_completed(
-        self, engine: Engine
+    @pytest.mark.parametrize(
+        ("trigger", "expected"),
+        [
+            pytest.param(
+                "event_modified_on_params_update",
+                lambda spec: not spec.bookkeeping,
+                id="1-last-modified",
+            ),
+            pytest.param(
+                "event_stack_modified_on_params_update",
+                lambda spec: spec.stack is Reach.EVENT,
+                id="1b-stack-modified",
+            ),
+            pytest.param(
+                "null_all_quality_on_window_bandpass_change",
+                lambda spec: spec.stack is Reach.EVENT,
+                id="3-null-all-quality",
+            ),
+            pytest.param(
+                "null_mccc_quality_on_mccc_params_change",
+                lambda spec: spec.mccc is Reach.EVENT and spec.stack is Reach.NONE,
+                id="4-null-mccc-quality",
+            ),
+        ],
+    )
+    def test_event_parameter_trigger(
+        self,
+        triggers: dict[str, str],
+        trigger: str,
+        expected: Callable[[ParameterSpec], bool],
     ) -> None:
-        from aimbat.models._parameters import AimbatEventParametersBase
+        assert _when_columns(triggers[trigger]) == {
+            name for name, spec in EVENT_PARAMETER_SPECS.items() if expected(spec)
+        }
 
-        triggers = _triggers(engine)
-        cols = _when_columns(triggers["event_modified_on_params_update"])
-        assert cols == set(AimbatEventParametersBase.model_fields) - {"completed"}
-
-    def test_trigger2_when_matches_seismogram_parameters(self, engine: Engine) -> None:
-        from aimbat.models._parameters import AimbatSeismogramParametersBase
-
-        triggers = _triggers(engine)
-        cols = _when_columns(triggers["event_modified_on_seis_params_update"])
-        assert cols == set(AimbatSeismogramParametersBase.model_fields)
-
-    def test_trigger1b_when_matches_trigger3_when(self, engine: Engine) -> None:
-        """Trigger 1b (`stack_modified`) must track trigger 3's stack-affecting
-        column set exactly - both must fire only on the parameters that
-        actually change the aligned signal.
-        """
-        triggers = _triggers(engine)
-        cols_1b = _when_columns(triggers["event_stack_modified_on_params_update"])
-        cols_3 = _when_columns(triggers["null_all_quality_on_window_bandpass_change"])
-        assert cols_1b == cols_3
-
-    def test_trigger2b_when_matches_trigger2_when(self, engine: Engine) -> None:
-        triggers = _triggers(engine)
-        cols_2 = _when_columns(triggers["event_modified_on_seis_params_update"])
-        cols_2b = _when_columns(triggers["event_stack_modified_on_seis_params_update"])
-        assert cols_2 == cols_2b
-
-    def test_trigger1_ignored_fields_are_excluded_from_both_hashes(
-        self, engine: Engine
+    @pytest.mark.parametrize(
+        "trigger",
+        [
+            pytest.param("event_modified_on_seis_params_update", id="2-last-modified"),
+            pytest.param(
+                "event_stack_modified_on_seis_params_update", id="2b-stack-modified"
+            ),
+        ],
+    )
+    def test_seismogram_parameter_trigger(
+        self, triggers: dict[str, str], trigger: str
     ) -> None:
-        """An event parameter trigger 1 ignores must not feed either snapshot hash.
-
-        The containment runs one way only. A field the trigger leaves out of
-        its `WHEN` clause is one a change to which is never recorded as a
-        modification at all, so a hash that moved on it would block snapshot
-        reuse for a change nothing else acknowledges. The reverse is not an
-        invariant: the hashes also exclude `min_cc` and the MCCC-only
-        parameters, which trigger 1 does fire on.
-        """
-        from aimbat.core._snapshot import (
-            _ICCS_HASH_EVENT_EXCLUDE,
-            _MCCC_HASH_EVENT_EXCLUDE,
+        """Every seismogram parameter reaches the stack, at least conditionally."""
+        assert all(
+            spec.stack is not Reach.NONE for spec in SEISMOGRAM_PARAMETER_SPECS.values()
         )
-        from aimbat.models._parameters import AimbatEventParametersBase
+        assert _when_columns(triggers[trigger]) == set(SEISMOGRAM_PARAMETER_SPECS)
 
-        cols = _when_columns(_triggers(engine)["event_modified_on_params_update"])
-        ignored = set(AimbatEventParametersBase.model_fields) - cols
+    @pytest.mark.parametrize("name", SEISMOGRAM_PARAMETER_SPECS)
+    def test_seismogram_quality_trigger(
+        self, triggers: dict[str, str], name: str
+    ) -> None:
+        """Triggers 5a/5b/5c: one per seismogram parameter. A conditional
+        parameter nulls `iccs_cc` for the event only if the seismogram is
+        selected; the others always do.
+        """
+        trigger = triggers[f"null_quality_on_seis_{name}_change"]
+        null_iccs = {
+            Reach.CONDITIONAL: _NULL_ICCS_IF_SELECTED,
+            Reach.EVENT: _NULL_ICCS_FOR_EVENT,
+        }[SEISMOGRAM_PARAMETER_SPECS[name].stack]
 
-        assert ignored, "Trigger 1 is supposed to ignore at least `completed`"
-        assert ignored <= _ICCS_HASH_EVENT_EXCLUDE & _MCCC_HASH_EVENT_EXCLUDE
+        assert _when_columns(trigger) == {name}
+        assert " ".join(null_iccs.split()) in trigger
 
 
 def test_constraint_helpers_detect_drift(tmp_path: Path) -> None:

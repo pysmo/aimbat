@@ -43,8 +43,11 @@ from aimbat.models import (
     undefer_counts,
 )
 from aimbat.models._parameters import (
+    EVENT_PARAMETER_SPECS,
+    SEISMOGRAM_PARAMETER_SPECS,
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
+    Reach,
 )
 from aimbat.models._quality import (
     AimbatEventQualityBase,
@@ -86,16 +89,28 @@ class SyncResult(NamedTuple):
     iccs_synced: bool
 
 
-# `completed` is bookkeeping. `min_cc` is the auto-deselection threshold: it
-# only ever changes `iccs_cc` indirectly, by changing which seismograms are
-# `select`ed on the next run - and `select` is already in the ICCS hash - so a
-# bare threshold change should not block reuse of still-valid `iccs_cc` values.
-_ICCS_HASH_EVENT_EXCLUDE = {"completed", "min_cc", "mccc_damp", "mccc_min_cc"}
-_MCCC_HASH_EVENT_EXCLUDE = {"completed", "min_cc"}
-
-# MCCC membership is recorded by the seismogram quality snapshot rows, so
-# changing `select` must not invalidate a prior MCCC result.
-_MCCC_HASH_SEISMOGRAM_EXCLUDE = {"select"}
+# The hashes cover the parameters whose spec makes them an input to the
+# result. `min_cc` is in neither: it only ever changes `iccs_cc` indirectly,
+# by changing which seismograms are `select`ed on the next run - and `select`
+# is already in the ICCS hash - so a bare threshold change should not block
+# reuse of still-valid `iccs_cc` values.
+_ICCS_HASH_EVENT_EXCLUDE = frozenset(
+    name for name, spec in EVENT_PARAMETER_SPECS.items() if spec.stack is Reach.NONE
+)
+_MCCC_HASH_EVENT_EXCLUDE = frozenset(
+    name for name, spec in EVENT_PARAMETER_SPECS.items() if spec.mccc is Reach.NONE
+)
+# Empty today: every seismogram parameter is an input to the stack.
+_ICCS_HASH_SEISMOGRAM_EXCLUDE = frozenset(
+    name
+    for name, spec in SEISMOGRAM_PARAMETER_SPECS.items()
+    if spec.stack is Reach.NONE
+)
+# `select` is excluded here: MCCC membership is recorded by the seismogram
+# quality snapshot rows, so changing it must not invalidate a prior MCCC result.
+_MCCC_HASH_SEISMOGRAM_EXCLUDE = frozenset(
+    name for name, spec in SEISMOGRAM_PARAMETER_SPECS.items() if spec.mccc is Reach.NONE
+)
 
 # Every seismogram-level quality field except `iccs_cc` is an MCCC diagnostic.
 _MCCC_SEISMOGRAM_QUALITY_FIELDS = tuple(
@@ -138,37 +153,84 @@ def _stored_seismogram_parameters(
     return parameters
 
 
-def _compute_parameters_hash(
-    event: AimbatEvent,
-    *,
-    event_exclude: set[str],
-    seismogram_exclude: set[str],
-) -> str:
-    """Hash the event ID plus the selected event and per-seismogram parameters.
+class _DumpedParameters(NamedTuple):
+    """An event's parameters, serialised once for hashing."""
 
-    Seismograms are sorted by ID so the digest is independent of load order.
-    Including the event ID makes every digest event-scoped.
-    """
-    event_data = AimbatEventParametersBase.model_validate(event.parameters).model_dump(
-        mode="json", exclude=event_exclude
-    )
-    event_data["event_id"] = str(event.id)
-    seis_data = sorted(
-        (
-            {
-                "seismogram_id": str(seis.id),
-                **_stored_seismogram_parameters(seis).model_dump(
-                    mode="json", exclude=seismogram_exclude
-                ),
-            }
+    event_id: str
+    event: dict[str, Any]
+    seismograms: list[tuple[str, dict[str, Any]]]
+    """Seismogram ID and parameters, sorted by ID so that a digest is
+    independent of load order."""
+
+
+def _dump_parameters(event: AimbatEvent) -> _DumpedParameters:
+    """Serialise the event and per-seismogram parameters for hashing."""
+    return _DumpedParameters(
+        event_id=str(event.id),
+        event=AimbatEventParametersBase.model_validate(event.parameters).model_dump(
+            mode="json"
+        ),
+        seismograms=sorted(
+            (
+                str(seis.id),
+                _stored_seismogram_parameters(seis).model_dump(mode="json"),
+            )
             for seis in event.seismograms
         ),
-        key=lambda x: x["seismogram_id"],
     )
+
+
+def _digest(
+    dumped: _DumpedParameters,
+    *,
+    event_exclude: frozenset[str],
+    seismogram_exclude: frozenset[str],
+) -> str:
+    """Hash the event ID plus the parameters that are not excluded.
+
+    Including the event ID makes every digest event-scoped.
+    """
+    event_data = {k: v for k, v in dumped.event.items() if k not in event_exclude}
+    event_data["event_id"] = dumped.event_id
+    seis_data = [
+        {
+            "seismogram_id": seismogram_id,
+            **{k: v for k, v in parameters.items() if k not in seismogram_exclude},
+        }
+        for seismogram_id, parameters in dumped.seismograms
+    ]
     payload = json.dumps(
         {"event": event_data, "seismograms": seis_data}, sort_keys=True
     )
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _iccs_digest(dumped: _DumpedParameters) -> str:
+    return _digest(
+        dumped,
+        event_exclude=_ICCS_HASH_EVENT_EXCLUDE,
+        seismogram_exclude=_ICCS_HASH_SEISMOGRAM_EXCLUDE,
+    )
+
+
+def _mccc_digest(dumped: _DumpedParameters) -> str:
+    return _digest(
+        dumped,
+        event_exclude=_MCCC_HASH_EVENT_EXCLUDE,
+        seismogram_exclude=_MCCC_HASH_SEISMOGRAM_EXCLUDE,
+    )
+
+
+class _ParameterHashes(NamedTuple):
+    iccs: str
+    mccc: str
+
+
+def _compute_parameter_hashes(event: AimbatEvent) -> _ParameterHashes:
+    """Compute the ICCS and MCCC hashes from one pass over the parameters."""
+    logger.debug(f"Computing ICCS and MCCC parameters hashes for event {event.id}.")
+    dumped = _dump_parameters(event)
+    return _ParameterHashes(iccs=_iccs_digest(dumped), mccc=_mccc_digest(dumped))
 
 
 def compute_iccs_hash(event: AimbatEvent) -> str:
@@ -186,11 +248,7 @@ def compute_iccs_hash(event: AimbatEvent) -> str:
         Hex-encoded SHA-256 digest.
     """
     logger.debug(f"Computing ICCS parameters hash for event {event.id}.")
-    return _compute_parameters_hash(
-        event,
-        event_exclude=_ICCS_HASH_EVENT_EXCLUDE,
-        seismogram_exclude=set(),
-    )
+    return _iccs_digest(_dump_parameters(event))
 
 
 def compute_mccc_hash(event: AimbatEvent) -> str:
@@ -208,11 +266,7 @@ def compute_mccc_hash(event: AimbatEvent) -> str:
         Hex-encoded SHA-256 digest.
     """
     logger.debug(f"Computing MCCC parameters hash for event {event.id}.")
-    return _compute_parameters_hash(
-        event,
-        event_exclude=_MCCC_HASH_EVENT_EXCLUDE,
-        seismogram_exclude=_MCCC_HASH_SEISMOGRAM_EXCLUDE,
-    )
+    return _mccc_digest(_dump_parameters(event))
 
 
 def create_snapshot(
@@ -323,6 +377,7 @@ def create_snapshot(
         )
     ).one()
 
+    hashes = _compute_parameter_hashes(event)
     aimbat_snapshot = AimbatSnapshot(
         event=event,
         sequence=(highest_sequence or 0) + 1,
@@ -332,8 +387,8 @@ def create_snapshot(
         seismogram_quality_snapshots=seis_quality_snaps,
         comment=comment,
         automatic=automatic,
-        mccc_hash=compute_mccc_hash(event),
-        iccs_hash=compute_iccs_hash(event),
+        mccc_hash=hashes.mccc,
+        iccs_hash=hashes.iccs,
     )
     session.add(aimbat_snapshot)
     session.commit()
@@ -692,11 +747,12 @@ def resync_quality(
     """
     from ._iccs import clear_mccc_quality
 
+    hashes = _compute_parameter_hashes(event)
     result = sync_from_matching_hash(
         session,
         event.id,
-        iccs_hash=compute_iccs_hash(event),
-        mccc_hash=compute_mccc_hash(event),
+        iccs_hash=hashes.iccs,
+        mccc_hash=hashes.mccc,
         prefer_snapshot_id=prefer_snapshot_id,
     )
     if not result.mccc_synced:
