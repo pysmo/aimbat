@@ -125,6 +125,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(cli)** Add tab completion for the aimbat command
 - **(shell)** Complete choices and record IDs with Tab
 - **(cli)** Add `utils lookup` to identify records by ID
+- **(core)** [**breaking**] Check quality values by parameter fingerprint
 
 ### 🧪 Testing
 
