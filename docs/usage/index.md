@@ -215,7 +215,8 @@ note, for recording observations or decisions.
     configuration, such as a time window extending past a seismogram's data, is
     rejected, and the live data are left unchanged.
 - **Schema currency.** A project whose schema predates the installed AIMBAT
-    version is refused until it is upgraded, for the CLI, shell, and TUI. Code
+    version is refused until it is upgraded, for the CLI, shell, and TUI. A
+    project from before the current project format cannot be upgraded at all. Code
     that imports `aimbat.db.engine` directly gets a warning instead of a hard
     failure, unless `AIMBAT_STRICT_SCHEMA_CHECK=true`. See
     [Project](project.md).

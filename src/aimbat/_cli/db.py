@@ -4,7 +4,7 @@ Schema changes are applied via [Alembic](https://alembic.sqlalchemy.org).
 Most users never need this command group: `aimbat project create` already
 creates a database with the current schema. It exists for bringing an
 *existing* project database up to date after an AIMBAT upgrade that changed
-the schema, including databases created before this command group existed.
+the schema.
 """
 
 from cyclopts import App
@@ -19,9 +19,8 @@ app = App(name="db", help=__doc__, help_format="markdown")
 def cli_db_upgrade(*, _: DebugParameter = DebugParameter()) -> None:
     """Upgrade the project database to the latest schema version.
 
-    Safe to run on a database that is already up to date (does nothing) or
-    on one that predates Alembic (verifies its schema matches before
-    stamping it, then upgrades).
+    Does nothing on a database that is already up to date. A database from
+    before the current project format cannot be upgraded and is refused.
     """
     import warnings
 
@@ -59,7 +58,7 @@ def cli_db_current(*, _: DebugParameter = DebugParameter()) -> None:
 
     revision = get_current_revision(engine)
     if revision is None:
-        print("No Alembic version history (pre-dates schema versioning).")
+        print("No schema version.")
     else:
         print(revision)
 

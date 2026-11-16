@@ -46,7 +46,7 @@ class TestDbCommands:
         aimbat_subprocess(["project", "create"])
         result = aimbat_subprocess(["db", "current"])
         assert result.returncode == 0, result.stderr
-        assert "No Alembic version history" not in result.stdout
+        assert "No schema version" not in result.stdout
 
     def test_upgrade_on_fresh_project_is_a_no_op(
         self,
@@ -115,13 +115,13 @@ class TestSchemaStalenessWarning:
         result = aimbat_subprocess(["db", "current"])
         assert "run `aimbat db upgrade`" not in result.stderr
 
-    def test_warns_on_legacy_unstamped_database(
+    def test_fails_on_unstamped_database(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
         db_path: Path,
     ) -> None:
-        """A pre-Alembic database (no `alembic_version` table at all) should
-        trigger the "predates schema versioning" warning on any command.
+        """A database with no `alembic_version` table fails any command with
+        advice to recreate the project, not to upgrade it.
         """
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:
@@ -130,24 +130,24 @@ class TestSchemaStalenessWarning:
         result = aimbat_subprocess(["db", "current"])
 
         assert result.returncode != 0
-        assert "predates AIMBAT's schema versioning" in result.stderr
-        assert "run `aimbat db upgrade`" in result.stderr
+        assert "predates the current AIMBAT project format" in result.stderr
+        assert "aimbat project create" in result.stderr
+        assert "run `aimbat db upgrade`" not in result.stderr
 
-    def test_db_upgrade_does_not_warn_about_itself(
+    def test_upgrade_fails_cleanly_on_unstamped_database(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
         db_path: Path,
     ) -> None:
-        """`aimbat db upgrade` on a stale database must not print "run
-        `aimbat db upgrade`" - that's the exact command already running.
-        """
+        """`aimbat db upgrade` refuses a database with no version history."""
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:
             connection.execute("DROP TABLE alembic_version")
 
         result = aimbat_subprocess(["db", "upgrade"])
 
-        assert result.returncode == 0, result.stderr
+        assert result.returncode != 0
+        assert "predates the current AIMBAT project format" in result.stderr
         assert "run `aimbat db upgrade`" not in result.stderr
 
     def test_warns_on_unrecognised_revision(
@@ -156,14 +156,11 @@ class TestSchemaStalenessWarning:
         db_path: Path,
     ) -> None:
         """A database stamped at a revision this installation doesn't
-        recognise at all (e.g. a different/newer AIMBAT release, or a
-        corrupted `alembic_version` value) must get a distinct warning that
-        does *not* tell the user to run `aimbat db upgrade` - that command
-        can't resolve an unknown revision and would just fail. This is
-        different from "genuinely behind a known revision", which isn't
-        constructible with only one migration in existence; see
-        `tests/integration/core/test_migrations.py` for that case, tested
-        directly against `_build_staleness_warning`.
+        recognise must get a distinct warning that does not tell the user to
+        run `aimbat db upgrade`, which can't resolve an unknown revision.
+        "Behind a known revision" isn't constructible with only a baseline;
+        see `TestUpgradeAcrossRevisions` in
+        `tests/integration/core/test_migrations.py`.
         """
         aimbat_subprocess(["project", "create"])
         with sqlite3.connect(db_path) as connection:

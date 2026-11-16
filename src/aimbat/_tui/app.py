@@ -167,7 +167,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             warning = _build_staleness_warning(get_current_revision(engine))
             if warning is not None:
                 self.push_screen(
-                    SchemaStaleModal(str(warning)), self._on_schema_stale_modal
+                    SchemaStaleModal(str(warning), warning.upgradeable),
+                    self._on_schema_stale_modal,
                 )
             else:
                 self._create_iccs()
