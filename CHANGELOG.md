@@ -104,6 +104,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core,plot)** Write quality on the caller's session, free the plot window
 - **(core,models)** Run the ICCS parameter check in core, not in the model
 - **(iccs)** Adopt pysmo initial_pick/refined_pick names
+- **(models)** Tag each parameter with what it affects
 
 ### 🚀 New Features
 
