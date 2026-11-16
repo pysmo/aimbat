@@ -35,6 +35,8 @@ from aimbat.models import (
     AimbatSnapshot,
 )
 from aimbat.models._parameters import (
+    EVENT_PARAMETER_SPECS,
+    SEISMOGRAM_PARAMETER_SPECS,
     AimbatEventParametersBase,
     AimbatSeismogramParametersBase,
 )
@@ -319,6 +321,20 @@ def _evict_on_rollback(session: Session, bound: BoundICCS) -> None:
     pending.append(bound)
 
 
+# AIMBAT parameter field name -> ICCS attribute name, for the parameters ICCS
+# knows about.
+_ICCS_EVENT_ATTRIBUTES = {
+    name: spec.iccs_attribute
+    for name, spec in EVENT_PARAMETER_SPECS.items()
+    if spec.iccs_attribute is not None
+}
+_ICCS_SEISMOGRAM_ATTRIBUTES = {
+    name: spec.iccs_attribute
+    for name, spec in SEISMOGRAM_PARAMETER_SPECS.items()
+    if spec.iccs_attribute is not None
+}
+
+
 def _build_iccs(
     event: AimbatEvent, parameters: AimbatEventParametersBase | None = None
 ) -> ICCS:
@@ -340,27 +356,25 @@ def _build_iccs(
             delta=seis.delta,
             data=seis.data,
             initial_pick=seis.t0,
-            refined_pick=seis.parameters.t1,
-            flip=seis.parameters.flip,
-            select=seis.parameters.select,
             extra={"id": seis.id},
+            **{
+                attribute: getattr(seis.parameters, name)
+                for name, attribute in _ICCS_SEISMOGRAM_ATTRIBUTES.items()
+            },
         )
         for seis in event.seismograms
     ]
     return ICCS(
         seismograms=seismograms,
-        window_pre=p.window_pre,
-        window_post=p.window_post,
-        ramp_width=p.ramp_width,
-        bandpass_apply=p.bandpass_apply,
-        bandpass_fmin=p.bandpass_fmin,
-        bandpass_fmax=p.bandpass_fmax,
-        corners=p.corners,
-        # The autoselect threshold. Baked in here and refreshed per run in
-        # `run_iccs` - a bare `min_cc` change does not rebuild the instance
-        # (it does not touch the stack; see trigger 1b in core/_project.py).
-        min_cc=p.min_cc,
         context_width=settings.context_width,
+        # Includes `min_cc`, the autoselect threshold. Baked in here and
+        # refreshed per run in `run_iccs` - a bare `min_cc` change does not
+        # rebuild the instance (it does not touch the stack; see trigger 1b
+        # in core/_project.py).
+        **{
+            attribute: getattr(p, name)
+            for name, attribute in _ICCS_EVENT_ATTRIBUTES.items()
+        },
     )
 
 
@@ -773,19 +787,9 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
     for seis in iccs.seismograms:
         db_seis = session.get(AimbatSeismogram, seis.extra["id"])
         if db_seis is not None:
-            db_seis.parameters.t1 = seis.refined_pick
-            db_seis.parameters.flip = seis.flip
-            db_seis.parameters.select = seis.select
+            for name, attribute in _ICCS_SEISMOGRAM_ATTRIBUTES.items():
+                setattr(db_seis.parameters, name, getattr(seis, attribute))
     session.flush()
-
-
-# AimbatEventParametersBase fields with no corresponding ICCS attribute -
-# excluded from the sync loop below by design, not by a silent hasattr() skip.
-_NON_ICCS_EVENT_PARAMETER_FIELDS = frozenset({"completed", "mccc_damp", "mccc_min_cc"})
-
-# AIMBAT seismogram parameter fields whose ICCS seismogram attribute is named
-# differently.
-_ICCS_SEISMOGRAM_ATTRIBUTE_NAMES = {"t1": "refined_pick"}
 
 
 def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
@@ -804,16 +808,8 @@ def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> No
     logger.debug(f"Syncing ICCS parameters from database for event {event.id}.")
 
     event_params = AimbatEventParametersBase.model_validate(event.parameters)
-    for field_name in AimbatEventParametersBase.model_fields:
-        if field_name in _NON_ICCS_EVENT_PARAMETER_FIELDS:
-            continue
-        if not hasattr(iccs, field_name):
-            raise AttributeError(
-                f"ICCS has no attribute {field_name!r}; if this field is not "
-                + "meant to be synced to ICCS, add it to "
-                + "_NON_ICCS_EVENT_PARAMETER_FIELDS"
-            )
-        setattr(iccs, field_name, getattr(event_params, field_name))
+    for name, attribute in _ICCS_EVENT_ATTRIBUTES.items():
+        setattr(iccs, attribute, getattr(event_params, name))
 
     for iccs_seis in iccs.seismograms:
         db_seis = session.get(AimbatSeismogram, iccs_seis.extra["id"])
@@ -821,12 +817,8 @@ def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> No
             seis_params = AimbatSeismogramParametersBase.model_validate(
                 db_seis.parameters
             )
-            for field_name in AimbatSeismogramParametersBase.model_fields:
-                setattr(
-                    iccs_seis,
-                    _ICCS_SEISMOGRAM_ATTRIBUTE_NAMES.get(field_name, field_name),
-                    getattr(seis_params, field_name),
-                )
+            for name, attribute in _ICCS_SEISMOGRAM_ATTRIBUTES.items():
+                setattr(iccs_seis, attribute, getattr(seis_params, name))
 
     iccs.clear_cache()
 

@@ -70,6 +70,8 @@ type EventParameterFloat = Literal[
     EventParameter.BANDPASS_FMIN,
     EventParameter.BANDPASS_FMAX,
     EventParameter.RAMP_WIDTH,
+    EventParameter.MCCC_DAMP,
+    EventParameter.MCCC_MIN_CC,
 ]
 type EventParameterInt = Literal[EventParameter.CORNERS]
 type EventParameterTimedelta = Literal[
