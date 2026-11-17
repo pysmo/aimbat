@@ -138,6 +138,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(tui)** Drop timing-sensitive assertion from debounce test
 - Speed up loaded-project fixtures and pin validity behaviour
 - **(models)** Drop tests that only assert ORM wiring
+- Close raw SQLite connections in test_cli_db
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
