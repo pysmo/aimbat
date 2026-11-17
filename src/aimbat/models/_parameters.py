@@ -139,7 +139,7 @@ class AimbatEventParametersBase(SQLModel):
 
     bandpass_fmin: Annotated[float, _shapes_signal("bandpass_fmin")] = Field(
         default_factory=lambda: settings.bandpass_fmin,
-        ge=0,
+        gt=0,
         title="Bandpass f min",
         description=(
             "Minimum frequency for bandpass filter in Hz (ignored if "
