@@ -126,6 +126,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(shell)** Complete choices and record IDs with Tab
 - **(cli)** Add `utils lookup` to identify records by ID
 - **(core)** [**breaking**] Check quality values by parameter fingerprint
+- **(actions)** [**breaking**] Add a layer for whole user actions
 
 ### 🧪 Testing
 
