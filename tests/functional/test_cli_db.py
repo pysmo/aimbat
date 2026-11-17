@@ -8,6 +8,7 @@ import os
 import sqlite3
 import subprocess
 from collections.abc import Callable, Sequence
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -81,7 +82,7 @@ class TestDbCommands:
         but broken in some other way.
         """
         aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.execute("DROP TABLE aimbatstation")
 
         result = aimbat_subprocess(["station", "list", "all"])
@@ -124,7 +125,7 @@ class TestSchemaStalenessWarning:
         advice to recreate the project, not to upgrade it.
         """
         aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.execute("DROP TABLE alembic_version")
 
         result = aimbat_subprocess(["db", "current"])
@@ -141,7 +142,7 @@ class TestSchemaStalenessWarning:
     ) -> None:
         """`aimbat db upgrade` refuses a database with no version history."""
         aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.execute("DROP TABLE alembic_version")
 
         result = aimbat_subprocess(["db", "upgrade"])
@@ -163,7 +164,7 @@ class TestSchemaStalenessWarning:
         `tests/integration/core/test_migrations.py`.
         """
         aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.execute(
                 "UPDATE alembic_version SET version_num = 'not_a_real_revision'"
             )
@@ -185,7 +186,7 @@ class TestSchemaStalenessWarning:
         revision" exception leaking straight to the user.
         """
         aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.execute(
                 "UPDATE alembic_version SET version_num = 'not_a_real_revision'"
             )
@@ -255,7 +256,7 @@ class TestStrictSchemaCheck:
         only the first raises.
         """
         aimbat_subprocess(["project", "create"])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.execute("DROP TABLE alembic_version")
 
         env = os.environ.copy()
