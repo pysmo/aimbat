@@ -28,7 +28,7 @@ from aimbat.types import EventParameter
 from aimbat.utils import format_validation_error
 
 # ===================================================================
-# Default event
+# Deleting events
 # ===================================================================
 
 
@@ -140,7 +140,7 @@ class TestGetEventsUsingStation:
 
 
 class TestSetEventParameter:
-    """Tests for writing parameter values to the default event."""
+    """Tests for writing parameter values to an event."""
 
     def test_set_timedelta_parameter(self, loaded_session: Session) -> None:
         """Verifies that a Timedelta parameter is persisted correctly.

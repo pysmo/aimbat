@@ -32,7 +32,7 @@ def mock_seismogram(loaded_session: Session) -> AimbatSeismogram:
 
 @pytest.fixture
 def mock_snapshot(loaded_session: Session) -> AimbatSnapshot:
-    """Creates and returns a snapshot for the default event."""
+    """Creates and returns a snapshot for the first event."""
     event = loaded_session.exec(select(AimbatEvent)).first()
     assert event is not None
     create_snapshot(loaded_session, event, comment="test snapshot")

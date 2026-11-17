@@ -17,8 +17,9 @@ uv run ruff format .               # format code (replaces black)
 # Type checking
 make mypy                          # uv run pytest --mypy -m mypy src tests
 
-# Run all tests (includes mypy + matplotlib comparison)
-make tests                         # pytest --cov --mpl + mypy
+# Run the tests in parallel (includes mypy + matplotlib comparison)
+make tests                         # skips tests marked slow
+make tests-full                    # all tests, including slow functional ones
 
 # Run a single test file or test
 uv run pytest tests/unit/test_foo.py
@@ -42,21 +43,25 @@ AIMBAT is a seismological tool for automated and interactive measurement of body
 
 ```
 src/aimbat/
-├── app.py           # Cyclopts CLI root — registers all subcommands
-├── _cli/             # CLI command definitions (thin layer, delegates to core/)
-├── core/            # Business logic: ICCS/MCCC algorithms, event/seismogram ops
-│   ├── _data.py          # SAC ingestion entry point
-│   ├── _iccs.py          # ICCS/MCCC alignment (wraps pysmo.tools.iccs)
-│   ├── _snapshot.py      # Parameter and quality state capture for rollback/comparison
-│   └── _views.py         # Quality retrieval and aggregated display data
-├── models/          # SQLModel ORM definitions (Events, Seismograms, Stations, etc.)
-│   ├── _models.py        # All table models
-│   ├── _parameters.py    # AimbatEventParametersBase, AimbatSeismogramParametersBase
-│   └── _quality.py       # AimbatEventQualityBase, AimbatSeismogramQualityBase
+├── app.py           # Cyclopts CLI root, registers all subcommands
+├── _cli/            # CLI commands (thin layer, writes go through actions/)
 ├── _tui/            # Textual TUI application
-├── _types/          # Custom Pydantic types (PydanticTimestamp, enums for parameters)
-├── io/              # File I/O — _base.py defines abstract base; sac.py implements SAC via pysmo
+├── actions/         # One function per user action: own session, one commit
+├── core/            # Building blocks: flush only, the caller commits
+│   ├── _data.py          # Data ingestion entry point
+│   ├── _iccs.py          # ICCS/MCCC alignment (wraps pysmo.tools.iccs), BoundICCS cache
+│   ├── _snapshot.py      # Parameter and quality capture for rollback/comparison
+│   └── _validity.py      # Parameter digests that decide whether quality values are valid
+├── models/          # SQLModel ORM definitions (events, seismograms, stations, etc.)
+│   ├── _models.py        # All table models
+│   ├── _parameters.py    # Parameter bases and ParameterSpec (what each parameter affects)
+│   ├── _quality.py       # AimbatEventQualityBase, AimbatSeismogramQualityBase
+│   └── _readers.py       # Read models for display and export
+├── plot/            # Matplotlib plots and interactive tools
+├── types/           # Custom Pydantic and SQLAlchemy types
+├── io/              # Data source I/O: _base.py defines the interface; sac.py, mseed.py implement it
 ├── utils/           # Shared helpers (JSON→table, UUID truncation, styling, sample data)
+├── _migrations/     # Alembic migrations (a single baseline before v2)
 ├── _config.py       # Global Settings (pydantic-settings, env prefix AIMBAT_)
 ├── db.py            # SQLite engine singleton (foreign keys enforced via PRAGMA)
 └── logger.py        # Loguru-based logging
@@ -64,11 +69,17 @@ src/aimbat/
 
 ### Data Flow
 
-1. SAC files are ingested via `aimbat data add` → `core/_data.py` → `io/` → stored in SQLite
-2. One event is set "active" at a time; all processing commands operate on the active event
-3. ICCS (Iterative Cross-Correlation and Stack) aligns seismograms: `core/_iccs.py` wraps `pysmo.tools.iccs`; ICCS CC values are written to `AimbatSeismogramQuality` after each build
+1. Data are ingested via `aimbat data add` → `actions` → `core/_data.py` → `io/` → stored in SQLite
+2. Commands that act on an event take `--event-id`, defaulting to the `DEFAULT_EVENT_ID` environment variable; nothing about the selection is stored in the project. `core` functions take the event ID directly
+3. ICCS (Iterative Cross-Correlation and Stack) aligns seismograms: `core/_iccs.py` wraps `pysmo.tools.iccs`; ICCS CC values are written to `AimbatSeismogramQuality` whenever an instance is built
 4. MCCC (Multi-Channel Cross-Correlation) refines arrival time picks; results are written to `AimbatEventQuality` and `AimbatSeismogramQuality`
 5. Snapshots (`core/_snapshot.py`) capture a point-in-time copy of parameters **and** quality metrics
+
+### Transactions
+
+- `core` functions flush but never commit. A caller can combine several of them in one transaction and commit once.
+- `aimbat.actions` is the write path for the CLI, shell, TUI and plot tools. Each action opens a session, validates its input, commits once and evicts the caches its commit made stale. List-taking actions are all or nothing.
+- Reads may call `core` directly. A read that builds an ICCS instance writes CC values, so it goes through `actions.prepare_iccs`.
 
 ### Key Models
 
@@ -80,40 +91,22 @@ Parameters and quality follow the same three-layer pattern:
 | Live table (one row per event/seismogram) | `AimbatEventParameters` / `AimbatSeismogramParameters` | `AimbatEventQuality` / `AimbatSeismogramQuality` |
 | Snapshot table (point-in-time copy) | `AimbatEventParametersSnapshot` / `AimbatSeismogramParametersSnapshot` | `AimbatEventQualitySnapshot` / `AimbatSeismogramQualitySnapshot` |
 
-- **AimbatEvent** — seismic event with `is_default` flag (only one default at a time, enforced by DB trigger)
-- **AimbatSeismogram** — links to AimbatEvent + AimbatStation; stores `t0` (initial pick); delegates `data` to the datasource
-- **AimbatSeismogramQuality** — live quality: `iccs_cc` (written on every ICCS build), `mccc_error`, `mccc_cc_mean`, `mccc_cc_std` (written after MCCC runs, cleared when parameters change)
-- **AimbatEventQuality** — live quality: `mccc_rmse` (written after MCCC runs)
-- **AimbatSnapshot** — point-in-time container; holds parameter snapshots for all seismograms and, when available, quality snapshots
-- **SAPandasTimestamp / SAPandasTimedelta** in `_types/_sqlalchemy.py` — custom SQLAlchemy type decorators storing pandas timestamps as UTC datetimes and timedeltas as nanosecond integers
+- **AimbatEvent**: seismic event; its parameters, quality and snapshots hang off it
+- **AimbatSeismogram**: links to AimbatEvent + AimbatStation; stores `t0` (initial pick); delegates `data` to the data source
+- **AimbatSeismogramParameters**: per-seismogram `t1` (refined pick), `flip`, `select`
+- **AimbatSeismogramQuality**: live quality: `iccs_cc` (written whenever an ICCS instance is built), `mccc_error`, `mccc_cc_mean`, `mccc_cc_std` (written after MCCC runs)
+- **AimbatEventQuality**: live quality: `mccc_rmse` (written after MCCC runs)
+- **AimbatSnapshot**: point-in-time container; holds parameter snapshots for all seismograms and, when available, quality snapshots
+- **SAPandasTimestamp / SAPandasTimedelta** in `types/_sqlalchemy.py`: custom SQLAlchemy type decorators storing pandas timestamps as UTC datetimes and timedeltas as nanosecond integers
 
-### Quality lifecycle
+### Quality validity
 
-- `AimbatSeismogramQuality.iccs_cc` is set whenever `create_iccs_instance` builds a fresh `BoundICCS`
-- MCCC fields are set by `run_mccc` via `_write_mccc_quality`; cleared by `clear_mccc_quality` when parameters change (detected via `compute_parameters_hash`)
-- `create_snapshot` reads the live quality tables; only seismograms with at least one non-None quality field get a quality snapshot record
-- View functions (`get_quality_seismogram`, `get_quality_event`) read from the **most recent snapshot that has an event-level quality record** (i.e. the most recent snapshot taken after an MCCC run)
-- Live quality fields are **automatically nulled by SQLite triggers** (triggers 5–7c in `core/_project.py`) when data-affecting parameters change — no application-layer code is needed for this
-- MCCC inclusion is inferred from **live stats**, not `select`: a seismogram is considered to have been in the last MCCC run if and only if its `mccc_cc_mean IS NOT NULL`. This matters because MCCC can be run with `--all`, in which case deselected seismograms are also included.
-
-#### Trigger nulling rules (triggers 5–7c)
-
-| Trigger | Fires when | `iccs_cc` nulled | MCCC fields nulled | `mccc_rmse` nulled |
-|---------|-----------|-----------------|-------------------|-------------------|
-| 5 | `window_pre/post`, `ramp_width`, or `bandpass_*` changes on event | All seismograms | All seismograms | Yes |
-| 6 | `mccc_damp` or `mccc_min_cc` changes on event | — | All seismograms | Yes |
-| 7a | `flip` on a **selected** seismogram | All seismograms | All, if live MCCC stats | If live MCCC stats |
-| 7a | `flip` on a **deselected** seismogram | That seismogram only | All, if live MCCC stats | If live MCCC stats |
-| 7b | `t1` on a **selected** seismogram | All seismograms | All, if live MCCC stats | If live MCCC stats |
-| 7b | `t1` on a **deselected** seismogram | That seismogram only | All, if live MCCC stats | If live MCCC stats |
-| 7c | `select` changes (either direction) | All seismograms | All, if live MCCC stats | If live MCCC stats |
-
-> **TODO**: Triggers 5–7c are SQLite-specific. If a second database backend is added, they will need porting:
-> - Replace `IS NOT` with `IS DISTINCT FROM` (standard SQL, NULL-safe)
-> - Replace `CREATE TRIGGER IF NOT EXISTS` with `CREATE OR REPLACE TRIGGER` (PostgreSQL syntax)
-> - Replace SQLite date functions (`datetime('now')`, `strftime(...)`) with the target dialect's equivalents
-
-> **TODO**: ICCS validation for `t1` (e.g., ensuring the pick is within seismogram bounds) is not currently performed when it is set directly via `set_seismogram_parameter`. This should be refactored to use a model-level validator and `ValidationContext`, similar to the implementation for event parameters.
+- Each parameter declares what it affects through a `ParameterSpec` in `models/_parameters.py` (stack, MCCC, or bookkeeping).
+- Quality values are stored with a fingerprint of the parameters they were computed from: `AimbatSeismogramQuality.iccs_fingerprint` and `AimbatEventQuality.mccc_fingerprint`.
+- `core/_validity.py` computes the current digests. A stored value counts only while its fingerprint matches; a `Validity` object, built once per command, is passed to every reader of quality values.
+- Nothing nulls stale values. There are no database triggers; a parameter change simply makes the old fingerprint stop matching.
+- Snapshots store quality values without fingerprints. A rollback restores parameters first, then restores quality values from a snapshot whose digests match (`resync_quality`) and stamps them with the current digests.
+- MCCC membership is stored explicitly (`AimbatEventQuality.mccc_members`), not inferred from `select`, since MCCC can be run with `--all`.
 
 ### Configuration
 
@@ -125,19 +118,25 @@ Settings live in `_config.py` as a `pydantic-settings` class. All settings can b
 
 - **Each test gets a fresh in-memory SQLite database** via the `engine` fixture in `tests/conftest.py`; never share state between tests
 - **UUID generation is seeded** (`random.Random(42)`) in tests via `mock_uuid4` autouse fixture — do not rely on random UUIDs in assertions
-- **`patch_settings` fixture** resets all settings to defaults before each test; use `@pytest.mark.parametrize` with `indirect=["patch_settings"]` to override specific settings
+- Override a setting with `monkeypatch.setattr(aimbat.settings, "<name>", value)`
+- `loaded_engine` / `loaded_session` give a project with the multi-event test data already ingested (built once per worker and copied)
 - Test assets (SAC files) live in `tests/assets/`; use `tmp_path_factory` copies to avoid mutating them
 - Mirror `src/aimbat/` directory structure under `tests/` (e.g. `tests/unit/core/`, `tests/unit/models/`)
 - Matplotlib comparison tests use `--mpl` flag; baseline images live in `baseline/`
-- To simulate an MCCC run in tests, write directly to `AimbatEventQuality` / `AimbatSeismogramQuality`, call `session.refresh(event)`, then `create_snapshot` — do not mock `BoundICCS`
+- Tests run in parallel with pytest-xdist; subprocess-based functional tests are marked `slow`
+- Behaviour is tested against `aimbat.actions` (`tests/integration/actions/`); CLI tests cover argument parsing and wiring
 
 ### CLI Pattern
 
-Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it with the root app in `app.py`. CLI functions are thin wrappers that open a `Session` from `aimbat.db.engine` and delegate to `core/` functions.
+Each CLI module in `_cli/` creates a Cyclopts `App` instance and registers it with the root app in `app.py`. Commands that write call one `aimbat.actions` function. Commands that only read may open a `Session` from `aimbat.db.engine` and call `core/` directly. Interfaces never commit.
+
+### Migrations
+
+`_migrations/` holds a single Alembic baseline, regenerated rather than migrated until v2. `tests/integration/core/test_migrations.py` compares tables, columns, foreign keys, unique and check constraints, and indexes between `create_project()` and the migration chain. Autogenerate sees a column rename as a drop and an add; replace it with `op.alter_column`, and check for the same column on the matching `*Snapshot` table.
 
 ### Custom Types
 
-- Use `PydanticTimestamp` / `PydanticTimedelta` (from `aimbat._types`) for pandas-compatible time fields in models
+- Use `PydanticTimestamp` / `PydanticTimedelta` (from `aimbat.types`) for pandas-compatible time fields in models
 - Use `PydanticNegativeTimedelta` / `PydanticPositiveTimedelta` for constrained sign validation
 - Use `SAPandasTimestamp` / `SAPandasTimedelta` as the `sa_type` in SQLModel fields
 

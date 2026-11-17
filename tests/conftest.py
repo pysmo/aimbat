@@ -404,7 +404,7 @@ def loaded_engine(
     multi_event_data: Sequence[Path],
     loaded_project_template: _LoadedProjectTemplate,
 ) -> Engine:
-    """A patched engine pre-populated with multi-event data and an default event.
+    """A patched engine pre-populated with multi-event data.
 
     Args:
         patched_engine: The monkeypatched SQLAlchemy Engine.
@@ -466,7 +466,7 @@ def patched_session(patched_engine: Engine) -> Generator[Session]:
 
 @pytest.fixture()
 def loaded_session(loaded_engine: Engine) -> Generator[Session]:
-    """A session pre-populated with multi-event data and an default event.
+    """A session pre-populated with multi-event data.
 
     Args:
         loaded_engine: The monkeypatched SQLAlchemy Engine with data loaded.
