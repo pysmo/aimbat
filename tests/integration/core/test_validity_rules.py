@@ -193,6 +193,7 @@ def _seed(
         session.commit()
         if situation == "api_with_snapshot":
             create_snapshot(session, event)
+            session.commit()
 
         validity = Validity.read(session, event.id)
         assert validity.mccc(event.id)
@@ -259,9 +260,9 @@ def _change_event_parameter(
         value = _NEW_VALUE[name](getattr(event.parameters, name))
         if situation == "orm":
             setattr(event.parameters, name, value)
-            session.commit()
         else:
             set_event_parameter(session, event.id, name, value)
+        session.commit()
 
 
 def _change_seismogram_parameter(
@@ -275,9 +276,9 @@ def _change_seismogram_parameter(
             value = _NEW_VALUE[name](getattr(target.parameters, name))
         if situation == "orm":
             setattr(target.parameters, name, value)
-            session.commit()
         else:
             set_seismogram_parameter(session, target.id, name, value)
+        session.commit()
 
 
 @pytest.mark.parametrize("situation", _SITUATIONS)

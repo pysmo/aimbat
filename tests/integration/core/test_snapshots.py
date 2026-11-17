@@ -375,6 +375,45 @@ class TestCreateSnapshotsForAddedData:
         assert set(snapshotted) == {e.id for e in events if e.id != failing_event_id}
         assert len(loaded_session.exec(select(AimbatSnapshot)).all()) == len(events) - 1
 
+    def test_failed_flush_does_not_block_the_others(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A snapshot whose flush fails is undone without affecting the session.
+
+        Args:
+            loaded_session: The database session.
+            monkeypatch: Pytest's monkeypatch fixture.
+        """
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        datasources = loaded_session.exec(select(AimbatDataSource)).all()
+        failing_event_id = events[0].id
+
+        real_create_snapshot = _snapshot.create_snapshot
+
+        def clashing_create_snapshot(
+            session: Session,
+            event: AimbatEvent,
+            comment: str | None = None,
+            automatic: bool = False,
+        ) -> None:
+            if event.id == failing_event_id:
+                # Violates the unique constraint on the event time.
+                session.add(
+                    AimbatEvent(time=event.time, latitude=0.0, longitude=0.0, depth=0.0)
+                )
+            real_create_snapshot(session, event, comment=comment, automatic=automatic)
+
+        monkeypatch.setattr(_snapshot, "create_snapshot", clashing_create_snapshot)
+
+        snapshotted, failures = create_snapshots_for_added_data(
+            loaded_session, datasources, existing_seismogram_ids=set()
+        )
+
+        assert [event_id for event_id, _ in failures] == [failing_event_id]
+        assert set(snapshotted) == {e.id for e in events if e.id != failing_event_id}
+        assert len(loaded_session.exec(select(AimbatSnapshot)).all()) == len(events) - 1
+        assert len(loaded_session.exec(select(AimbatEvent)).all()) == len(events)
+
 
 class TestDeleteSnapshot:
     """Tests for deleting snapshots."""

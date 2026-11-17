@@ -19,6 +19,7 @@ from aimbat.models import (
 )
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._session import flush_deletes
 from ._validity import Validity
 
 __all__ = [
@@ -48,7 +49,7 @@ def delete_station(session: Session, station_id: UUID) -> None:
         raise NoResultFound(f"No AimbatStation found with {station_id=}")
 
     session.delete(station)
-    session.commit()
+    flush_deletes(session)
 
 
 @overload

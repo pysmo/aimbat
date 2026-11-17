@@ -47,6 +47,7 @@ from aimbat.models._quality import (
 )
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._session import flush_deletes
 from ._validity import EventDigests, Validity
 
 __all__ = [
@@ -216,7 +217,7 @@ def create_snapshot(
         iccs_hash=digests.instance,
     )
     session.add(aimbat_snapshot)
-    session.commit()
+    session.flush()
 
 
 def create_snapshots_for_added_data(
@@ -268,19 +269,12 @@ def create_snapshots_for_added_data(
             comment or f"Added {count} seismogram{'' if count == 1 else 's'}"
         )
         try:
-            create_snapshot(session, event, comment=event_comment, automatic=True)
+            # A savepoint per event, so one failed snapshot discards neither
+            # the added data nor the snapshots of other events.
+            with session.begin_nested():
+                create_snapshot(session, event, comment=event_comment, automatic=True)
             snapshotted.append(event_id)
         except Exception as e:
-            # By this point the ingestion call has already committed the
-            # seismogram data, so a snapshot failure must not be reported as
-            # an ingestion failure - that would misleadingly suggest the data
-            # itself wasn't added. Roll back and move on to the next event
-            # rather than raising, so one event's snapshot failure (e.g. an
-            # unexpected quality-data shape) can't suppress the baseline for
-            # an unrelated event touched in the same call. A failed commit
-            # leaves the session unusable until rolled back, which would
-            # otherwise make every subsequent event's snapshot fail too.
-            session.rollback()
             logger.warning(
                 f"Failed to create automatic snapshot for event {event_id}: {e}"
             )
@@ -504,7 +498,7 @@ def resync_quality(
     restored from the most recent snapshot whose digests match them, if
     there is one; otherwise they stay, and readers report them as absent.
     Nothing is cleared. `iccs_cc` and the MCCC results are matched
-    independently. Commits.
+    independently. Flushes; the caller commits.
 
     Args:
         session: Database session.
@@ -554,7 +548,7 @@ def resync_quality(
             override_valid=iccs_candidate.id == prefer_snapshot_id,
         )
 
-    session.commit()
+    session.flush()
     return SyncResult(
         mccc_synced=mccc_candidate is not None,
         iccs_synced=iccs_candidate is not None,
@@ -578,7 +572,7 @@ def delete_snapshot(session: Session, snapshot_id: UUID) -> None:
         raise NoResultFound(f"Unable to find snapshot with {snapshot_id=}")
 
     session.delete(snapshot)
-    session.commit()
+    flush_deletes(session)
 
 
 def get_snapshots(

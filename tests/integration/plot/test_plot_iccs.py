@@ -3,28 +3,23 @@
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pandas import Timedelta
 from sqlmodel import Session, select
 
 import aimbat.plot._iccs as plot_iccs
-from aimbat.core import _iccs as core_iccs
 from aimbat.core import clear_iccs_cache, create_iccs_instance
 from aimbat.models import AimbatEvent
-from aimbat.plot import update_min_cc
+from aimbat.plot import update_min_cc, update_pick
+from aimbat.types import EventParameter
 
 
-class TestRejectedWriteEvictsCachedIccs:
-    """Tests that a refused parameter write does not leave a diverged cache."""
+class TestUpdateReturnsChanges:
+    """Tests that the `update_*` tools return the new values and store nothing."""
 
-    def test_cached_iccs_is_evicted_when_the_write_is_rejected(
+    def test_min_cc_is_returned_not_stored(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Verifies a rejected `min_cc` write drops the cached ICCS instance.
-
-        `min_cc` is unbounded on the pysmo instance but constrained to
-        `0 <= min_cc <= 1` in the database, so the widget can leave a value
-        on the shared instance that the write then refuses. Nothing else
-        marks that instance stale, so it must not survive in the cache.
+        """The new threshold is returned and the stored parameter is unchanged.
 
         Args:
             loaded_session: The database session.
@@ -32,64 +27,52 @@ class TestRejectedWriteEvictsCachedIccs:
         """
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-
+        before = event.parameters.min_cc
         clear_iccs_cache()
         iccs = create_iccs_instance(loaded_session, event).iccs
-        assert event.id in core_iccs._iccs_cache
 
-        # Stands in for the interactive widget: it mutates the instance in
-        # place, which is what leaves the cache diverged once the write fails.
-        def _reject(iccs_arg: Any, *args: object, **kwargs: object) -> None:
-            iccs_arg.min_cc = 1.5
-
-        monkeypatch.setattr(plot_iccs, "_update_min_cc", _reject)
-
-        with pytest.raises(ValidationError):
-            update_min_cc(
-                event.id,
-                iccs,
-                context=False,
-                all_seismograms=False,
-                causal=False,
-                return_fig=False,
-            )
-
-        assert event.id not in core_iccs._iccs_cache
-
-
-class TestInjectedEngine:
-    """Tests that `update_*` persists through a caller-supplied engine."""
-
-    def test_write_uses_the_given_engine(
-        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Verifies the write session is opened on the engine passed in.
-
-        Args:
-            loaded_session: The database session.
-            monkeypatch: The pytest monkeypatch fixture.
-        """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
-        engine = loaded_session.get_bind()
-
-        clear_iccs_cache()
-        iccs = create_iccs_instance(loaded_session, event).iccs
-        loaded_session.commit()
-
+        # Stands in for the interactive widget, which mutates the instance.
         def _set(iccs_arg: Any, *args: object, **kwargs: object) -> None:
             iccs_arg.min_cc = 0.25
 
         monkeypatch.setattr(plot_iccs, "_update_min_cc", _set)
-        update_min_cc(
-            event.id,
+
+        changes = update_min_cc(
+            iccs, context=False, all_seismograms=False, causal=False, return_fig=False
+        )
+
+        assert changes == {EventParameter.MIN_CC: 0.25}
+        loaded_session.expire_all()
+        assert event.parameters.min_cc == before
+
+    def test_picks_are_keyed_by_seismogram_id(
+        self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each seismogram's new pick is returned under its ID.
+
+        Args:
+            loaded_session: The database session.
+            monkeypatch: The pytest monkeypatch fixture.
+        """
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        clear_iccs_cache()
+        iccs = create_iccs_instance(loaded_session, event).iccs
+        shift = Timedelta(seconds=1)
+
+        def _shift(iccs_arg: Any, *args: object, **kwargs: object) -> None:
+            for seis in iccs_arg.seismograms:
+                seis.refined_pick = seis.initial_pick + shift
+
+        monkeypatch.setattr(plot_iccs, "_update_pick", _shift)
+
+        picks = update_pick(
             iccs,
             context=False,
             all_seismograms=False,
+            use_matrix_image=False,
             causal=False,
             return_fig=False,
-            engine=engine,  # type: ignore[arg-type]
         )
 
-        loaded_session.expire_all()
-        assert event.parameters.min_cc == 0.25
+        assert picks == {seis.id: seis.t0 + shift for seis in event.seismograms}

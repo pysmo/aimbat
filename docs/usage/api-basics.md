@@ -1,7 +1,41 @@
 # API basics
 
 The building blocks behind the AIMBAT interfaces (CLI, shell, TUI) are also
-available for custom scripts and workflows.
+available for custom scripts and workflows, at two levels:
+
+- **[`aimbat.actions`][aimbat.actions]: write your own workflows.** Each
+  function does what one CLI command does and is saved when it returns. If it
+  fails, nothing is changed. There is no session to manage.
+- **[`aimbat.core`][aimbat.core]: get your hands dirty.** The functions the
+  actions are built from. You open the session and decide when to commit, so
+  several steps can share one transaction, and intermediate state can be
+  inspected before anything is saved.
+
+```python
+from aimbat import actions
+from aimbat.types import SeismogramParameter
+
+run = actions.run_iccs(event_id, autoflip=True, autoselect=True)
+print(run.summary.message)
+
+actions.set_seismogram_parameters(
+    bad_seismogram_ids, {SeismogramParameter.SELECT: False}
+)
+actions.create_snapshot(event_id, comment="after ICCS")
+```
+
+Actions take record IDs and return plain values. Those that change several
+records, such as `set_seismogram_parameters` or `delete_seismograms`, take a
+list of IDs and save them all in one commit, so a script has no need to call
+them in a loop. The rest of this page is about the second level.
+
+!!! warning "Scripts written for earlier versions"
+
+    Functions in `aimbat.core` used to commit their own changes. They no
+    longer do. A script that calls a function that changes the project, such
+    as `set_event_parameter` or `create_snapshot`, must now call
+    `session.commit()` before its session closes, or switch to the matching
+    function in `aimbat.actions`.
 
 ## API components
 
@@ -19,8 +53,8 @@ The API has three primary parts:
     records come from [`select`][sqlalchemy.sql.expression.select] queries.
 3. **Core functions.** High-level operations on those models
     ([`aimbat.core`][]): event selection, parameter changes, ICCS and MCCC
-    runs, snapshots. The CLI, shell, and TUI call the same functions, and the
-    mutating ones commit internally.
+    runs, snapshots. None of them commits: each one makes its changes in the
+    session it is given, and the caller commits.
 
 ## Starting a session
 
@@ -36,9 +70,8 @@ with Session(engine) as session:
     pass
 ```
 
-Changes reach disk only on `session.commit()`, or when a core function commits
-internally. An exception before that rolls the session back and discards the
-changes.
+Changes reach disk only on `session.commit()`. An exception before that rolls
+the session back and discards the changes.
 
 [`aimbat.db.engine`][] reads `AIMBAT_PROJECT` (or the default `aimbat.db`)
 exactly as the other interfaces do, so a script that imports it points at the
@@ -125,9 +158,10 @@ with Session(engine) as session:
 
 ## Committing changes
 
-Core functions commit internally. Querying and mutating models directly needs
-both `add()` and `commit()`: a query result is already tracked by the session,
-but a newly constructed object is not:
+Neither core functions nor direct changes to models are saved until
+`session.commit()`. Mutating models directly also needs `add()` for a new
+object: a query result is already tracked by the session, but a newly
+constructed object is not:
 
 ```python
 with Session(engine) as session:
@@ -140,10 +174,10 @@ with Session(engine) as session:
     session.commit()
 ```
 
-Each commit is a disk write. Calling a core function that commits internally,
-such as [`set_seismogram_parameter`][aimbat.core.set_seismogram_parameter], once
-per seismogram in a loop costs one commit per iteration. For changes across many
-records, mutating them directly and committing once after the loop avoids that.
+Each commit is a disk write, so commit once after a batch of changes, not once
+per record. Core functions can be called in a loop and committed together
+afterwards. Each call to an action commits on its own, which is why the actions
+that change several records take a list.
 
 ## Working with seismogram data
 

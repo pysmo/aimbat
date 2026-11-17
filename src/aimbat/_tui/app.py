@@ -26,7 +26,7 @@ from textual.widgets import (
 )
 from textual_fspicker import FileOpen, FileSave, Filters
 
-from aimbat import settings
+from aimbat import actions, settings
 from aimbat._tui._iccs_lifecycle import _IccsLifecycleMixin
 from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
 from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY, VIEW_ONLY_TOOLS
@@ -44,27 +44,11 @@ from aimbat._tui.modals import (
     ToolLaunchResult,
 )
 from aimbat.core import (
-    BoundICCS,
     RunSummary,
-    add_data_to_project,
     build_iccs_from_snapshot,
     create_project,
-    create_snapshot,
-    create_snapshots_for_added_data,
-    delete_event,
-    delete_seismogram,
-    delete_snapshot,
-    delete_station,
     dump_snapshot_results,
     get_current_revision,
-    reset_seismogram_parameters,
-    rollback_to_snapshot,
-    run_iccs,
-    run_mccc,
-    set_seismogram_parameter,
-    summarise_iccs_result,
-    summarise_mccc_result,
-    toggle_event_completed,
     upgrade_project,
 )
 from aimbat.core._migrations import SchemaMismatchError, _build_staleness_warning
@@ -486,8 +470,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """Flip the `completed` flag on the given event's parameters."""
         logger.debug(f"User toggled completed flag for event {item_id[:8]}.")
         try:
-            with Session(engine) as session:
-                toggle_event_completed(session, uuid.UUID(item_id))
+            actions.toggle_event_completed(uuid.UUID(item_id))
             self.refresh_all()
             self.notify("Completed flag toggled", timeout=2)
         except Exception as exc:
@@ -539,15 +522,16 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 if seis is None:
                     raise ValueError(f"Seismogram {item_id} not found")
                 new_value = not getattr(seis.parameters, param)
-                set_seismogram_parameter(session, seis_uuid, param, new_value)
-                bound = self._iccs_lifecycle.bound
-                if bound is not None:
-                    for iccs_seis in bound.iccs.seismograms:
-                        if iccs_seis.extra.get("id") == seis_uuid:
-                            setattr(iccs_seis, param, new_value)
-                            bound.iccs.clear_cache()
+            actions.set_seismogram_parameters([seis_uuid], {param: new_value})
+            bound = self._iccs_lifecycle.bound
+            if bound is not None:
+                for iccs_seis in bound.iccs.seismograms:
+                    if iccs_seis.extra.get("id") == seis_uuid:
+                        setattr(iccs_seis, param, new_value)
+                        bound.iccs.clear_cache()
+                        with Session(engine) as session:
                             bound.mark_current(session)
-                            break
+                        break
             # A select/flip change makes the stored iccs_cc, and possibly the
             # MCCC results, out of date. Refresh everything so the Project
             # panel's quality readouts drop them.
@@ -560,8 +544,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """Reset a seismogram's processing parameters to their defaults."""
         logger.debug(f"User reset parameters for seismogram {item_id[:8]}.")
         try:
-            with Session(engine) as session:
-                reset_seismogram_parameters(session, uuid.UUID(item_id))
+            actions.reset_seismogram_parameters([uuid.UUID(item_id)])
             self.refresh_all()
             self.notify("Seismogram parameters reset", timeout=2)
         except Exception as exc:
@@ -592,8 +575,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             try:
                 if tab == "project-events":
                     logger.info(f"User confirmed deletion of event {item_id[:8]}.")
-                    with Session(engine) as session:
-                        delete_event(session, uuid.UUID(item_id))
+                    actions.delete_events([uuid.UUID(item_id)])
                     if self._current_event_id == uuid.UUID(item_id):
                         self._current_event_id = None
                         self._iccs_lifecycle.clear()
@@ -601,22 +583,19 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     self.notify("Event deleted", timeout=2)
                 elif tab == "project-stations":
                     logger.info(f"User confirmed deletion of station {item_id[:8]}.")
-                    with Session(engine) as session:
-                        delete_station(session, uuid.UUID(item_id))
+                    actions.delete_stations([uuid.UUID(item_id)])
                     self._create_iccs()
                     self.refresh_all()
                     self.notify("Station deleted", timeout=2)
                 elif tab == "tab-seismograms":
                     logger.info(f"User confirmed deletion of seismogram {item_id[:8]}.")
-                    with Session(engine) as session:
-                        delete_seismogram(session, uuid.UUID(item_id))
+                    actions.delete_seismograms([uuid.UUID(item_id)])
                     self._create_iccs()
                     self.refresh_all()
                     self.notify("Seismogram deleted", timeout=2)
                 elif tab == "tab-snapshots":
                     logger.info(f"User confirmed deletion of snapshot {item_id[:8]}.")
-                    with Session(engine) as session:
-                        delete_snapshot(session, uuid.UUID(item_id))
+                    actions.delete_snapshots([uuid.UUID(item_id)])
                     self.refresh_all()
                     self.notify("Snapshot deleted", timeout=2)
             except Exception as exc:
@@ -698,8 +677,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 return
             try:
                 logger.info(f"User confirmed rollback to snapshot {snap_id[:8]}.")
-                with Session(engine) as session:
-                    rollback_to_snapshot(session, uuid.UUID(snap_id))
+                actions.rollback_to_snapshot(uuid.UUID(snap_id))
                 self._create_iccs()
                 self.refresh_all()
                 if self._active_tab == "tab-snapshots":
@@ -739,7 +717,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 
     def action_add_data(self) -> None:
         """Prompt for a data type, then a data source, and add it to the project."""
-        actions = [
+        data_types = [
             (dt.value, dt.name.replace("_", " "))
             for dt in DataType
             if supports_station_creation(dt)
@@ -758,27 +736,16 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 if path is None:
                     return
                 try:
-                    with Session(engine) as session:
-                        (
-                            added_datasources,
-                            _existing_station_ids,
-                            _existing_event_ids,
-                            existing_seismogram_ids,
-                            _duplicate_warnings,
-                        ) = add_data_to_project(session, [path], data_type)
-                        session.commit()
-                        snapshotted, failures = create_snapshots_for_added_data(
-                            session, added_datasources, existing_seismogram_ids
-                        )
+                    result = actions.add_data([path], data_type)
                     logger.info(f"User added data file: {path}.")
                     self.notify(f"Added: {path.name}", severity="information")
-                    if snapshotted:
-                        n = len(snapshotted)
+                    if result.snapshotted_event_ids:
+                        n = len(result.snapshotted_event_ids)
                         self.notify(
                             f"Snapshotted {n} event{'' if n == 1 else 's'}",
                             severity="information",
                         )
-                    for event_id, error in failures:
+                    for event_id, error in result.snapshot_failures:
                         self.notify(
                             f"Could not create an automatic snapshot for event {event_id}: {error}",
                             severity="warning",
@@ -800,7 +767,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 on_file,
             )
 
-        self.push_screen(ActionMenuModal("Add Data", actions), on_type)
+        self.push_screen(ActionMenuModal("Add Data", data_types), on_type)
 
     def action_open_interactive_tools(self) -> None:
         """Open the interactive tools menu and run the chosen tool."""
@@ -897,14 +864,14 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if bound is None:
                 self.notify("ICCS not ready: please wait", severity="warning")
                 return
-            self._run_align_tool(bound, *result)
+            self._run_align_tool(bound.event_id, *result)
 
         self.push_screen(AlignModal(), on_result)
 
     @work(thread=True)
     def _run_align_tool(
         self,
-        bound: BoundICCS,
+        event_id: uuid.UUID,
         algorithm: str,
         autoflip: bool,
         autoselect: bool,
@@ -913,16 +880,16 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """Run ICCS or MCCC in a background thread and post the result to the main thread.
 
         Note:
-            `run_iccs`/`run_mccc` mutate `bound.iccs` in place on this
-            worker thread while it runs. Nothing prevents the main thread's
-            5s staleness poll or a panel refresh from reading `bound.iccs`
-            (or replacing `bound` via `_create_iccs()`) concurrently - there
-            is no lock. Not currently known to cause a visible failure in
-            practice, but a torn read is possible while an alignment is in
-            flight.
+            The run mutates the event's cached ICCS instance, normally the
+            one the TUI holds, in place on this worker thread. Nothing
+            prevents the main thread's 5s staleness poll or a panel refresh
+            from reading it (or replacing it via `_create_iccs()`)
+            concurrently - there is no lock. Not currently known to cause a
+            visible failure in practice, but a torn read is possible while
+            an alignment is in flight.
 
         Args:
-            bound: The current `BoundICCS` instance to align.
+            event_id: ID of the event to align.
             algorithm: Either `"iccs"` or `"mccc"`.
             autoflip: Whether ICCS should automatically flip polarity-reversed
                 seismograms.
@@ -937,15 +904,12 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         )
         summary = RunSummary("Alignment complete", warning=False)
         try:
-            with Session(engine) as session:
-                event = self._get_current_event(session)
-                if algorithm == "iccs":
-                    result = run_iccs(session, event, bound.iccs, autoflip, autoselect)
-                    summary = summarise_iccs_result(result, len(bound.iccs.seismograms))
-                elif algorithm == "mccc":
-                    summary = summarise_mccc_result(
-                        run_mccc(session, event, bound.iccs, all_seis)
-                    )
+            if algorithm == "iccs":
+                summary = actions.run_iccs(
+                    event_id, autoflip=autoflip, autoselect=autoselect
+                ).summary
+            elif algorithm == "mccc":
+                summary = actions.run_mccc(event_id, all_seismograms=all_seis).summary
         except Exception as exc:
             logger.exception(f"Alignment worker error ({algorithm}): {exc}")
             self.call_from_thread(self.notify, str(exc), severity="error")
@@ -978,8 +942,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             try:
                 logger.info(f"User creating snapshot with comment={comment!r}.")
                 with Session(engine) as session:
-                    event = self._get_current_event(session)
-                    create_snapshot(session, event, comment or None)
+                    event_id = self._get_current_event(session).id
+                actions.create_snapshot(event_id, comment or None)
                 self.refresh_all()
                 self.notify("Snapshot created", timeout=2)
             except Exception as exc:

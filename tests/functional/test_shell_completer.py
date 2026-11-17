@@ -137,6 +137,7 @@ class TestIdCompletion:
         with Session(loaded_engine) as session:
             for event in session.exec(select(AimbatEvent)).all():
                 create_snapshot(session, event, comment="before ICCS")
+            session.commit()
         completions = [
             c for c in _complete(completer, "snapshot delete ") if c.text[0] != "-"
         ]

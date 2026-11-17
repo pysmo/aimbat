@@ -62,16 +62,18 @@ def cli_event_delete(
     Cascades to all of the event's seismograms (with their data sources,
     parameters, and quality records) and to every snapshot taken for it.
     """
-    from aimbat.core import delete_event, resolve_event
+    from aimbat.actions import delete_events
+    from aimbat.core import resolve_event
     from aimbat.db import engine
 
     with Session(engine) as session:
         event = resolve_event(session, event_id)
-        confirm_or_abort(
-            f"Delete event at {event.time} and all of its seismograms?",
-            yes=confirm.yes,
-        )
-        delete_event(session, event.id)
+        resolved_id, event_time = event.id, event.time
+    confirm_or_abort(
+        f"Delete event at {event_time} and all of its seismograms?",
+        yes=confirm.yes,
+    )
+    delete_events([resolved_id])
 
 
 @app.command(name="dump")
@@ -158,16 +160,11 @@ def cli_event_parameter_set(
         value: New parameter value.
         event_debug_parameters: Event context and debug mode.
     """
-    from sqlmodel import Session
+    from aimbat.actions import set_event_parameters
 
-    from aimbat.core import resolve_event, set_event_parameter
-    from aimbat.db import engine
-
-    event_id = event_debug_parameters.event_id
-
-    with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        set_event_parameter(session, event.id, name, value, validate_iccs=True)
+    set_event_parameters(
+        event_debug_parameters.event_id, {name: value}, validate_iccs=True
+    )
 
 
 @_parameter.command(name="dump")

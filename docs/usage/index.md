@@ -116,15 +116,18 @@ with Session(engine) as session:
 
     run_mccc(session, event, bound.iccs, all_seismograms=False)
     create_snapshot(session, event, comment="post-MCCC")
+
+    session.commit()
 ```
 
 !!! tip "Working with a session"
 
     Every database operation needs a `Session`: a SQLAlchemy object that tracks
     changes against the project database until they're committed, opened as a
-    context manager so it always closes cleanly. Core functions like the ones above
-    commit internally; querying and mutating models directly needs an explicit
-    `commit()` too.
+    context manager so it always closes cleanly. Core functions like the ones
+    above never commit: nothing is saved until `session.commit()`. For one
+    complete action per call, committed on return, use
+    [`aimbat.actions`][aimbat.actions] instead.
 
 See each chapter's API tab or "Python API" section for the calls behind that
 chapter's workflow, and [Recipes](recipes.md) for API fundamentals and
@@ -204,6 +207,7 @@ note, for recording observations or decisions.
     with Session(engine) as session:
         content = get_note_content(session, "event", event_id)
         save_note(session, "event", event_id, "some note text")
+        session.commit()
     ```
 
     `target` is one of `event`, `station`, `seismogram`, `snapshot`. With no note

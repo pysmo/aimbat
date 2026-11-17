@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from pandas import Timedelta
 from pydantic import ValidationError
+from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session
 from textual import on
 from textual.app import ComposeResult
@@ -20,7 +21,7 @@ from textual.widgets import DataTable, Input, Label, Markdown, Static
 from aimbat._cli.common import CAUSAL_DEFAULTS
 from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY
 from aimbat._tui._widgets import VimDataTable
-from aimbat.core import set_event_parameter
+from aimbat.actions import set_event_parameters
 from aimbat.db import engine
 from aimbat.models import AimbatEvent
 from aimbat.models._parameters import AimbatEventParametersBase
@@ -431,17 +432,11 @@ class ParametersModal(ModalScreen[bool]):
     ) -> None:
         """Persist a validated parameter change to the database."""
         try:
-            with Session(engine) as session:
-                event = session.get(AimbatEvent, self._event_id)
-                if event is None:
-                    return
-                set_event_parameter(
-                    session,
-                    event.id,
-                    EventParameter(attr),
-                    value,
-                    validate_iccs=True,
-                )
+            set_event_parameters(
+                self._event_id, {EventParameter(attr): value}, validate_iccs=True
+            )
+        except NoResultFound:
+            return
         except ValidationError as exc:
             self.notify(format_validation_error(exc), severity="error")
             return

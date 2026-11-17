@@ -918,10 +918,10 @@ def run_iccs(
         },
     )
     # ICCS writes its own inputs, so the results are stamped after the picks
-    # are written back. One commit publishes all of it or none.
+    # are written back.
     write_back_seismograms(session, iccs)
     _write_iccs_stats(session, event.id, iccs)
-    session.commit()
+    session.flush()
     return result
 
 
@@ -953,9 +953,9 @@ def run_mccc(
         summarise_mccc_result(result), iccs, {"MCCC refused picks": result.refused}
     )
     # MCCC writes its own inputs, so the results are stamped after the picks
-    # are written back. One commit publishes all of it or none.
+    # are written back.
     write_back_seismograms(session, iccs)
     _write_iccs_stats(session, event.id, iccs)
     _write_mccc_quality(session, event.id, iccs, result)
-    session.commit()
+    session.flush()
     return result

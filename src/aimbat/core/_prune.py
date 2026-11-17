@@ -39,6 +39,8 @@ from aimbat.models import (
 )
 from aimbat.utils import rel
 
+from ._session import flush_deletes
+
 __all__ = ["PruneReport", "prune_project"]
 
 
@@ -66,7 +68,7 @@ class PruneReport:
     """Non-fatal warnings to surface to the user."""
     dry_run: bool
     pruned: bool = field(default=False)
-    """True once the deletions have been committed."""
+    """True once the deletions have been made in the session."""
 
     @property
     def total_snapshots(self) -> int:
@@ -131,7 +133,8 @@ def prune_project(
         SourceUnavailableError: If a source's presence cannot be determined
             and `force` is not set; nothing is pruned.
         RuntimeError: If `auto_snapshot` is set and an affected event cannot
-            be snapshotted; nothing is pruned.
+            be snapshotted; nothing is pruned. Snapshots already taken for
+            other events remain in the session until the caller rolls back.
     """
     all_scope = isinstance(event_id, str) and event_id.lower() == "all"
     if not all_scope and session.get(AimbatEvent, event_id) is None:
@@ -285,10 +288,12 @@ def prune_project(
     prune_event_ids = [e.id for e in emptied_events] if prune_empty_events else []
 
     # Detach the eagerly loaded report graph now, while its relationships are
-    # still populated. `create_snapshot` commits (expiring every attached
-    # instance) and every deletion below reloads its target by ID, so nothing
-    # past this point needs these instances bound to the session - but callers
-    # still read `report.orphan_seismograms[*].station` and friends afterwards.
+    # still populated. The caller's commit expires every attached instance,
+    # and every deletion below reloads its target by ID, so nothing past this
+    # point needs these instances bound to the session - but callers still
+    # read `report.orphan_seismograms[*].station` and friends afterwards. The
+    # flush keeps any change the caller has not flushed yet.
+    session.flush()
     session.expunge_all()
 
     if auto_snapshot:
@@ -304,7 +309,6 @@ def prune_project(
                     automatic=True,
                 )
             except Exception as exc:
-                session.rollback()
                 raise RuntimeError(
                     f"Aborting prune: could not snapshot event {event_uuid} "
                     + f"first ({exc}). Nothing was deleted."
@@ -327,7 +331,7 @@ def prune_project(
         event = session.get(AimbatEvent, event_uuid)
         if event is not None:
             session.delete(event)
-    session.commit()
+    flush_deletes(session)
 
     clear_seismogram_data_cache()
     clear_iccs_cache()

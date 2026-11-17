@@ -70,6 +70,7 @@ live parameters. The snapshot's event-level parameters still apply to it.
     with Session(engine) as session:
         event = session.exec(select(AimbatEvent)).first()
         create_snapshot(session, event, comment="after bandpass 1–3Hz")
+        session.commit()
     ```
 
 The comment is optional but helps identify the snapshot later.
@@ -189,6 +190,7 @@ again.
 
     with Session(engine) as session:
         rollback_to_snapshot(session, snapshot_id)
+        session.commit()
     ```
 
 If the snapshot holds MCCC quality data, the live quality metrics are restored
@@ -223,6 +225,7 @@ rule used to pick which snapshot's quality data are restored.
 
     with Session(engine) as session:
         delete_snapshot(session, snapshot_id)
+        session.commit()
     ```
 
 Deletion is permanent.

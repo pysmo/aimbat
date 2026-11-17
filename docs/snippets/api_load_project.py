@@ -175,7 +175,6 @@ workdir.mkdir(exist_ok=True)
 create_project(engine)
 
 with Session(engine) as session:
-
     # 2. Register events from JSON
     event_files = [
         write_json(ev, workdir / f"event_{i:02d}.json") for i, ev in enumerate(EVENTS)
@@ -218,6 +217,9 @@ with Session(engine) as session:
     events = session.exec(select(AimbatEvent)).all()
     for event in events:
         create_snapshot(session, event, comment="initial import")
+
+    # 7. Nothing is saved until the session commits
+    session.commit()
 
 print("Project ready.")
 print(f"  Events:   {len(events)}")

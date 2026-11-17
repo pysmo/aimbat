@@ -139,22 +139,19 @@ def _check_iccs(
     Returns:
         The current BoundICCS, or None if unavailable.
     """
-    from sqlmodel import Session
+    from sqlalchemy.exc import NoResultFound
 
-    from aimbat.core import create_iccs_instance, resolve_event
-    from aimbat.db import engine
+    from aimbat.actions import prepare_iccs
 
     try:
-        with Session(engine) as session:
-            event = resolve_event(session, event_id)
-            bound = create_iccs_instance(session, event)
-            resolved_id = event.id
-            # Building the instance writes each seismogram's CC value; it is
-            # only kept if this session commits.
-            session.commit()
+        if event_id is None:
+            raise NoResultFound("No event specified.")
+        bound = prepare_iccs(event_id)
         changed = prev is None or prev.event_id != bound.event_id or bound is not prev
         if startup or changed:
-            console.print(f"[green]ICCS ready[/green] (event {str(resolved_id)[:8]})")
+            console.print(
+                f"[green]ICCS ready[/green] (event {str(bound.event_id)[:8]})"
+            )
         return bound
     except Exception as exc:
         if startup or prev is not None:

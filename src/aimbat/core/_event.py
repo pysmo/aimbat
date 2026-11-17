@@ -23,6 +23,7 @@ from aimbat.models._parameters import AimbatEventParametersBase
 from aimbat.types import EventParameter
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._session import flush_deletes
 from ._validity import Validity
 
 __all__ = [
@@ -99,11 +100,7 @@ def delete_event(session: Session, event_id: UUID) -> None:
         raise NoResultFound(f"Unable to find event using id: {event_id}.")
 
     session.delete(event)
-    session.commit()
-
-    from ._iccs import evict_iccs_cache_entry
-
-    evict_iccs_cache_entry(event_id)
+    flush_deletes(session)
 
 
 def get_completed_events(session: Session) -> Sequence[AimbatEvent]:
@@ -187,7 +184,7 @@ def toggle_event_completed(session: Session, event_id: UUID) -> bool:
 
     event.parameters.completed = not event.parameters.completed
     session.add(event)
-    session.commit()
+    session.flush()
     return event.parameters.completed
 
 
@@ -349,7 +346,7 @@ def set_event_parameter(
         name: Name of the parameter.
         value: Value to set.
         validate_iccs: If True, attempt ICCS construction with the new value
-            before committing. Raises and leaves the database unchanged on failure.
+            before storing it. Raises and leaves the session unchanged on failure.
 
     Raises:
         NoResultFound: If no event with the given ID is found.
@@ -379,7 +376,7 @@ def set_event_parameters(
         event_id: UUID of the event to update.
         values: Parameter name -> new value. An empty mapping is a no-op.
         validate_iccs: If True, attempt ICCS construction with the new values
-            before committing. Raises and leaves the database unchanged on failure.
+            before storing them. Raises and leaves the session unchanged on failure.
 
     Raises:
         NoResultFound: If no event with the given ID is found.

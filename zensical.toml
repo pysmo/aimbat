@@ -37,6 +37,7 @@ nav = [
   ] },
   { "API reference" = [
     "api/aimbat.md",
+    "api/aimbat/actions.md",
     "api/aimbat/app.md",
     "api/aimbat/core.md",
     "api/aimbat/db.md",

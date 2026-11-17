@@ -12,7 +12,6 @@ from aimbat.core import (
     clear_iccs_cache,
     create_iccs_instance,
     create_snapshot,
-    delete_event,
     rollback_to_snapshot,
     run_iccs,
     run_mccc,
@@ -278,22 +277,6 @@ class TestCreateIccsInstanceNoSeismograms:
 
 class TestIccsCacheEviction:
     """Tests for the bounded, delete-event-evicted process-level ICCS cache."""
-
-    def test_delete_event_evicts_cache_entry(self, loaded_session: Session) -> None:
-        """A deleted event's cached BoundICCS must not linger in the process cache."""
-        import aimbat.core._iccs as iccs_module
-
-        clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
-        event_id = event.id
-
-        create_iccs_instance(loaded_session, event)
-        assert event_id in iccs_module._iccs_cache
-
-        delete_event(loaded_session, event_id)
-
-        assert event_id not in iccs_module._iccs_cache
 
     def test_cache_evicts_least_recently_used_once_full(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch

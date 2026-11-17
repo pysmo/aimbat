@@ -77,5 +77,5 @@ def save_note(
     else:
         note.content = content
     session.add(note)
-    session.commit()
+    session.flush()
     return raced

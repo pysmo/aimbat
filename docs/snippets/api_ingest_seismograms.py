@@ -104,3 +104,4 @@ items = [
 
 with Session(engine) as session:
     add_seismograms_to_project(session, items, data_dir="waveforms")
+    session.commit()

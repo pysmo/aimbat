@@ -1,24 +1,29 @@
 # flake8: noqa: E402, F403
-"""Core logic for AIMBAT.
+"""Building blocks of `aimbat.actions` and the AIMBAT interfaces.
 
-All functions take a SQLModel `Session` and work with the models in
-`aimbat.models`. The main areas covered are:
+The functions in this module give finer control than `aimbat.actions`. They
+allow several operations to share one transaction, and changes to be
+inspected before they are saved.
 
-- **Data** — add data to the project, linking each source to its station,
-  event, and seismogram records (`add_data_to_project`).
-- **Events, seismograms, stations** — query, update, and delete records; read
-  and write parameters; resolve an event from an explicit ID (`resolve_event`).
-- **ICCS / MCCC** — run the Iterative Cross-Correlation and Stack (`run_iccs`)
-  and Multi-Channel Cross-Correlation (`run_mccc`) algorithms; update picks,
-  time windows, and correlation thresholds.
-- **Snapshots** — save, restore, and delete parameter snapshots
+Every function takes a session and operates on the records in
+`aimbat.models`. Changes remain in the session until it is committed, and a
+rollback discards them.
+
+The functions cover the following areas:
+
+- **Data**: adding data to the project (`add_data_to_project`), with each
+  data source linked to its station, event and seismogram records.
+- **Events, seismograms and stations**: retrieving, modifying and deleting
+  records, and reading or setting their parameters.
+- **Alignment**: ICCS (`run_iccs`) and MCCC (`run_mccc`) runs, and the
+  setting of picks, time windows and the CC threshold.
+- **Snapshots**: creating, restoring and deleting parameter snapshots
   (`create_snapshot`, `rollback_to_snapshot`).
-- **Validity** — check whether stored quality values still match the current
-  parameters (`Validity`).
-- **Project** — create and delete the project database (`create_project`,
-  `delete_project`).
-- **Migrations** — bring an existing project database up to date with the
-  current schema via Alembic (`upgrade_project`, `get_current_revision`).
+- **Quality values**: checking whether stored quality values still match the
+  current parameters (`Validity`).
+- **Projects**: creating and deleting a project (`create_project`,
+  `delete_project`), and upgrading a project created by an earlier version
+  of AIMBAT (`upgrade_project`).
 """
 
 from .._utils import export_module_names

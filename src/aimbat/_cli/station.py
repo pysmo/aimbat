@@ -58,16 +58,12 @@ def cli_station_delete(
     including their data sources, parameters, quality records, and snapshot
     history.
     """
-    from sqlmodel import Session
-
-    from aimbat.core import delete_station
-    from aimbat.db import engine
+    from aimbat.actions import delete_stations
 
     confirm_or_abort(
         f"Delete station {station_id} and all of its seismograms?", yes=confirm.yes
     )
-    with Session(engine) as session:
-        delete_station(session, station_id)
+    delete_stations([station_id])
 
 
 @app.command(name="plotseis")
