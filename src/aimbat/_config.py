@@ -50,6 +50,7 @@ class Settings(BaseSettings):
 
     bandpass_fmin: float = Field(
         default=0.05,
+        gt=0,
         description=(
             "Minimum frequency for bandpass filter (ignored if `bandpass_apply` "
             + "is False)."

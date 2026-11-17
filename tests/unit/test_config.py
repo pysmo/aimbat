@@ -134,6 +134,11 @@ class TestSettings:
                 event_duplicate_raise_tolerance=Timedelta(seconds=1),
             )
 
+    def test_bandpass_fmin_rejects_zero(self) -> None:
+        """Verifies that bandpass_fmin must be strictly positive."""
+        with pytest.raises(ValidationError):
+            Settings(bandpass_fmin=0)
+
 
 class TestPrintSettingsTablePlain:
     """Tests for print_settings_table with pretty=False."""

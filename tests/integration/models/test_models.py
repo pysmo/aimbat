@@ -436,6 +436,11 @@ class TestEventParametersValidation:
         with pytest.raises(ValidationError):
             AimbatEventParametersBase(ramp_width=-0.1)
 
+    def test_bandpass_fmin_rejects_zero(self) -> None:
+        """Verifies that bandpass_fmin must be strictly positive."""
+        with pytest.raises(ValidationError):
+            AimbatEventParametersBase(bandpass_fmin=0)
+
     def test_bandpass_fmax_must_exceed_fmin(self) -> None:
         """The bandpass validator mixin is on AimbatEventParameters (table model),
         so we must use model_validate to trigger it.
