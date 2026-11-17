@@ -66,6 +66,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(cli)** Show brackets in table cells and errors literally
 - **(align)** Report refused picks and ICCS runs that moved nothing
 - **(core)** Round picks to microseconds before hashing
+- Reject zero bandpass_fmin
 
 ### 📚 Documentation
 
