@@ -493,8 +493,8 @@ class TestICCSStalenessRetry:
 
     See `AimbatTUI._check_iccs_staleness` / `_create_iccs`: a fresh (non-retry)
     failure sets `IccsLifecycle.retry_pending`, which the staleness poller
-    consumes at most once before falling silent again until
-    `event.stack_modified` changes.
+    consumes at most once before falling silent again until the event's
+    instance digest changes.
     """
 
     def test_retries_once_then_stops_on_persistent_failure(
@@ -623,7 +623,7 @@ class TestICCSStalenessRetry:
         class _SimulatedError(Exception):
             pass
 
-        def _always_raises(self: IccsLifecycle, stack_modified: object) -> None:
+        def _always_raises(self: IccsLifecycle, instance_digest: object) -> None:
             raise _SimulatedError("simulated failure recording note_checked")
 
         monkeypatch.setattr(IccsLifecycle, "note_checked", _always_raises)

@@ -17,7 +17,7 @@ from aimbat.models import (
 
 @pytest.fixture
 def session(loaded_session: Session) -> Session:
-    """Provides a session with multi-event data and an default event pre-loaded.
+    """Provides a session with multi-event data pre-loaded.
 
     Args:
         loaded_session: A SQLModel Session with data populated.
