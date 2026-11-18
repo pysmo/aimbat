@@ -27,10 +27,6 @@ else
 	@echo "Found ${UV_VERSION}";
 endif
 
-# NOTE: `alembic check` diffs SQLModel.metadata against the DB schema, so it
-# does not see the hand-written triggers in core/_project.py::create_project -
-# trigger drift is only caught by
-# tests/integration/core/test_migrations.py::TestCreateAllVsMigrateParity.
 check-migrations: check-uv sync ## Verify every model change has a matching Alembic migration.
 	@trap 'rm -f .check-migrations.db' EXIT; \
 	AIMBAT_DB_URL="sqlite+pysqlite:///.check-migrations.db" uv run alembic upgrade head && \

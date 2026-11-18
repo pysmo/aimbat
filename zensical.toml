@@ -52,9 +52,12 @@ nav = [
     # "api/aimbat/_ui.md",
   ] },
   { "Development" = [
+    "development/index.md",
+    { "Architecture" = "development/architecture.md" },
     { "Database Models" = "development/database-models.md" },
     { "Quality Validity" = "development/quality-validity.md" },
-    { "Contributors" = "contributors.md" },
+    { "Migrations" = "development/migrations.md" },
+    { "Testing" = "development/testing.md" },
   ] },
   { "Changelog" = "changelog.md" },
 ]

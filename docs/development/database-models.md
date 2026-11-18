@@ -1,206 +1,109 @@
-# AIMBAT database models
+# Database models
+
+A project is a single SQLite database. Its tables are defined as SQLModel
+classes in [`aimbat.models`][aimbat.models], where each column is documented.
+This page describes how the tables relate to one another. All primary keys are
+UUIDs.
+
+## Events, stations and seismograms
 
 ```mermaid
 erDiagram
     AimbatStation ||--o{ AimbatSeismogram : "records"
     AimbatEvent ||--o{ AimbatSeismogram : "has"
+    AimbatSeismogram ||--|| AimbatDataSource : "read from"
     AimbatEvent ||--|| AimbatEventParameters : "has"
     AimbatEvent ||--o| AimbatEventQuality : "has"
-    AimbatEvent ||--o{ AimbatSnapshot : "has"
-    AimbatSeismogram ||--|| AimbatDataSource : "has"
     AimbatSeismogram ||--|| AimbatSeismogramParameters : "has"
     AimbatSeismogram ||--o| AimbatSeismogramQuality : "has"
+```
 
-    AimbatEvent      |o--o| AimbatNote : "annotated by"
-    AimbatStation    |o--o| AimbatNote : "annotated by"
-    AimbatSeismogram |o--o| AimbatNote : "annotated by"
-    AimbatSnapshot   |o--o| AimbatNote : "annotated by"
+- An event is identified by its origin time, which is unique within a project.
+- A seismogram belongs to exactly one event and one station. Its `t0` is the
+    initial pick, set when the data are added.
+- `AimbatDataSource` records where the waveform of a seismogram is stored and in
+    which format. A data source is used by one seismogram only.
 
+Deletes cascade down the ownership tree. Deleting an event removes its
+seismograms, parameters, quality metrics, snapshots and notes. Deleting a
+station removes its seismograms. Deleting a seismogram removes its data source,
+parameters, quality metrics and note.
+
+## Parameters and quality
+
+- Every event and every seismogram has exactly one parameter row, created
+    together with it. A unique index on the foreign key enforces the one-to-one
+    link. The seismogram parameter `t1` is the refined pick. While it is empty,
+    `t0` is used in its place.
+- A seismogram quality row is created when an ICCS instance is first built for
+    its event. An event quality row is created when MCCC results are first
+    stored, either by an MCCC run or by restoring a snapshot.
+- Quality rows store `iccs_fingerprint` and `mccc_fingerprint`, digests of the
+    parameters the values were computed from, and `mccc_members`, the
+    seismograms that took part in the MCCC run. A stored value is reported only
+    while its fingerprint matches the current parameters. See
+    [Quality validity](quality-validity.md).
+
+The meaning of each parameter is described in
+[Parameters](../usage/parameters.md).
+
+!!! warning "Reading quality values directly"
+
+    The quality columns hold the last computed values, including values that no
+    longer apply. A query that reads them directly therefore also returns
+    out-of-date values. [`Validity`][aimbat.core.Validity] determines which stored
+    values still match the current parameters (see the
+    [Quality analysis recipe](../usage/recipes/quality-analysis.md)).
+
+### Base, live and snapshot classes
+
+Each of the four kinds of row (event parameters, seismogram parameters, event
+quality and seismogram quality) is defined by three classes. A base class
+declares the fields, and a live table and a snapshot table both inherit from it.
+For event parameters, these are `AimbatEventParametersBase`,
+`AimbatEventParameters` and `AimbatEventParametersSnapshot`.
+
+A field added to a base class therefore appears in both the live table and the
+snapshot table. The fingerprint columns are declared on the live tables only, so
+snapshots do not store them.
+
+## Snapshots
+
+```mermaid
+erDiagram
+    direction LR
+    AimbatEvent ||--o{ AimbatSnapshot : "has"
     AimbatSnapshot ||--|| AimbatEventParametersSnapshot : "has"
     AimbatSnapshot ||--o{ AimbatSeismogramParametersSnapshot : "has"
     AimbatSnapshot ||--o| AimbatEventQualitySnapshot : "has"
     AimbatSnapshot ||--o{ AimbatSeismogramQualitySnapshot : "has"
-
-    AimbatEventParameters |o--o{ AimbatEventParametersSnapshot : "snapshotted by"
-    AimbatSeismogramParameters |o--o{ AimbatSeismogramParametersSnapshot : "snapshotted by"
-    AimbatEventQuality |o--o{ AimbatEventQualitySnapshot : "snapshotted by"
-    AimbatSeismogramQuality |o--o{ AimbatSeismogramQualitySnapshot : "snapshotted by"
-
-    AimbatStation {
-        uuid id PK
-        string name
-        string network
-        string location
-        string channel
-        float latitude
-        float longitude
-        float elevation
-    }
-
-    AimbatEvent {
-        uuid id PK
-        timestamp time UK
-        float latitude
-        float longitude
-        float depth
-    }
-
-    AimbatSeismogram {
-        uuid id PK
-        timestamp begin_time
-        timedelta delta
-        timestamp t0
-        uuid station_id FK
-        uuid event_id FK
-    }
-
-    AimbatDataSource {
-        uuid id PK
-        string sourcename UK
-        datatype datatype
-        uuid seismogram_id FK
-    }
-
-    AimbatEventParameters {
-        uuid id PK
-        uuid event_id FK "unique"
-        bool completed
-        float ramp_width
-        timedelta window_pre
-        timedelta window_post
-        bool bandpass_apply
-        float bandpass_fmin
-        float bandpass_fmax
-        int corners
-        float min_cc
-        float mccc_damp
-        float mccc_min_cc
-    }
-
-    AimbatSeismogramParameters {
-        uuid id PK
-        uuid seismogram_id FK "unique"
-        bool flip
-        bool select
-        timestamp t1
-    }
-
-    AimbatEventQuality {
-        uuid id PK
-        uuid event_id FK "unique"
-        timedelta mccc_rmse
-        json mccc_members
-        string mccc_fingerprint
-    }
-
-    AimbatSeismogramQuality {
-        uuid id PK
-        uuid seismogram_id FK "unique"
-        float iccs_cc
-        float mccc_cc_mean
-        float mccc_cc_std
-        timedelta mccc_error
-        string iccs_fingerprint
-    }
-
-    AimbatSnapshot {
-        uuid id PK
-        int sequence
-        timestamp time
-        string comment
-        bool automatic
-        string mccc_hash
-        string iccs_hash
-        uuid event_id FK
-    }
-
-    AimbatEventParametersSnapshot {
-        uuid id PK
-        uuid snapshot_id FK
-        uuid parameters_id FK "SET NULL"
-    }
-
-    AimbatSeismogramParametersSnapshot {
-        uuid id PK
-        uuid snapshot_id FK
-        uuid seismogram_id
-        uuid seismogram_parameters_id FK "SET NULL"
-    }
-
-    AimbatEventQualitySnapshot {
-        uuid id PK
-        uuid snapshot_id FK
-        uuid event_quality_id FK "SET NULL"
-    }
-
-    AimbatSeismogramQualitySnapshot {
-        uuid id PK
-        uuid snapshot_id FK
-        uuid seismogram_id
-        uuid seismogram_quality_id FK "SET NULL"
-    }
-
-    AimbatNote {
-        uuid id PK
-        string content
-        uuid event_id FK "nullable"
-        uuid station_id FK "nullable"
-        uuid seismogram_id FK "nullable"
-        uuid snapshot_id FK "nullable"
-    }
 ```
 
-## Relationships summary
-
-- **AimbatStation** → **AimbatSeismogram**: one-to-many
-- **AimbatEvent** → **AimbatSeismogram**: one-to-many
-- **AimbatEvent** → **AimbatEventParameters**: one-to-one, mandatory
-- **AimbatEvent** → **AimbatEventQuality**: one-to-one, created on the first MCCC run
-- **AimbatEvent** → **AimbatSnapshot**: one-to-many
-- **AimbatSeismogram** → **AimbatDataSource**: one-to-one, mandatory
-- **AimbatSeismogram** → **AimbatSeismogramParameters**: one-to-one, mandatory
-- **AimbatSeismogram** → **AimbatSeismogramQuality**: one-to-one, created on the first ICCS/MCCC run
-- **AimbatEvent / AimbatStation / AimbatSeismogram / AimbatSnapshot** → **AimbatNote**: each has at most one note; a note has exactly one parent
-- **AimbatSnapshot** → **AimbatEventParametersSnapshot**: one-to-one
-- **AimbatSnapshot** → **AimbatSeismogramParametersSnapshot**: one-to-many
-- **AimbatSnapshot** → **AimbatEventQualitySnapshot**: one-to-one, optional
-- **AimbatSnapshot** → **AimbatSeismogramQualitySnapshot**: one-to-many
-- Each live parameter/quality row → its `*Snapshot` rows: one-to-many, with the
-  snapshot's back-reference nullable (`SET NULL`)
+- A snapshot numbers itself within its event by `sequence`, in the order the
+    snapshots were taken. The pair `(event_id, sequence)` is unique.
+- `iccs_hash` is the instance digest of the event when the snapshot was taken,
+    and `mccc_hash` the MCCC digest of the run it froze. `mccc_hash` is empty if
+    the snapshot froze no MCCC results.
+- A snapshot freezes only quality values that are valid when it is taken. An
+    invalid value is stored as empty, and a quality snapshot row is omitted when
+    none of its values are valid.
+- Each snapshot row also links to the live row it copied. That link is set to
+    null, not cascaded, when the live row is deleted, so deleting a seismogram
+    leaves earlier snapshots intact. The seismogram-level snapshot tables keep
+    their own `seismogram_id`, without a foreign key, for the same reason.
+- Deleting a snapshot removes its rows and its note.
 
 ## Notes
 
-- All primary keys are UUIDs. `UK` = unique constraint, `FK` = foreign key.
-- **Deletes cascade down the ownership tree.** Deleting an event removes its
-  seismograms, parameters, quality, snapshots, and every snapshot sub-row;
-  deleting a seismogram removes its data source, parameters, and quality;
-  deleting a snapshot removes its four sub-rows. A note is removed with its
-  parent.
-- **Snapshot → live-record links use `SET NULL`, not cascade.**
-  `AimbatEventParametersSnapshot.parameters_id`,
-  `AimbatSeismogramParametersSnapshot.seismogram_parameters_id`, and the two
-  quality equivalents go `NULL` when the live row is deleted, so historical
-  snapshots survive. The seismogram-level snapshot tables also keep their own
-  denormalised `seismogram_id` for the same reason.
-- **One-to-one links are DB-enforced** by unique indexes on
-  `AimbatEventParameters.event_id`, `AimbatSeismogramParameters.seismogram_id`,
-  `AimbatEventQuality.event_id`, `AimbatSeismogramQuality.seismogram_id`, and
-  `AimbatDataSource.sourcename`.
-- **`AimbatSnapshot`** is keyed by `(event_id, sequence)`. `sequence` is a
-  monotonic per-event counter that defines snapshot order. `iccs_hash` is the
-  event's instance digest at capture time and `mccc_hash` the MCCC digest of
-  the run it froze, null when it froze no MCCC results. See
-  [Quality metric validity](quality-validity.md).
-- **`AimbatNote`** holds exactly one of `event_id` / `station_id` /
-  `seismogram_id` / `snapshot_id` (a `CHECK` constraint), with a partial unique
-  index per FK so a parent has at most one note.
-- **Quality fingerprints.** `iccs_fingerprint` and `mccc_fingerprint` are
-  digests of the parameters the values were computed from, and `mccc_members`
-  lists the seismograms in the MCCC run. A value counts only while its
-  fingerprint matches the current parameters; see
-  [Quality metric validity](quality-validity.md).
-- The `*Snapshot` parameter and quality tables inherit every column from the
-  same base class as their live counterpart (`AimbatEventParametersBase`,
-  `AimbatSeismogramParametersBase`, `AimbatEventQualityBase`,
-  `AimbatSeismogramQualityBase`); only their structural columns are shown above.
+```mermaid
+erDiagram
+    AimbatEvent      |o--o| AimbatNote : "annotated by"
+    AimbatStation    |o--o| AimbatNote : "annotated by"
+    AimbatSeismogram |o--o| AimbatNote : "annotated by"
+    AimbatSnapshot   |o--o| AimbatNote : "annotated by"
 ```
+
+A note belongs to exactly one event, station, seismogram or snapshot, which a
+`CHECK` constraint enforces. A partial unique index on each foreign key limits
+each record to one note. A note is deleted together with the record it belongs
+to.

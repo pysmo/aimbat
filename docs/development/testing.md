@@ -1,0 +1,78 @@
+# Testing
+
+The general expectations for tests are described in pysmo's
+[Code standards](https://docs.pysmo.org/development/standards/#tests). This page
+covers the layout and fixtures of the AIMBAT test suite.
+
+## Layout
+
+| Directory            | Contents                                                          |
+| :------------------- | :---------------------------------------------------------------- |
+| `tests/unit/`        | Tests of single functions and classes, mostly without a database. |
+| `tests/integration/` | Tests against a project database, mostly of `core` and `actions`. |
+| `tests/functional/`  | Tests of the CLI, the shell and the TUI as a whole.               |
+
+Within `unit/` and `integration/`, the directories mirror the layout of
+`src/aimbat/`, so the tests of `aimbat.core._snapshot` are found in
+`tests/integration/core/test_snapshots.py`.
+
+Most rules of an operation are tested against its `core` function.
+`tests/integration/actions/` covers what an action adds: one transaction per
+call, all-or-nothing handling of ID lists, and results that remain usable after
+the session closes. CLI tests cover argument parsing and the wiring to the
+action or read behind each command, not the behaviour itself.
+
+## Fixtures
+
+The shared fixtures are defined in `tests/conftest.py`, and
+`uv run pytest --fixtures` lists them with their descriptions. The project
+fixtures come in a few families:
+
+- `engine` provides a new, empty project in an in-memory database.
+- The `loaded_*` fixtures provide a project with the multi-event test data
+    added.
+- Every project fixture other than `engine` also installs its project as
+    `aimbat.db.engine`, so that actions and CLI commands use it.
+    `patched_engine` is `engine` installed in this way.
+- The `*_from_file` variants keep the project in a temporary file, for code that
+    opens sessions from other threads, such as TUI workers.
+
+Every test receives its own database. The loaded fixtures do not repeat the
+ingestion for each test. The data are added once per worker process, and each
+test receives a copy of the resulting database.
+
+The test data come from [testkit](https://github.com/pysmo/testkit), which pysmo
+and AIMBAT share. Tests work on temporary copies of the files, never on the
+originals.
+
+Some fixtures in `conftest.py` apply to every test automatically. Among them,
+UUIDs come from a fixed sequence, so IDs are the same on every run, the caches
+are cleared after each test, and no plot window opens.
+
+## Settings
+
+A setting is changed for one test by patching the settings object:
+
+```python
+import pytest
+
+import aimbat
+
+
+def test_something(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(aimbat.settings, "min_cc", 0.8)
+```
+
+## Running the tests
+
+The tests run in parallel with pytest-xdist. Tests that start a subprocess,
+download data or drive the TUI are marked `slow`. `make tests` skips them, and
+`make tests-full` includes them. A single test file or test runs directly:
+
+```bash
+uv run pytest tests/integration/core/test_snapshots.py
+uv run pytest tests/integration/core/test_snapshots.py::test_name
+```
+
+The number of worker processes can be limited, for example with
+`make tests PYTEST_WORKERS=4`.
