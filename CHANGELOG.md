@@ -81,6 +81,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(models,tests)** Clarify sourcename uniqueness and cover migration downgrades
 - **(core,models,tui,cli)** Name four architectural risks in code, not just the review notes
 - Update contributor notes and stale test wording
+- Expand the development chapter
 
 ### 📦 Miscellaneous
 
