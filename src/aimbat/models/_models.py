@@ -1,6 +1,7 @@
 """ORM classes representing AIMBAT data stored in the database."""
 
 import uuid
+from enum import StrEnum, auto
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -22,20 +23,22 @@ from aimbat.types import (
 )
 
 from ._format import RichColSpec
-from ._parameters import AimbatEventParametersBase, AimbatSeismogramParametersBase
+from ._parameters import AimbatPhaseParametersBase, AimbatSeismogramParametersBase
 from ._quality import (
-    AimbatEventQualityBase,
+    AimbatPhaseQualityBase,
     AimbatSeismogramQualityBase,
 )
 
 __all__ = [
     "AimbatDataSource",
     "AimbatEvent",
-    "AimbatEventParameters",
-    "AimbatEventParametersSnapshot",
-    "AimbatEventQuality",
-    "AimbatEventQualitySnapshot",
     "AimbatNote",
+    "AimbatPhase",
+    "AimbatPhaseParameters",
+    "AimbatPhaseParametersSnapshot",
+    "AimbatPhaseQuality",
+    "AimbatPhaseQualitySnapshot",
+    "AimbatPick",
     "AimbatSeismogram",
     "AimbatSeismogramParameters",
     "AimbatSeismogramParametersSnapshot",
@@ -44,6 +47,7 @@ __all__ = [
     "AimbatSnapshot",
     "AimbatStation",
     "AimbatTypes",
+    "PickOrigin",
     "undefer_counts",
 ]
 
@@ -72,6 +76,7 @@ class AimbatDataSource(SQLModel, table=True):
     # constraint, keeping the two schema-creation paths in sync.
     __table_args__ = (
         UniqueConstraint("sourcename", name="uq_aimbatdatasource_sourcename"),
+        Index("ix_aimbatdatasource_seismogram_id", "seismogram_id", unique=True),
     )
 
     id: uuid.UUID = Field(
@@ -109,8 +114,30 @@ class AimbatDataSource(SQLModel, table=True):
     "The seismogram this data source belongs to."
 
 
-class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
-    """Processing parameters for a single seismogram."""
+class PickOrigin(StrEnum):
+    """Where an initial pick came from."""
+
+    SOURCE = auto()
+    """Read from a data source or a picks source."""
+
+    MANUAL = auto()
+    """Entered by the user."""
+
+
+class AimbatPick(SQLModel, table=True):
+    """An initial pick as read or entered, before or after promotion.
+
+    The raw record of a pick: its time, the label it was read with, the phase
+    name assigned to it, where it came from, the target it was read with, and
+    the seismogram it was matched to. Its time and label never change. A pick
+    that is named and matched is promoted to the initial pick of a
+    seismogram for a phase (an `AimbatSeismogramParameters` row referencing
+    it).
+
+    `event_id` is set only while the pick is unmatched and its event is
+    known, so the picks of an event are those matched to its seismograms
+    together with those whose `event_id` is the event's.
+    """
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -119,10 +146,291 @@ class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
 
     __table_args__ = (
         Index(
-            "ix_aimbatseismogramparameters_seismogram_id",
-            "seismogram_id",
+            "ix_aimbatpick_source_name_source_key",
+            "source_name",
+            "source_key",
+            unique=True,
+            sqlite_where=text("source_name IS NOT NULL"),
+        ),
+        Index("ix_aimbatpick_seismogram_id", "seismogram_id"),
+        Index(
+            "ix_aimbatpick_event_id",
+            "event_id",
+            sqlite_where=text("event_id IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "(origin = 'SOURCE') = (source_name IS NOT NULL AND source_key IS NOT NULL)",
+            name="aimbat_pick_source_provenance",
+        ),
+        CheckConstraint(
+            "seismogram_id IS NULL OR event_id IS NULL",
+            name="aimbat_pick_event_only_while_unmatched",
+        ),
+        CheckConstraint(
+            "target_seismogram_id IS NULL OR (target_network IS NULL AND "
+            + "target_station IS NULL AND target_location IS NULL AND "
+            + "target_channel IS NULL AND target_event_time IS NULL)",
+            name="aimbat_pick_one_target_form",
+        ),
+    )
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        title="ID",
+        description="Unique pick ID.",
+        schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
+    )
+    time: PydanticTimestamp = Field(
+        sa_type=SAPandasTimestamp,
+        title="Time",
+        description="Pick time.",
+    )
+    label: str | None = Field(
+        default=None,
+        title="Label",
+        description="Label the pick was read with, if any.",
+    )
+    phase_name: str | None = Field(
+        default=None,
+        title="Phase name",
+        description="Phase name assigned to the pick, or `None` while unnamed.",
+    )
+    dismissed: bool = Field(
+        default=False,
+        title="Dismissed",
+        description="Whether the pick is excluded from promotion and checks.",
+    )
+    origin: PickOrigin = Field(
+        title="Origin",
+        description="Where the pick came from.",
+    )
+    source_name: str | None = Field(
+        default=None,
+        title="Source name",
+        description="Name of the source the pick was read from.",
+    )
+    source_type: DataType | None = Field(
+        default=None,
+        title="Source type",
+        description="Data type of the source the pick was read from.",
+    )
+    source_key: str | None = Field(
+        default=None,
+        title="Source key",
+        description="Key identifying the pick within its source.",
+    )
+    target_network: str | None = Field(
+        default=None,
+        title="Target network",
+        description="Network code of the target, as read.",
+    )
+    target_station: str | None = Field(
+        default=None,
+        title="Target station",
+        description="Station code of the target, as read.",
+    )
+    target_location: str | None = Field(
+        default=None,
+        title="Target location",
+        description="Location code of the target, as read.",
+    )
+    target_channel: str | None = Field(
+        default=None,
+        title="Target channel",
+        description="Channel code of the target, as read. `None` matches any channel.",
+    )
+    target_event_time: PydanticTimestamp | None = Field(
+        default=None,
+        sa_type=SAPandasTimestamp,
+        title="Target event time",
+        description="Event origin time of the target, as read.",
+    )
+    target_seismogram_id: uuid.UUID | None = Field(
+        default=None,
+        title="Target seismogram ID",
+        description="Seismogram ID of the target, as read.",
+    )
+    seismogram_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="aimbatseismogram.id",
+        ondelete="CASCADE",
+        title="Seismogram ID",
+        description="Seismogram the pick is matched to, or `None` while unmatched.",
+        schema_extra={"rich": RichColSpec(style="magenta", highlight=False)},
+    )
+    event_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="aimbatevent.id",
+        ondelete="CASCADE",
+        title="Event ID",
+        description="Event of an unmatched pick, if known.",
+        schema_extra={"rich": RichColSpec(style="magenta", highlight=False)},
+    )
+    # Many-to-one only. A collection on the seismogram would need
+    # `passive_deletes="all"`, or deleting a seismogram would unmatch its
+    # picks instead of letting the database delete them.
+    seismogram: "AimbatSeismogram" = Relationship()
+    "The seismogram the pick is matched to, if any."
+
+
+class AimbatPhaseQuality(AimbatPhaseQualityBase, table=True):
+    """Live quality metrics of a phase.
+
+    One row per phase. Updated in place whenever MCCC runs.
+    Fields are `None` until MCCC has been executed.
+    """
+
+    model_config = SQLModelConfig(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+    __table_args__ = (Index("ix_aimbatphasequality_phase_id", "phase_id", unique=True),)
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
+    )
+    phase_id: uuid.UUID = Field(
+        default=None,
+        foreign_key="aimbatphase.id",
+        ondelete="CASCADE",
+        title="Phase ID",
+        description="Foreign key referencing the parent phase.",
+    )
+    mccc_fingerprint: str | None = Field(
+        default=None,
+        title="MCCC fingerprint",
+        description="Digest of the parameters the MCCC results were computed from.",
+    )
+    phase: "AimbatPhase" = Relationship(back_populates="quality")
+    "The phase these quality metrics belong to."
+    snapshots: list["AimbatPhaseQualitySnapshot"] = Relationship(
+        back_populates="quality", passive_deletes=True
+    )
+    "Quality snapshots taken from this live record."
+
+
+class AimbatPhase(SQLModel, table=True):
+    """A phase of one event, the unit of processing.
+
+    Parameters, quality and snapshots belong to a phase, and so does the
+    processing state of each seismogram (`AimbatSeismogramParameters`).
+    """
+
+    model_config = SQLModelConfig(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("event_id", "name", name="uq_aimbatphase_event_id_name"),
+    )
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        title="ID",
+        description="Unique phase ID.",
+        schema_extra={"rich": RichColSpec(style="yellow", highlight=False)},
+    )
+    event_id: uuid.UUID = Field(
+        default=None,
+        foreign_key="aimbatevent.id",
+        ondelete="CASCADE",
+        title="Event ID",
+        description="Foreign key referencing the parent event.",
+        schema_extra={"rich": RichColSpec(style="magenta", highlight=False)},
+    )
+    name: str = Field(
+        max_length=32,
+        title="Name",
+        description="Phase name, unique within the event.",
+    )
+    event: "AimbatEvent" = Relationship(back_populates="phases")
+    "The event this phase belongs to."
+    parameters: "AimbatPhaseParameters" = Relationship(
+        back_populates="phase", cascade_delete=True
+    )
+    "Processing parameters of the phase."
+    quality: AimbatPhaseQuality | None = Relationship(
+        back_populates="phase", cascade_delete=True
+    )
+    "Live quality metrics of the phase."
+    seismogram_parameters: list["AimbatSeismogramParameters"] = Relationship(
+        back_populates="phase", cascade_delete=True
+    )
+    "Processing state of each seismogram of the phase."
+    snapshots: list["AimbatSnapshot"] = Relationship(
+        back_populates="phase", cascade_delete=True
+    )
+    "Snapshots of the phase."
+
+    if TYPE_CHECKING:
+        # Column property defined below, but add same default value for type checking purposes
+        snapshot_count: int = 0
+
+
+class AimbatSeismogramQuality(AimbatSeismogramQualityBase, table=True):
+    """Live quality metrics of one seismogram for one phase.
+
+    One row per `AimbatSeismogramParameters` row. Updated in place whenever
+    ICCS or MCCC runs. Fields are `None` until the corresponding algorithm
+    has been executed.
+    """
+
+    model_config = SQLModelConfig(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_aimbatseismogramquality_seismogram_parameters_id",
+            "seismogram_parameters_id",
             unique=True,
         ),
+    )
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
+    )
+    seismogram_parameters_id: uuid.UUID = Field(
+        default=None,
+        foreign_key="aimbatseismogramparameters.id",
+        ondelete="CASCADE",
+        title="Seismogram parameters ID",
+        description="Foreign key referencing the seismogram's row for the phase.",
+    )
+    iccs_fingerprint: str | None = Field(
+        default=None,
+        title="ICCS fingerprint",
+        description="Digest of the parameters `iccs_cc` was computed from.",
+    )
+    parameters: "AimbatSeismogramParameters" = Relationship(back_populates="quality")
+    "The row these quality metrics belong to."
+
+
+class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
+    """Processing state of one seismogram for one phase.
+
+    A row exists only where the seismogram has an initial pick for the phase:
+    it references that pick (`AimbatPick`), and reads the time through it.
+    """
+
+    model_config = SQLModelConfig(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "seismogram_id",
+            "phase_id",
+            name="uq_aimbatseismogramparameters_seismogram_id_phase_id",
+        ),
+        Index("ix_aimbatseismogramparameters_phase_id", "phase_id"),
+        Index("ix_aimbatseismogramparameters_pick_id", "pick_id", unique=True),
     )
 
     id: uuid.UUID = Field(
@@ -136,24 +444,50 @@ class AimbatSeismogramParameters(AimbatSeismogramParametersBase, table=True):
         foreign_key="aimbatseismogram.id",
         ondelete="CASCADE",
         title="Seismogram ID",
-        description="Foreign key referencing the parent seismogram.",
+        description="Foreign key referencing the seismogram.",
+    )
+    phase_id: uuid.UUID = Field(
+        default=None,
+        foreign_key="aimbatphase.id",
+        ondelete="CASCADE",
+        title="Phase ID",
+        description="Foreign key referencing the phase.",
+    )
+    pick_id: uuid.UUID = Field(
+        default=None,
+        foreign_key="aimbatpick.id",
+        ondelete="CASCADE",
+        title="Pick ID",
+        description="Foreign key referencing the initial pick.",
     )
 
-    seismogram: "AimbatSeismogram" = Relationship(back_populates="parameters")
-    "The seismogram these parameters belong to."
-
+    seismogram: "AimbatSeismogram" = Relationship(back_populates="phase_rows")
+    "The seismogram."
+    phase: AimbatPhase = Relationship(back_populates="seismogram_parameters")
+    "The phase."
+    pick: AimbatPick = Relationship()
+    "The initial pick."
+    quality: AimbatSeismogramQuality | None = Relationship(
+        back_populates="parameters", cascade_delete=True
+    )
+    "Live quality metrics of the seismogram for the phase."
     snapshots: list["AimbatSeismogramParametersSnapshot"] = Relationship(
         back_populates="parameters", passive_deletes=True
     )
-    "Parameter snapshots for this seismogram."
+    "Snapshots taken from this row."
+
+    @property
+    def initial_pick(self) -> Timestamp:
+        """Time of the initial pick."""
+        return self.pick.time
 
 
 class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=True):
-    """Snapshot of processing parameters for a single seismogram.
+    """Snapshot of the processing state of one seismogram for one phase.
 
     Frozen history: the record keeps its own `seismogram_id` and outlives the
     seismogram it was taken from. `seismogram_parameters_id` is set to `NULL`
-    if that live parameter row is deleted.
+    if that live row is deleted. The initial pick is not frozen.
     """
 
     model_config = SQLModelConfig(
@@ -196,8 +530,8 @@ class AimbatSeismogramParametersSnapshot(AimbatSeismogramParametersBase, table=T
     "The snapshot this record belongs to."
 
 
-class AimbatEventParameters(AimbatEventParametersBase, table=True):
-    """Processing parameters common to all seismograms of a particular event."""
+class AimbatPhaseParameters(AimbatPhaseParametersBase, table=True):
+    """Processing parameters common to all seismograms of a phase."""
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
@@ -205,7 +539,7 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
     )
 
     __table_args__ = (
-        Index("ix_aimbateventparameters_event_id", "event_id", unique=True),
+        Index("ix_aimbatphaseparameters_phase_id", "phase_id", unique=True),
     )
 
     id: uuid.UUID = Field(
@@ -217,29 +551,29 @@ class AimbatEventParameters(AimbatEventParametersBase, table=True):
             "rich": RichColSpec(style="yellow", no_wrap=True, highlight=False)
         },
     )
-    event_id: uuid.UUID = Field(
+    phase_id: uuid.UUID = Field(
         default=None,
-        foreign_key="aimbatevent.id",
+        foreign_key="aimbatphase.id",
         ondelete="CASCADE",
-        title="Event ID",
-        description="Foreign key referencing the parent event.",
+        title="Phase ID",
+        description="Foreign key referencing the parent phase.",
         schema_extra={
             "rich": RichColSpec(style="magenta", no_wrap=True, highlight=False)
         },
     )
-    event: "AimbatEvent" = Relationship(back_populates="parameters")
-    "The event these parameters belong to."
-    snapshots: list["AimbatEventParametersSnapshot"] = Relationship(
+    phase: AimbatPhase = Relationship(back_populates="parameters")
+    "The phase these parameters belong to."
+    snapshots: list["AimbatPhaseParametersSnapshot"] = Relationship(
         back_populates="parameters", passive_deletes=True
     )
-    "Parameter snapshots for this event."
+    "Parameter snapshots of this phase."
 
 
-class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
-    """Snapshot of processing parameters for a particular event.
+class AimbatPhaseParametersSnapshot(AimbatPhaseParametersBase, table=True):
+    """Snapshot of the processing parameters of a phase.
 
-    Frozen history: the source event is still reachable via
-    `snapshot.event_id`, and `parameters_id` is set to `NULL` if the live
+    Frozen history: the source phase is still reachable via
+    `snapshot.phase_id`, and `parameters_id` is set to `NULL` if the live
     parameter row is deleted.
     """
 
@@ -260,71 +594,28 @@ class AimbatEventParametersSnapshot(AimbatEventParametersBase, table=True):
     )
     parameters_id: uuid.UUID | None = Field(
         default=None,
-        foreign_key="aimbateventparameters.id",
+        foreign_key="aimbatphaseparameters.id",
         ondelete="SET NULL",
-        title="Event parameters ID",
+        title="Phase parameters ID",
         description=(
-            "Foreign key referencing the source event parameters, or NULL if it "
+            "Foreign key referencing the source phase parameters, or NULL if it "
             + "has been deleted."
         ),
     )
     snapshot: "AimbatSnapshot" = Relationship(
-        back_populates="event_parameters_snapshot"
+        back_populates="phase_parameters_snapshot"
     )
     "The snapshot this record belongs to."
-    parameters: AimbatEventParameters | None = Relationship(back_populates="snapshots")
-    "The event parameters this snapshot was taken from, if still present."
-
-
-class AimbatSeismogramQuality(AimbatSeismogramQualityBase, table=True):
-    """Live quality metrics for a single seismogram.
-
-    One row per seismogram. Updated in place whenever ICCS or MCCC runs.
-    Fields are `None` until the corresponding algorithm has been executed.
-    """
-
-    model_config = SQLModelConfig(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
-
-    __table_args__ = (
-        Index(
-            "ix_aimbatseismogramquality_seismogram_id",
-            "seismogram_id",
-            unique=True,
-        ),
-    )
-
-    id: uuid.UUID = Field(
-        default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
-    )
-    seismogram_id: uuid.UUID = Field(
-        default=None,
-        foreign_key="aimbatseismogram.id",
-        ondelete="CASCADE",
-        title="Seismogram ID",
-        description="Foreign key referencing the parent seismogram.",
-    )
-    iccs_fingerprint: str | None = Field(
-        default=None,
-        title="ICCS fingerprint",
-        description="Digest of the parameters `iccs_cc` was computed from.",
-    )
-    seismogram: "AimbatSeismogram" = Relationship(back_populates="quality")
-    "The seismogram these quality metrics belong to."
-    snapshots: list["AimbatSeismogramQualitySnapshot"] = Relationship(
-        back_populates="quality", passive_deletes=True
-    )
-    "Quality snapshots taken from this live record."
+    parameters: AimbatPhaseParameters | None = Relationship(back_populates="snapshots")
+    "The phase parameters this snapshot was taken from, if still present."
 
 
 class AimbatSeismogramQualitySnapshot(AimbatSeismogramQualityBase, table=True):
-    """Snapshot of quality metrics for a single seismogram.
+    """Snapshot of the quality metrics of one seismogram for one phase.
 
     Frozen history: the record keeps its own `seismogram_id` and outlives the
-    seismogram it was taken from. `seismogram_quality_id` is set to `NULL` if
-    that live quality row is deleted.
+    seismogram it was taken from. `seismogram_parameters_id` is set to `NULL`
+    if the live row it was taken from is deleted.
     """
 
     model_config = SQLModelConfig(
@@ -340,18 +631,16 @@ class AimbatSeismogramQualitySnapshot(AimbatSeismogramQualityBase, table=True):
         title="Seismogram ID",
         description="ID of the seismogram this snapshot was taken from.",
     )
-    seismogram_quality_id: uuid.UUID | None = Field(
+    seismogram_parameters_id: uuid.UUID | None = Field(
         default=None,
-        foreign_key="aimbatseismogramquality.id",
+        foreign_key="aimbatseismogramparameters.id",
         ondelete="SET NULL",
-        title="Seismogram quality ID",
+        title="Seismogram parameters ID",
         description=(
-            "Foreign key referencing the source seismogram quality, or NULL if it"
-            + " has been deleted."
+            "Foreign key referencing the row the quality was taken from, or NULL"
+            + " if it has been deleted."
         ),
     )
-    quality: AimbatSeismogramQuality | None = Relationship(back_populates="snapshots")
-    "The seismogram quality this snapshot was taken from, if still present."
     snapshot_id: uuid.UUID = Field(
         default=None,
         foreign_key="aimbatsnapshot.id",
@@ -365,48 +654,11 @@ class AimbatSeismogramQualitySnapshot(AimbatSeismogramQualityBase, table=True):
     "The snapshot this record belongs to."
 
 
-class AimbatEventQuality(AimbatEventQualityBase, table=True):
-    """Live quality metrics for a seismic event.
+class AimbatPhaseQualitySnapshot(AimbatPhaseQualityBase, table=True):
+    """Snapshot of the quality metrics of a phase.
 
-    One row per event. Updated in place whenever MCCC runs.
-    Fields are `None` until MCCC has been executed.
-    """
-
-    model_config = SQLModelConfig(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
-
-    __table_args__ = (Index("ix_aimbateventquality_event_id", "event_id", unique=True),)
-
-    id: uuid.UUID = Field(
-        default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
-    )
-    event_id: uuid.UUID = Field(
-        default=None,
-        foreign_key="aimbatevent.id",
-        ondelete="CASCADE",
-        title="Event ID",
-        description="Foreign key referencing the parent event.",
-    )
-    mccc_fingerprint: str | None = Field(
-        default=None,
-        title="MCCC fingerprint",
-        description="Digest of the parameters the MCCC results were computed from.",
-    )
-    event: "AimbatEvent" = Relationship(back_populates="quality")
-    "The event these quality metrics belong to."
-    snapshots: list["AimbatEventQualitySnapshot"] = Relationship(
-        back_populates="quality", passive_deletes=True
-    )
-    "Quality snapshots taken from this live record."
-
-
-class AimbatEventQualitySnapshot(AimbatEventQualityBase, table=True):
-    """Snapshot of quality metrics for a seismic event.
-
-    Frozen history: the source event is still reachable via
-    `snapshot.event_id`, and `event_quality_id` is set to `NULL` if the live
+    Frozen history: the source phase is still reachable via
+    `snapshot.phase_id`, and `phase_quality_id` is set to `NULL` if the live
     quality row is deleted.
     """
 
@@ -418,18 +670,18 @@ class AimbatEventQualitySnapshot(AimbatEventQualityBase, table=True):
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4, primary_key=True, description="Unique ID."
     )
-    event_quality_id: uuid.UUID | None = Field(
+    phase_quality_id: uuid.UUID | None = Field(
         default=None,
-        foreign_key="aimbateventquality.id",
+        foreign_key="aimbatphasequality.id",
         ondelete="SET NULL",
-        title="Event quality ID",
+        title="Phase quality ID",
         description=(
-            "Foreign key referencing the source event quality, or NULL if it has "
+            "Foreign key referencing the source phase quality, or NULL if it has "
             + "been deleted."
         ),
     )
-    quality: AimbatEventQuality | None = Relationship(back_populates="snapshots")
-    "The event quality this snapshot was taken from, if still present."
+    quality: AimbatPhaseQuality | None = Relationship(back_populates="snapshots")
+    "The phase quality this snapshot was taken from, if still present."
     snapshot_id: uuid.UUID = Field(
         default=None,
         foreign_key="aimbatsnapshot.id",
@@ -437,15 +689,15 @@ class AimbatEventQualitySnapshot(AimbatEventQualityBase, table=True):
         title="Snapshot ID",
         description="Foreign key referencing the parent snapshot.",
     )
-    snapshot: "AimbatSnapshot" = Relationship(back_populates="event_quality_snapshot")
+    snapshot: "AimbatSnapshot" = Relationship(back_populates="phase_quality_snapshot")
     "The snapshot this record belongs to."
 
 
 class AimbatSnapshot(SQLModel, table=True):
-    """Container for a point-in-time snapshot of event and seismogram parameters.
+    """Container for a point-in-time snapshot of a phase and its seismograms.
 
     An `AimbatSnapshot` does not store any parameter data itself. It is used
-    to group and keep track of the associated `AimbatEventParametersSnapshot`
+    to group and keep track of the associated `AimbatPhaseParametersSnapshot`
     and `AimbatSeismogramParametersSnapshot` instances.
     """
 
@@ -456,7 +708,7 @@ class AimbatSnapshot(SQLModel, table=True):
 
     __table_args__ = (
         UniqueConstraint(
-            "event_id", "sequence", name="uq_aimbatsnapshot_event_id_sequence"
+            "phase_id", "sequence", name="uq_aimbatsnapshot_phase_id_sequence"
         ),
     )
 
@@ -465,7 +717,7 @@ class AimbatSnapshot(SQLModel, table=True):
     )
     sequence: int = Field(
         title="Sequence",
-        description="Monotonic per-event counter; the definitive snapshot order.",
+        description="Monotonic per-phase counter; the definitive snapshot order.",
     )
     time: PydanticTimestamp = Field(
         default_factory=lambda: Timestamp.now("UTC"),
@@ -491,33 +743,33 @@ class AimbatSnapshot(SQLModel, table=True):
     iccs_hash: str | None = Field(
         default=None,
         title="ICCS hash",
-        description=("Instance digest of the event's parameters at creation time."),
+        description=("Instance digest of the phase's parameters at creation time."),
     )
-    event_parameters_snapshot: AimbatEventParametersSnapshot = Relationship(
+    phase_parameters_snapshot: AimbatPhaseParametersSnapshot = Relationship(
         back_populates="snapshot", cascade_delete=True
     )
-    "Event parameter snapshot associated with this snapshot."
+    "Phase parameter snapshot associated with this snapshot."
     seismogram_parameters_snapshots: list[AimbatSeismogramParametersSnapshot] = (
         Relationship(back_populates="snapshot", cascade_delete=True)
     )
     "Seismogram parameter snapshots associated with this snapshot."
-    event_quality_snapshot: AimbatEventQualitySnapshot | None = Relationship(
+    phase_quality_snapshot: AimbatPhaseQualitySnapshot | None = Relationship(
         back_populates="snapshot", cascade_delete=True
     )
-    "Event quality metric snapshot associated with this snapshot."
+    "Phase quality metric snapshot associated with this snapshot."
     seismogram_quality_snapshots: list[AimbatSeismogramQualitySnapshot] = Relationship(
         back_populates="snapshot", cascade_delete=True
     )
     "Seismogram quality metric snapshots associated with this snapshot."
-    event_id: uuid.UUID = Field(
+    phase_id: uuid.UUID = Field(
         default=None,
-        foreign_key="aimbatevent.id",
+        foreign_key="aimbatphase.id",
         ondelete="CASCADE",
-        title="Event ID",
-        description="Foreign key referencing the parent event.",
+        title="Phase ID",
+        description="Foreign key referencing the parent phase.",
     )
-    event: "AimbatEvent" = Relationship(back_populates="snapshots")
-    "The event this snapshot belongs to."
+    phase: AimbatPhase = Relationship(back_populates="snapshots")
+    "The phase this snapshot belongs to."
 
     if TYPE_CHECKING:
         # defined as column properties below, but add same default values for type checking purposes
@@ -529,7 +781,7 @@ class AimbatSnapshot(SQLModel, table=True):
 class AimbatSeismogram(SQLModel, table=True):
     """Seismogram metadata linking a recording station to an event.
 
-    Holds timing information (`begin_time`, `delta`, `t0`) and a reference to
+    Holds timing information (`begin_time`, `delta`) and a reference to
     the waveform data source; the waveform samples themselves are not stored
     on this model but are read from that data source on demand.
 
@@ -542,9 +794,10 @@ class AimbatSeismogram(SQLModel, table=True):
     attached to no session falls back to an immediate write.
 
     Exposes the pysmo [`Seismogram`][pysmo.Seismogram] interface directly
-    (`begin_time`, `delta`, `data`, `end_time`). ICCS working state (`t1`,
-    `flip`, `select`) is not on this model - it lives on the linked
-    `AimbatSeismogramParameters` and is reached via `seismogram.parameters`.
+    (`begin_time`, `delta`, `data`, `end_time`). Processing state
+    (`initial_pick`, `refined_pick`, `flip`, `select`) is not on this model:
+    it lives on one `AimbatSeismogramParameters` row per phase, reached via
+    `seismogram.phase_rows`.
     """
 
     model_config = SQLModelConfig(
@@ -569,11 +822,6 @@ class AimbatSeismogram(SQLModel, table=True):
         title="Sampling interval",
         description="Sampling interval.",
     )
-    t0: PydanticTimestamp = Field(
-        sa_type=SAPandasTimestamp,
-        title="Initial pick",
-        description="Initial phase arrival pick.",
-    )
     datasource: AimbatDataSource = Relationship(
         back_populates="seismogram", cascade_delete=True
     )
@@ -597,16 +845,11 @@ class AimbatSeismogram(SQLModel, table=True):
     )
     event: "AimbatEvent" = Relationship(back_populates="seismograms")
     "The event this seismogram belongs to."
-    parameters: "AimbatSeismogramParameters" = Relationship(
+    phase_rows: list[AimbatSeismogramParameters] = Relationship(
         back_populates="seismogram",
         cascade_delete=True,
     )
-    "Processing parameters for this seismogram."
-    quality: AimbatSeismogramQuality | None = Relationship(
-        back_populates="seismogram",
-        cascade_delete=True,
-    )
-    "Live quality metrics for this seismogram."
+    "Processing state of this seismogram, one row per phase."
 
     if TYPE_CHECKING:
         # `data` and `end_time` are provided at runtime by the properties in
@@ -748,25 +991,16 @@ class AimbatEvent(SQLModel, table=True):
     )
     "List of seismograms of this event."
 
-    parameters: AimbatEventParameters = Relationship(
+    phases: list[AimbatPhase] = Relationship(
         back_populates="event", cascade_delete=True
     )
-    "Event parameters."
-
-    quality: AimbatEventQuality | None = Relationship(
-        back_populates="event", cascade_delete=True
-    )
-    "Live quality metrics for this event."
-
-    snapshots: list[AimbatSnapshot] = Relationship(
-        back_populates="event", cascade_delete=True
-    )
-    "List of snapshots."
+    "Phases of this event."
 
     if TYPE_CHECKING:
         # Column properties defined below, but add same default values for type checking purposes
         seismogram_count: int = 0
         station_count: int = 0
+        phase_count: int = 0
         snapshot_count: int = 0
 
 
@@ -775,7 +1009,7 @@ class AimbatEvent(SQLModel, table=True):
 #
 # Each of these is a correlated scalar subquery, and all are `deferred` so
 # that they are left out of an ordinary SELECT of the owning model -
-# AimbatEvent carries three, and the processing paths that load an event to
+# AimbatEvent carries four, and the processing paths that load an event to
 # run ICCS never read any of them. Reading one on a loaded instance emits its
 # subquery on its own, so the paths that render counts for many rows (the
 # `dump_*_table` functions feeding the read models) undefer them to keep that
@@ -800,14 +1034,33 @@ AimbatEvent.station_count = column_property(  # type: ignore[assignment]
 )
 "Number of unique stations for this event."
 
+AimbatEvent.phase_count = column_property(  # type: ignore[assignment]
+    select(func.count(col(AimbatPhase.id)))
+    .where(col(AimbatPhase.event_id) == col(AimbatEvent.id))
+    .correlate_except(AimbatPhase)
+    .scalar_subquery(),
+    deferred=True,
+)
+"Number of phases of this event."
+
 AimbatEvent.snapshot_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatSnapshot.id)))
-    .where(col(AimbatSnapshot.event_id) == col(AimbatEvent.id))
+    .join(AimbatPhase, col(AimbatPhase.id) == col(AimbatSnapshot.phase_id))
+    .where(col(AimbatPhase.event_id) == col(AimbatEvent.id))
+    .correlate_except(AimbatSnapshot, AimbatPhase)
+    .scalar_subquery(),
+    deferred=True,
+)
+"Number of snapshots of all phases of this event."
+
+AimbatPhase.snapshot_count = column_property(  # type: ignore[assignment]
+    select(func.count(col(AimbatSnapshot.id)))
+    .where(col(AimbatSnapshot.phase_id) == col(AimbatPhase.id))
     .correlate_except(AimbatSnapshot)
     .scalar_subquery(),
     deferred=True,
 )
-"Number of snapshots for this event."
+"Number of snapshots of this phase."
 
 AimbatStation.seismogram_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatSeismogram.id)))
@@ -997,14 +1250,16 @@ type AimbatTypes = (
     | AimbatNote
     | AimbatStation
     | AimbatEvent
-    | AimbatEventParameters
-    | AimbatEventQuality
+    | AimbatPhase
+    | AimbatPhaseParameters
+    | AimbatPhaseQuality
+    | AimbatPick
     | AimbatSeismogram
     | AimbatSeismogramParameters
     | AimbatSeismogramQuality
     | AimbatSnapshot
-    | AimbatEventParametersSnapshot
-    | AimbatEventQualitySnapshot
+    | AimbatPhaseParametersSnapshot
+    | AimbatPhaseQualitySnapshot
     | AimbatSeismogramParametersSnapshot
     | AimbatSeismogramQualitySnapshot
 )

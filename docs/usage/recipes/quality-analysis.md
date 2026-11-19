@@ -1,11 +1,13 @@
 ### Quality analysis
 
-Once alignment has run across many events, quality metrics accumulate on
-`seismogram.quality` and `event.quality`: `iccs_cc` (correlation with the
-ICCS stack, available as soon as the event has been opened), and, once MCCC
-has run, `mccc_cc_mean` (mean pairwise correlation, a proxy for
-signal-to-noise), `mccc_error` (formal timing standard error, `pd.Timedelta`),
-and the event-level `mccc_rmse` (global array fit, `pd.Timedelta`). Querying
+Once alignment has run across many events, quality metrics accumulate on the
+quality records of each seismogram's rows (`row.quality`, with `row` from
+`seismogram.phase_rows`) and of each phase (`phase.quality`): `iccs_cc`
+(correlation with the ICCS stack, available as soon as the event has been
+opened), and, once MCCC has run, `mccc_cc_mean` (mean pairwise correlation, a
+proxy for signal-to-noise), `mccc_error` (formal timing standard error,
+`pd.Timedelta`), and the phase-level `mccc_rmse` (global array fit,
+`pd.Timedelta`). Querying
 `AimbatSeismogram`, `AimbatStation`, and `AimbatEvent` records directly and
 building a DataFrame from them supports aggregation and plotting with pandas
 and matplotlib. See [Quality Assessment](../quality.md) for how to interpret
@@ -19,7 +21,7 @@ and use it to skip the values that do not.
 #### Build a per-seismogram DataFrame across all events
 
 The most flexible starting point is a flat DataFrame with one row per
-seismogram:
+seismogram and phase:
 
 ```python
 from sqlalchemy.orm import selectinload
@@ -28,27 +30,30 @@ import pandas as pd
 
 from aimbat.core import Validity
 from aimbat.db import engine
-from aimbat.models import AimbatSeismogram
+from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
 from aimbat.utils import rel
 
 with Session(engine) as session:
     validity = Validity.read(session)
-    seismograms = session.exec(
-        select(AimbatSeismogram).options(
-            selectinload(rel(AimbatSeismogram.station)),
-            selectinload(rel(AimbatSeismogram.event)),
-            selectinload(rel(AimbatSeismogram.quality)),
+    seismogram = selectinload(rel(AimbatSeismogramParameters.seismogram))
+    phase_rows = session.exec(
+        select(AimbatSeismogramParameters).options(
+            seismogram.selectinload(rel(AimbatSeismogram.station)),
+            seismogram.selectinload(rel(AimbatSeismogram.event)),
+            selectinload(rel(AimbatSeismogramParameters.phase)),
+            selectinload(rel(AimbatSeismogramParameters.quality)),
         )
     ).all()
 
     rows = []
-    for seis in seismograms:
-        q = seis.quality
-        iccs_ok = q is not None and validity.iccs_cc(seis.id)
-        mccc_ok = q is not None and validity.mccc(seis.event_id)
+    for row in phase_rows:
+        seis, q = row.seismogram, row.quality
+        iccs_ok = q is not None and validity.iccs_cc(row.id)
+        mccc_ok = q is not None and validity.mccc(row.phase_id)
         rows.append({
             "station": f"{seis.station.network}.{seis.station.name}",
             "event_time": seis.event.time,
+            "phase": row.phase.name,
             "iccs_cc": q.iccs_cc if iccs_ok else None,
             "mccc_cc_mean": q.mccc_cc_mean if mccc_ok else None,
             "mccc_error_s": q.mccc_error.total_seconds() if (mccc_ok and q.mccc_error) else None,
@@ -67,15 +72,15 @@ across every event recorded at a station, leaving out values that no longer
 apply:
 
 ```python
-from aimbat.models import AimbatSeismogram, AimbatStation, SeismogramQualityStats
+from aimbat.models import AimbatStation, SeismogramQualityStats
 
 with Session(engine) as session:
     validity = Validity.read(session)
     stations = session.exec(
         select(AimbatStation).options(
-            selectinload(rel(AimbatStation.seismograms)).selectinload(
-                rel(AimbatSeismogram.quality)
-            )
+            selectinload(rel(AimbatStation.seismograms))
+            .selectinload(rel(AimbatSeismogram.phase_rows))
+            .selectinload(rel(AimbatSeismogramParameters.quality))
         )
     ).all()
     stats = [SeismogramQualityStats.from_station(s, validity) for s in stations]
@@ -84,26 +89,29 @@ with Session(engine) as session:
 Each `stats` item exposes `cc_mean`, `mccc_cc_mean`, and `mccc_error` as (mean,
 SEM) pairs aggregated across all events at that station.
 
-#### Event-level quality summary
+#### Phase-level quality summary
 
-`SeismogramQualityStats.from_event` aggregates per-seismogram metrics for a
-single event and also carries the global `mccc_rmse` array-fit value:
+`SeismogramQualityStats.from_phase` aggregates per-seismogram metrics for a
+single phase of an event and also carries the global `mccc_rmse` array-fit
+value:
 
 ```python
-from aimbat.models import AimbatEvent, AimbatSeismogram, SeismogramQualityStats
+from aimbat.models import AimbatPhase, SeismogramQualityStats
 
 with Session(engine) as session:
     validity = Validity.read(session)
-    events = session.exec(
-        select(AimbatEvent).options(
-            selectinload(rel(AimbatEvent.seismograms)).selectinload(
-                rel(AimbatSeismogram.quality)
+    phases = session.exec(
+        select(AimbatPhase).options(
+            selectinload(rel(AimbatPhase.quality)),
+            selectinload(rel(AimbatPhase.seismogram_parameters)).selectinload(
+                rel(AimbatSeismogramParameters.quality)
             ),
-            selectinload(rel(AimbatEvent.quality)),
         )
     ).all()
-    stats = [SeismogramQualityStats.from_event(e, validity) for e in events]
+    stats = [SeismogramQualityStats.from_phase(p, validity) for p in phases]
 ```
 
-`mccc_rmse` on each stats object is the global array fit for that event,
+`mccc_rmse` on each stats object is the global array fit for that phase,
 useful for comparing event difficulty across a dataset.
+[`dump_phase_quality_table`][aimbat.core.dump_phase_quality_table] returns
+the same statistics as a list of dicts.

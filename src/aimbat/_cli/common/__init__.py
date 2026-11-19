@@ -7,6 +7,7 @@ from ._decorators import *
 from ._describe import *
 from ._notes import *
 from ._parameters import *
+from ._picks import *
 from ._table import *
 
 __all__ = [s for s in dir() if not s.startswith("_") and s not in _internal_names]

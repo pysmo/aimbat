@@ -13,6 +13,7 @@ __all__ = [
     "fmt_flip",
     "fmt_float",
     "fmt_float_sem",
+    "fmt_names",
     "fmt_timedelta",
     "fmt_timedelta_sem",
     "fmt_timestamp",
@@ -63,6 +64,13 @@ def fmt_flip(val: bool | object) -> str:
     """Format a boolean flip flag as `↕` (True) or empty string (False)."""
     if isinstance(val, (bool, np.bool_)):
         return "↕" if val else ""
+    return str(val)
+
+
+def fmt_names(val: Any) -> str:
+    """Format a list of names as a comma-separated string, or ` — ` if empty."""
+    if isinstance(val, (list, tuple)):
+        return ", ".join(map(str, val)) if val else _MISSING_MARKER
     return str(val)
 
 

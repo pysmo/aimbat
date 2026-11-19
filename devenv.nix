@@ -28,6 +28,7 @@
 
     iccs_events_dir=$(uv run python -c "from testkit.fixtures import ICCS_EVENTS_DIR; print(ICCS_EVENTS_DIR)")
 
-    uv run aimbat data add "$iccs_events_dir"/*/*.BHZ --no-progress
+    # testkit's picks are unlabelled predicted P arrivals in t0.
+    uv run aimbat data add "$iccs_events_dir"/*/*.BHZ --no-progress --unlabelled-as P
   '';
 }

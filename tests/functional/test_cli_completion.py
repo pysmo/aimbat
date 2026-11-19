@@ -67,7 +67,7 @@ class TestCompletionShow:
         cli(f"utils completion show --shell {shell}")
         out = capsys.readouterr().out
         assert "aimbat" in out
-        assert "mccc-damp" in out, "event parameter names should be completed"
+        assert "mccc-damp" in out, "phase parameter names should be completed"
         assert "json-station" in out, "data add --type choices should be completed"
 
     @pytest.mark.parametrize("shell", ["bash", "zsh", "fish", "powershell"])

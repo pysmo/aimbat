@@ -1,8 +1,8 @@
-"""Build and run ICCS/MCCC instances for AIMBAT events, and track their live quality metrics.
+"""Build and run ICCS/MCCC instances for AIMBAT phases, and track their live quality metrics.
 
-Wraps `pysmo.tools.iccs.ICCS` with AIMBAT's database-backed event and
+Wraps `pysmo.tools.iccs.ICCS` with AIMBAT's database-backed phase and
 seismogram parameters. `create_iccs_instance` builds (or reuses a
-process-level cached) `ICCS` instance for an event and keeps the
+process-level cached) `ICCS` instance for a phase and keeps the
 `iccs_cc` quality field in sync with it; `run_iccs` and `run_mccc` run
 the corresponding alignment/picking algorithms and persist their
 results.
@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
 from sqlalchemy import event as sa_event
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, col, select
 
@@ -27,16 +28,16 @@ from pysmo.tools.iccs import (
 from aimbat import settings
 from aimbat.logger import logger
 from aimbat.models import (
-    AimbatEvent,
-    AimbatEventQuality,
-    AimbatSeismogram,
+    AimbatPhase,
+    AimbatPhaseQuality,
+    AimbatSeismogramParameters,
     AimbatSeismogramQuality,
     AimbatSnapshot,
 )
 from aimbat.models._parameters import (
-    EVENT_PARAMETER_SPECS,
+    PHASE_PARAMETER_SPECS,
     SEISMOGRAM_PARAMETER_SPECS,
-    AimbatEventParametersBase,
+    AimbatPhaseParametersBase,
     AimbatSeismogramParametersBase,
 )
 from aimbat.utils import mean_and_sem, rel
@@ -68,7 +69,7 @@ __all__ = [
 
 
 class IccsValidationError(ValueError):
-    """Raised when an event's parameters cannot produce an ICCS instance.
+    """Raised when a phase's parameters cannot produce an ICCS instance.
 
     A `ValueError` subclass, so callers that only care that the parameters
     were rejected can keep catching `ValueError`.
@@ -76,9 +77,9 @@ class IccsValidationError(ValueError):
 
 
 class NoSeismogramsError(RuntimeError):
-    """Raised when an ICCS instance is requested for an event with no seismograms.
+    """Raised when an ICCS instance is requested for a phase with no seismograms.
 
-    An event with no seismograms has no stack, so any downstream access to
+    A phase with no seismograms has no stack, so any downstream access to
     correlation values or the stack raises deep inside pysmo. Callers get
     this clear, catchable error up front instead.
     """
@@ -86,41 +87,41 @@ class NoSeismogramsError(RuntimeError):
 
 @dataclass
 class BoundICCS:
-    """An ICCS instance explicitly bound to a specific event.
+    """An ICCS instance explicitly bound to a specific phase.
 
     Use `is_stale` to detect whether a parameter the instance is built from
     has changed (e.g. by a CLI command) since it was created.
     """
 
     iccs: ICCS
-    event_id: UUID
+    phase_id: UUID
     instance_digest: str | None
     """Instance digest of the parameters the instance reflects. `None` when
     it does not reflect the live parameters (built from a snapshot)."""
 
-    def is_stale(self, event_id: UUID, instance_digest: str) -> bool:
-        """Return True if this ICCS instance no longer matches the event.
+    def is_stale(self, phase_id: UUID, instance_digest: str) -> bool:
+        """Return True if this ICCS instance no longer matches the phase.
 
         An MCCC-only or `min_cc` change does not make it stale (`run_iccs`
         refreshes `min_cc` on the instance per run).
 
         Args:
-            event_id: The event to check against.
-            instance_digest: The event's current instance digest.
+            phase_id: The phase to check against.
+            instance_digest: The phase's current instance digest.
         """
-        return event_id != self.event_id or instance_digest != self.instance_digest
+        return phase_id != self.phase_id or instance_digest != self.instance_digest
 
     def mark_current(self, session: Session) -> None:
-        """Record that the instance reflects the event's stored parameters.
+        """Record that the instance reflects the phase's stored parameters.
 
         Call after writing the instance's own changes to the database.
         """
-        self.instance_digest = current_instance_digest(session, self.event_id)
+        self.instance_digest = current_instance_digest(session, self.phase_id)
 
 
-def current_instance_digest(session: Session, event_id: UUID) -> str:
-    """The instance digest of an event's stored parameters."""
-    return compute_digests(session, event_id)[event_id].instance
+def current_instance_digest(session: Session, phase_id: UUID) -> str:
+    """The instance digest of the stored parameters of a phase."""
+    return compute_digests(session, phase_id)[phase_id].instance
 
 
 @dataclass
@@ -150,7 +151,7 @@ class IccsLifecycle:
         """Whether a bound ICCS instance is currently available."""
         return self.bound is not None
 
-    def is_stale(self, event_id: UUID, instance_digest: str) -> bool:
+    def is_stale(self, phase_id: UUID, instance_digest: str) -> bool:
         """Return True if the bound instance (or lack of one) needs rebuilding.
 
         Delegates to `BoundICCS.is_stale` when an instance exists; otherwise
@@ -158,11 +159,11 @@ class IccsLifecycle:
         `note_checked`.
 
         Args:
-            event_id: The event to check against.
-            instance_digest: The event's current instance digest.
+            phase_id: The phase to check against.
+            instance_digest: The phase's current instance digest.
         """
         if self.bound is not None:
-            return self.bound.is_stale(event_id, instance_digest)
+            return self.bound.is_stale(phase_id, instance_digest)
         return instance_digest != self.instance_digest_seen
 
     def start_creating(self) -> bool:
@@ -182,7 +183,7 @@ class IccsLifecycle:
     def mark_aborted(self) -> None:
         """Clear the in-progress flag without arming a retry.
 
-        Use when creation could not even be attempted (e.g. no event
+        Use when creation could not even be attempted (e.g. no phase
         selected) rather than when it was attempted and failed.
         """
         self._creating = False
@@ -193,7 +194,7 @@ class IccsLifecycle:
         Args:
             is_retry: Whether this attempt was itself the one-shot retry. A
                 retry is not allowed to re-arm itself, so a persistently
-                failing event gets exactly one automatic retry rather than
+                failing phase gets exactly one automatic retry rather than
                 retrying forever.
         """
         self._creating = False
@@ -209,7 +210,7 @@ class IccsLifecycle:
         """Discard the bound instance without arming a retry.
 
         Use when the instance is invalidated by something other than a
-        failed creation attempt (e.g. its event was deleted).
+        failed creation attempt (e.g. its phase was deleted).
         """
         self.bound = None
 
@@ -232,7 +233,7 @@ class CcStats:
 
     Computed directly from `ICCS.ccs` against the current stack, so it is
     always up to date without a DB round-trip. For the persisted-quality
-    equivalent (event/station/snapshot scoped, DB-backed), see
+    equivalent (phase/station/snapshot scoped, DB-backed), see
     `aimbat.models.SeismogramQualityStats`.
     """
 
@@ -274,9 +275,9 @@ def cc_stats(iccs: ICCS) -> CcStats:
 # Process-level ICCS cache. In normal CLI use this is always cold (one command
 # per process). In the shell/TUI a warm entry is reused across commands,
 # avoiding redundant data loading and ICCS computation. Bounded LRU (evict
-# least-recently-used once full) so visiting many events in one long-running
-# process doesn't pin every event's seismogram data in memory forever - each
-# entry holds a full copy-by-reference waveform list for its event.
+# least-recently-used once full) so visiting many phases in one long-running
+# process doesn't pin every phase's seismogram data in memory forever - each
+# entry holds a full copy-by-reference waveform list for its phase.
 _ICCS_CACHE_MAX_ENTRIES = 32
 _iccs_cache: OrderedDict[UUID, BoundICCS] = OrderedDict()
 
@@ -286,17 +287,17 @@ def clear_iccs_cache() -> None:
     _iccs_cache.clear()
 
 
-def evict_iccs_cache_entry(event_id: UUID) -> None:
-    """Remove one event's cached ICCS instance, if present.
+def evict_iccs_cache_entry(phase_id: UUID) -> None:
+    """Remove one phase's cached ICCS instance, if present.
 
-    Call this whenever an event is deleted, so its cached waveform data
+    Call this whenever a phase is deleted, so its cached waveform data
     don't linger in memory for the rest of the process on the strength of
     an ID that no longer refers to anything.
 
     Args:
-        event_id: ID of the deleted event.
+        phase_id: ID of the deleted phase.
     """
-    _iccs_cache.pop(event_id, None)
+    _iccs_cache.pop(phase_id, None)
 
 
 _PENDING_KEY = "aimbat_iccs_pending"
@@ -315,8 +316,8 @@ def _evict_on_rollback(session: Session, bound: BoundICCS) -> None:
 
         def _on_rollback(_session: Session, _previous: object) -> None:
             for item in pending:
-                if _iccs_cache.get(item.event_id) is item:
-                    del _iccs_cache[item.event_id]
+                if _iccs_cache.get(item.phase_id) is item:
+                    del _iccs_cache[item.phase_id]
             pending.clear()
 
         def _on_commit(_session: Session) -> None:
@@ -329,9 +330,9 @@ def _evict_on_rollback(session: Session, bound: BoundICCS) -> None:
 
 # AIMBAT parameter field name -> ICCS attribute name, for the parameters ICCS
 # knows about.
-_ICCS_EVENT_ATTRIBUTES = {
+_ICCS_PHASE_ATTRIBUTES = {
     name: spec.iccs_attribute
-    for name, spec in EVENT_PARAMETER_SPECS.items()
+    for name, spec in PHASE_PARAMETER_SPECS.items()
     if spec.iccs_attribute is not None
 }
 _ICCS_SEISMOGRAM_ATTRIBUTES = {
@@ -341,34 +342,49 @@ _ICCS_SEISMOGRAM_ATTRIBUTES = {
 }
 
 
+def _phase(session: Session, phase_id: UUID) -> AimbatPhase:
+    """Return the phase with ID `phase_id`.
+
+    Raises:
+        NoResultFound: If there is no such phase.
+    """
+    phase = session.get(AimbatPhase, phase_id)
+    if phase is None:
+        raise NoResultFound(f"No phase found with ID {phase_id}.")
+    return phase
+
+
 def _build_iccs(
-    event: AimbatEvent, parameters: AimbatEventParametersBase | None = None
+    phase: AimbatPhase, parameters: AimbatPhaseParametersBase | None = None
 ) -> ICCS:
-    """Build an ICCS instance from an event's parameters and seismograms.
+    """Build an ICCS instance from a phase's parameters and seismograms.
+
+    Each ICCS seismogram carries the seismogram ID (`id`) and the ID of its
+    row for the phase (`row_id`) in `extra`.
 
     Args:
-        event: AimbatEvent.
-        parameters: Optional AimbatEventParametersBase to use instead of the live
-            event parameters (useful for validation).
+        phase: AimbatPhase.
+        parameters: Optional AimbatPhaseParametersBase to use instead of the live
+            phase parameters (useful for validation).
 
     Returns:
         A freshly constructed ICCS instance.
 
     """
-    p = parameters or event.parameters
+    p = parameters or phase.parameters
     seismograms = [
         MiniIccsSeismogram(
-            begin_time=seis.begin_time,
-            delta=seis.delta,
-            data=seis.data,
-            initial_pick=seis.t0,
-            extra={"id": seis.id},
+            begin_time=row.seismogram.begin_time,
+            delta=row.seismogram.delta,
+            data=row.seismogram.data,
+            initial_pick=row.initial_pick,
+            extra={"id": row.seismogram_id, "row_id": row.id},
             **{
-                attribute: getattr(seis.parameters, name)
+                attribute: getattr(row, name)
                 for name, attribute in _ICCS_SEISMOGRAM_ATTRIBUTES.items()
             },
         )
-        for seis in event.seismograms
+        for row in phase.seismogram_parameters
     ]
     return ICCS(
         seismograms=seismograms,
@@ -378,13 +394,13 @@ def _build_iccs(
         # rebuild the instance (it is not in the instance digest).
         **{
             attribute: getattr(p, name)
-            for name, attribute in _ICCS_EVENT_ATTRIBUTES.items()
+            for name, attribute in _ICCS_PHASE_ATTRIBUTES.items()
         },
     )
 
 
-def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
-    """Return a BoundICCS instance for the given event.
+def create_iccs_instance(session: Session, phase_id: UUID) -> BoundICCS:
+    """Return a BoundICCS instance for a phase.
 
     Returns the cached instance when it is still fresh (its instance digest
     equals that of the stored parameters). Otherwise builds a new one
@@ -397,56 +413,60 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
     `AimbatSeismogram`, passing `data` by reference to the read-only io cache.
     No waveform data are copied.
 
-    Only `event.id` is trusted from the passed `event`: on a cache miss the
-    function re-selects it from `session`, eagerly loading `parameters` and
-    `seismograms`. `event` must therefore already be attached to `session`.
-
     Args:
         session: Database session.
-        event: AimbatEvent.
+        phase_id: ID of the phase.
 
     Returns:
-        BoundICCS instance tied to the given event.
+        BoundICCS instance tied to the phase.
 
+    Raises:
+        NoResultFound: If the phase does not exist.
+        NoSeismogramsError: If the phase has no seismograms.
     """
-    instance_digest = current_instance_digest(session, event.id)
-    cached = _iccs_cache.get(event.id)
-    if cached is not None and not cached.is_stale(event.id, instance_digest):
-        logger.debug(f"Returning cached BoundICCS for event {event.id}.")
-        _iccs_cache.move_to_end(event.id)
+    _phase(session, phase_id)
+    instance_digest = current_instance_digest(session, phase_id)
+    cached = _iccs_cache.get(phase_id)
+    if cached is not None and not cached.is_stale(phase_id, instance_digest):
+        logger.debug(f"Returning cached BoundICCS for phase {phase_id}.")
+        _iccs_cache.move_to_end(phase_id)
         return cached
 
     # pysqlite runs SELECTs outside a transaction, so objects already in the
     # identity map can be older than the rows the digest was computed from.
-    event = session.exec(
-        select(AimbatEvent)
-        .where(AimbatEvent.id == event.id)
+    phase = session.exec(
+        select(AimbatPhase)
+        .where(AimbatPhase.id == phase_id)
         .options(
-            selectinload(rel(AimbatEvent.parameters)),
-            selectinload(rel(AimbatEvent.seismograms)).selectinload(
-                rel(AimbatSeismogram.parameters)
+            selectinload(rel(AimbatPhase.parameters)),
+            selectinload(rel(AimbatPhase.seismogram_parameters)).selectinload(
+                rel(AimbatSeismogramParameters.seismogram)
+            ),
+            selectinload(rel(AimbatPhase.seismogram_parameters)).selectinload(
+                rel(AimbatSeismogramParameters.pick)
             ),
         )
         .execution_options(populate_existing=True)
     ).one()
 
-    if not event.seismograms:
+    if not phase.seismogram_parameters:
         raise NoSeismogramsError(
-            f"Event {event.id} has no seismograms; cannot build an ICCS instance."
+            f"Phase {phase.name} of event {phase.event_id} has no seismograms; "
+            + "cannot build an ICCS instance."
         )
 
-    logger.debug(f"Creating ICCS instance for event {event.id}.")
+    logger.debug(f"Creating ICCS instance for phase {phase_id}.")
     bound = BoundICCS(
-        iccs=_build_iccs(event),
-        event_id=event.id,
+        iccs=_build_iccs(phase),
+        phase_id=phase_id,
         instance_digest=instance_digest,
     )
     # Cache only after the stats write succeeds: a half-initialised instance
     # left in the cache would be returned (without re-raising) on the next
     # call and blow up later on first stack access.
-    _write_iccs_stats(session, event.id, bound.iccs)
-    _iccs_cache[event.id] = bound
-    _iccs_cache.move_to_end(event.id)
+    _write_iccs_stats(session, phase_id, bound.iccs)
+    _iccs_cache[phase_id] = bound
+    _iccs_cache.move_to_end(phase_id)
     _evict_on_rollback(session, bound)
     if len(_iccs_cache) > _ICCS_CACHE_MAX_ENTRIES:
         _iccs_cache.popitem(last=False)
@@ -454,17 +474,17 @@ def create_iccs_instance(session: Session, event: AimbatEvent) -> BoundICCS:
 
 
 def _find_seismogram_quality(
-    session: Session, seismogram_id: UUID
+    session: Session, row_id: UUID
 ) -> AimbatSeismogramQuality | None:
-    """Look up a seismogram's live quality row by seismogram ID, if one exists."""
+    """Look up the live quality of a seismogram's row, if one exists."""
     return session.exec(
         select(AimbatSeismogramQuality).where(
-            col(AimbatSeismogramQuality.seismogram_id) == seismogram_id
+            col(AimbatSeismogramQuality.seismogram_parameters_id) == row_id
         )
     ).one_or_none()
 
 
-def _write_iccs_stats(session: Session, event_id: UUID, iccs: ICCS) -> None:
+def _write_iccs_stats(session: Session, phase_id: UUID, iccs: ICCS) -> None:
     """Upsert per-seismogram ICCS CC values into the live quality table.
 
     Iterates over the seismograms in the ICCS instance and writes (or
@@ -478,20 +498,20 @@ def _write_iccs_stats(session: Session, event_id: UUID, iccs: ICCS) -> None:
 
     Args:
         session: Database session.
-        event_id: UUID of the event whose seismograms are being updated.
+        phase_id: ID of the phase whose rows are being updated.
         iccs: ICCS instance whose `ccs` values are written.
     """
-    logger.debug(f"Writing ICCS stats for event {event_id}.")
-    digests = compute_digests(session, event_id)[event_id]
+    logger.debug(f"Writing ICCS stats for phase {phase_id}.")
+    digests = compute_digests(session, phase_id)[phase_id]
     for iccs_seis, cc in zip(iccs.seismograms, iccs.ccs):
-        seis_id = iccs_seis.extra["id"]
-        existing = _find_seismogram_quality(session, seis_id)
+        row_id = iccs_seis.extra["row_id"]
+        existing = _find_seismogram_quality(session, row_id)
         cc_val = max(-1.0, min(1.0, float(cc)))
-        fingerprint = digests.seismogram_cc[seis_id]
+        fingerprint = digests.seismogram_cc[row_id]
         if existing is None:
             row = AimbatSeismogramQuality(
                 id=uuid4(),
-                seismogram_id=seis_id,
+                seismogram_parameters_id=row_id,
                 iccs_cc=cc_val,
                 iccs_fingerprint=fingerprint,
             )
@@ -505,13 +525,13 @@ def _write_iccs_stats(session: Session, event_id: UUID, iccs: ICCS) -> None:
 
 def _write_mccc_quality(
     session: Session,
-    event_id: UUID,
+    phase_id: UUID,
     iccs: ICCS,
     result: McccResult,
 ) -> None:
     """Write MCCC quality results to the live quality tables.
 
-    Upserts the event-level RMSE, clears MCCC fields for all seismograms in
+    Upserts the phase-level RMSE, clears MCCC fields for all seismograms in
     the ICCS instance, then writes the per-seismogram metrics for the seismograms
     that were actually used in the inversion. A seismogram whose MCCC shift was
     refused keeps its previous pick, so its error is stored as `NULL` rather
@@ -526,19 +546,18 @@ def _write_mccc_quality(
 
     Args:
         session: Database session.
-        event_id: UUID of the event that was processed.
+        phase_id: ID of the phase that was processed.
         iccs: ICCS instance used for the MCCC run.
         result: McccResult returned by `ICCS.run_mccc`.
     """
-    logger.debug(f"Writing MCCC quality for event {event_id}.")
-    members = {iccs.seismograms[index].extra["id"] for index in result.indices}
-    fingerprint = compute_digests(session, event_id)[event_id].mccc(members)
-    # Event quality
+    logger.debug(f"Writing MCCC quality for phase {phase_id}.")
+    members = {iccs.seismograms[index].extra["row_id"] for index in result.indices}
+    fingerprint = compute_digests(session, phase_id)[phase_id].mccc(members)
     existing_eq = session.exec(
-        select(AimbatEventQuality).where(col(AimbatEventQuality.event_id) == event_id)
+        select(AimbatPhaseQuality).where(col(AimbatPhaseQuality.phase_id) == phase_id)
     ).one_or_none()
     if existing_eq is None:
-        existing_eq = AimbatEventQuality(id=uuid4(), event_id=event_id)
+        existing_eq = AimbatPhaseQuality(id=uuid4(), phase_id=phase_id)
     existing_eq.mccc_rmse = result.rmse
     existing_eq.mccc_members = encode_members(members)
     existing_eq.mccc_fingerprint = fingerprint
@@ -546,12 +565,12 @@ def _write_mccc_quality(
 
     # Clear MCCC fields for all seismograms first
     for iccs_seis in iccs.seismograms:
-        seis_id = iccs_seis.extra["id"]
-        sq = _find_seismogram_quality(session, seis_id)
+        sq = _find_seismogram_quality(session, iccs_seis.extra["row_id"])
         if sq is not None:
             sq.mccc_error = None
             sq.mccc_cc_mean = None
             sq.mccc_cc_std = None
+            sq.mccc_refused = None
             session.add(sq)
 
     # Write MCCC metrics for used seismograms. CC values are clamped to
@@ -561,25 +580,28 @@ def _write_mccc_quality(
     for index, error, cc_mean, cc_std in zip(
         result.indices, result.errors, result.cc_means, result.cc_stds, strict=True
     ):
-        seis_id = iccs.seismograms[index].extra["id"]
-        if index in result.refused:
+        row_id = iccs.seismograms[index].extra["row_id"]
+        refused = index in result.refused
+        if refused:
             error = None
         cc_mean_val = max(0.0, min(1.0, float(cc_mean)))
         cc_std_val = max(0.0, float(cc_std))
-        sq = _find_seismogram_quality(session, seis_id)
+        sq = _find_seismogram_quality(session, row_id)
         if sq is None:
             sq = AimbatSeismogramQuality(
                 id=uuid4(),
-                seismogram_id=seis_id,
+                seismogram_parameters_id=row_id,
                 mccc_error=error,
                 mccc_cc_mean=cc_mean_val,
                 mccc_cc_std=cc_std_val,
+                mccc_refused=refused,
             )
             session.add(sq)
         else:
             sq.mccc_error = error
             sq.mccc_cc_mean = cc_mean_val
             sq.mccc_cc_std = cc_std_val
+            sq.mccc_refused = refused
             session.add(sq)
 
     session.flush()
@@ -588,7 +610,7 @@ def _write_mccc_quality(
 def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     """Build a read-only BoundICCS from a snapshot's parameters and live waveform data.
 
-    Uses the snapshot's event and seismogram parameters (window, t1, flip, select,
+    Uses the snapshot's phase and seismogram parameters (window, refined pick, flip, select,
     bandpass, etc.) but reads waveform data from the live datasources. Seismograms
     added after the snapshot was taken are not included in the snapshot; their live
     parameters are used instead. No DB writes occur at any point.
@@ -609,10 +631,10 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
         select(AimbatSnapshot)
         .where(AimbatSnapshot.id == snapshot_id)
         .options(
-            selectinload(rel(AimbatSnapshot.event))
-            .selectinload(rel(AimbatEvent.seismograms))
-            .selectinload(rel(AimbatSeismogram.parameters)),
-            selectinload(rel(AimbatSnapshot.event_parameters_snapshot)),
+            selectinload(rel(AimbatSnapshot.phase))
+            .selectinload(rel(AimbatPhase.seismogram_parameters))
+            .selectinload(rel(AimbatSeismogramParameters.seismogram)),
+            selectinload(rel(AimbatSnapshot.phase_parameters_snapshot)),
             selectinload(rel(AimbatSnapshot.seismogram_parameters_snapshots)),
         )
     )
@@ -621,8 +643,8 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     if snapshot is None:
         raise ValueError(f"Snapshot {snapshot_id} not found.")
 
-    ep = snapshot.event_parameters_snapshot
-    snap_params = AimbatEventParametersBase.model_validate(ep)
+    ep = snapshot.phase_parameters_snapshot
+    snap_params = AimbatPhaseParametersBase.model_validate(ep)
 
     # Build a map from seismogram_id → snapshot parameters
     snap_seis_map = {
@@ -630,11 +652,12 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     }
 
     seismograms = []
-    for seis in snapshot.event.seismograms:
+    for row in snapshot.phase.seismogram_parameters:
+        seis = row.seismogram
         snap_sp = snap_seis_map.get(seis.id)
         if snap_sp is None:
             # Seismogram was added after the snapshot: use live parameters
-            seis_params = AimbatSeismogramParametersBase.model_validate(seis.parameters)
+            seis_params = AimbatSeismogramParametersBase.model_validate(row)
         else:
             seis_params = AimbatSeismogramParametersBase.model_validate(snap_sp)
         seismograms.append(
@@ -642,11 +665,11 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
                 begin_time=seis.begin_time,
                 delta=seis.delta,
                 data=seis.data,
-                initial_pick=seis.t0,
-                refined_pick=seis_params.t1,
+                initial_pick=row.initial_pick,
+                refined_pick=seis_params.refined_pick,
                 flip=seis_params.flip,
                 select=seis_params.select,
-                extra={"id": seis.id},
+                extra={"id": seis.id, "row_id": row.id},
             )
         )
 
@@ -664,29 +687,29 @@ def build_iccs_from_snapshot(session: Session, snapshot_id: UUID) -> BoundICCS:
     )
     return BoundICCS(
         iccs=iccs,
-        event_id=snapshot.event_id,
+        phase_id=snapshot.phase_id,
         instance_digest=None,
     )
 
 
 def validate_iccs_construction(
-    event: AimbatEvent, parameters: AimbatEventParametersBase | None = None
+    phase: AimbatPhase, parameters: AimbatPhaseParametersBase | None = None
 ) -> None:
-    """Try to construct an ICCS instance for the event without caching the result.
+    """Try to construct an ICCS instance for the phase without caching the result.
 
-    Use this to check whether the event's current (possibly uncommitted) parameters
+    Use this to check whether the phase's current (possibly uncommitted) parameters
     are compatible with ICCS construction before persisting them to the database.
 
     Args:
-        event: AimbatEvent.
-        parameters: Optional AimbatEventParametersBase to use instead of the live
-            event parameters (useful for validation).
+        phase: AimbatPhase.
+        parameters: Optional AimbatPhaseParametersBase to use instead of the live
+            phase parameters (useful for validation).
 
     Raises:
         IccsValidationError: If the parameters are rejected by ICCS construction.
     """
     try:
-        _build_iccs(event, parameters=parameters)
+        _build_iccs(phase, parameters=parameters)
     except ValueError as exc:
         # pysmo's attrs validators and pydantic both reject bad parameter
         # values with a ValueError. Anything else - a missing data source, an
@@ -697,7 +720,7 @@ def validate_iccs_construction(
 
 
 def write_back_seismograms(session: Session, iccs: ICCS) -> None:
-    """Write t1, flip, and select from ICCS seismograms back to the database.
+    """Write refined_pick, flip, and select from ICCS seismograms back to the database.
 
     Flushes but does not commit; the caller owns the transaction and must
     commit it. If `iccs` is cached and matched the stored parameters before
@@ -711,45 +734,45 @@ def write_back_seismograms(session: Session, iccs: ICCS) -> None:
 
     bound = next((b for b in _iccs_cache.values() if b.iccs is iccs), None)
     was_current = bound is not None and not bound.is_stale(
-        bound.event_id, current_instance_digest(session, bound.event_id)
+        bound.phase_id, current_instance_digest(session, bound.phase_id)
     )
 
     for seis in iccs.seismograms:
-        db_seis = session.get(AimbatSeismogram, seis.extra["id"])
-        if db_seis is not None:
+        row = session.get(AimbatSeismogramParameters, seis.extra["row_id"])
+        if row is not None:
             for name, attribute in _ICCS_SEISMOGRAM_ATTRIBUTES.items():
-                setattr(db_seis.parameters, name, getattr(seis, attribute))
+                setattr(row, name, getattr(seis, attribute))
     session.flush()
 
     if bound is not None and was_current:
         bound.mark_current(session)
 
 
-def sync_iccs_parameters(session: Session, event: AimbatEvent, iccs: ICCS) -> None:
+def sync_iccs_parameters(session: Session, phase_id: UUID, iccs: ICCS) -> None:
     """Sync an existing ICCS instance's parameters from the database.
 
-    Updates event-level and per-seismogram parameters without re-reading waveform
+    Updates phase-level and per-seismogram parameters without re-reading waveform
     data. Use this after operations that change parameters but not the
     seismogram list (e.g. rolling back to a snapshot).
 
     Args:
         session: Database session.
-        event: AimbatEvent.
+        phase_id: ID of the phase the instance belongs to.
         iccs: ICCS instance to update in-place.
     """
 
-    logger.debug(f"Syncing ICCS parameters from database for event {event.id}.")
+    logger.debug(f"Syncing ICCS parameters from database for phase {phase_id}.")
 
-    event_params = AimbatEventParametersBase.model_validate(event.parameters)
-    for name, attribute in _ICCS_EVENT_ATTRIBUTES.items():
-        setattr(iccs, attribute, getattr(event_params, name))
+    phase_params = AimbatPhaseParametersBase.model_validate(
+        _phase(session, phase_id).parameters
+    )
+    for name, attribute in _ICCS_PHASE_ATTRIBUTES.items():
+        setattr(iccs, attribute, getattr(phase_params, name))
 
     for iccs_seis in iccs.seismograms:
-        db_seis = session.get(AimbatSeismogram, iccs_seis.extra["id"])
-        if db_seis is not None:
-            seis_params = AimbatSeismogramParametersBase.model_validate(
-                db_seis.parameters
-            )
+        row = session.get(AimbatSeismogramParameters, iccs_seis.extra["row_id"])
+        if row is not None:
+            seis_params = AimbatSeismogramParametersBase.model_validate(row)
             for name, attribute in _ICCS_SEISMOGRAM_ATTRIBUTES.items():
                 setattr(iccs_seis, attribute, getattr(seis_params, name))
 
@@ -883,13 +906,13 @@ def _log_summary(
 
 
 def run_iccs(
-    session: Session, event: AimbatEvent, iccs: ICCS, autoflip: bool, autoselect: bool
+    session: Session, phase_id: UUID, iccs: ICCS, autoflip: bool, autoselect: bool
 ) -> IccsResult:
     """Run the Iterative Cross-Correlation and Stack (ICCS) algorithm.
 
     Args:
         session: Database session.
-        event: AimbatEvent.
+        phase_id: ID of the phase the instance belongs to.
         iccs: ICCS instance.
         autoflip: If True, automatically flip seismograms to maximise cross-correlation.
         autoselect: If True, automatically deselect seismograms whose cross-correlation
@@ -905,7 +928,7 @@ def run_iccs(
     # parameters, is not re-read per call. A bare `min_cc` change does not
     # rebuild the instance (it does not affect the stack), so refresh it here
     # before an autoselect run picks up a stale threshold.
-    iccs.min_cc = event.parameters.min_cc
+    iccs.min_cc = _phase(session, phase_id).parameters.min_cc
     result = iccs(autoflip=autoflip, autoselect=autoselect)
     _log_summary(
         summarise_iccs_result(result, len(iccs.seismograms)),
@@ -920,19 +943,19 @@ def run_iccs(
     # ICCS writes its own inputs, so the results are stamped after the picks
     # are written back.
     write_back_seismograms(session, iccs)
-    _write_iccs_stats(session, event.id, iccs)
+    _write_iccs_stats(session, phase_id, iccs)
     session.flush()
     return result
 
 
 def run_mccc(
-    session: Session, event: AimbatEvent, iccs: ICCS, all_seismograms: bool
+    session: Session, phase_id: UUID, iccs: ICCS, all_seismograms: bool
 ) -> McccResult:
     """Run the Multi-Channel Cross-Correlation (MCCC) algorithm.
 
     Args:
         session: Database session.
-        event: AimbatEvent.
+        phase_id: ID of the phase the instance belongs to.
         iccs: ICCS instance.
         all_seismograms: If True, include deselected seismograms in the alignment.
 
@@ -941,13 +964,14 @@ def run_mccc(
     """
 
     logger.info(
-        f"Running MCCC for event {event.id} (all_seismograms={all_seismograms})."
+        f"Running MCCC for phase {phase_id} (all_seismograms={all_seismograms})."
     )
 
+    parameters = _phase(session, phase_id).parameters
     result = iccs.run_mccc(
         all_seismograms=all_seismograms,
-        min_cc=event.parameters.mccc_min_cc,
-        damping=event.parameters.mccc_damp,
+        min_cc=parameters.mccc_min_cc,
+        damping=parameters.mccc_damp,
     )
     _log_summary(
         summarise_mccc_result(result), iccs, {"MCCC refused picks": result.refused}
@@ -955,7 +979,7 @@ def run_mccc(
     # MCCC writes its own inputs, so the results are stamped after the picks
     # are written back.
     write_back_seismograms(session, iccs)
-    _write_iccs_stats(session, event.id, iccs)
-    _write_mccc_quality(session, event.id, iccs, result)
+    _write_iccs_stats(session, phase_id, iccs)
+    _write_mccc_quality(session, phase_id, iccs, result)
     session.flush()
     return result

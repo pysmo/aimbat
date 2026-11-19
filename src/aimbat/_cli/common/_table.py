@@ -277,8 +277,12 @@ def print_quality_table(
     id_field: str,
     id_columns: dict[str, type["AimbatTypes"]],
     raw: bool,
+    filters: dict[str, Any] | None = None,
 ) -> None:
     """Print one of the aggregated quality tables.
+
+    The phase ID column is left out, since the phase name identifies the
+    phase within its event.
 
     Args:
         session: Database session.
@@ -290,6 +294,7 @@ def print_quality_table(
             row would repeat it.
         id_columns: The ID columns to shorten, mapped to the model each belongs to.
         raw: If `True`, render the table unformatted.
+        filters: Further keyword arguments for `dump`.
     """
     from aimbat.models import SeismogramQualityStats
 
@@ -305,7 +310,8 @@ def print_quality_table(
         data=dump(
             session,
             **{id_field: filter_id},
-            exclude=None if filter_id is None else {id_field},
+            **(filters or {}),
+            exclude={"phase_id"} | (set() if filter_id is None else {id_field}),
         ),
         model=SeismogramQualityStats,
         title=title,

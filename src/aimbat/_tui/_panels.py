@@ -32,9 +32,10 @@ from aimbat.core import (
     dump_seismogram_table,
     dump_snapshot_table,
     dump_station_table,
-    get_event_quality,
+    get_phase_quality,
     get_snapshot_quality,
     get_station_quality,
+    resolve_phase,
 )
 from aimbat.db import engine
 from aimbat.models import (
@@ -210,6 +211,16 @@ def _update_note(
     else:
         with suppress(ValueError):
             note_widget.set_entity(entity_kind, uuid.UUID(item_id))
+
+
+def _event_quality(session: Session, event_id: uuid.UUID) -> SeismogramQualityStats:
+    """Quality statistics of the only phase of an event.
+
+    Raises:
+        NoResultFound: If the event does not exist or has no phase.
+        AmbiguousPhaseError: If the event has several phases.
+    """
+    return get_phase_quality(session, resolve_phase(session, event_id).id)
 
 
 def _update_quality_panel(
@@ -570,7 +581,7 @@ class ProjectPanel(Widget):
             self.query_one("#project-note", NoteWidget),
             "event",
             "Live event statistics",
-            get_event_quality,
+            _event_quality,
             item_id,
         )
 

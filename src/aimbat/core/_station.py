@@ -12,6 +12,7 @@ from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
     AimbatSeismogram,
+    AimbatSeismogramParameters,
     AimbatStation,
     AimbatStationRead,
     SeismogramQualityStats,
@@ -93,12 +94,9 @@ def get_stations_in_event(
         .join(AimbatSeismogram)
         .where(AimbatSeismogram.event_id == event.id)
         .options(
-            selectinload(rel(AimbatStation.seismograms)).selectinload(
-                rel(AimbatSeismogram.parameters)
-            ),
-            selectinload(rel(AimbatStation.seismograms)).selectinload(
-                rel(AimbatSeismogram.quality)
-            ),
+            selectinload(rel(AimbatStation.seismograms))
+            .selectinload(rel(AimbatSeismogram.phase_rows))
+            .selectinload(rel(AimbatSeismogramParameters.quality)),
             selectinload(rel(AimbatStation.seismograms)).selectinload(
                 rel(AimbatSeismogram.event)
             ),
@@ -141,9 +139,9 @@ def get_station_quality(session: Session, station_id: UUID) -> SeismogramQuality
         select(AimbatStation)
         .where(AimbatStation.id == station_id)
         .options(
-            selectinload(rel(AimbatStation.seismograms)).selectinload(
-                rel(AimbatSeismogram.quality)
-            ),
+            selectinload(rel(AimbatStation.seismograms))
+            .selectinload(rel(AimbatSeismogram.phase_rows))
+            .selectinload(rel(AimbatSeismogramParameters.quality)),
         )
     ).one_or_none()
 
@@ -197,12 +195,9 @@ def dump_station_table(
         statement = select(AimbatStation)
 
     statement = statement.options(
-        selectinload(rel(AimbatStation.seismograms)).selectinload(
-            rel(AimbatSeismogram.quality)
-        ),
-        selectinload(rel(AimbatStation.seismograms)).selectinload(
-            rel(AimbatSeismogram.parameters)
-        ),
+        selectinload(rel(AimbatStation.seismograms))
+        .selectinload(rel(AimbatSeismogram.phase_rows))
+        .selectinload(rel(AimbatSeismogramParameters.quality)),
         selectinload(rel(AimbatStation.seismograms)).selectinload(
             rel(AimbatSeismogram.event)
         ),
@@ -260,9 +255,9 @@ def dump_station_quality_table(
     check_field_name_flags(by_alias, by_title)
 
     statement = select(AimbatStation).options(
-        selectinload(rel(AimbatStation.seismograms)).selectinload(
-            rel(AimbatSeismogram.quality)
-        ),
+        selectinload(rel(AimbatStation.seismograms))
+        .selectinload(rel(AimbatSeismogram.phase_rows))
+        .selectinload(rel(AimbatSeismogramParameters.quality)),
     )
     if station_id is not None:
         statement = statement.where(AimbatStation.id == station_id)
@@ -276,5 +271,6 @@ def dump_station_quality_table(
         SeismogramQualityStats,
         by_alias=by_alias,
         by_title=by_title,
-        exclude=(exclude or set()) | {"event_id", "snapshot_id"},
+        exclude=(exclude or set())
+        | {"event_id", "phase_id", "phase_name", "snapshot_id"},
     )

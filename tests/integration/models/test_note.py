@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
 from aimbat.core import get_note_content, save_note
-from aimbat.models import AimbatEvent, AimbatEventParameters, AimbatNote, AimbatStation
+from aimbat.models import AimbatEvent, AimbatNote, AimbatStation
 
 
 def _make_station(session: Session) -> AimbatStation:
@@ -35,7 +35,6 @@ def _make_event(session: Session) -> AimbatEvent:
     )
     session.add(ev)
     session.flush()
-    session.add(AimbatEventParameters(event=ev))
     session.flush()
     return ev
 
@@ -133,7 +132,6 @@ class TestAimbatNoteOnePerParent:
         )
         patched_session.add(ev2)
         patched_session.flush()
-        patched_session.add(AimbatEventParameters(event=ev2))
         patched_session.flush()
 
         patched_session.add(AimbatNote(content="note 1", event_id=ev1.id))

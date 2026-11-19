@@ -9,13 +9,13 @@ from aimbat.types import (
 )
 
 __all__ = [
-    "AimbatEventQualityBase",
+    "AimbatPhaseQualityBase",
     "AimbatSeismogramQualityBase",
 ]
 
 
-class AimbatEventQualityBase(SQLModel):
-    """Base class defining event-level quality metrics.
+class AimbatPhaseQualityBase(SQLModel):
+    """Base class defining phase-level quality metrics.
 
     Fields are `None` when the corresponding algorithm has not been run yet.
     """
@@ -73,4 +73,13 @@ class AimbatSeismogramQualityBase(SQLModel):
         sa_type=SAPandasTimedelta,
         title="MCCC error",
         description="Timing precision (standard error from covariance matrix) from the MCCC run.",
+    )
+
+    mccc_refused: bool | None = Field(
+        default=None,
+        title="MCCC refused",
+        description=(
+            "Whether the MCCC run refused this seismogram's pick, leaving it "
+            + "unchanged. `None` when the seismogram was not in the MCCC run."
+        ),
     )

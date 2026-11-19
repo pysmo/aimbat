@@ -52,14 +52,16 @@ The CLI and shell commands accept `--alias` to use camelCase field names (e.g.
 
 ## Output format
 
-The output is a JSON object with two parts: an envelope containing event-level
-information, and a `seismograms` list with one entry per station.
+The output is a JSON object with two parts: an envelope containing information
+on the phase and its event, and a `seismograms` list with one entry per station.
 
 ```json
 {
   "snapshot_id": "3f1a2b4c-...",
   "snapshot_time": "2025-03-01T14:22:00Z",
   "snapshot_comment": "post-MCCC final",
+  "phase_id": "91c2...",
+  "phase_name": "P",
   "event_id": "6a4a...",
   "event_time": "2024-11-15T08:43:12Z",
   "event_latitude": 37.2,
@@ -73,7 +75,7 @@ information, and a `seismograms` list with one entry per station.
       "channel": "BHZ",
       "select": true,
       "flip": false,
-      "t1": "2024-11-15T08:43:47.312Z",
+      "refined_pick": "2024-11-15T08:43:47.312Z",
       "iccs_cc": 0.94,
       "mccc_cc_mean": 0.91,
       "mccc_cc_std": 0.03,
@@ -85,15 +87,17 @@ information, and a `seismograms` list with one entry per station.
 
 ### Envelope fields
 
-Event-level information appears once in the envelope, rather than being repeated
-on every seismogram row.
+Phase and event information appears once in the envelope, rather than being
+repeated on every seismogram row.
 
 | Field              | Type           | Always present | Description                                      |
 | ------------------ | -------------- | :------------: | ------------------------------------------------ |
 | `snapshot_id`      | UUID string    |      Yes       | Snapshot this export came from                   |
 | `snapshot_time`    | ISO 8601       |      Yes       | When the snapshot was taken                      |
 | `snapshot_comment` | string \| null |      Yes       | Optional label from snapshot creation            |
-| `event_id`         | UUID string    |      Yes       | Event this snapshot belongs to                   |
+| `phase_id`         | UUID string    |      Yes       | Phase this snapshot belongs to                   |
+| `phase_name`       | string         |      Yes       | Name of the phase                                |
+| `event_id`         | UUID string    |      Yes       | Event of the phase                               |
 | `event_time`       | ISO 8601       |      Yes       | Seismic event origin time                        |
 | `event_latitude`   | float          |      Yes       | Event latitude (degrees)                         |
 | `event_longitude`  | float          |      Yes       | Event longitude (degrees)                        |
@@ -110,7 +114,7 @@ on every seismogram row.
 | `channel`       | string        |      Yes       | Channel code (e.g. `BHZ`)                        |
 | `select`        | bool          |      Yes       | Selection state at snapshot time                 |
 | `flip`          | bool          |      Yes       | Whether polarity was flipped at snapshot time    |
-| `t1`            | ISO 8601      |      Yes       | Frozen absolute arrival-time pick                |
+| `refined_pick`  | ISO 8601      |      Yes       | Frozen absolute arrival-time pick                |
 | `iccs_cc`       | float \| null |      Yes       | Correlation coefficient with ICCS stack          |
 | `mccc_cc_mean`  | float \| null |      Yes       | Mean pairwise MCCC correlation coefficient       |
 | `mccc_cc_std`   | float \| null |      Yes       | Std of pairwise MCCC correlation coefficients    |
@@ -124,12 +128,13 @@ for `jq` and Python examples of filtering and reading this output.
 
 ## ICCS vs MCCC picks
 
-An ICCS-only snapshot has `t1` values from the iterative stack alignment. A
-post-MCCC snapshot has `t1` from the least-squares pairwise solution instead:
-slightly different in value, plus formal standard errors in `mccc_error`.
+An ICCS-only snapshot has `refined_pick` values from the iterative stack
+alignment. A post-MCCC snapshot has `refined_pick` values from the least-squares
+pairwise solution instead: slightly different in value, plus formal standard
+errors in `mccc_error`.
 
-The MCCC `t1` values are preferable where formal uncertainties matter; an
-ICCS-only snapshot is enough where only relative picks are needed.
+The MCCC values are preferable where formal uncertainties matter. An ICCS-only
+snapshot is enough where only relative picks are needed.
 
 See [Aligning with ICCS](alignment.md) and [MCCC Alignment](mccc.md) for what
 each algorithm produces and when to use it.

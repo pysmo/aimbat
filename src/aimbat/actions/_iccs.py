@@ -1,7 +1,9 @@
-"""Actions that align the seismograms of an event with ICCS or MCCC.
+"""Actions that align the seismograms of a phase with ICCS or MCCC.
 
-AIMBAT keeps one ICCS instance per event in memory and reuses it while the
-event's parameters are unchanged, so repeated calls do not rebuild it.
+AIMBAT keeps one ICCS instance per phase in memory and reuses it while the
+phase's parameters are unchanged, so repeated calls do not rebuild it. A
+phase with blocking readiness items (see `aimbat data check`) is refused.
+`aimbat.core.create_iccs_instance` does not check readiness.
 """
 
 from dataclasses import dataclass
@@ -30,43 +32,44 @@ class AlignRun[R: (IccsResult, McccResult)]:
     """Description of the outcome of the run."""
 
 
-def prepare_iccs(event_id: UUID, *, engine: Engine | None = None) -> BoundICCS:
-    """Return an up-to-date ICCS instance for an event, building one if needed.
+def prepare_iccs(phase_id: UUID, *, engine: Engine | None = None) -> BoundICCS:
+    """Return an up-to-date ICCS instance for a phase, building one if needed.
 
     Building an instance computes and stores the CC value of each seismogram
     with the stack. The same instance is returned to later calls while the
-    event's parameters are unchanged, so changes made to it are seen by every
+    phase's parameters are unchanged, so changes made to it are seen by every
     caller.
 
     Args:
-        event_id: ID of the event.
+        phase_id: ID of the phase.
         engine: Engine to use. Defaults to the project engine.
 
     Returns:
-        The ICCS instance, bound to its event.
+        The ICCS instance, bound to its phase.
 
     Raises:
-        NoResultFound: If the event does not exist.
-        NoSeismogramsError: If the event has no seismograms.
+        NoResultFound: If the phase does not exist.
+        NotReadyError: If blocking readiness items apply to the phase, which
+            includes a phase with no seismograms.
     """
     with open_session(engine) as session:
-        event = core.resolve_event(session, event_id)
-        bound = core.create_iccs_instance(session, event)
+        core.require_ready(session, phase_id)
+        bound = core.create_iccs_instance(session, phase_id)
         session.commit()
     return bound
 
 
 def run_iccs(
-    event_id: UUID,
+    phase_id: UUID,
     *,
     autoflip: bool = False,
     autoselect: bool = False,
     engine: Engine | None = None,
 ) -> AlignRun[IccsResult]:
-    """Align the seismograms of an event with ICCS and store the refined picks.
+    """Align the seismograms of a phase with ICCS and store the refined picks.
 
     Args:
-        event_id: ID of the event.
+        phase_id: ID of the phase.
         autoflip: If True, flip seismograms whose CC with the stack is
             negative.
         autoselect: If True, deselect seismograms whose CC falls below
@@ -74,36 +77,40 @@ def run_iccs(
         engine: Engine to use. Defaults to the project engine.
 
     Raises:
-        NoResultFound: If the event does not exist.
+        NoResultFound: If the phase does not exist.
+        NotReadyError: If blocking readiness items apply to the phase, which
+            includes a phase with no seismograms.
     """
     with open_session(engine) as session:
-        event = core.resolve_event(session, event_id)
-        iccs = core.create_iccs_instance(session, event).iccs
-        result = core.run_iccs(session, event, iccs, autoflip, autoselect)
+        core.require_ready(session, phase_id)
+        iccs = core.create_iccs_instance(session, phase_id).iccs
+        result = core.run_iccs(session, phase_id, iccs, autoflip, autoselect)
         session.commit()
         summary = core.summarise_iccs_result(result, len(iccs.seismograms))
     return AlignRun(result=result, summary=summary)
 
 
 def run_mccc(
-    event_id: UUID,
+    phase_id: UUID,
     *,
     all_seismograms: bool = False,
     engine: Engine | None = None,
 ) -> AlignRun[McccResult]:
-    """Refine the picks of an event with MCCC and store them.
+    """Refine the picks of a phase with MCCC and store them.
 
     Args:
-        event_id: ID of the event.
+        phase_id: ID of the phase.
         all_seismograms: If True, include deselected seismograms.
         engine: Engine to use. Defaults to the project engine.
 
     Raises:
-        NoResultFound: If the event does not exist.
+        NoResultFound: If the phase does not exist.
+        NotReadyError: If blocking readiness items apply to the phase, which
+            includes a phase with no seismograms.
     """
     with open_session(engine) as session:
-        event = core.resolve_event(session, event_id)
-        iccs = core.create_iccs_instance(session, event).iccs
-        result = core.run_mccc(session, event, iccs, all_seismograms)
+        core.require_ready(session, phase_id)
+        iccs = core.create_iccs_instance(session, phase_id).iccs
+        result = core.run_mccc(session, phase_id, iccs, all_seismograms)
         session.commit()
     return AlignRun(result=result, summary=core.summarise_mccc_result(result))

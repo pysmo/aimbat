@@ -15,7 +15,7 @@ window, which changes which traces align well.
 ## What one run does
 
 Each iteration within a run cross-correlates every seismogram against the current
-stack, shifts its pick (`t1`) by the lag that best aligns it, and rebuilds the
+stack, shifts its refined pick by the lag that best aligns it, and rebuilds the
 stack from the newly aligned traces. This repeats, each stack better aligned than
 the last, until the stack stops changing (see [Convergence](#convergence)) or an
 iteration limit is reached. See pysmo's
@@ -56,13 +56,14 @@ for a final [MCCC](mccc.md) pass.
     ```python
     from sqlmodel import Session, select
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_iccs
+    from aimbat.core import create_iccs_instance, resolve_phase, run_iccs
     from aimbat.models import AimbatEvent
 
     with Session(engine) as session:
         event = session.exec(select(AimbatEvent)).first()
-        bound = create_iccs_instance(session, event)
-        run_iccs(session, event, bound.iccs, autoflip=True, autoselect=True)
+        phase = resolve_phase(session, event.id)
+        bound = create_iccs_instance(session, phase.id)
+        run_iccs(session, phase.id, bound.iccs, autoflip=True, autoselect=True)
         session.commit()
     ```
 

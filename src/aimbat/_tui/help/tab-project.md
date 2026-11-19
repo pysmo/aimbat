@@ -1,8 +1,12 @@
 # Project tab
 
 The Project tab lists everything in the database: seismic events and
-recording stations. **Most processing in AIMBAT is per-event** — select an
-event here before the Live data and Snapshots tabs show anything.
+recording stations. **Processing in AIMBAT is per phase of an event** —
+select an event here before the Live data and Snapshots tabs show anything.
+The TUI processes the only phase of the selected event. An event with
+several phases (listed in the Phases column) can be inspected here, but is
+processed with the CLI and its `--phase` option until the TUI can select a
+phase.
 
 **Changes are written to the database immediately** — there is no save step
 and no undo. On the Live data tab, press `n` to create a snapshot of the
@@ -42,14 +46,14 @@ status:
 - **○ no ICCS** — ICCS is built automatically in the background when you
   select an event. If this status persists, the ICCS instance could not be
   built — usually because a parameter combination is invalid or a waveform
-  file is missing. Press `p` to check the event parameters; the most common
+  file is missing. Press `p` to check the phase parameters; the most common
   cause is a time window longer than the available waveform data. The
   status updates automatically once the problem is fixed.
 
 ### Events table (top)
 
 Lists every seismic event in the project. Each row shows the event's
-origin time, location, depth, and completion status. The highlighted row
+origin time, location, depth, phases, and completion status. The highlighted row
 drives the quality panel and note on the right.
 
 With the events table focused, press `s` (or `Enter` → **Select event**) to
@@ -84,7 +88,7 @@ in the database.
 | Key | Action | Description |
 |-----|--------|-------------|
 | `s` | Select event | Load this event for processing (populates Live data and Snapshots tabs) |
-| `m` | Toggle completed | Mark or unmark the event as done |
+| `m` | Toggle completed | Mark or unmark the event's phase as done |
 | `v` | View seismograms | Switch to the Live data tab showing only this event's seismograms |
 | `d` | Delete event | Remove the event and all its seismograms from the project |
 

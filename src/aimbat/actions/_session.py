@@ -10,8 +10,8 @@ from sqlmodel import Session, SQLModel, col, select
 
 
 @contextmanager
-def discard_cached_iccs_on_failure(event_id: UUID) -> Iterator[None]:
-    """Evict the event's cached ICCS instance if the enclosed block raises.
+def discard_cached_iccs_on_failure(phase_id: UUID) -> Iterator[None]:
+    """Evict the phase's cached ICCS instance if the enclosed block raises.
 
     The interactive tools apply new values to the cached instance before they
     are stored. If storing them fails, the instance holds values the database
@@ -23,7 +23,7 @@ def discard_cached_iccs_on_failure(event_id: UUID) -> Iterator[None]:
     except Exception:
         from aimbat.core import evict_iccs_cache_entry
 
-        evict_iccs_cache_entry(event_id)
+        evict_iccs_cache_entry(phase_id)
         raise
 
 

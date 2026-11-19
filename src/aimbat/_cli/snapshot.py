@@ -1,7 +1,8 @@
 """View and manage snapshots of processing parameters.
 
-A snapshot captures the current event and seismogram processing parameters
-(e.g. time window, bandpass filter, picks) so they can be restored later.
+A snapshot captures the current processing parameters of one phase and of
+its seismograms (e.g. time window, bandpass filter, picks) so they can be
+restored later.
 Use `snapshot create` before making experimental changes, and `snapshot rollback`
 to undo them if needed.
 """
@@ -28,8 +29,11 @@ from .common import (
     id_label,
     id_parameter,
     make_note_app,
+    phase_filter_parameter,
+    phase_parameter,
     print_json_dump,
     print_quality_table,
+    resolve_phase_option,
 )
 
 app = App(name="snapshot", help=__doc__, help_format="markdown")
@@ -51,20 +55,22 @@ def cli_snapshot_create(
     event_id: Annotated[UUID, event_parameter()],
     comment: str | None = None,
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Create a new snapshot of current processing parameters.
 
-    Saves the current event and seismogram parameters for an event so
-    they can be restored later with `snapshot rollback`.
+    Saves the current parameters of a phase and of its seismograms so they
+    can be restored later with `snapshot rollback`.
 
     Args:
-        event_id: UUID (or unique prefix) of the event to snapshot.
+        event_id: UUID (or unique prefix) of the event whose phase to snapshot.
         comment: Optional description to help identify this snapshot later.
+        phase: Name of the phase to snapshot.
     """
     from aimbat.actions import create_snapshot
 
-    create_snapshot(event_id, comment)
+    create_snapshot(resolve_phase_option(event_id, phase), comment)
 
 
 @app.command(name="rollback")
@@ -82,21 +88,31 @@ def cli_snapshot_rollback(
 ) -> None:
     """Restore saved parameters from a snapshot as the current live values.
 
-    Overwrites the current event and per-seismogram parameters for the event
-    with those recorded in the snapshot. Any ICCS runs or parameter changes
+    Overwrites the current parameters of the snapshot's phase and of its
+    seismograms with those recorded in the snapshot. Other phases are
+    unaffected. Any ICCS runs or parameter changes
     made after the snapshot was taken are undone. The snapshot itself is not
     deleted, so you can roll back to it again.
 
     If the snapshot has MCCC quality data, the live quality metrics are also
     restored from the best matching snapshot (same parameter hash, most recent
     MCCC run).
+
+    Seismograms added after the snapshot was taken keep their parameters.
     """
+    from rich.console import Console
+
     from aimbat.actions import rollback_to_snapshot
 
     confirm_or_abort(
         "Overwrite current live parameters with this snapshot?", yes=confirm.yes
     )
-    rollback_to_snapshot(snapshot_id)
+    result = rollback_to_snapshot(snapshot_id)
+    if n := len(result.added_since):
+        Console().print(
+            f"{n} seismogram{'' if n == 1 else 's'} added since the snapshot "
+            + f"{'is' if n == 1 else 'are'} kept as {'it is' if n == 1 else 'they are'}."
+        )
 
 
 @app.command(name="delete")
@@ -115,7 +131,7 @@ def cli_snapshot_delete(
     """Delete an existing snapshot.
 
     Only removes the snapshot's frozen parameter and quality records;
-    current event and seismogram data are unaffected.
+    current phase and seismogram data are unaffected.
     """
     from aimbat.actions import delete_snapshots
 
@@ -134,8 +150,8 @@ def cli_snapshot_dump(
     from sqlmodel import Session
 
     from aimbat.core import (
-        dump_event_parameter_snapshot_table,
-        dump_event_quality_snapshot_table,
+        dump_phase_parameter_snapshot_table,
+        dump_phase_quality_snapshot_table,
         dump_seismogram_parameter_snapshot_table,
         dump_seismogram_quality_snapshot_table,
         dump_snapshot_table,
@@ -147,13 +163,13 @@ def cli_snapshot_dump(
             "snapshots": dump_snapshot_table(
                 session, by_alias=dump_parameters.by_alias
             ),
-            "event_parameters": dump_event_parameter_snapshot_table(
+            "phase_parameters": dump_phase_parameter_snapshot_table(
                 session, by_alias=dump_parameters.by_alias
             ),
             "seismogram_parameters": dump_seismogram_parameter_snapshot_table(
                 session, by_alias=dump_parameters.by_alias
             ),
-            "event_quality": dump_event_quality_snapshot_table(
+            "phase_quality": dump_phase_quality_snapshot_table(
                 session, by_alias=dump_parameters.by_alias
             ),
             "seismogram_quality": dump_seismogram_quality_snapshot_table(
@@ -168,9 +184,10 @@ def cli_snapshot_dump(
 def cli_snapshot_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
+    phase: Annotated[str | None, phase_filter_parameter()] = None,
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
-    """Print information on the snapshots for an event."""
+    """Print information on the snapshots of an event's phases."""
     from sqlmodel import Session
 
     from aimbat.core import dump_snapshot_table, resolve_event
@@ -209,6 +226,7 @@ def cli_snapshot_list(
             from_read_model=True,
             event_id=event.id if event else None,
             exclude=exclude,
+            phase_name=phase,
         )
 
         json_to_table(
@@ -269,11 +287,11 @@ def cli_snapshot_details(
     *,
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
-    """Print information on the event parameters saved in a snapshot."""
+    """Print information on the phase parameters saved in a snapshot."""
     from sqlmodel import Session
 
     from aimbat.db import engine
-    from aimbat.models import AimbatEventParametersSnapshot
+    from aimbat.models import AimbatPhaseParametersSnapshot
 
     from .common import json_to_table
 
@@ -287,15 +305,15 @@ def cli_snapshot_details(
 
         raw = table_parameters.raw
         label = id_label(session, AimbatSnapshot, snapshot.id, raw=raw)
-        title = f"Saved event parameters in snapshot: {label}"
+        title = f"Saved phase parameters in snapshot: {label}"
 
-        parameters_snapshot = snapshot.event_parameters_snapshot
+        parameters_snapshot = snapshot.phase_parameters_snapshot
 
         json_to_table(
             data=parameters_snapshot.model_dump(
                 mode="json", exclude={"id", "snapshot_id", "parameters_id"}
             ),
-            model=AimbatEventParametersSnapshot,
+            model=AimbatPhaseParametersSnapshot,
             title=title,
             key_header="Parameter",
         )
@@ -320,6 +338,7 @@ def cli_snapshot_quality_dump(
 def cli_snapshot_quality_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
+    phase: Annotated[str | None, phase_filter_parameter()] = None,
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
     """Show aggregated quality statistics for snapshots of an event or all events.
@@ -352,6 +371,7 @@ def cli_snapshot_quality_list(
             id_field="event_id",
             id_columns={"event_id": AimbatEvent, "snapshot_id": AimbatSnapshot},
             raw=raw,
+            filters={"phase_name": phase},
         )
 
 
@@ -379,8 +399,8 @@ def cli_snapshot_results(
 ) -> None:
     """Export per-seismogram MCCC results from a snapshot as JSON.
 
-    Each row contains the frozen pick time (T1), ICCS correlation coefficient,
-    per-seismogram MCCC quality metrics, and the event-level MCCC RMSE.
+    Each row contains the frozen refined pick, ICCS correlation coefficient,
+    per-seismogram MCCC quality metrics, and the MCCC RMSE of the phase.
 
     Results are printed to stdout unless `--output` is given, in which case
     they are written to the specified file.

@@ -11,7 +11,7 @@ from sqlmodel import Session, col, select
 
 from aimbat.logger import logger
 from aimbat.models import (
-    AimbatEvent,
+    AimbatPhase,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatSeismogramParametersBase,
@@ -20,6 +20,7 @@ from aimbat.models import (
 from aimbat.types import SeismogramParameter
 from aimbat.utils import check_field_name_flags, dump_models, rel
 
+from ._phase import _with_phase_names
 from ._session import flush_deletes
 from ._validity import Validity
 
@@ -27,17 +28,40 @@ __all__ = [
     "delete_seismogram",
     "dump_seismogram_parameter_table",
     "dump_seismogram_table",
-    "get_selected_seismograms",
+    "get_seismogram_parameters",
+    "get_selected_rows",
     "reset_seismogram_parameters",
+    "set_refined_picks",
     "set_seismogram_parameter",
     "set_seismogram_parameters",
-    "set_seismogram_picks",
 ]
 
 type SeismogramParameterBool = Literal[
     SeismogramParameter.SELECT, SeismogramParameter.FLIP
 ]
-type SeismogramParameterTimestamp = Literal[SeismogramParameter.T1]
+type SeismogramParameterTimestamp = Literal[SeismogramParameter.REFINED_PICK]
+
+
+def _row_loads() -> tuple[Any, ...]:
+    """Loader options for a seismogram's rows with their phase, quality and pick."""
+    rows = selectinload(rel(AimbatSeismogram.phase_rows))
+    return (
+        rows.selectinload(rel(AimbatSeismogramParameters.phase)),
+        rows.selectinload(rel(AimbatSeismogramParameters.quality)),
+        rows.selectinload(rel(AimbatSeismogramParameters.pick)),
+    )
+
+
+def _row(seismogram: AimbatSeismogram, phase_id: UUID) -> AimbatSeismogramParameters:
+    """The row of a seismogram for a phase.
+
+    Raises:
+        NoResultFound: If the seismogram has no row for the phase.
+    """
+    for row in seismogram.phase_rows:
+        if row.phase_id == phase_id:
+            return row
+    raise NoResultFound(f"Seismogram {seismogram.id} is not in phase {phase_id}.")
 
 
 def delete_seismogram(session: Session, seismogram_id: UUID) -> None:
@@ -61,6 +85,26 @@ def delete_seismogram(session: Session, seismogram_id: UUID) -> None:
     flush_deletes(session)
 
 
+def get_seismogram_parameters(
+    session: Session, phase_id: UUID, seismogram_id: UUID
+) -> AimbatSeismogramParameters:
+    """Return the processing state of a seismogram for a phase.
+
+    Args:
+        session: Database session.
+        phase_id: ID of the phase.
+        seismogram_id: Seismogram ID.
+
+    Raises:
+        NoResultFound: If no seismogram with the given ID is found, or it is
+            not in the phase.
+    """
+    seismogram = session.get(AimbatSeismogram, seismogram_id)
+    if seismogram is None:
+        raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
+    return _row(seismogram, phase_id)
+
+
 def dump_seismogram_table(
     session: Session,
     from_read_model: bool = False,
@@ -68,6 +112,7 @@ def dump_seismogram_table(
     by_title: bool = False,
     exclude: set[str] | None = None,
     event_id: UUID | None = None,
+    phase_name: str | None = None,
 ) -> list[dict[str, Any]]:
     """Dump the AimbatSeismogram table to json serialisable list of dicts.
 
@@ -80,6 +125,9 @@ def dump_seismogram_table(
         exclude: Set of field names to exclude from the output.
         event_id: Event ID to filter seismograms by (if none is provided,
             seismograms for all events are dumped).
+        phase_name: Phase whose processing state the read model shows. Without
+            it, a seismogram's only row is shown (see
+            `AimbatSeismogramRead.from_seismogram`).
 
     Returns:
         List of dicts representing the seismograms, built from the read
@@ -103,16 +151,17 @@ def dump_seismogram_table(
     statement = statement.options(
         selectinload(rel(AimbatSeismogram.station)),
         selectinload(rel(AimbatSeismogram.event)),
-        selectinload(rel(AimbatSeismogram.parameters)),
-        selectinload(rel(AimbatSeismogram.quality)),
+        *_row_loads(),
     )
 
     seismograms = session.exec(statement).all()
 
     if from_read_model:
-        validity = Validity.read(session, event_id)
+        validity = Validity.read(session, event_id=event_id)
         seismogram_reads = [
-            AimbatSeismogramRead.from_seismogram(s, validity, session=session)
+            AimbatSeismogramRead.from_seismogram(
+                s, validity, session=session, phase_name=phase_name
+            )
             for s in seismograms
         ]
         return dump_models(
@@ -128,52 +177,48 @@ def dump_seismogram_table(
     )
 
 
-def reset_seismogram_parameters(session: Session, seismogram_id: UUID) -> None:
-    """Reset an AimbatSeismogram's parameters to their default values.
+def reset_seismogram_parameters(
+    session: Session, phase_id: UUID, seismogram_id: UUID
+) -> None:
+    """Reset the parameters of a seismogram in a phase to their default values.
 
     All fields defined on AimbatSeismogramParametersBase are reset to the
     values produced by a fresh default instance, so newly added fields are
-    picked up automatically. This includes `t1`, so a manual pick is
-    discarded along with `select` and `flip`.
+    picked up automatically. This includes `refined_pick`, so a manual pick
+    is discarded along with `select` and `flip`.
 
     Args:
         session: Database session.
+        phase_id: ID of the phase.
         seismogram_id: ID of seismogram to reset parameters for.
 
     Raises:
-        NoResultFound: If no seismogram with the given ID is found.
+        NoResultFound: If no seismogram with the given ID is found, or it is
+            not in the phase.
     """
 
-    logger.info(f"Resetting parameters for seismogram {seismogram_id}.")
+    logger.info(
+        f"Resetting parameters for seismogram {seismogram_id} in phase {phase_id}."
+    )
 
-    seismogram = session.exec(
-        select(AimbatSeismogram)
-        .where(AimbatSeismogram.id == seismogram_id)
-        .options(
-            selectinload(rel(AimbatSeismogram.parameters)),
-            selectinload(rel(AimbatSeismogram.event)).options(
-                selectinload(rel(AimbatEvent.parameters)),
-                selectinload(rel(AimbatEvent.seismograms)).selectinload(
-                    rel(AimbatSeismogram.parameters)
-                ),
-            ),
-        )
-    ).one_or_none()
+    seismogram = session.get(AimbatSeismogram, seismogram_id)
     if seismogram is None:
         raise NoResultFound(f"No AimbatSeismogram found with {seismogram_id=}")
 
     from ._snapshot import resync_quality
 
+    row = _row(seismogram, phase_id)
     defaults = AimbatSeismogramParametersBase()
     for field_name in AimbatSeismogramParametersBase.model_fields:
-        setattr(seismogram.parameters, field_name, getattr(defaults, field_name))
-    session.add(seismogram)
-    resync_quality(session, seismogram.event)
+        setattr(row, field_name, getattr(defaults, field_name))
+    session.add(row)
+    resync_quality(session, phase_id)
 
 
 @overload
 def set_seismogram_parameter(
     session: Session,
+    phase_id: UUID,
     seismogram_id: UUID,
     name: SeismogramParameterBool,
     value: bool | str,
@@ -183,6 +228,7 @@ def set_seismogram_parameter(
 @overload
 def set_seismogram_parameter(
     session: Session,
+    phase_id: UUID,
     seismogram_id: UUID,
     name: SeismogramParameterTimestamp,
     value: Timestamp,
@@ -192,6 +238,7 @@ def set_seismogram_parameter(
 @overload
 def set_seismogram_parameter(
     session: Session,
+    phase_id: UUID,
     seismogram_id: UUID,
     name: SeismogramParameter,
     value: Timestamp | bool | str,
@@ -200,107 +247,89 @@ def set_seismogram_parameter(
 
 def set_seismogram_parameter(
     session: Session,
+    phase_id: UUID,
     seismogram_id: UUID,
     name: SeismogramParameter,
     value: Timestamp | bool | str,
 ) -> None:
-    """Set parameter value for an AimbatSeismogram instance.
+    """Set a parameter of a seismogram in a phase.
 
     Args:
         session: Database session
+        phase_id: ID of the phase.
         seismogram_id: Seismogram id.
         name: Name of the parameter.
         value: Value to set parameter to.
 
     Raises:
-        ValueError: If no seismogram with the given ID is found.
+        NoResultFound: If no seismogram with the given ID is found, or it is
+            not in the phase.
         ValidationError: If `value` fails Pydantic validation for `name`.
     """
-    from ._snapshot import resync_quality
-
-    logger.debug(
-        f"Setting seismogram {name=} to {value=} in seismogram {seismogram_id=}."
-    )
-
-    seismogram = session.exec(
-        select(AimbatSeismogram)
-        .where(AimbatSeismogram.id == seismogram_id)
-        .options(
-            selectinload(rel(AimbatSeismogram.parameters)),
-            selectinload(rel(AimbatSeismogram.event)).options(
-                selectinload(rel(AimbatEvent.parameters)),
-                selectinload(rel(AimbatEvent.seismograms)).selectinload(
-                    rel(AimbatSeismogram.parameters)
-                ),
-            ),
-        )
-    ).one_or_none()
-    if seismogram is None:
-        raise ValueError(f"No AimbatSeismogram found with {seismogram_id=}")
-
-    parameters = AimbatSeismogramParametersBase.model_validate(
-        seismogram.parameters, update={name: value}
-    )
-    setattr(seismogram.parameters, name, getattr(parameters, name))
-    session.add(seismogram)
-    resync_quality(session, seismogram.event)
+    set_seismogram_parameters(session, phase_id, [seismogram_id], {name: value})
 
 
 def set_seismogram_parameters(
     session: Session,
+    phase_id: UUID,
     seismogram_ids: Sequence[UUID],
     values: Mapping[SeismogramParameter, Timestamp | bool | str],
 ) -> None:
-    """Set the same parameter values on several seismograms at once.
+    """Set the same parameter values on several seismograms of a phase at once.
 
     Every seismogram and value is checked before anything changes, so an
-    unknown ID or an invalid value leaves all seismograms as they were. The
-    seismograms may belong to different events.
+    unknown ID or an invalid value leaves all seismograms as they were.
 
     Args:
         session: Database session.
+        phase_id: ID of the phase.
         seismogram_ids: IDs of the seismograms to update. Duplicates are
             ignored. An empty sequence is a no-op.
         values: New value for each parameter, keyed by parameter name. An
             empty mapping is a no-op.
 
     Raises:
-        NoResultFound: If any of the IDs is not a seismogram.
+        NoResultFound: If any of the IDs is not a seismogram of the phase.
         ValidationError: If any value fails Pydantic validation.
     """
     updates = {str(name): value for name, value in values.items()}
     logger.debug(f"Setting {updates} for {len(seismogram_ids)} seismogram(s).")
-    _update_seismograms(session, dict.fromkeys(seismogram_ids, updates))
+    _update_seismograms(session, phase_id, dict.fromkeys(seismogram_ids, updates))
 
 
-def set_seismogram_picks(session: Session, picks: Mapping[UUID, Timestamp]) -> None:
-    """Set the refined pick (`t1`) of several seismograms, each to its own value.
+def set_refined_picks(
+    session: Session, phase_id: UUID, picks: Mapping[UUID, Timestamp]
+) -> None:
+    """Set the refined pick of several seismograms of a phase, each to its own value.
 
     Every seismogram and pick is checked before anything changes, so an
-    unknown ID or an invalid pick leaves all seismograms as they were. The
-    seismograms may belong to different events.
+    unknown ID or an invalid pick leaves all seismograms as they were.
 
     Args:
         session: Database session.
+        phase_id: ID of the phase.
         picks: New refined pick for each seismogram, keyed by seismogram ID.
             An empty mapping is a no-op.
 
     Raises:
-        NoResultFound: If any of the IDs is not a seismogram.
+        NoResultFound: If any of the IDs is not a seismogram of the phase.
         ValidationError: If any pick fails Pydantic validation.
     """
-    logger.debug(f"Setting t1 for {len(picks)} seismogram(s).")
+    logger.debug(f"Setting refined picks for {len(picks)} seismogram(s).")
     _update_seismograms(
         session,
+        phase_id,
         {
-            seismogram_id: {str(SeismogramParameter.T1): pick}
+            seismogram_id: {str(SeismogramParameter.REFINED_PICK): pick}
             for seismogram_id, pick in picks.items()
         },
     )
 
 
 def _update_seismograms(
-    session: Session, updates: Mapping[UUID, Mapping[str, Timestamp | bool | str]]
+    session: Session,
+    phase_id: UUID,
+    updates: Mapping[UUID, Mapping[str, Timestamp | bool | str]],
 ) -> None:
     """Apply per-seismogram parameter updates after validating all of them."""
     from ._snapshot import resync_quality
@@ -310,95 +339,75 @@ def _update_seismograms(
     seismograms = session.exec(
         select(AimbatSeismogram)
         .where(col(AimbatSeismogram.id).in_(ids))
-        .options(
-            selectinload(rel(AimbatSeismogram.parameters)),
-            selectinload(rel(AimbatSeismogram.event)).options(
-                selectinload(rel(AimbatEvent.parameters)),
-                selectinload(rel(AimbatEvent.seismograms)).selectinload(
-                    rel(AimbatSeismogram.parameters)
-                ),
-            ),
-        )
+        .options(selectinload(rel(AimbatSeismogram.phase_rows)))
     ).all()
-    found = {seismogram.id for seismogram in seismograms}
+    found = {
+        seismogram.id
+        for seismogram in seismograms
+        if any(row.phase_id == phase_id for row in seismogram.phase_rows)
+    }
     missing = [i for i in ids if i not in found]
     if missing:
         raise NoResultFound(
-            "No AimbatSeismogram found with ID(s): " + ", ".join(map(str, missing))
+            f"No seismogram of phase {phase_id} found with ID(s): "
+            + ", ".join(map(str, missing))
         )
 
     seismograms = [s for s in seismograms if updates[s.id]]
     if not seismograms:
         return
 
+    rows = {seismogram.id: _row(seismogram, phase_id) for seismogram in seismograms}
     validated = [
         (
             seismogram,
             AimbatSeismogramParametersBase.model_validate(
-                seismogram.parameters, update=dict(updates[seismogram.id])
+                rows[seismogram.id], update=dict(updates[seismogram.id])
             ),
         )
         for seismogram in seismograms
     ]
     for seismogram, parameters in validated:
+        row = rows[seismogram.id]
         for name in updates[seismogram.id]:
-            setattr(seismogram.parameters, name, getattr(parameters, name))
-        session.add(seismogram)
+            setattr(row, name, getattr(parameters, name))
+        session.add(row)
 
-    events = {seismogram.event.id: seismogram.event for seismogram in seismograms}
-    for event in events.values():
-        resync_quality(session, event)
+    resync_quality(session, phase_id)
 
 
-def get_selected_seismograms(
-    session: Session, event_id: UUID | None = None, all_events: bool = False
-) -> Sequence[AimbatSeismogram]:
-    """Get the selected seismograms for the given event.
+def get_selected_rows(
+    session: Session, phase_id: UUID
+) -> Sequence[AimbatSeismogramParameters]:
+    """Get the selected seismograms of a phase, as their rows for it.
 
-    A selected seismogram is one whose `select` parameter is set, i.e. one
-    that is included in the ICCS stack and, by default, in MCCC.
+    A selected seismogram is one whose `select` parameter is set for the
+    phase, i.e. one that is included in the phase's ICCS stack and, by
+    default, in MCCC.
 
     Args:
         session: Database session.
-        event_id: Event ID to get seismograms for (only used when all_events is False).
-        all_events: Get the selected seismograms for all events.
+        phase_id: ID of the phase.
 
     Returns:
-        Selected seismograms.
-
-    Raises:
-        ValueError: If `all_events` is False and `event_id` is not given.
+        The rows of the phase with `select` set.
     """
+    logger.debug(f"Getting selected seismograms of phase {phase_id}.")
 
-    if all_events is True:
-        logger.debug("Selecting seismograms for all events.")
-        statement = (
-            select(AimbatSeismogram)
-            .join(AimbatSeismogramParameters)
-            .where(col(AimbatSeismogramParameters.select).is_(True))
+    rows = session.exec(
+        select(AimbatSeismogramParameters)
+        .where(col(AimbatSeismogramParameters.phase_id) == phase_id)
+        .where(col(AimbatSeismogramParameters.select).is_(True))
+        .options(
+            selectinload(rel(AimbatSeismogramParameters.seismogram)),
+            selectinload(rel(AimbatSeismogramParameters.quality)),
+            selectinload(rel(AimbatSeismogramParameters.pick)),
         )
-    else:
-        if event_id is None:
-            raise ValueError("An event must be provided when all_events is False.")
-        logger.debug(f"Selecting seismograms for event {event_id} only.")
-        statement = (
-            select(AimbatSeismogram)
-            .join(AimbatSeismogramParameters)
-            .where(col(AimbatSeismogramParameters.select).is_(True))
-            .where(AimbatSeismogram.event_id == event_id)
-        )
+    ).all()
 
-    statement = statement.options(
-        selectinload(rel(AimbatSeismogram.station)),
-        selectinload(rel(AimbatSeismogram.event)),
-        selectinload(rel(AimbatSeismogram.parameters)),
-        selectinload(rel(AimbatSeismogram.quality)),
-    )
-    seismograms = session.exec(statement).all()
+    logger.debug(f"Found {len(rows)} selected seismograms.")
 
-    logger.debug(f"Found {len(seismograms)} selected seismograms.")
-
-    return seismograms
+    return rows
 
 
 def dump_seismogram_parameter_table(
@@ -407,8 +416,11 @@ def dump_seismogram_parameter_table(
     by_title: bool = False,
     exclude: set[str] | None = None,
     event_id: UUID | None = None,
+    phase_name: str | None = None,
 ) -> list[dict[str, Any]]:
     """Dump the seismogram parameter table data to json serialisable list of dicts.
+
+    Each record carries the name of its phase next to the phase ID.
 
     Args:
         session: Database session.
@@ -417,6 +429,8 @@ def dump_seismogram_parameter_table(
         exclude: Set of field names to exclude from the output.
         event_id: Event ID to filter seismogram parameters by (if none is provided,
             all seismogram parameters for all events are dumped).
+        phase_name: Only the rows of phases of this name, across the events
+            covered.
 
     Returns:
         list of dicts representing the seismogram parameters.
@@ -428,21 +442,25 @@ def dump_seismogram_parameter_table(
 
     check_field_name_flags(by_alias, by_title)
 
+    statement = select(AimbatSeismogramParameters).join(AimbatPhase)
     if event_id is not None:
-        statement = (
-            select(AimbatSeismogramParameters)
-            .join(AimbatSeismogram)
-            .where(AimbatSeismogram.event_id == event_id)
-        )
-    else:
-        statement = select(AimbatSeismogramParameters)
+        statement = statement.where(col(AimbatPhase.event_id) == event_id)
+    if phase_name is not None:
+        statement = statement.where(col(AimbatPhase.name) == phase_name)
+    statement = statement.options(selectinload(rel(AimbatSeismogramParameters.phase)))
 
     parameters = session.exec(statement).all()
 
-    return dump_models(
+    data = dump_models(
         parameters,
         AimbatSeismogramParameters,
         by_alias=by_alias,
         by_title=by_title,
         exclude=exclude,
+    )
+    return _with_phase_names(
+        data,
+        (row.phase.name for row in parameters),
+        by_alias=by_alias,
+        by_title=by_title,
     )

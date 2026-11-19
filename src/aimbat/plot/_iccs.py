@@ -39,7 +39,7 @@ from pysmo.tools.iccs import (
 )
 
 from aimbat.logger import logger
-from aimbat.types import EventParameter
+from aimbat.types import PhaseParameter
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -61,8 +61,8 @@ __all__ = [
     "update_timewindow",
 ]
 
-type EventParameterChanges = dict[EventParameter, bool | float | int | Timedelta]
-"""New value for each event parameter set by an interactive tool."""
+type EventParameterChanges = dict[PhaseParameter, bool | float | int | Timedelta]
+"""New value for each phase parameter set by an interactive tool."""
 
 type _Figure = tuple["Figure", "Axes", Any]
 
@@ -161,10 +161,10 @@ def update_bandpass(
         return result
 
     return {
-        EventParameter.BANDPASS_APPLY: iccs.bandpass_apply,
-        EventParameter.BANDPASS_FMIN: iccs.bandpass_fmin,
-        EventParameter.BANDPASS_FMAX: iccs.bandpass_fmax,
-        EventParameter.CORNERS: iccs.corners,
+        PhaseParameter.BANDPASS_APPLY: iccs.bandpass_apply,
+        PhaseParameter.BANDPASS_FMIN: iccs.bandpass_fmin,
+        PhaseParameter.BANDPASS_FMAX: iccs.bandpass_fmax,
+        PhaseParameter.CORNERS: iccs.corners,
     }
 
 
@@ -198,7 +198,7 @@ def update_pick(
     causal: bool,
     return_fig: bool,
 ) -> dict[UUID, Timestamp] | _Figure:
-    """Adjust the refined phase pick (`t1`) of every seismogram interactively.
+    """Adjust the refined pick of every seismogram interactively.
 
     Args:
         iccs: ICCS instance. The widget applies the new picks to it.
@@ -287,8 +287,8 @@ def update_timewindow(
         return result
 
     return {
-        EventParameter.WINDOW_PRE: iccs.window_pre,
-        EventParameter.WINDOW_POST: iccs.window_post,
+        PhaseParameter.WINDOW_PRE: iccs.window_pre,
+        PhaseParameter.WINDOW_POST: iccs.window_post,
     }
 
 
@@ -343,4 +343,4 @@ def update_min_cc(
         logger.debug(_RETURN_FIG_WARNING)
         return result
 
-    return {EventParameter.MIN_CC: float(iccs.min_cc)}
+    return {PhaseParameter.MIN_CC: float(iccs.min_cc)}

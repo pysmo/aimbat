@@ -21,11 +21,11 @@ from textual.widgets import DataTable, Input, Label, Markdown, Static
 from aimbat._cli.common import CAUSAL_DEFAULTS
 from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY
 from aimbat._tui._widgets import VimDataTable
-from aimbat.actions import set_event_parameters
+from aimbat.actions import set_phase_parameters
 from aimbat.db import engine
-from aimbat.models import AimbatEvent
-from aimbat.models._parameters import AimbatEventParametersBase
-from aimbat.types import EventParameter
+from aimbat.models import AimbatPhase
+from aimbat.models._parameters import AimbatPhaseParametersBase
+from aimbat.types import PhaseParameter
 from aimbat.utils import format_validation_error
 
 if TYPE_CHECKING:
@@ -333,14 +333,14 @@ class ParametersModal(ModalScreen[bool]):
 
     BINDINGS = [Binding("escape", "cancel", show=False)]
 
-    def __init__(self, event_id: uuid.UUID) -> None:
+    def __init__(self, phase_id: uuid.UUID) -> None:
         """Initialise the modal.
 
         Args:
-            event_id: ID of the event whose parameters are displayed.
+            phase_id: ID of the phase whose parameters are displayed.
         """
         super().__init__()
-        self._event_id = event_id
+        self._phase_id = phase_id
         self._changed = False
 
     def compose(self) -> ComposeResult:
@@ -364,11 +364,11 @@ class ParametersModal(ModalScreen[bool]):
         saved_row = table.cursor_row
         table.clear()
         with Session(engine) as session:
-            event = session.get(AimbatEvent, self._event_id)
-            if event is None:
+            phase = session.get(AimbatPhase, self._phase_id)
+            if phase is None:
                 return
-            fields = list(AimbatEventParametersBase.model_fields.items())
-            p = event.parameters
+            fields = list(AimbatPhaseParametersBase.model_fields.items())
+            p = phase.parameters
             for attr, field_info in fields:
                 value = getattr(p, attr)
                 if isinstance(value, bool):
@@ -395,10 +395,10 @@ class ParametersModal(ModalScreen[bool]):
     def _edit_parameter(self, attr: str) -> None:
         """Open an edit dialog for `attr`, toggling booleans inline."""
         with Session(engine) as session:
-            ev = session.get(AimbatEvent, self._event_id)
-            if ev is None:
+            phase = session.get(AimbatPhase, self._phase_id)
+            if phase is None:
                 return
-            current = getattr(ev.parameters, attr)
+            current = getattr(phase.parameters, attr)
 
         if isinstance(current, bool):
             self._apply_parameter(attr, not current)
@@ -424,7 +424,7 @@ class ParametersModal(ModalScreen[bool]):
             except ValueError as exc:
                 self.notify(str(exc), severity="error")
 
-        label = AimbatEventParametersBase.model_fields[attr].title or attr
+        label = AimbatPhaseParametersBase.model_fields[attr].title or attr
         self.app.push_screen(ParameterInputModal(label, current_str, unit), on_input)
 
     def _apply_parameter(
@@ -432,8 +432,8 @@ class ParametersModal(ModalScreen[bool]):
     ) -> None:
         """Persist a validated parameter change to the database."""
         try:
-            set_event_parameters(
-                self._event_id, {EventParameter(attr): value}, validate_iccs=True
+            set_phase_parameters(
+                self._phase_id, {PhaseParameter(attr): value}, validate_iccs=True
             )
         except NoResultFound:
             return
@@ -856,7 +856,7 @@ class AlignModal(ModalScreen[tuple[str, bool, bool, bool] | None]):
 
 
 class SnapshotDetailsModal(ModalScreen[None]):
-    """Read-only view of the event parameters captured in a snapshot."""
+    """Read-only view of the phase parameters captured in a snapshot."""
 
     BINDINGS = [
         Binding("escape", "cancel", show=False),

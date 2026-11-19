@@ -1,4 +1,4 @@
-"""Functional tests for CLI commands that read and write event and seismogram parameters.
+"""Functional tests for CLI commands that read and write phase and seismogram parameters.
 
 All commands are invoked in-process via `app()` with `aimbat.db.engine`
 monkeypatched to the test fixture's in-memory database. The `dump`
@@ -7,16 +7,20 @@ The rules for changing parameters are tested against `aimbat.actions` and
 `aimbat.core`. These tests check how values are parsed and shown.
 """
 
+import uuid
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 from sqlalchemy import Engine
+from sqlmodel import Session
+
+from aimbat.core import resolve_phase
 
 type _Cli = Callable[[str | list[str]], None]
 type _CliJson = Callable[[str], list[Any] | dict[str, Any]]
 
-_EVENT_PARAMETERS = (
+_PHASE_PARAMETERS = (
     "completed",
     "min_cc",
     "window_pre",
@@ -27,10 +31,14 @@ _EVENT_PARAMETERS = (
 )
 
 
-def _event_parameters(cli_json: _CliJson, event_id: str) -> dict[str, Any]:
-    dump = cli_json("event parameter dump")
+def _phase_parameters(
+    engine: Engine, cli_json: _CliJson, event_id: str
+) -> dict[str, Any]:
+    with Session(engine) as session:
+        phase_id = str(resolve_phase(session, uuid.UUID(event_id)).id)
+    dump = cli_json("phase parameter dump")
     assert isinstance(dump, list)
-    return next(p for p in dump if p["event_id"] == event_id)
+    return next(p for p in dump if p["phase_id"] == phase_id)
 
 
 def _seismogram_parameters(cli_json: _CliJson, seismogram_id: str) -> dict[str, Any]:
@@ -46,8 +54,8 @@ def _first_seismogram_id(cli_json: _CliJson) -> str:
 
 
 @pytest.mark.cli
-class TestEventParameters:
-    """Tests for `event parameter get`, `set`, `dump` and `list`."""
+class TestPhaseParameters:
+    """Tests for `phase parameter get`, `set`, `dump` and `list`."""
 
     def test_get_bool(
         self,
@@ -57,7 +65,7 @@ class TestEventParameters:
         event_id: str,
     ) -> None:
         """Verifies that a bool parameter is printed as `True` or `False`."""
-        cli(f"event parameter get --event-id {event_id} completed")
+        cli(f"phase parameter get --event-id {event_id} completed")
         assert capsys.readouterr().out.strip() == "False"
 
     def test_get_float(
@@ -68,7 +76,7 @@ class TestEventParameters:
         event_id: str,
     ) -> None:
         """Verifies that a float parameter is printed as a number."""
-        cli(f"event parameter get --event-id {event_id} min_cc")
+        cli(f"phase parameter get --event-id {event_id} min_cc")
         assert float(capsys.readouterr().out.strip()) >= 0.0
 
     def test_get_timedelta(
@@ -79,7 +87,7 @@ class TestEventParameters:
         event_id: str,
     ) -> None:
         """Verifies that a timedelta parameter is printed in seconds."""
-        cli(f"event parameter get --event-id {event_id} window_pre")
+        cli(f"phase parameter get --event-id {event_id} window_pre")
         assert float(capsys.readouterr().out.strip()) <= 0.0
 
     @pytest.mark.parametrize(
@@ -104,18 +112,20 @@ class TestEventParameters:
         expected: object,
     ) -> None:
         """Verifies that a value given on the command line is parsed and stored."""
-        cli(f"event parameter set --event-id {event_id} {name} {value}")
+        cli(f"phase parameter set --event-id {event_id} {name} {value}")
 
-        assert _event_parameters(cli_json, event_id)[name] == pytest.approx(expected)
+        assert _phase_parameters(loaded_engine, cli_json, event_id)[
+            name
+        ] == pytest.approx(expected)
 
     def test_dump(self, loaded_engine: Engine, cli_json: _CliJson) -> None:
-        """Verifies that the dump has every parameter for every event."""
-        dump = cli_json("event parameter dump")
-        events = cli_json("event dump")
+        """Verifies that the dump has every parameter for every phase."""
+        dump = cli_json("phase parameter dump")
+        phases = cli_json("phase dump")
         assert isinstance(dump, list)
-        assert len(dump) == len(events) > 1
+        assert len(dump) == len(phases) > 1
         for entry in dump:
-            assert set(_EVENT_PARAMETERS) <= entry.keys()
+            assert set(_PHASE_PARAMETERS) | {"phase_id", "phase_name"} <= entry.keys()
 
     @pytest.mark.parametrize("flags", ["", "--raw"])
     def test_list(
@@ -127,7 +137,7 @@ class TestEventParameters:
         flags: str,
     ) -> None:
         """Verifies that the list command prints a table for one event."""
-        cli(f"event parameter list {flags} --event-id {event_id}")
+        cli(f"phase parameter list {flags} --event-id {event_id}")
         assert capsys.readouterr().out
 
     def test_list_all_events(
@@ -137,7 +147,7 @@ class TestEventParameters:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Verifies that `--event-id all` prints a table for every event."""
-        cli("event parameter list --event-id all")
+        cli("phase parameter list --event-id all")
         assert capsys.readouterr().out
 
 
@@ -202,7 +212,7 @@ class TestSeismogramParameters:
         assert isinstance(dump, list)
         assert len(dump) == len(seismograms) > 0
         for entry in dump:
-            assert {"select", "flip", "t1", "seismogram_id"} <= entry.keys()
+            assert {"select", "flip", "refined_pick", "seismogram_id"} <= entry.keys()
 
     @pytest.mark.parametrize("flags", ["", "--raw"])
     def test_list(

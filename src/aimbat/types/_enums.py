@@ -2,11 +2,11 @@
 
 from enum import StrEnum, auto
 
-__all__ = ["EventParameter", "SeismogramParameter"]
+__all__ = ["PhaseParameter", "SeismogramParameter"]
 
 
-class EventParameter(StrEnum):
-    """[`AimbatEvent`][aimbat.models.AimbatEvent] enum for CLI arg typing."""
+class PhaseParameter(StrEnum):
+    """[`AimbatPhaseParameters`][aimbat.models.AimbatPhaseParameters] enum for CLI arg typing."""
 
     COMPLETED = auto()
     MIN_CC = auto()
@@ -26,4 +26,4 @@ class SeismogramParameter(StrEnum):
 
     SELECT = auto()
     FLIP = auto()
-    T1 = auto()
+    REFINED_PICK = auto()

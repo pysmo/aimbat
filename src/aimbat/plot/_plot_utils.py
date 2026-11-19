@@ -10,7 +10,12 @@ from pysmo.tools.azdist import distance
 from pysmo.tools.signal import bandpass
 
 from aimbat.logger import logger
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
+from aimbat.models import (
+    AimbatEvent,
+    AimbatPhase,
+    AimbatSeismogramParameters,
+    AimbatStation,
+)
 
 __all__ = ["clean_timedelta", "event_seismograms", "station_seismograms"]
 
@@ -25,25 +30,27 @@ def clean_timedelta(x: float, _: int | None) -> str:
     return f"{sign}{minutes:02d}:{seconds:02d}"
 
 
-def _prepare_seismogram_for_plotting(seismogram: AimbatSeismogram) -> MiniSeismogram:
+def _prepare_seismogram_for_plotting(row: AimbatSeismogramParameters) -> MiniSeismogram:
     """Prepare a copy of a seismogram for plotting.
 
-    Removes any linear trend, applies the event's bandpass filter if enabled,
+    Removes any linear trend, applies the phase's bandpass filter if enabled,
     resamples to a fixed sample interval, and normalises the amplitude by its
     absolute maximum.
 
     Args:
-        seismogram: Seismogram to prepare.
+        row: Row of the seismogram to prepare, for the phase whose parameters
+            apply.
 
     Returns:
         A new, independent seismogram ready for plotting.
     """
-    logger.debug(f"Preparing seismogram {seismogram.id} for plotting.")
-    preped_seis = clone_to_mini(MiniSeismogram, seismogram)
+    logger.debug(f"Preparing seismogram {row.seismogram_id} for plotting.")
+    preped_seis = clone_to_mini(MiniSeismogram, row.seismogram)
     detrend(preped_seis)
-    if seismogram.event.parameters.bandpass_apply is True:
-        fmin = seismogram.event.parameters.bandpass_fmin
-        fmax = seismogram.event.parameters.bandpass_fmax
+    parameters = row.phase.parameters
+    if parameters.bandpass_apply is True:
+        fmin = parameters.bandpass_fmin
+        fmax = parameters.bandpass_fmax
         logger.debug(f"Applying bandpass filter: {fmin}-{fmax} Hz.")
         bandpass(preped_seis, fmin, fmax)
     resample(preped_seis, _RESAMPLE_DELTA)
@@ -52,7 +59,7 @@ def _prepare_seismogram_for_plotting(seismogram: AimbatSeismogram) -> MiniSeismo
 
 
 def event_seismograms(
-    event: AimbatEvent,
+    event: AimbatEvent | AimbatPhase,
 ) -> list[
     tuple[
         MiniSeismogram,
@@ -63,7 +70,9 @@ def event_seismograms(
         uuid.UUID,
     ]
 ]:
-    """Get all seismograms for a particular event ordered by descending great circle distance.
+    """Get the seismograms of an event or one of its phases, by descending great circle distance.
+
+    A seismogram appears once for each phase covered that it is in.
 
     Note:
         Each seismogram is detrended/filtered/resampled/normalised
@@ -73,24 +82,28 @@ def event_seismograms(
         with no indication that anything is happening.
 
     Args:
-        event: AimbatEvent.
+        event: The event, for every phase, or one phase.
 
     Returns:
         List of tuples containing the seismogram, station, distance from the
-            event, initial pick `t0`, working pick `t1` (or `None` if not
-            set), and seismogram ID for each seismogram.
+            event, initial pick, refined pick (or `None` if not set), and
+            seismogram ID for each seismogram.
     """
+    phases = [event] if isinstance(event, AimbatPhase) else event.phases
+    if isinstance(event, AimbatPhase):
+        event = event.event
 
     data = [
         (
-            _prepare_seismogram_for_plotting(s),
-            s.station,
-            distance(s.station, s.event) / 1000,
-            s.t0,
-            s.parameters.t1,
-            s.id,
+            _prepare_seismogram_for_plotting(row),
+            row.seismogram.station,
+            distance(row.seismogram.station, event) / 1000,
+            row.initial_pick,
+            row.refined_pick,
+            row.seismogram_id,
         )
-        for s in event.seismograms
+        for phase in phases
+        for row in phase.seismogram_parameters
     ]
     data.sort(key=lambda x: x[2], reverse=True)
     return data
@@ -111,13 +124,20 @@ def station_seismograms(
         station: AimbatStation.
 
     Returns:
-        List of tuples containing the seismogram, event, initial pick `t0`,
-            working pick `t1` (or `None` if not set), and seismogram ID for
-            each seismogram.
+        List of tuples containing the seismogram, event, initial pick,
+            refined pick (or `None` if not set), and seismogram ID for each
+            seismogram.
     """
     data = [
-        (_prepare_seismogram_for_plotting(s), s.event, s.t0, s.parameters.t1, s.id)
+        (
+            _prepare_seismogram_for_plotting(row),
+            s.event,
+            row.initial_pick,
+            row.refined_pick,
+            s.id,
+        )
         for s in station.seismograms
+        for row in s.phase_rows
     ]
     data.sort(key=lambda x: x[3] or x[2])
     return data

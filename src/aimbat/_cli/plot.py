@@ -2,8 +2,8 @@
 
 Available plots:
 
-- **data**: raw seismograms sorted by epicentral distance.
-- **stack**: the ICCS cross-correlation stack for an event.
+- **seismograms**: the input seismograms of a phase sorted by epicentral distance.
+- **stack**: the ICCS cross-correlation stack of a phase.
 - **matrix**: seismograms displayed as a matrix image.
 
 Most plot commands support `--context` / `--no-context` to toggle extra
@@ -28,6 +28,8 @@ from .common import (
     IccsPlotParameters,
     event_parameter,
     handle_issues,
+    phase_parameter,
+    resolve_phase_option,
 )
 
 app = App(name="plot", help=__doc__, help_format="markdown")
@@ -38,18 +40,25 @@ app = App(name="plot", help=__doc__, help_format="markdown")
 def cli_seismogram_plot(
     event_id: Annotated[UUID, event_parameter()],
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Plot input seismograms in an event sorted by epicentral distance."""
+    """Plot the input seismograms of a phase sorted by epicentral distance.
+
+    Each seismogram is marked with its initial and refined pick for the
+    phase, and filtered with the phase's bandpass settings if they are
+    applied.
+    """
     from sqlmodel import Session
 
-    from aimbat.core import resolve_event
+    from aimbat.core import resolve_phase
     from aimbat.db import engine
     from aimbat.plot import plot_seismograms, show_figure
 
     with Session(engine) as session:
-        event = resolve_event(session, event_id)
-        fig, _axes = plot_seismograms(event, return_fig=True)
+        fig, _axes = plot_seismograms(
+            resolve_phase(session, event_id, phase), return_fig=True
+        )
 
     show_figure(fig)
 
@@ -59,10 +68,11 @@ def cli_seismogram_plot(
 def cli_plot_stack(
     event_id: Annotated[UUID, event_parameter()],
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Plot the ICCS stack of an event.
+    """Plot the ICCS stack of a phase.
 
     Building the ICCS instance writes each seismogram's cross-correlation
     value to the project database, so this command writes to the database
@@ -72,7 +82,7 @@ def cli_plot_stack(
     from aimbat.plot import plot_stack
 
     plot_stack(
-        prepare_iccs(event_id).iccs,
+        prepare_iccs(resolve_phase_option(event_id, phase)).iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         return_fig=False,
@@ -84,10 +94,11 @@ def cli_plot_stack(
 def cli_plot_matrix_image(
     event_id: Annotated[UUID, event_parameter()],
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Plot the ICCS seismograms of an event as a matrix image.
+    """Plot the ICCS seismograms of a phase as a matrix image.
 
     The matrix is assembled from individual waveforms, with each row
     representing a different seismogram. Building the ICCS instance writes
@@ -99,7 +110,7 @@ def cli_plot_matrix_image(
     from aimbat.plot import plot_matrix_image
 
     plot_matrix_image(
-        prepare_iccs(event_id).iccs,
+        prepare_iccs(resolve_phase_option(event_id, phase)).iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         return_fig=False,

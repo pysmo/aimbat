@@ -2,7 +2,7 @@
 
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Literal, TypeIs
+from typing import TYPE_CHECKING, Annotated, Literal, TypeIs, get_origin
 from uuid import UUID
 
 from cyclopts import Parameter, Token
@@ -21,6 +21,8 @@ __all__ = [
     "EventDebugParameters",
     "IccsPlotParameters",
     "JsonDumpParameters",
+    "PhaseDebugParameters",
+    "PhaseNameConverter",
     "TableParameters",
     "UuidConverter",
     "causal",
@@ -29,6 +31,10 @@ __all__ = [
     "event_parameter_with_all",
     "id_parameter",
     "open_in_editor",
+    "phase_filter_parameter",
+    "phase_parameter",
+    "resolve_phase_option",
+    "resolve_seismogram_phase",
     "station_parameter_is_all",
     "station_parameter_with_all",
     "use_event_parameter",
@@ -46,7 +52,8 @@ __all__ = [
 class UuidConverter:
     """Cyclopts converter that resolves a UUID or unique prefix for a model.
 
-    `aimbat shell` reads `model_class` and `allow_all` to complete IDs.
+    For a list parameter, each token is resolved. `aimbat shell` reads
+    `model_class` and `allow_all` to complete IDs.
 
     Attributes:
         model_class: AIMBAT model class to resolve the UUID against.
@@ -57,10 +64,15 @@ class UuidConverter:
     model_class: "type[AimbatTypes]"
     allow_all: bool = False
 
-    def __call__(self, hint: type, tokens: tuple[Token, ...]) -> UUID | Literal["all"]:
+    def __call__(
+        self, hint: type, tokens: tuple[Token, ...]
+    ) -> UUID | Literal["all"] | list[UUID | Literal["all"]]:
+        if get_origin(hint) is list:
+            return [self._resolve(token.value) for token in tokens]
         (token,) = tokens
-        value = token.value
+        return self._resolve(token.value)
 
+    def _resolve(self, value: str) -> UUID | Literal["all"]:
         if self.allow_all and value.lower() == "all":
             return "all"
         try:
@@ -108,6 +120,91 @@ def event_parameter(help: str | None = None) -> Parameter:
         env_var="DEFAULT_EVENT_ID",
         converter=UuidConverter(AimbatEvent),
     )
+
+
+@dataclass(frozen=True)
+class PhaseNameConverter:
+    """Cyclopts converter that passes a phase name through unchanged.
+
+    The name is resolved against an event by `resolve_phase_option`.
+    `aimbat shell` recognises this converter to complete phase names.
+    """
+
+    def __call__(self, hint: type, tokens: tuple[Token, ...]) -> str:
+        (token,) = tokens
+        return token.value
+
+
+def phase_parameter(help: str | None = None) -> Parameter:
+    """Return a cyclopts `Parameter` for selecting a phase by name.
+
+    Args:
+        help: Custom help string; falls back to a generic prompt.
+    """
+    return Parameter(
+        name="phase",
+        help=help
+        or (
+            "Name of the phase to process. Not needed when the event has only one"
+            + " phase."
+        ),
+        env_var="DEFAULT_PHASE",
+        converter=PhaseNameConverter(),
+    )
+
+
+def phase_filter_parameter() -> Parameter:
+    """Return a cyclopts `Parameter` for listing only the phases of one name.
+
+    It does not read `DEFAULT_PHASE`, which would leave no way to list every
+    phase while the variable is set.
+    """
+    return Parameter(
+        name="phase",
+        help="Only show phases of this name.",
+        converter=PhaseNameConverter(),
+    )
+
+
+def resolve_phase_option(event_id: UUID, name: str | None = None) -> UUID:
+    """Return the ID of the named phase of an event, or of its only phase.
+
+    Raises:
+        NoResultFound: If the event does not exist, has no phase of that
+            name, or has no phase.
+        AmbiguousPhaseError: If no name is given and the event has several
+            phases.
+    """
+    from sqlmodel import Session
+
+    from aimbat.core import resolve_phase
+    from aimbat.db import engine
+
+    with Session(engine) as session:
+        return resolve_phase(session, event_id, name).id
+
+
+def resolve_seismogram_phase(seismogram_id: UUID, name: str | None = None) -> UUID:
+    """Return the ID of the named phase of a seismogram's event, or of its only phase.
+
+    Raises:
+        NoResultFound: If the seismogram does not exist, or its event has no
+            phase of that name, or no phase.
+        AmbiguousPhaseError: If no name is given and the event has several
+            phases.
+    """
+    from sqlalchemy.exc import NoResultFound
+    from sqlmodel import Session
+
+    from aimbat.core import resolve_phase
+    from aimbat.db import engine
+    from aimbat.models import AimbatSeismogram
+
+    with Session(engine) as session:
+        seismogram = session.get(AimbatSeismogram, seismogram_id)
+        if seismogram is None:
+            raise NoResultFound(f"No seismogram found with ID {seismogram_id}.")
+        return resolve_phase(session, seismogram.event_id, name).id
 
 
 def event_parameter_with_all(help: str | None = None) -> Parameter:
@@ -207,7 +304,7 @@ def causal() -> Parameter:
 
 
 CAUSAL_DEFAULTS: dict[str, bool] = {
-    "phase": True,
+    "pick": True,
     "window": False,
     "cc": False,
 }
@@ -316,6 +413,13 @@ class _EventContextTrait:
 
 
 @dataclass
+class _PhaseContextTrait:
+    """Mixin that adds an optional `--phase` argument to a CLI command."""
+
+    phase: Annotated[str | None, phase_parameter()] = None
+
+
+@dataclass
 class _TableParametersTrait:
     """Mixin that adds a `--raw` flag for unformatted table output."""
 
@@ -354,6 +458,16 @@ class EventDebugParameters(_DebugTrait, _EventContextTrait):
     """Parameters for commands that operate on individual events, with optional debug mode."""
 
     pass
+
+
+@Parameter(name="*")
+@dataclass
+class PhaseDebugParameters(_DebugTrait, _PhaseContextTrait, _EventContextTrait):
+    """Parameters for commands that operate on one phase, with optional debug mode."""
+
+    def phase_id(self) -> UUID:
+        """Resolve the event and phase given to the ID of the phase."""
+        return resolve_phase_option(self.event_id, self.phase)
 
 
 @Parameter(name="*")

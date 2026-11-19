@@ -15,6 +15,10 @@ The functions cover the following areas:
   data source linked to its station, event and seismogram records.
 - **Events, seismograms and stations**: retrieving, modifying and deleting
   records, and reading or setting their parameters.
+- **Phases and picks**: finding the phase of an event (`resolve_phase`),
+  setting phase parameters (`set_phase_parameters`), and storing, matching
+  and promoting initial picks (`store_picks`, `promote_picks`). Processing
+  functions take the ID of a phase.
 - **Alignment**: ICCS (`run_iccs`) and MCCC (`run_mccc`) runs, and the
   setting of picks, time windows and the CC threshold.
 - **Snapshots**: creating, restoring and deleting parameter snapshots
@@ -35,8 +39,13 @@ from ._event import *
 from ._iccs import *
 from ._migrations import *
 from ._note import *
+from ._phase import *
+from ._pick_fixes import *
+from ._pick_sources import *
+from ._picks import *
 from ._project import *
 from ._prune import *
+from ._readiness import *
 from ._seismogram import *
 from ._snapshot import *
 from ._station import *

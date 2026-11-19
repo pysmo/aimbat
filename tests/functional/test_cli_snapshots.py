@@ -9,6 +9,7 @@ are shown.
 """
 
 import json
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -16,8 +17,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import Engine
+from sqlmodel import Session
 
 from aimbat import settings
+from aimbat.core import resolve_phase
 
 type _Cli = Callable[[str | list[str]], None]
 type _CliJson = Callable[[str], list[Any] | dict[str, Any]]
@@ -64,8 +67,10 @@ class TestSnapshotCreate:
         data = _dump(cli_json)
         (snapshot,) = data["snapshots"]
         assert snapshot["comment"] == comment
-        assert snapshot["event_id"] == event_id
-        assert len(data["event_parameters"]) == 1
+        with Session(loaded_engine) as session:
+            phase = resolve_phase(session, uuid.UUID(event_id))
+            assert snapshot["phase_id"] == str(phase.id)
+        assert len(data["phase_parameters"]) == 1
         assert data["seismogram_parameters"]
 
 
@@ -115,12 +120,12 @@ class TestSnapshotRollback:
         short: bool,
     ) -> None:
         """Verifies that a rollback by full or shortened ID restores parameters."""
-        cli(f"event parameter set completed true --event-id {event_id}")
+        cli(f"phase parameter set completed true --event-id {event_id}")
 
         cli(f"snapshot rollback {snapshot_id[:8] if short else snapshot_id} --yes")
 
         capsys.readouterr()
-        cli(f"event parameter get completed --event-id {event_id}")
+        cli(f"phase parameter get completed --event-id {event_id}")
         assert capsys.readouterr().out.strip() == "False"
 
 
@@ -131,7 +136,7 @@ class TestSnapshotReads:
     def test_dump_empty(self, loaded_engine: Engine, cli_json: _CliJson) -> None:
         """Verifies that every list in the dump is empty without snapshots."""
         data = _dump(cli_json)
-        assert {"snapshots", "event_parameters", "seismogram_parameters"} <= data.keys()
+        assert {"snapshots", "phase_parameters", "seismogram_parameters"} <= data.keys()
         assert all(entries == [] for entries in data.values())
 
     def test_dump_ids_are_consistent(
@@ -140,7 +145,7 @@ class TestSnapshotReads:
         """Verifies that parameter entries refer to the snapshots listed."""
         data = _dump(cli_json)
         assert [s["id"] for s in data["snapshots"]] == [snapshot_id]
-        for entry in data["event_parameters"] + data["seismogram_parameters"]:
+        for entry in data["phase_parameters"] + data["seismogram_parameters"]:
             assert entry["snapshot_id"] == snapshot_id
 
     @pytest.mark.parametrize(
@@ -184,7 +189,7 @@ class TestSnapshotReads:
         """Verifies that the details command shows the saved parameters."""
         capsys.readouterr()
         cli(f"snapshot details {snapshot_id[:8] if short else snapshot_id} {flags}")
-        assert "Saved event parameters" in capsys.readouterr().out
+        assert "Saved phase parameters" in capsys.readouterr().out
 
 
 @pytest.mark.cli
@@ -223,9 +228,9 @@ class TestSnapshotResults:
             "seismograms",
         } <= result.keys()
         assert result["seismograms"]
-        assert {"seismogram_id", "name", "flip", "t1"} <= result["seismograms"][
-            0
-        ].keys()
+        assert {"seismogram_id", "name", "flip", "refined_pick"} <= result[
+            "seismograms"
+        ][0].keys()
 
     def test_by_alias(
         self, cli: _Cli, capsys: pytest.CaptureFixture[str], snapshot_id: str

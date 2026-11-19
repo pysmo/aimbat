@@ -19,6 +19,7 @@ from .common import (
     confirm_or_abort,
     event_parameter,
     handle_issues,
+    phase_parameter,
 )
 
 app = App(name="project", help=__doc__, help_format="markdown")
@@ -57,6 +58,7 @@ def cli_project_delete(*, confirm: ConfirmParameters = ConfirmParameters()) -> N
 def cli_project_info(
     event_id: Annotated[UUID | None, event_parameter()] = None,
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Show information on an existing project."""
@@ -65,20 +67,30 @@ def cli_project_info(
     from rich.panel import Panel
     from rich.table import Table
     from sqlalchemy.exc import NoResultFound
-    from sqlmodel import Session, select
+    from sqlmodel import Session, func, select
 
-    import aimbat.core._event as event
-    import aimbat.core._seismogram as seismogram
-    import aimbat.core._station as station
-    from aimbat.core import resolve_event
+    from aimbat.core import (
+        AmbiguousPhaseError,
+        get_completed_events,
+        get_completed_phases,
+        get_selected_rows,
+        get_stations_in_event,
+        resolve_event,
+        resolve_phase,
+    )
     from aimbat.core._project import _project_exists
     from aimbat.db import engine
-    from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
+    from aimbat.models import AimbatEvent, AimbatPhase, AimbatSeismogram, AimbatStation
 
     if not _project_exists(engine):
         raise RuntimeError(
             'No AIMBAT project found. Try running "aimbat project create" first.'
         )
+
+    def _count(
+        model: type[AimbatEvent | AimbatPhase | AimbatSeismogram | AimbatStation],
+    ) -> int:
+        return session.exec(select(func.count()).select_from(model)).one()
 
     with Session(engine) as session:
         grid = Table.grid(expand=False)
@@ -90,52 +102,55 @@ def cli_project_info(
             else:
                 grid.add_row("AIMBAT Project File: ", str(engine.url.database))
 
-        events = len(session.exec(select(AimbatEvent)).all())
-        completed_events = len(event.get_completed_events(session))
-        stations = len(session.exec(select(AimbatStation)).all())
-        seismograms = len(session.exec(select(AimbatSeismogram)).all())
-        selected_seismograms = len(
-            seismogram.get_selected_seismograms(session, all_events=True)
-        )
+        events = _count(AimbatEvent)
+        completed_events = len(get_completed_events(session))
+        phases = _count(AimbatPhase)
+        completed_phases = len(get_completed_phases(session))
+        stations = _count(AimbatStation)
+        seismograms = _count(AimbatSeismogram)
+
+        target_event_id = None
+        active_stations = None
+        seismograms_in_event = None
+        phase_name = None
+        seismograms_in_phase = None
+        selected_in_phase = None
+        try:
+            target_event = resolve_event(session, event_id)
+            target_event_id = target_event.id
+            active_stations = len(get_stations_in_event(session, target_event.id))
+            seismograms_in_event = len(target_event.seismograms)
+            target_phase = resolve_phase(session, target_event.id, phase)
+            phase_name = target_phase.name
+            seismograms_in_phase = len(target_phase.seismogram_parameters)
+            selected_in_phase = len(get_selected_rows(session, target_phase.id))
+        except (NoResultFound, AmbiguousPhaseError, ValueError, RuntimeError):
+            pass
+
+        def _fmt(value: int | str | UUID | None) -> str:
+            return "—" if value is None else str(value)
 
         grid.add_row(
             "Number of Events (total/completed): ",
             f"({events}/{completed_events})",
         )
-
-        try:
-            target_event = resolve_event(session, event_id)
-            target_event_id = target_event.id
-            active_stations = len(
-                station.get_stations_in_event(session, target_event.id)
-            )
-            seismograms_in_event = len(target_event.seismograms)
-            selected_seismograms_in_event = len(
-                seismogram.get_selected_seismograms(session, event_id=target_event_id)
-            )
-        except (NoResultFound, ValueError, RuntimeError):
-            target_event_id = None
-            active_stations = None
-            seismograms_in_event = None
-            selected_seismograms_in_event = None
-
-        def _fmt(value: int | UUID | None) -> str:
-            return "—" if value is None else str(value)
-
-        event_label = "Selected Event ID: "
-        grid.add_row(event_label, _fmt(target_event_id))
+        grid.add_row(
+            "Number of Phases (total/completed): ",
+            f"({phases}/{completed_phases})",
+        )
+        grid.add_row("Selected Event ID: ", _fmt(target_event_id))
+        grid.add_row("Selected Phase: ", _fmt(phase_name))
         grid.add_row(
             "Number of Stations in Project (total/selected event): ",
             f"({stations}/{_fmt(active_stations)})",
         )
-
         grid.add_row(
-            "Number of Seismograms in Project (total/selected): ",
-            f"({seismograms}/{selected_seismograms})",
+            "Number of Seismograms in Project (total/selected event): ",
+            f"({seismograms}/{_fmt(seismograms_in_event)})",
         )
         grid.add_row(
-            "Number of Seismograms in Selected Event (total/selected): ",
-            f"({_fmt(seismograms_in_event)}/{_fmt(selected_seismograms_in_event)})",
+            "Number of Seismograms in Selected Phase (total/selected): ",
+            f"({_fmt(seismograms_in_phase)}/{_fmt(selected_in_phase)})",
         )
 
         console = Console()

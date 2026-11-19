@@ -16,6 +16,7 @@ from sqlmodel import Session, select
 
 from aimbat.db import engine
 from aimbat.core import (
+    PickNaming,
     add_data_to_project,
     create_project,
     create_snapshot,
@@ -211,12 +212,14 @@ with Session(engine) as session:
                 DataType.SAC,
                 event_id=db_event.id,
                 station_id=db_station.id,
+                naming=PickNaming(unlabelled_as="P"),
             )
 
-    # 6. Snapshot the initial state before any processing
+    # 6. Snapshot the initial state of every phase before any processing
     events = session.exec(select(AimbatEvent)).all()
     for event in events:
-        create_snapshot(session, event, comment="initial import")
+        for phase in event.phases:
+            create_snapshot(session, phase.id, comment="initial import")
 
     # 7. Nothing is saved until the session commits
     session.commit()

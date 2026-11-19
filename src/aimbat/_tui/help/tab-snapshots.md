@@ -36,7 +36,7 @@ needed. Each snapshot has its own note, which persists in the database.
 
 - **Event parameters** — time window (pre- and post-pick window lengths),
   bandpass filter settings, and Min CC threshold
-- **Per-seismogram parameters** — the `t1` pick, `select` flag, and `flip`
+- **Per-seismogram parameters** — the refined pick, `select` flag, and `flip`
   flag for every seismogram
 - **Quality metrics** — ICCS correlation coefficients per seismogram (always captured);
   MCCC metrics (only if MCCC has been run with the current parameters)
@@ -54,7 +54,7 @@ the menu with `Enter` to change them first.
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `v` | Show details | View the event parameters (window, filter, min CC) as saved |
+| `v` | Show details | View the phase parameters (window, filter, min CC) as saved |
 | `s` | Preview stack | Open the ICCS stack plot built from this snapshot's parameters, without changing anything in the database |
 | `x` | Preview matrix image | Open the cross-correlation matrix image from this snapshot |
 | `w` | Save results to JSON | Export the snapshot's quality metrics and picks to a JSON file via a file-save dialog |

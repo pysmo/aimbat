@@ -20,18 +20,23 @@ from sqlmodel import Session, col, select
 
 from aimbat import actions, core
 from aimbat.core import _iccs as core_iccs
-from aimbat.io import DataType
+from aimbat.io import DataType, SourcePick
 from aimbat.models import (
     AimbatEvent,
-    AimbatEventParametersSnapshot,
     AimbatNote,
+    AimbatPhase,
+    AimbatPhaseParametersSnapshot,
     AimbatSeismogram,
+    AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
     AimbatSeismogramQuality,
     AimbatSnapshot,
     AimbatStation,
 )
-from aimbat.types import EventParameter, SeismogramParameter
+from aimbat.types import PhaseParameter, SeismogramParameter
+
+_NAMING = core.PickNaming(unlabelled_as="P")
+"""The test data label no picks, so they are named here."""
 
 _UNKNOWN = uuid.UUID(int=0)
 
@@ -42,6 +47,17 @@ type _Delete = Callable[[Sequence[uuid.UUID]], None]
 def _ids(engine: Engine, model: _Model) -> list[uuid.UUID]:
     with Session(engine) as session:
         return list(session.exec(select(model.id)).all())
+
+
+def _phase_ids(engine: Engine) -> list[uuid.UUID]:
+    with Session(engine) as session:
+        return list(session.exec(select(AimbatPhase.id)).all())
+
+
+def _phase_of(engine: Engine, seismogram_id: uuid.UUID) -> uuid.UUID:
+    with Session(engine) as session:
+        seismogram = session.get_one(AimbatSeismogram, seismogram_id)
+        return seismogram.phase_rows[0].phase_id
 
 
 def _seismogram_ids(engine: Engine) -> list[uuid.UUID]:
@@ -57,14 +73,14 @@ def _count(engine: Engine, model: type) -> int:
 class TestDefaultEngine:
     def test_uses_the_project_engine(self, loaded_engine: Engine) -> None:
         """Without `engine`, an action writes to `aimbat.db.engine`."""
-        event_id = _ids(loaded_engine, AimbatEvent)[0]
+        phase_id = _phase_ids(loaded_engine)[0]
 
-        completed = actions.toggle_event_completed(event_id)
+        completed = actions.toggle_phase_completed(phase_id)
 
         with Session(loaded_engine) as session:
-            event = session.get(AimbatEvent, event_id)
-            assert event is not None
-            assert event.parameters.completed is completed
+            phase = session.get(AimbatPhase, phase_id)
+            assert phase is not None
+            assert phase.parameters.completed is completed
 
 
 class TestListDeletes:
@@ -130,14 +146,17 @@ class TestListDeletes:
         assert _count(loaded_engine, AimbatEvent) == before
 
     def test_delete_events_evicts_cached_iccs(self, loaded_engine: Engine) -> None:
-        """A deleted event's cached ICCS instance does not linger in the cache."""
-        event_id = _ids(loaded_engine, AimbatEvent)[0]
-        actions.prepare_iccs(event_id)
-        assert event_id in core_iccs._iccs_cache
+        """A deleted event's cached ICCS instances do not linger in the cache."""
+        with Session(loaded_engine) as session:
+            phase = session.exec(select(AimbatPhase)).first()
+            assert phase is not None
+            event_id, phase_id = phase.event_id, phase.id
+        actions.prepare_iccs(phase_id)
+        assert phase_id in core_iccs._iccs_cache
 
         actions.delete_events([event_id])
 
-        assert event_id not in core_iccs._iccs_cache
+        assert phase_id not in core_iccs._iccs_cache
 
     def test_duplicates_and_empty_list(self, loaded_engine: Engine) -> None:
         seismogram_id = _seismogram_ids(loaded_engine)[0]
@@ -158,14 +177,14 @@ class TestListDeletes:
         actions.delete_events(_ids(loaded_engine, AimbatEvent))
 
         assert _count(loaded_engine, AimbatSeismogram) == 0
-        actions.add_data(multi_event_data, DataType.SAC)
+        actions.add_data(multi_event_data, DataType.SAC, naming=_NAMING)
         assert _count(loaded_engine, AimbatEvent) == events
         assert _count(loaded_engine, AimbatSeismogram) == seismograms
 
     def test_delete_snapshots(self, loaded_engine: Engine) -> None:
-        event_id = _ids(loaded_engine, AimbatEvent)[0]
-        actions.create_snapshot(event_id, "one")
-        actions.create_snapshot(event_id, "two")
+        phase_id = _phase_ids(loaded_engine)[0]
+        actions.create_snapshot(phase_id, "one")
+        actions.create_snapshot(phase_id, "two")
         with Session(loaded_engine) as session:
             ids = list(session.exec(select(AimbatSnapshot.id)).all())
         assert len(ids) >= 2
@@ -180,9 +199,9 @@ class TestListDeletes:
     def test_delete_snapshot_removes_only_its_parameters(
         self, loaded_engine: Engine
     ) -> None:
-        event_id = _ids(loaded_engine, AimbatEvent)[0]
-        actions.create_snapshot(event_id, "keep")
-        actions.create_snapshot(event_id, "drop")
+        phase_id = _phase_ids(loaded_engine)[0]
+        actions.create_snapshot(phase_id, "keep")
+        actions.create_snapshot(phase_id, "drop")
         with Session(loaded_engine) as session:
             snapshots = {
                 s.comment: s.id for s in session.exec(select(AimbatSnapshot)).all()
@@ -194,67 +213,71 @@ class TestListDeletes:
         with Session(loaded_engine) as session:
             kept = session.get(AimbatSnapshot, snapshots["keep"])
             assert kept is not None
-            assert kept.event_parameters_snapshot is not None
+            assert kept.phase_parameters_snapshot is not None
             assert len(kept.seismogram_parameters_snapshots) == per_snapshot
-        assert _count(loaded_engine, AimbatEventParametersSnapshot) == 1
+        assert _count(loaded_engine, AimbatPhaseParametersSnapshot) == 1
         assert _count(loaded_engine, AimbatSeismogramParametersSnapshot) == per_snapshot
 
 
 class TestSeismogramParameters:
     def test_set_on_several(self, loaded_engine: Engine) -> None:
         all_ids = _seismogram_ids(loaded_engine)
-        ids = all_ids[:3]
+        phase_id = _phase_of(loaded_engine, all_ids[0])
+        ids = [i for i in all_ids if _phase_of(loaded_engine, i) == phase_id][:3]
 
-        actions.set_seismogram_parameters(ids, {SeismogramParameter.FLIP: True})
+        actions.set_seismogram_parameters(
+            phase_id, ids, {SeismogramParameter.FLIP: True}
+        )
 
         with Session(loaded_engine) as session:
             for seismogram_id in all_ids:
                 seismogram = session.get(AimbatSeismogram, seismogram_id)
                 assert seismogram is not None
-                assert seismogram.parameters.flip is (seismogram_id in ids)
+                assert seismogram.phase_rows[0].flip is (seismogram_id in ids)
 
     def test_reset_several(self, loaded_engine: Engine) -> None:
-        ids = _seismogram_ids(loaded_engine)[:2]
-        actions.set_seismogram_parameters(ids, {SeismogramParameter.FLIP: True})
+        all_ids = _seismogram_ids(loaded_engine)
+        phase_id = _phase_of(loaded_engine, all_ids[0])
+        ids = [i for i in all_ids if _phase_of(loaded_engine, i) == phase_id][:2]
+        actions.set_seismogram_parameters(
+            phase_id, ids, {SeismogramParameter.FLIP: True}
+        )
 
-        actions.reset_seismogram_parameters(ids)
+        actions.reset_seismogram_parameters(phase_id, ids)
 
         with Session(loaded_engine) as session:
             flips = session.exec(
                 select(AimbatSeismogram).where(col(AimbatSeismogram.id).in_(ids))
             ).all()
-            assert all(not s.parameters.flip for s in flips)
+            assert all(not s.phase_rows[0].flip for s in flips)
 
     def test_reset_unknown_id_changes_nothing(self, loaded_engine: Engine) -> None:
         seismogram_id = _seismogram_ids(loaded_engine)[0]
+        phase_id = _phase_of(loaded_engine, seismogram_id)
         actions.set_seismogram_parameters(
-            [seismogram_id], {SeismogramParameter.FLIP: True}
+            phase_id, [seismogram_id], {SeismogramParameter.FLIP: True}
         )
 
         with pytest.raises(NoResultFound):
-            actions.reset_seismogram_parameters([seismogram_id, _UNKNOWN])
+            actions.reset_seismogram_parameters(phase_id, [seismogram_id, _UNKNOWN])
 
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, seismogram_id)
             assert seismogram is not None
-            assert seismogram.parameters.flip is True
+            assert seismogram.phase_rows[0].flip is True
 
 
-class TestEventParameters:
+class TestPhaseParameters:
     def test_invalid_value_changes_nothing(self, loaded_engine: Engine) -> None:
-        event_id = _ids(loaded_engine, AimbatEvent)[0]
+        phase_id = _phase_ids(loaded_engine)[0]
         with Session(loaded_engine) as session:
-            event = session.get(AimbatEvent, event_id)
-            assert event is not None
-            before = event.parameters.min_cc
+            before = session.get_one(AimbatPhase, phase_id).parameters.min_cc
 
         with pytest.raises(ValidationError):
-            actions.set_event_parameters(event_id, {"min_cc": 2.0})  # type: ignore[dict-item]
+            actions.set_phase_parameters(phase_id, {"min_cc": 2.0})  # type: ignore[dict-item]
 
         with Session(loaded_engine) as session:
-            event = session.get(AimbatEvent, event_id)
-            assert event is not None
-            assert event.parameters.min_cc == before
+            assert session.get_one(AimbatPhase, phase_id).parameters.min_cc == before
 
     def test_rejected_write_evicts_cached_iccs(self, loaded_engine: Engine) -> None:
         """A refused value an interactive tool applied does not stay cached.
@@ -263,15 +286,15 @@ class TestEventParameters:
         the database, so a tool can leave a value on the cached instance that
         storing then refuses.
         """
-        event_id = _ids(loaded_engine, AimbatEvent)[0]
-        bound = actions.prepare_iccs(event_id)
-        assert core_iccs._iccs_cache.get(event_id) is bound
+        phase_id = _phase_ids(loaded_engine)[0]
+        bound = actions.prepare_iccs(phase_id)
+        assert core_iccs._iccs_cache.get(phase_id) is bound
         bound.iccs.min_cc = 1.5
 
         with pytest.raises(ValidationError):
-            actions.set_event_parameters(event_id, {EventParameter.MIN_CC: 1.5})
+            actions.set_phase_parameters(phase_id, {PhaseParameter.MIN_CC: 1.5})
 
-        assert event_id not in core_iccs._iccs_cache
+        assert phase_id not in core_iccs._iccs_cache
 
 
 class TestPicks:
@@ -279,111 +302,222 @@ class TestPicks:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            event_id = event.id
+            phase_id = event.phases[0].id
             picks = {
-                s.id: s.t0 + Timedelta(seconds=i)
+                s.id: s.phase_rows[0].initial_pick + Timedelta(seconds=i)
                 for i, s in enumerate(event.seismograms)
             }
 
-        actions.set_picks(event_id, picks)
+        actions.set_refined_picks(phase_id, picks)
 
         with Session(loaded_engine) as session:
             for seismogram_id, pick in picks.items():
                 seismogram = session.get(AimbatSeismogram, seismogram_id)
                 assert seismogram is not None
-                assert seismogram.parameters.t1 == pick
+                assert seismogram.phase_rows[0].refined_pick == pick
 
-    def test_seismogram_of_another_event_changes_nothing(
+    def test_seismogram_of_another_phase_changes_nothing(
         self, loaded_engine: Engine
     ) -> None:
         with Session(loaded_engine) as session:
             events = session.exec(select(AimbatEvent)).all()
             own, other = events[0].seismograms[0], events[1].seismograms[0]
-            event_id, own_id, other_id = events[0].id, own.id, other.id
-            picks = {own_id: own.t0, other_id: other.t0}
-            before = own.parameters.t1
+            phase_id, own_id, other_id = events[0].phases[0].id, own.id, other.id
+            picks = {
+                own_id: own.phase_rows[0].initial_pick,
+                other_id: other.phase_rows[0].initial_pick,
+            }
+            before = own.phase_rows[0].refined_pick
 
         with pytest.raises(NoResultFound, match=str(other_id)):
-            actions.set_picks(event_id, picks)
+            actions.set_refined_picks(phase_id, picks)
 
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, own_id)
             assert seismogram is not None
-            assert seismogram.parameters.t1 == before
+            assert seismogram.phase_rows[0].refined_pick == before
 
 
 class TestIccs:
     def test_prepare_keeps_the_cc_values(self, loaded_engine: Engine) -> None:
-        bound = actions.prepare_iccs(_ids(loaded_engine, AimbatEvent)[0])
+        bound = actions.prepare_iccs(_phase_ids(loaded_engine)[0])
 
         with Session(loaded_engine) as session:
             ccs = session.exec(
                 select(AimbatSeismogramQuality.iccs_cc)
-                .join(AimbatSeismogram)
-                .where(AimbatSeismogram.event_id == bound.event_id)
+                .join(AimbatSeismogramParameters)
+                .where(AimbatSeismogramParameters.phase_id == bound.phase_id)
             ).all()
         assert ccs
         assert all(cc is not None for cc in ccs)
 
     def test_run_iccs_returns_a_summary(self, loaded_engine: Engine) -> None:
-        run = actions.run_iccs(_ids(loaded_engine, AimbatEvent)[0])
+        run = actions.run_iccs(_phase_ids(loaded_engine)[0])
 
         assert run.summary.message
         assert run.result is not None
+
+
+def _add_unnamed_pick(engine: Engine) -> tuple[uuid.UUID, uuid.UUID]:
+    """Store an unnamed pick on a seismogram of the first phase.
+
+    Returns:
+        The IDs of the phase and its event.
+    """
+    with Session(engine) as session:
+        phase = session.get_one(AimbatPhase, _phase_ids(engine)[0])
+        row = phase.seismogram_parameters[0]
+        core.store_picks(
+            session,
+            [SourcePick(row.initial_pick + Timedelta(seconds=5), "extra")],
+            source_name="extra.json",
+            source_type=DataType.SAC,
+            source_seismogram=row.seismogram,
+        )
+        session.commit()
+        return phase.id, phase.event_id
+
+
+_ALIGN_ACTIONS: dict[str, Callable[[uuid.UUID], object]] = {
+    "prepare_iccs": actions.prepare_iccs,
+    "run_iccs": actions.run_iccs,
+    "run_mccc": actions.run_mccc,
+}
+
+
+class TestReadinessEnforced:
+    @pytest.mark.parametrize("name", _ALIGN_ACTIONS)
+    def test_refused_with_the_items(self, loaded_engine: Engine, name: str) -> None:
+        phase_id, _ = _add_unnamed_pick(loaded_engine)
+
+        with pytest.raises(core.NotReadyError) as exc_info:
+            _ALIGN_ACTIONS[name](phase_id)
+
+        assert [i.kind for i in exc_info.value.items] == [
+            core.ReadinessKind.UNNAMED_PICK
+        ]
+        assert "aimbat pick name" in str(exc_info.value)
+
+    def test_refused_writes_no_cc_values(self, loaded_engine: Engine) -> None:
+        phase_id, _ = _add_unnamed_pick(loaded_engine)
+
+        with pytest.raises(core.NotReadyError):
+            actions.prepare_iccs(phase_id)
+
+        with Session(loaded_engine) as session:
+            ccs = session.exec(
+                select(AimbatSeismogramQuality.iccs_cc)
+                .join(AimbatSeismogramParameters)
+                .where(AimbatSeismogramParameters.phase_id == phase_id)
+            ).all()
+        assert all(cc is None for cc in ccs)
+
+    @pytest.mark.parametrize("name", _ALIGN_ACTIONS)
+    def test_accepted_after_the_fix(self, loaded_engine: Engine, name: str) -> None:
+        phase_id, event_id = _add_unnamed_pick(loaded_engine)
+        actions.remove_picks(core.PickSelection(event_id=event_id, unnamed=True))
+
+        _ALIGN_ACTIONS[name](phase_id)
+
+    def test_core_does_not_check(self, loaded_engine: Engine) -> None:
+        phase_id, _ = _add_unnamed_pick(loaded_engine)
+
+        with Session(loaded_engine) as session:
+            bound = core.create_iccs_instance(session, phase_id)
+
+        assert bound.phase_id == phase_id
 
 
 class TestAddData:
     def test_result_outlives_the_session(
         self, patched_engine: Engine, multi_event_data: Sequence[Path]
     ) -> None:
-        result = actions.add_data(multi_event_data, DataType.SAC)
+        result = actions.add_data(multi_event_data, DataType.SAC, naming=_NAMING)
 
         assert len(result.sources) == len(multi_event_data)
         assert all(s.new_seismogram for s in result.sources)
-        assert set(result.snapshotted_event_ids) == {s.event_id for s in result.sources}
+        assert set(result.snapshotted_phase_ids) == set(result.picks.phase_rows)
+        assert {p.event_id for p in result.picks.phases_created} == {
+            s.event_id for s in result.sources
+        }
         assert _count(patched_engine, AimbatSeismogram) == len(multi_event_data)
 
     def test_dry_run_changes_nothing(
         self, patched_engine: Engine, multi_event_data: Sequence[Path]
     ) -> None:
-        result = actions.add_data(multi_event_data, DataType.SAC, dry_run=True)
+        result = actions.add_data(
+            multi_event_data, DataType.SAC, naming=_NAMING, dry_run=True
+        )
 
         assert result.dry_run
         assert len(result.sources) == len(multi_event_data)
+        assert result.picks.total_promoted == len(multi_event_data)
+        assert {p.event_id for p in result.picks.phases_created} == {
+            s.event_id for s in result.sources
+        }
+        assert result.snapshotted_phase_ids == []
         assert _count(patched_engine, AimbatSeismogram) == 0
+        assert _count(patched_engine, AimbatPhase) == 0
         assert _count(patched_engine, AimbatSnapshot) == 0
 
     def test_readding_reports_nothing_new(
         self, loaded_engine: Engine, multi_event_data: Sequence[Path]
     ) -> None:
-        result = actions.add_data(multi_event_data, DataType.SAC)
+        result = actions.add_data(multi_event_data, DataType.SAC, naming=_NAMING)
 
         assert not any(s.new_seismogram for s in result.sources)
-        assert result.snapshotted_event_ids == []
+        assert result.snapshotted_phase_ids == []
+        assert result.picks.stored == 0
         assert _count(loaded_engine, AimbatSnapshot) == 0
 
-    def test_one_automatic_snapshot_per_event(
+    def test_one_automatic_snapshot_per_phase(
         self, patched_engine: Engine, multi_event_data: Sequence[Path]
     ) -> None:
-        """Each snapshot's comment counts the seismograms added to its own event."""
-        result = actions.add_data(multi_event_data, DataType.SAC)
+        """Each snapshot's comment counts the picks added to its own phase."""
+        result = actions.add_data(multi_event_data, DataType.SAC, naming=_NAMING)
 
         added = Counter(s.event_id for s in result.sources)
         assert len(added) > 1
         with Session(patched_engine) as session:
             snapshots = session.exec(select(AimbatSnapshot)).all()
-            assert {s.event_id: s.comment for s in snapshots} == {
-                event_id: f"Added {n} seismogram{'' if n == 1 else 's'}"
+            assert {s.phase.event_id: s.comment for s in snapshots} == {
+                event_id: f"Added {n} pick{'' if n == 1 else 's'}"
                 for event_id, n in added.items()
             }
             assert all(s.automatic for s in snapshots)
 
+    def test_snapshots_only_the_phases_that_gained_rows(
+        self, patched_engine: Engine, multi_event_data: Sequence[Path]
+    ) -> None:
+        *first, last = multi_event_data
+        actions.add_data(first, DataType.SAC, naming=_NAMING)
+        before = _count(patched_engine, AimbatSnapshot)
+
+        result = actions.add_data([last], DataType.SAC, naming=_NAMING)
+
+        (source,) = result.sources
+        with Session(patched_engine) as session:
+            phase = session.exec(
+                select(AimbatPhase).where(AimbatPhase.event_id == source.event_id)
+            ).one()
+            assert result.snapshotted_phase_ids == [phase.id]
+            assert result.picks.phase_rows == {phase.id: 1}
+            comments = session.exec(
+                select(AimbatSnapshot.comment).where(
+                    AimbatSnapshot.phase_id == phase.id
+                )
+            ).all()
+            assert "Added 1 pick" in comments
+        assert _count(patched_engine, AimbatSnapshot) == before + 1
+
     def test_without_automatic_snapshots(
         self, patched_engine: Engine, multi_event_data: Sequence[Path]
     ) -> None:
-        result = actions.add_data(multi_event_data, DataType.SAC, auto_snapshot=False)
+        result = actions.add_data(
+            multi_event_data, DataType.SAC, naming=_NAMING, auto_snapshot=False
+        )
 
-        assert result.snapshotted_event_ids == []
+        assert result.snapshotted_phase_ids == []
         assert _count(patched_engine, AimbatSnapshot) == 0
 
 
@@ -456,22 +590,23 @@ class TestNotesAndSnapshots:
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, seismogram_id)
             assert seismogram is not None
-            event_id = seismogram.event_id
-            flip = seismogram.parameters.flip
+            phase_id = seismogram.phase_rows[0].phase_id
+            flip = seismogram.phase_rows[0].flip
 
-        actions.create_snapshot(event_id, "before")
+        actions.create_snapshot(phase_id, "before")
         actions.set_seismogram_parameters(
-            [seismogram_id], {SeismogramParameter.FLIP: not flip}
+            phase_id, [seismogram_id], {SeismogramParameter.FLIP: not flip}
         )
         with Session(loaded_engine) as session:
             snapshot_id = session.exec(
                 select(AimbatSnapshot.id).where(AimbatSnapshot.comment == "before")
             ).one()
 
-        actions.rollback_to_snapshot(snapshot_id)
+        result = actions.rollback_to_snapshot(snapshot_id)
 
+        assert result.added_since == ()
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, seismogram_id)
             assert seismogram is not None
-            assert seismogram.parameters.flip is flip
+            assert seismogram.phase_rows[0].flip is flip
             assert session.get(AimbatSnapshot, snapshot_id) is not None

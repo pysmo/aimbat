@@ -27,7 +27,7 @@ from textual.widgets import (
 from textual_fspicker import FileOpen, FileSave, Filters
 
 from aimbat import actions, settings
-from aimbat._tui._iccs_lifecycle import _IccsLifecycleMixin
+from aimbat._tui._iccs_lifecycle import _IccsLifecycleMixin, several_phases_notice
 from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
 from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY, VIEW_ONLY_TOOLS
 from aimbat._tui.modals import (
@@ -44,11 +44,14 @@ from aimbat._tui.modals import (
     ToolLaunchResult,
 )
 from aimbat.core import (
+    AmbiguousPhaseError,
     RunSummary,
     build_iccs_from_snapshot,
     create_project,
     dump_snapshot_results,
     get_current_revision,
+    get_seismogram_parameters,
+    resolve_phase,
     upgrade_project,
 )
 from aimbat.core._migrations import SchemaMismatchError, _build_staleness_warning
@@ -64,8 +67,8 @@ from aimbat.io import (
 from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
-    AimbatEventParametersBase,
-    AimbatSeismogram,
+    AimbatPhase,
+    AimbatPhaseParametersBase,
     AimbatSnapshot,
     AimbatStation,
 )
@@ -286,6 +289,15 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             self._current_event_id = None
         raise NoResultFound("No event selected")
 
+    def _get_current_phase(self, session: Session) -> AimbatPhase:
+        """Return the only phase of the current event.
+
+        Raises:
+            NoResultFound: If no event is selected, or it has no phase.
+            AmbiguousPhaseError: If the event has several phases.
+        """
+        return resolve_phase(session, self._get_current_event(session).id)
+
     # ------------------------------------------------------------------
     # Suspend helper
     # ------------------------------------------------------------------
@@ -465,14 +477,25 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         self._create_iccs()
         self.refresh_all()
         self.notify("Event selected", timeout=2)
+        try:
+            with Session(engine) as session:
+                self._get_current_phase(session)
+        except AmbiguousPhaseError as exc:
+            self.notify(several_phases_notice(exc), severity="warning")
+        except NoResultFound:
+            pass
 
     def _toggle_event_completed(self, item_id: str) -> None:
-        """Flip the `completed` flag on the given event's parameters."""
+        """Flip the `completed` flag on the parameters of the given event's phase."""
         logger.debug(f"User toggled completed flag for event {item_id[:8]}.")
         try:
-            actions.toggle_event_completed(uuid.UUID(item_id))
+            with Session(engine) as session:
+                phase_id = resolve_phase(session, uuid.UUID(item_id)).id
+            actions.toggle_phase_completed(phase_id)
             self.refresh_all()
             self.notify("Completed flag toggled", timeout=2)
+        except AmbiguousPhaseError as exc:
+            self.notify(several_phases_notice(exc), severity="warning")
         except Exception as exc:
             self.notify(str(exc), severity="error")
 
@@ -518,11 +541,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         try:
             seis_uuid = uuid.UUID(item_id)
             with Session(engine) as session:
-                seis = session.get(AimbatSeismogram, seis_uuid)
-                if seis is None:
-                    raise ValueError(f"Seismogram {item_id} not found")
-                new_value = not getattr(seis.parameters, param)
-            actions.set_seismogram_parameters([seis_uuid], {param: new_value})
+                phase_id = self._get_current_phase(session).id
+                parameters = get_seismogram_parameters(session, phase_id, seis_uuid)
+                new_value = not getattr(parameters, param)
+            actions.set_seismogram_parameters(phase_id, [seis_uuid], {param: new_value})
             bound = self._iccs_lifecycle.bound
             if bound is not None:
                 for iccs_seis in bound.iccs.seismograms:
@@ -537,6 +559,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             # panel's quality readouts drop them.
             self.refresh_all()
             self.notify(f"{param} toggled", timeout=2)
+        except AmbiguousPhaseError as exc:
+            self.notify(several_phases_notice(exc), severity="warning")
         except Exception as exc:
             self.notify(str(exc), severity="error")
 
@@ -544,9 +568,14 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """Reset a seismogram's processing parameters to their defaults."""
         logger.debug(f"User reset parameters for seismogram {item_id[:8]}.")
         try:
-            actions.reset_seismogram_parameters([uuid.UUID(item_id)])
+            seis_uuid = uuid.UUID(item_id)
+            with Session(engine) as session:
+                phase_id = self._get_current_phase(session).id
+            actions.reset_seismogram_parameters(phase_id, [seis_uuid])
             self.refresh_all()
             self.notify("Seismogram parameters reset", timeout=2)
+        except AmbiguousPhaseError as exc:
+            self.notify(several_phases_notice(exc), severity="warning")
         except Exception as exc:
             self.notify(str(exc), severity="error")
 
@@ -605,17 +634,17 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         self.push_screen(ConfirmModal(msg), on_confirm)
 
     def _show_snapshot_details(self, snap_id: str) -> None:
-        """Open a modal listing the event parameters captured in a snapshot."""
+        """Open a modal listing the phase parameters captured in a snapshot."""
         try:
             with Session(engine) as session:
                 snap = session.get(AimbatSnapshot, uuid.UUID(snap_id))
                 if snap is None:
                     return
-                data = snap.event_parameters_snapshot.model_dump(mode="json")
+                data = snap.phase_parameters_snapshot.model_dump(mode="json")
             rows: list[tuple[str, str]] = []
-            for attr in AimbatEventParametersBase.model_fields:
-                title = tui_display_title(AimbatEventParametersBase, attr)
-                display = str(tui_cell(AimbatEventParametersBase, title, data[attr]))
+            for attr in AimbatPhaseParametersBase.model_fields:
+                title = tui_display_title(AimbatPhaseParametersBase, attr)
+                display = str(tui_cell(AimbatPhaseParametersBase, title, data[attr]))
                 rows.append((title, display))
             self.push_screen(SnapshotDetailsModal(f"Snapshot  {snap_id[:8]}", rows))
         except Exception as exc:
@@ -677,12 +706,19 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 return
             try:
                 logger.info(f"User confirmed rollback to snapshot {snap_id[:8]}.")
-                actions.rollback_to_snapshot(uuid.UUID(snap_id))
+                result = actions.rollback_to_snapshot(uuid.UUID(snap_id))
                 self._create_iccs()
                 self.refresh_all()
                 if self._active_tab == "tab-snapshots":
                     self.query_one(TabbedContent).active = "tab-seismograms"
-                self.notify("Rolled back to snapshot", timeout=3)
+                message = "Rolled back to snapshot"
+                if n := len(result.added_since):
+                    message += (
+                        f". {n} seismogram{'' if n == 1 else 's'} added since "
+                        + f"{'is' if n == 1 else 'are'} kept as "
+                        + f"{'it is' if n == 1 else 'they are'}"
+                    )
+                self.notify(message, timeout=3)
             except Exception as exc:
                 logger.exception(f"Rollback failed: {exc}")
                 self.notify(str(exc), severity="error")
@@ -698,13 +734,15 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         logger.debug("User opened parameters modal.")
         try:
             with Session(engine) as session:
-                event = self._get_current_event(session)
-                event_id = event.id
+                phase_id = self._get_current_phase(session).id
         except NoResultFound:
             self.notify(
                 "No event selected: select one on the Project tab",
                 severity="warning",
             )
+            return
+        except AmbiguousPhaseError as exc:
+            self.notify(several_phases_notice(exc), severity="warning")
             return
 
         def on_close(changed: bool | None) -> None:
@@ -713,7 +751,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 self._create_iccs()
                 self.refresh_all()
 
-        self.push_screen(ParametersModal(event_id), on_close)
+        self.push_screen(ParametersModal(phase_id), on_close)
 
     def action_add_data(self) -> None:
         """Prompt for a data type, then a data source, and add it to the project."""
@@ -739,15 +777,15 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     result = actions.add_data([path], data_type)
                     logger.info(f"User added data file: {path}.")
                     self.notify(f"Added: {path.name}", severity="information")
-                    if result.snapshotted_event_ids:
-                        n = len(result.snapshotted_event_ids)
+                    if result.snapshotted_phase_ids:
+                        n = len(result.snapshotted_phase_ids)
                         self.notify(
-                            f"Snapshotted {n} event{'' if n == 1 else 's'}",
+                            f"Snapshotted {n} phase{'' if n == 1 else 's'}",
                             severity="information",
                         )
-                    for event_id, error in result.snapshot_failures:
+                    for phase_id, error in result.snapshot_failures:
                         self.notify(
-                            f"Could not create an automatic snapshot for event {event_id}: {error}",
+                            f"Could not create an automatic snapshot for phase {phase_id}: {error}",
                             severity="warning",
                         )
                     self.refresh_all()
@@ -814,9 +852,6 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         )
 
         try:
-            with Session(engine) as session:
-                event_id = self._get_current_event(session).id
-
             # No session is held across the tool: it blocks for as long as its
             # plot window is open, and opens a short-lived one of its own
             # afterwards if it has something to save.
@@ -824,10 +859,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 if is_causal_tool:
                     assert causal is not None
                     CAUSAL_TOOL_REGISTRY[tool][1](
-                        event_id, iccs, context, all_seis, causal
+                        bound.phase_id, iccs, context, all_seis, causal
                     )
                 else:
-                    TOOL_REGISTRY[tool][1](event_id, iccs, context, all_seis)
+                    TOOL_REGISTRY[tool][1](bound.phase_id, iccs, context, all_seis)
         except KeyboardInterrupt:
             self.notify(f"{label} cancelled", timeout=2)
             return
@@ -864,14 +899,14 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if bound is None:
                 self.notify("ICCS not ready: please wait", severity="warning")
                 return
-            self._run_align_tool(bound.event_id, *result)
+            self._run_align_tool(bound.phase_id, *result)
 
         self.push_screen(AlignModal(), on_result)
 
     @work(thread=True)
     def _run_align_tool(
         self,
-        event_id: uuid.UUID,
+        phase_id: uuid.UUID,
         algorithm: str,
         autoflip: bool,
         autoselect: bool,
@@ -880,7 +915,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """Run ICCS or MCCC in a background thread and post the result to the main thread.
 
         Note:
-            The run mutates the event's cached ICCS instance, normally the
+            The run mutates the phase's cached ICCS instance, normally the
             one the TUI holds, in place on this worker thread. Nothing
             prevents the main thread's 5s staleness poll or a panel refresh
             from reading it (or replacing it via `_create_iccs()`)
@@ -889,7 +924,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             an alignment is in flight.
 
         Args:
-            event_id: ID of the event to align.
+            phase_id: ID of the phase to align.
             algorithm: Either `"iccs"` or `"mccc"`.
             autoflip: Whether ICCS should automatically flip polarity-reversed
                 seismograms.
@@ -906,10 +941,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         try:
             if algorithm == "iccs":
                 summary = actions.run_iccs(
-                    event_id, autoflip=autoflip, autoselect=autoselect
+                    phase_id, autoflip=autoflip, autoselect=autoselect
                 ).summary
             elif algorithm == "mccc":
-                summary = actions.run_mccc(event_id, all_seismograms=all_seis).summary
+                summary = actions.run_mccc(phase_id, all_seismograms=all_seis).summary
         except Exception as exc:
             logger.exception(f"Alignment worker error ({algorithm}): {exc}")
             self.call_from_thread(self.notify, str(exc), severity="error")
@@ -942,10 +977,12 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             try:
                 logger.info(f"User creating snapshot with comment={comment!r}.")
                 with Session(engine) as session:
-                    event_id = self._get_current_event(session).id
-                actions.create_snapshot(event_id, comment or None)
+                    phase_id = self._get_current_phase(session).id
+                actions.create_snapshot(phase_id, comment or None)
                 self.refresh_all()
                 self.notify("Snapshot created", timeout=2)
+            except AmbiguousPhaseError as exc:
+                self.notify(several_phases_notice(exc), severity="warning")
             except Exception as exc:
                 logger.exception(f"Snapshot creation failed: {exc}")
                 self.notify(str(exc), severity="error")

@@ -83,7 +83,7 @@ Parameters are organised in three tiers:
     [Aimbat Defaults](../usage/defaults.md).
 2. **Event parameters.** Shared by every seismogram of an event, such as the time
     window and filter settings. Attributes of
-    [`AimbatEventParametersBase`][aimbat.models.AimbatEventParametersBase].
+    [`AimbatPhaseParametersBase`][aimbat.models.AimbatPhaseParametersBase].
 3. **Seismogram parameters.** Specific to one seismogram, such as the
     arrival-time pick and the select/deselect flag. Attributes of
     [`AimbatSeismogramParametersBase`][aimbat.models.AimbatSeismogramParametersBase].

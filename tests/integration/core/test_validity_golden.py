@@ -15,27 +15,31 @@ from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from aimbat.core._validity import (
-    EventDigests,
-    EventInputs,
+    PhaseDigests,
+    PhaseInputs,
     compute_digests,
     read_inputs,
 )
 from aimbat.models import (
     AimbatEvent,
-    AimbatEventParameters,
+    AimbatPhase,
+    AimbatPhaseParameters,
+    AimbatPick,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatStation,
+    PickOrigin,
 )
 
-_EVENT_ID = uuid.UUID("00000000-0000-4000-8000-0000000000e1")
+_PHASE_ID = uuid.UUID("00000000-0000-4000-8000-0000000000e1")
+# Row IDs.
 _A1 = uuid.UUID("00000000-0000-4000-8000-0000000000a1")
 _B2 = uuid.UUID("00000000-0000-4000-8000-0000000000b2")
 _C3 = uuid.UUID("00000000-0000-4000-8000-0000000000c3")
 
-# The golden event as the database stores it.
-GOLDEN_INPUTS = EventInputs(
-    event_id="000000000000400080000000000000e1",
+# The golden phase as the database stores it.
+GOLDEN_INPUTS = PhaseInputs(
+    phase_id="000000000000400080000000000000e1",
     parameters={
         "completed": 0,
         "ramp_width": 0.125,
@@ -49,50 +53,56 @@ GOLDEN_INPUTS = EventInputs(
         "mccc_damp": 0.1,
         "mccc_min_cc": 0.3,
     },
-    seismograms={
+    rows={
         "000000000000400080000000000000b2": {
             "flip": 0,
             "select": 1,
-            "t1": "2011-03-11 05:58:13.123456",
+            "refined_pick": "2011-03-11 05:58:13.123456",
         },
         "000000000000400080000000000000a1": {
             "flip": 1,
             "select": 1,
-            "t1": "2011-03-11 05:59:02.000000",
+            "refined_pick": "2011-03-11 05:59:02.000000",
         },
-        "000000000000400080000000000000c3": {"flip": 0, "select": 0, "t1": None},
+        # No refined pick, so the initial pick is read in its place.
+        "000000000000400080000000000000c3": {
+            "flip": 0,
+            "select": 0,
+            "refined_pick": "2011-03-11 05:58:00.000000",
+        },
     },
 )
 
-GOLDEN_STACK = "65b7f14cc0b342b7c64f04a21674f44185a60ddd37d14cf79966fdc7734bc1a1"
+GOLDEN_STACK = "3ed0bcaacb7e83c47a398e4fb0bf2d00ab3e9e90988f6d8e105873e648cfd963"
 GOLDEN_SEISMOGRAM_CC = {
-    _A1: "6ed8615c7f4f121a77d94fc147f0bf2eeae629f885f8fc4c1aa6a928f1b0ea09",
-    _B2: "269b7c12ef2c240bdb77da3f67398aef1527aa50ad05119c048290c09c526d73",
-    _C3: "9a3533d6076ff148d4eb189c63e48b10b20ec6d567932cd4a37ca35b3b501830",
+    _A1: "4f429cb725fb4646f2e445287a09b50b82c302c496550feb13720cc96368931f",
+    _B2: "bb94b3ce82d81592744ad4df3093453226a5c33fd2bcc0b4e941df83131e1185",
+    _C3: "8aab00ae52895e0204a0a1702bef8c0dfee484a303c6ae90f148c610464dd14e",
 }
-GOLDEN_INSTANCE = "2767334a9bbaf5ae6464d3c1473f46aafcbc79d37a7cca9bedd6c033d6d4c47c"
-GOLDEN_TRACKED = "5216433d4860fb2c7041d74041fbe499b8b2d0a4c6f0b4061ecaa2afef80dc66"
-GOLDEN_MCCC_ALL = "320ed36b082fa950d421142c53693a3e87abe36cc90d3e7325fc983b62e7a21c"
-"""MCCC digest for a run over all three seismograms."""
+GOLDEN_INSTANCE = "ca9af594bd534b7791dcff9d7cfad1f73083dc0ca1e1fa4768c1df994b490b20"
+GOLDEN_TRACKED = "528d3deeab98f34bb826c17b240ce10ac7b31327b2d5ad0adfd1d92907c48927"
+GOLDEN_MCCC_ALL = "0606693c73606967f5fcee8601589751951d744b33b5d70aced874fd620999ba"
+"""MCCC digest for a run over all three rows."""
 GOLDEN_MCCC_SELECTED = (
-    "90511af6b009be45dc61593d0118672aac899d853bb1d495d66ca80987b20a70"
+    "7ffa116a815a9512e6e3eb5ffc86e8fe5bd496708c65973a454f1eaca38ebfa1"
 )
-"""MCCC digest for a run over the two selected seismograms."""
+"""MCCC digest for a run over the two selected rows."""
 
 # The text the stack digest is the SHA-256 of, so a failure can be traced to
 # the value whose stored form changed. The other digests use the same encoding.
 GOLDEN_STACK_PAYLOAD = (
-    '[1,"stack",{"event":"000000000000400080000000000000e1","parameters":'
+    '[2,"stack",{"parameters":'
     '{"bandpass_apply":1,"bandpass_fmax":2.5,"bandpass_fmin":0.05,"corners":4,'
     '"ramp_width":0.125,"window_post":12250000000,"window_pre":-7500000000},'
-    '"seismograms":[["000000000000400080000000000000a1",'
-    '{"flip":1,"t1":"2011-03-11 05:59:02.000000"}],'
+    '"phase":"000000000000400080000000000000e1",'
+    '"rows":[["000000000000400080000000000000a1",'
+    '{"flip":1,"refined_pick":"2011-03-11 05:59:02.000000"}],'
     '["000000000000400080000000000000b2",'
-    '{"flip":0,"t1":"2011-03-11 05:58:13.123456"}]]}]'
+    '{"flip":0,"refined_pick":"2011-03-11 05:58:13.123456"}]]}]'
 )
 
 
-def _golden_event() -> AimbatEvent:
+def _golden_event(*, with_seismograms: bool = True) -> AimbatEvent:
     """Build the ORM objects that store as `GOLDEN_INPUTS`."""
     station = AimbatStation(
         name="STA",
@@ -104,13 +114,13 @@ def _golden_event() -> AimbatEvent:
         elevation=30.0,
     )
     event = AimbatEvent(
-        id=_EVENT_ID,
         time=Timestamp("2011-03-11T05:46:24Z"),
         latitude=38.3,
         longitude=142.4,
         depth=29.0,
     )
-    event.parameters = AimbatEventParameters(
+    phase = AimbatPhase(id=_PHASE_ID, name="P")
+    phase.parameters = AimbatPhaseParameters(
         completed=False,
         ramp_width=0.125,
         window_pre=Timedelta(seconds=-7.5),
@@ -123,20 +133,33 @@ def _golden_event() -> AimbatEvent:
         mccc_damp=0.1,
         mccc_min_cc=0.3,
     )
-    for seismogram_id, flip, select_, t1 in (
+    event.phases.append(phase)
+    if not with_seismograms:
+        return event
+    for row_id, flip, select_, refined_pick in (
         (_B2, False, True, Timestamp("2011-03-11T05:58:13.123456Z")),
         (_A1, True, True, Timestamp("2011-03-11T05:59:02Z")),
         (_C3, False, False, None),
     ):
         seismogram = AimbatSeismogram(
-            id=seismogram_id,
             begin_time=Timestamp("2011-03-11T05:50:00Z"),
             delta=Timedelta(seconds=0.05),
-            t0=Timestamp("2011-03-11T05:58:00Z"),
         )
         seismogram.station = station
-        seismogram.parameters = AimbatSeismogramParameters(
-            flip=flip, select=select_, t1=t1
+        pick = AimbatPick(
+            time=Timestamp("2011-03-11T05:58:00Z"),
+            phase_name="P",
+            origin=PickOrigin.MANUAL,
+            seismogram=seismogram,
+        )
+        AimbatSeismogramParameters(
+            id=row_id,
+            seismogram=seismogram,
+            phase=phase,
+            pick=pick,
+            flip=flip,
+            select=select_,
+            refined_pick=refined_pick,
         )
         event.seismograms.append(seismogram)
     return event
@@ -152,7 +175,7 @@ class TestGoldenDigests:
 
     def test_digests(self) -> None:
         """The digests of the documented inputs."""
-        digests = EventDigests.of(GOLDEN_INPUTS)
+        digests = PhaseDigests.of(GOLDEN_INPUTS)
         assert digests.stack == GOLDEN_STACK
         assert digests.seismogram_cc == GOLDEN_SEISMOGRAM_CC
         assert digests.instance == GOLDEN_INSTANCE
@@ -161,12 +184,12 @@ class TestGoldenDigests:
         assert digests.mccc({_A1, _B2}) == GOLDEN_MCCC_SELECTED
 
     def test_read_returns_stored_form(self, engine: Engine) -> None:
-        """The golden event, stored and read back, gives the documented inputs."""
+        """The golden phase, stored and read back, gives the documented inputs."""
         with Session(engine) as session:
             session.add(_golden_event())
             session.commit()
         with Session(engine) as session:
-            assert read_inputs(session) == {_EVENT_ID: GOLDEN_INPUTS}
+            assert read_inputs(session) == {_PHASE_ID: GOLDEN_INPUTS}
 
 
 class TestRead:
@@ -175,37 +198,55 @@ class TestRead:
     def test_pending_change_is_read(self, loaded_engine: Engine) -> None:
         """A change not yet flushed is part of the digests."""
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
-            before = compute_digests(session, event.id)[event.id]
+            phase = session.exec(select(AimbatPhase)).first()
+            assert phase is not None
+            before = compute_digests(session, phase.id)[phase.id]
             with session.no_autoflush:
-                event.parameters.corners += 1
-                after = compute_digests(session, event.id)[event.id]
+                phase.parameters.corners += 1
+                after = compute_digests(session, phase.id)[phase.id]
             assert after.stack != before.stack
 
-    def test_one_event_matches_all_events(self, loaded_engine: Engine) -> None:
-        """Reading one event gives the same digests as reading every event."""
+    def test_one_phase_matches_all_phases(self, loaded_engine: Engine) -> None:
+        """Reading one phase gives the same digests as reading every phase."""
         with Session(loaded_engine) as session:
             everything = compute_digests(session)
             assert len(everything) > 1
-            for event_id, digests in everything.items():
-                assert compute_digests(session, event_id) == {event_id: digests}
+            for phase_id, digests in everything.items():
+                assert compute_digests(session, phase_id) == {phase_id: digests}
 
-    def test_event_without_seismograms(self, engine: Engine) -> None:
-        """An event with no seismograms has digests too."""
-        event = _golden_event()
-        event.seismograms.clear()
+    def test_event_reads_its_phases(self, loaded_engine: Engine) -> None:
+        """Reading by event gives the digests of that event's phases."""
+        with Session(loaded_engine) as session:
+            everything = compute_digests(session)
+            for event in session.exec(select(AimbatEvent)).all():
+                assert compute_digests(session, event_id=event.id) == {
+                    phase.id: everything[phase.id] for phase in event.phases
+                }
+
+    def test_phase_without_rows(self, engine: Engine) -> None:
+        """A phase with no rows has digests too."""
+        event = _golden_event(with_seismograms=False)
         with Session(engine) as session:
             session.add(event)
             session.commit()
             (inputs,) = read_inputs(session).values()
-        assert inputs.seismograms == {}
+        assert inputs.rows == {}
 
-    def test_seismograms_belong_to_their_event(self, loaded_engine: Engine) -> None:
-        """Each event's inputs hold exactly its own seismograms."""
+    def test_event_without_phases(self, engine: Engine) -> None:
+        """An event without phases has no digests."""
+        event = AimbatEvent(
+            time=Timestamp("2011-03-11T05:46:24Z"), latitude=0.0, longitude=0.0
+        )
+        with Session(engine) as session:
+            session.add(event)
+            session.commit()
+            assert compute_digests(session, event_id=event.id) == {}
+
+    def test_rows_belong_to_their_phase(self, loaded_engine: Engine) -> None:
+        """Each phase's inputs hold exactly its own rows."""
         with Session(loaded_engine) as session:
             inputs = read_inputs(session)
-            for event in session.exec(select(AimbatEvent)).all():
-                assert set(inputs[event.id].seismograms) == {
-                    seismogram.id.hex for seismogram in event.seismograms
+            for phase in session.exec(select(AimbatPhase)).all():
+                assert set(inputs[phase.id].rows) == {
+                    row.id.hex for row in phase.seismogram_parameters
                 }

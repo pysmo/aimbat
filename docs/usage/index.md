@@ -22,7 +22,7 @@ A full CLI session:
 
 ```bash
 aimbat project create
-aimbat data add *.sac
+aimbat data add --unlabelled-as P *.sac
 aimbat event list                # note the event ID
 export DEFAULT_EVENT_ID=6a4a
 aimbat align iccs --autoflip --autoselect
@@ -41,9 +41,11 @@ For anything with branching, loops, or error handling, use the
 aimbat shell
 ```
 
-Wraps the same commands without the leading `aimbat`, and keeps an event context
-so `--event` need not be repeated. Keeping the session open avoids the
-per-command startup cost, and tab completion doubles as command discovery.
+Wraps the same commands without the leading `aimbat`, and keeps an event and
+phase context so `--event` and `--phase` need not be repeated (see
+[Selecting a phase](event-selection.md#selecting-a-phase)). Keeping the session
+open avoids the per-command startup cost, and tab completion doubles as command
+discovery.
 
 ```
 aimbat> event switch 6a4a
@@ -57,9 +59,9 @@ station. With an event selected, only that event's seismograms and snapshots
 are offered. ID completion is available only in the shell, not on the
 command line.
 
-After each command the shell reports whether the current event's ICCS instance
-is still valid, and rejects a parameter change that would invalidate it before
-it reaches the database. Exit with `exit`, `quit`, `q`, or **Ctrl+D**.
+After each command the shell reports whether the ICCS instance of the current
+phase is still valid, and rejects a parameter change that would invalidate it
+before it reaches the database. Exit with `exit`, `quit`, `q`, or **Ctrl+D**.
 
 ### Terminal UI
 
@@ -92,10 +94,12 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 from aimbat.core import (
+    PickNaming,
     add_data_to_project,
     create_iccs_instance,
     create_project,
     create_snapshot,
+    resolve_phase,
     run_iccs,
     run_mccc,
 )
@@ -106,16 +110,22 @@ from aimbat.models import AimbatEvent
 create_project(engine)
 
 with Session(engine) as session:
-    add_data_to_project(session, sorted(Path().glob("*.sac")), DataType.SAC)
+    add_data_to_project(
+        session,
+        sorted(Path().glob("*.sac")),
+        DataType.SAC,
+        naming=PickNaming(unlabelled_as="P"),
+    )
     event = session.exec(select(AimbatEvent)).first()
-    create_snapshot(session, event, comment="import")  # add_data_to_project doesn't auto-snapshot like data add
+    phase = resolve_phase(session, event.id)  # the P phase named above
+    create_snapshot(session, phase.id, comment="import")  # add_data_to_project doesn't auto-snapshot like data add
 
-    bound = create_iccs_instance(session, event)  # an ICCS instance bound to this event
-    run_iccs(session, event, bound.iccs, autoflip=True, autoselect=True)
-    create_snapshot(session, event, comment="post-ICCS")
+    bound = create_iccs_instance(session, phase.id)  # an ICCS instance bound to this phase
+    run_iccs(session, phase.id, bound.iccs, autoflip=True, autoselect=True)
+    create_snapshot(session, phase.id, comment="post-ICCS")
 
-    run_mccc(session, event, bound.iccs, all_seismograms=False)
-    create_snapshot(session, event, comment="post-MCCC")
+    run_mccc(session, phase.id, bound.iccs, all_seismograms=False)
+    create_snapshot(session, phase.id, comment="post-MCCC")
 
     session.commit()
 ```
@@ -135,15 +145,16 @@ cross-cutting scripts.
 
 ## Choosing an event
 
-A project can hold many events, but processing acts on one at a time, so it
-needs to be selected before running ICCS, MCCC, or taking a snapshot. The CLI
-and shell track this selection separately from the TUI; the Python API has no
-such state; every call takes the event explicitly. See
-[Selecting an Event](event-selection.md).
+A project can hold many events, but processing acts on one phase of one event
+at a time, so both need to be selected before running ICCS, MCCC, or taking a
+snapshot. The phase is named with `--phase` or `DEFAULT_PHASE`, and may be
+left out when the event has only one phase. The CLI and shell track this
+selection separately from the TUI. The Python API has no such state: every
+call takes the phase explicitly. See [Selecting an Event](event-selection.md).
 
 ## Live data and saving
 
-The picks and parameters for the selected event are the **live data**: the
+The picks and parameters for the selected phase are the **live data**: the
 working set every interface reads and writes. Changes are written to the
 database immediately. There is no save step and no undo. See
 [Snapshots](snapshots.md) to capture a state to roll back to, and

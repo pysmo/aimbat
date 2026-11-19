@@ -109,10 +109,8 @@ def create_event_from_json(path: str | PathLike[str]) -> AimbatEvent:
     Returns:
         A new `AimbatEvent` instance.
     """
-    from aimbat.models import AimbatEvent, AimbatEventParameters
+    from aimbat.models import AimbatEvent
 
     logger.debug(f"Reading event data from {path}.")
 
-    event = AimbatEvent.model_validate(_load_json(path))
-    event.parameters = AimbatEventParameters()
-    return event
+    return AimbatEvent.model_validate(_load_json(path))

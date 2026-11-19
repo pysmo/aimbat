@@ -13,10 +13,10 @@ from pysmo.tools.iccs import ICCS
 from aimbat.core._iccs import BoundICCS, IccsLifecycle
 
 
-def _make_bound(event_id: uuid.UUID, instance_digest: str | None = "a") -> BoundICCS:
+def _make_bound(phase_id: uuid.UUID, instance_digest: str | None = "a") -> BoundICCS:
     """Build a BoundICCS with a dummy ICCS payload — is_stale never touches it."""
     return BoundICCS(
-        iccs=cast(ICCS, object()), event_id=event_id, instance_digest=instance_digest
+        iccs=cast(ICCS, object()), phase_id=phase_id, instance_digest=instance_digest
     )
 
 
@@ -40,22 +40,22 @@ class TestIsStale:
     def test_no_bound_instance_falls_back_to_the_digest_seen(self) -> None:
         """With no bound instance, staleness compares against note_checked's value."""
         lifecycle = IccsLifecycle()
-        event_id = uuid.uuid4()
+        phase_id = uuid.uuid4()
 
         # Nothing recorded yet -> considered stale.
-        assert lifecycle.is_stale(event_id, "a") is True
+        assert lifecycle.is_stale(phase_id, "a") is True
 
         lifecycle.note_checked("a")
-        assert lifecycle.is_stale(event_id, "a") is False
-        assert lifecycle.is_stale(event_id, "b") is True
+        assert lifecycle.is_stale(phase_id, "a") is False
+        assert lifecycle.is_stale(phase_id, "b") is True
 
     def test_bound_instance_delegates_to_bound_is_stale(self) -> None:
         """With a bound instance, staleness delegates to BoundICCS.is_stale."""
-        event_id = uuid.uuid4()
-        lifecycle = IccsLifecycle(bound=_make_bound(event_id, "a"))
+        phase_id = uuid.uuid4()
+        lifecycle = IccsLifecycle(bound=_make_bound(phase_id, "a"))
 
-        assert lifecycle.is_stale(event_id, "a") is False
-        assert lifecycle.is_stale(event_id, "b") is True
+        assert lifecycle.is_stale(phase_id, "a") is False
+        assert lifecycle.is_stale(phase_id, "b") is True
         assert lifecycle.is_stale(uuid.uuid4(), "a") is True
 
 
@@ -63,20 +63,20 @@ class TestBoundIccsIsStale:
     """Tests for BoundICCS.is_stale."""
 
     def test_same_digest_is_fresh(self) -> None:
-        event_id = uuid.uuid4()
-        assert _make_bound(event_id, "a").is_stale(event_id, "a") is False
+        phase_id = uuid.uuid4()
+        assert _make_bound(phase_id, "a").is_stale(phase_id, "a") is False
 
     def test_other_digest_is_stale(self) -> None:
-        event_id = uuid.uuid4()
-        assert _make_bound(event_id, "a").is_stale(event_id, "b") is True
+        phase_id = uuid.uuid4()
+        assert _make_bound(phase_id, "a").is_stale(phase_id, "b") is True
 
     def test_other_event_is_stale(self) -> None:
         assert _make_bound(uuid.uuid4(), "a").is_stale(uuid.uuid4(), "a") is True
 
     def test_instance_from_a_snapshot_is_always_stale(self) -> None:
         """An instance built from a snapshot does not reflect the live parameters."""
-        event_id = uuid.uuid4()
-        assert _make_bound(event_id, None).is_stale(event_id, "a") is True
+        phase_id = uuid.uuid4()
+        assert _make_bound(phase_id, None).is_stale(phase_id, "a") is True
 
 
 class TestStartCreating:

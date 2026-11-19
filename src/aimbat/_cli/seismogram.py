@@ -21,7 +21,10 @@ from .common import (
     id_label,
     id_parameter,
     make_note_app,
+    phase_filter_parameter,
+    phase_parameter,
     print_json_dump,
+    resolve_seismogram_phase,
 )
 
 app = App(name="seismogram", help=__doc__, help_format="markdown")
@@ -81,6 +84,15 @@ def cli_seismogram_dump(
 def cli_seismogram_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
+    phase: Annotated[
+        str | None,
+        phase_parameter(
+            help=(
+                "Name of the phase whose selection, picks and quality are shown."
+                + " Not needed for seismograms in only one phase."
+            )
+        ),
+    ] = None,
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
     """Print information on the seismograms in an event."""
@@ -100,7 +112,9 @@ def cli_seismogram_list(
     with Session(engine) as session:
         if event_parameter_is_all(event_id):
             title = "AIMBAT seismograms for all events"
-            data = dump_seismogram_table(session, from_read_model=True, exclude=exclude)
+            data = dump_seismogram_table(
+                session, from_read_model=True, exclude=exclude, phase_name=phase
+            )
         else:
             event = resolve_event(session, event_id)
             title = event_table_title(session, event, subject="seismograms", raw=raw)
@@ -110,6 +124,7 @@ def cli_seismogram_list(
                 from_read_model=True,
                 event_id=event.id,
                 exclude=exclude,
+                phase_name=phase,
             )
 
         json_to_table(data, model=AimbatSeismogramRead, title=title, raw=raw)
@@ -126,6 +141,7 @@ def cli_seismogram_parameter_get(
             AimbatSeismogram, help="UUID (or unique prefix) of seismogram to query."
         ),
     ],
+    phase: Annotated[str | None, phase_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Get the value of a processing parameter.
@@ -133,18 +149,18 @@ def cli_seismogram_parameter_get(
     Args:
         name: Name of the seismogram parameter.
         seismogram_id: UUID (or unique prefix) of the seismogram to query.
+        phase: Name of the phase whose parameter to get.
     """
-    from sqlalchemy.exc import NoResultFound
     from sqlmodel import Session
 
+    from aimbat.core import get_seismogram_parameters
     from aimbat.db import engine
-    from aimbat.models import AimbatSeismogram
 
     with Session(engine) as session:
-        seismogram = session.get(AimbatSeismogram, seismogram_id)
-        if seismogram is None:
-            raise NoResultFound(f"Unable to find seismogram with id: {seismogram_id}.")
-        value = seismogram.parameters.model_dump(mode="json").get(name)
+        parameters = get_seismogram_parameters(
+            session, resolve_seismogram_phase(seismogram_id, phase), seismogram_id
+        )
+        value = parameters.model_dump(mode="json").get(name)
         print(value)
 
 
@@ -160,6 +176,7 @@ def cli_seismogram_parameter_set(
             AimbatSeismogram, help="UUID (or unique prefix) of seismogram to modify."
         ),
     ],
+    phase: Annotated[str | None, phase_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Set value of a processing parameter.
@@ -168,10 +185,13 @@ def cli_seismogram_parameter_set(
         name: Name of the seismogram parameter.
         value: Value of the seismogram parameter.
         seismogram_id: UUID (or unique prefix) of the seismogram to modify.
+        phase: Name of the phase whose parameter to set.
     """
     from aimbat.actions import set_seismogram_parameters
 
-    set_seismogram_parameters([seismogram_id], {name: value})
+    set_seismogram_parameters(
+        resolve_seismogram_phase(seismogram_id, phase), [seismogram_id], {name: value}
+    )
 
 
 @parameter.command(name="reset")
@@ -185,12 +205,15 @@ def cli_seismogram_parameter_reset(
         ),
     ],
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Reset all processing parameters to their default values."""
+    """Reset all processing parameters of a seismogram in a phase to their defaults."""
     from aimbat.actions import reset_seismogram_parameters
 
-    reset_seismogram_parameters([seismogram_id])
+    reset_seismogram_parameters(
+        resolve_seismogram_phase(seismogram_id, phase), [seismogram_id]
+    )
 
 
 @parameter.command(name="dump")
@@ -210,12 +233,14 @@ def cli_seismogram_parameter_dump(
 def cli_seismogram_parameter_list(
     event_id: Annotated[UUID | Literal["all"], event_parameter_with_all()],
     *,
+    phase: Annotated[str | None, phase_filter_parameter()] = None,
     table_parameters: TableParameters = TableParameters(),
 ) -> None:
     """List processing parameter values for seismograms in an event.
 
-    Displays per-seismogram parameters (e.g. `select`, `flip`, `t1` pick)
-    in a table. Use `seismogram parameter set` to modify individual values.
+    Displays per-seismogram parameters (e.g. `select`, `flip`, `refined_pick`)
+    in a table, one row per seismogram and phase. Use `seismogram parameter
+    set` to modify individual values.
     """
 
     from sqlmodel import Session
@@ -245,8 +270,9 @@ def cli_seismogram_parameter_list(
             title = f"Seismogram parameters for event: {label}"
 
         data = dump_seismogram_parameter_table(
-            session, event_id=event.id if event else None
+            session, event_id=event.id if event else None, phase_name=phase
         )
+        phase_names = {row["phase_id"]: row["phase_name"] for row in data}
 
         json_to_table(
             data=data,
@@ -270,9 +296,12 @@ def cli_seismogram_parameter_list(
                         session, AimbatSeismogram, str_uuid=str(x)
                     ),
                 ),
+                "phase_id": RichColSpec(
+                    display_title="Phase", formatter=lambda x: phase_names[x]
+                ),
                 "flip": RichColSpec(formatter=fmt_flip),
             },
-            column_order=["id"],
+            column_order=["id", "phase_id"],
         )
 
 

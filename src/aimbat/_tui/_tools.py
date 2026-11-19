@@ -2,7 +2,7 @@
 
 Extend `TOOL_REGISTRY`/`CAUSAL_TOOL_REGISTRY` to register new interactive
 tools. Each entry maps a key to a (label, callable) pair. Callables in
-`TOOL_REGISTRY` receive (event_id, iccs, context, all_seismograms); callables
+`TOOL_REGISTRY` receive (phase_id, iccs, context, all_seismograms); callables
 in `CAUSAL_TOOL_REGISTRY` additionally receive a causal argument from
 `InteractiveToolsModal`'s zero-phase toggle. Both return None.
 
@@ -16,7 +16,7 @@ from uuid import UUID
 
 from pysmo.tools.iccs import ICCS
 
-from aimbat.actions import set_event_parameters, set_picks
+from aimbat.actions import set_phase_parameters, set_refined_picks
 from aimbat.plot import (
     plot_matrix_image,
     plot_stack,
@@ -30,14 +30,14 @@ type ToolFn = Callable[[UUID, ICCS, bool, bool], None]
 type CausalToolFn = Callable[[UUID, ICCS, bool, bool, bool], None]
 
 
-def _tool_phase(
-    event_id: UUID,
+def _tool_pick(
+    phase_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
     causal: bool,
 ) -> None:
-    """Launch the interactive phase-arrival (t1) picking tool."""
+    """Launch the interactive tool for the refined pick."""
     picks = update_pick(
         iccs,
         context,
@@ -46,11 +46,11 @@ def _tool_phase(
         causal=causal,
         return_fig=False,
     )
-    set_picks(event_id, picks)
+    set_refined_picks(phase_id, picks)
 
 
 def _tool_window(
-    event_id: UUID,
+    phase_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -65,11 +65,11 @@ def _tool_window(
         causal=causal,
         return_fig=False,
     )
-    set_event_parameters(event_id, changes)
+    set_phase_parameters(phase_id, changes)
 
 
 def _tool_cc(
-    event_id: UUID,
+    phase_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -83,11 +83,11 @@ def _tool_cc(
         causal=causal,
         return_fig=False,
     )
-    set_event_parameters(event_id, changes)
+    set_phase_parameters(phase_id, changes)
 
 
 def _tool_bandpass(
-    event_id: UUID,
+    phase_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
@@ -100,29 +100,29 @@ def _tool_bandpass(
         use_matrix_image=False,
         return_fig=False,
     )
-    set_event_parameters(event_id, changes)
+    set_phase_parameters(phase_id, changes)
 
 
 def _tool_stack(
-    event_id: UUID,
+    phase_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
 ) -> None:
     """Show the interactive stack plot."""
-    # event_id is unused here but required by ToolFn for a uniform
+    # phase_id is unused here but required by ToolFn for a uniform
     # TOOL_REGISTRY signature.
     plot_stack(iccs, context, all_seismograms, return_fig=False)
 
 
 def _tool_image(
-    event_id: UUID,
+    phase_id: UUID,
     iccs: ICCS,
     context: bool,
     all_seismograms: bool,
 ) -> None:
     """Show the interactive cross-correlation matrix image."""
-    # event_id is unused here but required by ToolFn for a uniform
+    # phase_id is unused here but required by ToolFn for a uniform
     # TOOL_REGISTRY signature.
     plot_matrix_image(iccs, context, all_seismograms, return_fig=False)
 
@@ -133,7 +133,7 @@ TOOL_REGISTRY: dict[str, tuple[str, ToolFn]] = {
     "image": ("Matrix image", _tool_image),
 }
 CAUSAL_TOOL_REGISTRY: dict[str, tuple[str, CausalToolFn]] = {
-    "phase": ("Phase arrival (t1)", _tool_phase),
+    "pick": ("Refined pick", _tool_pick),
     "window": ("Time window", _tool_window),
     "cc": ("Min CC", _tool_cc),
 }

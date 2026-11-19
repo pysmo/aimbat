@@ -167,10 +167,6 @@ class Settings(BaseSettings):
         description="AIMBAT project file location (ignored if `db_url` is specified).",
     )
 
-    sac_pick_header: str = Field(
-        default="t0", description="SAC header field where initial pick is stored."
-    )
-
     sampledata_dir: Path = Field(
         default=Path("sample-data"),
         description="Directory to store downloaded sample data.",

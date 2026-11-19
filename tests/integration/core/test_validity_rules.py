@@ -1,25 +1,26 @@
 """Which derived values stay valid after a parameter change.
 
-Each case seeds live quality for one event, changes one parameter, and checks
+Each case seeds live quality for one phase, changes one parameter, and checks
 what is still valid afterwards. The tables below are the rules. Seeding and
 observing each go through a single helper (`_seed`, `_observe`), so a change
 of mechanism means porting those two functions and leaving the tables alone.
 
 A result stays valid while the inputs it was computed from are unchanged. For
 the MCCC results those inputs are the window, taper and bandpass, the MCCC
-parameters, and the pick and polarity of the seismograms that took part in
-the run. Selection, `min_cc` and `completed` are not among them.
+parameters, and the effective pick and polarity of the rows that took part
+in the run. The effective pick is the refined pick if set, else the initial
+pick. Selection, `min_cc` and `completed` are not among the inputs.
 
 Every change is made in three situations, which must agree:
 
 - `orm`: the attribute is assigned and the session committed, as the ICCS and
-  MCCC write-back and `toggle_event_completed` do.
-- `api`: through `set_event_parameter` or `set_seismogram_parameter`, with no
+  MCCC write-back and `toggle_phase_completed` do.
+- `api`: through `set_phase_parameter` or `set_seismogram_parameter`, with no
   snapshot holding the seeded results.
 - `api_with_snapshot`: the same, with a snapshot of the seeded state to
   restore from.
 
-Each rule also says which of the event's digests change: `tracked` (every
+Each rule also says which of the phase's digests change: `tracked` (every
 parameter that is not bookkeeping) and `instance` (what a built ICCS
 instance reflects).
 """
@@ -36,18 +37,23 @@ from sqlmodel import Session, col, select
 
 from aimbat.core import (
     create_snapshot,
-    set_event_parameter,
+    promote_picks,
+    set_phase_parameter,
     set_seismogram_parameter,
+    store_picks,
 )
 from aimbat.core._validity import Validity, compute_digests, encode_members
+from aimbat.io import DataType, SourcePick
 from aimbat.models import (
     AimbatEvent,
-    AimbatEventQuality,
+    AimbatPhase,
+    AimbatPhaseQuality,
     AimbatSeismogram,
+    AimbatSeismogramParameters,
     AimbatSeismogramQuality,
     AimbatStation,
 )
-from aimbat.types import EventParameter, SeismogramParameter
+from aimbat.types import PhaseParameter, SeismogramParameter
 
 type Situation = Literal["orm", "api", "api_with_snapshot"]
 _SITUATIONS: tuple[Situation, ...] = get_args(Situation.__value__)
@@ -76,18 +82,18 @@ class Rule:
 _CHANGES_THE_STACK = Rule(_NOTHING, _INSTANCE)
 _CHANGES_MCCC_ONLY = Rule(_ICCS, _TRACKED)
 
-EVENT_RULES: dict[EventParameter, Rule] = {
-    EventParameter.WINDOW_PRE: _CHANGES_THE_STACK,
-    EventParameter.WINDOW_POST: _CHANGES_THE_STACK,
-    EventParameter.RAMP_WIDTH: _CHANGES_THE_STACK,
-    EventParameter.BANDPASS_APPLY: _CHANGES_THE_STACK,
-    EventParameter.BANDPASS_FMIN: _CHANGES_THE_STACK,
-    EventParameter.BANDPASS_FMAX: _CHANGES_THE_STACK,
-    EventParameter.CORNERS: _CHANGES_THE_STACK,
-    EventParameter.MCCC_DAMP: _CHANGES_MCCC_ONLY,
-    EventParameter.MCCC_MIN_CC: _CHANGES_MCCC_ONLY,
-    EventParameter.MIN_CC: Rule(_EVERYTHING, _TRACKED),
-    EventParameter.COMPLETED: Rule(_EVERYTHING, _UNCHANGED),
+EVENT_RULES: dict[PhaseParameter, Rule] = {
+    PhaseParameter.WINDOW_PRE: _CHANGES_THE_STACK,
+    PhaseParameter.WINDOW_POST: _CHANGES_THE_STACK,
+    PhaseParameter.RAMP_WIDTH: _CHANGES_THE_STACK,
+    PhaseParameter.BANDPASS_APPLY: _CHANGES_THE_STACK,
+    PhaseParameter.BANDPASS_FMIN: _CHANGES_THE_STACK,
+    PhaseParameter.BANDPASS_FMAX: _CHANGES_THE_STACK,
+    PhaseParameter.CORNERS: _CHANGES_THE_STACK,
+    PhaseParameter.MCCC_DAMP: _CHANGES_MCCC_ONLY,
+    PhaseParameter.MCCC_MIN_CC: _CHANGES_MCCC_ONLY,
+    PhaseParameter.MIN_CC: Rule(_EVERYTHING, _TRACKED),
+    PhaseParameter.COMPLETED: Rule(_EVERYTHING, _UNCHANGED),
 }
 
 # Keyed by (parameter, target selected, target in the MCCC run).
@@ -113,22 +119,93 @@ SEISMOGRAM_RULES: dict[tuple[SeismogramParameter, bool, bool], Rule] = {
     (name, *state): rule
     for name, rules in (
         (SeismogramParameter.FLIP, _PICK_OR_POLARITY),
-        (SeismogramParameter.T1, _PICK_OR_POLARITY),
+        (SeismogramParameter.REFINED_PICK, _PICK_OR_POLARITY),
         (SeismogramParameter.SELECT, _SELECTION),
     )
     for state, rule in rules.items()
 }
 
+# Keyed by (target selected, target in the MCCC run, target refined).
+#
+# Before refinement the initial pick is the effective pick, so an edit acts
+# as a pick change. After it, the initial pick is an input to nothing.
+INITIAL_PICK_RULES: dict[tuple[bool, bool, bool], Rule] = {
+    **{(*state, False): rule for state, rule in _PICK_OR_POLARITY.items()},
+    **{(*state, True): Rule(_EVERYTHING, _UNCHANGED) for state in _PICK_OR_POLARITY},
+}
+
 
 @dataclass(frozen=True)
 class Seeded:
-    """The event under test, the seismogram whose parameters change, and the
+    """The phase under test, the row whose parameters change, and the
     digests when seeded."""
 
-    event_id: uuid.UUID
+    phase_id: uuid.UUID
     target_id: uuid.UUID
+    """Row ID."""
     tracked: str
     instance: str
+    other_phase_id: uuid.UUID | None = None
+    """A second phase of the same event, seeded the same way."""
+
+
+def _seed_quality(
+    session: Session, phase: AimbatPhase, excluded: uuid.UUID | None = None
+) -> None:
+    """Give a phase a full set of valid live quality values.
+
+    The row `excluded` gets `iccs_cc` but takes no part in the MCCC run.
+    """
+    digests = compute_digests(session, phase.id)[phase.id]
+    rows = phase.seismogram_parameters
+    members = {row.id for row in rows if row.id != excluded}
+    for row in rows:
+        quality = AimbatSeismogramQuality(
+            seismogram_parameters_id=row.id,
+            iccs_cc=0.9,
+            iccs_fingerprint=digests.seismogram_cc[row.id],
+        )
+        if row.id in members:
+            quality.mccc_cc_mean = 0.8
+            quality.mccc_cc_std = 0.1
+            quality.mccc_error = Timedelta(seconds=0.01)
+        session.add(quality)
+    session.add(
+        AimbatPhaseQuality(
+            phase_id=phase.id,
+            mccc_rmse=Timedelta(seconds=0.02),
+            mccc_members=encode_members(members),
+            mccc_fingerprint=digests.mccc(members),
+        )
+    )
+    session.commit()
+
+    validity = Validity.read(session, phase.id)
+    assert validity.mccc(phase.id)
+    assert all(validity.iccs_cc(row.id) for row in rows)
+
+
+def _add_phase(session: Session, event: AimbatEvent, name: str) -> AimbatPhase:
+    """Give every seismogram of an event a pick of a new phase, one second
+    after its first initial pick."""
+    picks = []
+    for seismogram in event.seismograms:
+        picks += store_picks(
+            session,
+            [
+                SourcePick(
+                    seismogram.phase_rows[0].initial_pick + Timedelta(seconds=1),
+                    "t9",
+                    label=name,
+                )
+            ],
+            source_name=f"{name}-{seismogram.id}",
+            source_type=DataType.SAC,
+            source_seismogram=seismogram,
+        ).stored
+    (phase,) = promote_picks(session, picks).phases_created
+    session.commit()
+    return phase
 
 
 def _seed(
@@ -137,19 +214,23 @@ def _seed(
     *,
     selected: bool = True,
     in_mccc: bool = True,
+    refined: bool = False,
+    other_phase: bool = False,
 ) -> Seeded:
-    """Give one event a full set of valid live quality values.
+    """Give one phase a full set of valid live quality values.
 
     Args:
         engine: Engine of a project with data loaded.
         situation: Decides whether a snapshot of the seeded state is taken.
-        selected: Whether the target seismogram is selected.
-        in_mccc: Whether the target seismogram took part in the MCCC run that
-            the seeded results stand for.
+        selected: Whether the target row is selected.
+        in_mccc: Whether the target row took part in the MCCC run that the
+            seeded results stand for.
+        refined: Whether the target row has a refined pick.
+        other_phase: Whether a second phase of the event is seeded too.
     """
     with Session(engine) as session:
         # Ordered so the same seismogram is the target on every run.
-        target = session.exec(
+        seismogram = session.exec(
             select(AimbatSeismogram)
             .join(AimbatEvent)
             .join(AimbatStation)
@@ -159,70 +240,52 @@ def _seed(
                 col(AimbatStation.name),
             )
         ).first()
-        assert target is not None
-        event = target.event
+        assert seismogram is not None
+        event = seismogram.event
         assert len(event.seismograms) >= 3
-        target.parameters.select = selected
+        (phase,) = event.phases
+        (target,) = seismogram.phase_rows
+        target.select = selected
+        if refined:
+            target.refined_pick = target.initial_pick + Timedelta(seconds=0.5)
         session.commit()
 
-        digests = compute_digests(session, event.id)[event.id]
-        members = {
-            seismogram.id
-            for seismogram in event.seismograms
-            if in_mccc or seismogram.id != target.id
-        }
-        for seismogram in event.seismograms:
-            quality = AimbatSeismogramQuality(
-                seismogram_id=seismogram.id,
-                iccs_cc=0.9,
-                iccs_fingerprint=digests.seismogram_cc[seismogram.id],
-            )
-            if seismogram.id in members:
-                quality.mccc_cc_mean = 0.8
-                quality.mccc_cc_std = 0.1
-                quality.mccc_error = Timedelta(seconds=0.01)
-            session.add(quality)
-        session.add(
-            AimbatEventQuality(
-                event_id=event.id,
-                mccc_rmse=Timedelta(seconds=0.02),
-                mccc_members=encode_members(members),
-                mccc_fingerprint=digests.mccc(members),
-            )
-        )
-        session.commit()
+        other = _add_phase(session, event, "S") if other_phase else None
+
+        _seed_quality(session, phase, excluded=None if in_mccc else target.id)
+        if other is not None:
+            _seed_quality(session, other)
         if situation == "api_with_snapshot":
-            create_snapshot(session, event)
+            create_snapshot(session, phase.id)
             session.commit()
 
-        validity = Validity.read(session, event.id)
-        assert validity.mccc(event.id)
-        assert all(validity.iccs_cc(s.id) for s in event.seismograms)
+        digests = compute_digests(session, phase.id)[phase.id]
         return Seeded(
-            event_id=event.id,
+            phase_id=phase.id,
             target_id=target.id,
             tracked=digests.tracked,
             instance=digests.instance,
+            other_phase_id=None if other is None else other.id,
         )
 
 
 def _observe(engine: Engine, seeded: Seeded) -> tuple[frozenset[str], frozenset[str]]:
     """Report what is still valid, and which digests moved."""
     with Session(engine) as session:
-        validity = Validity.read(session, seeded.event_id)
-        digests = validity.digests(seeded.event_id)
+        validity = Validity.read(session, seeded.phase_id)
+        digests = validity.digests(seeded.phase_id)
         other_iccs = {
-            validity.iccs_cc(seismogram_id)
-            for seismogram_id in digests.seismogram_cc
-            if seismogram_id != seeded.target_id
+            validity.iccs_cc(row_id)
+            for row_id in digests.seismogram_cc
+            if row_id != seeded.target_id
         }
-        # The rules take for granted that the other seismograms are alike.
-        assert len(other_iccs) == 1, "Only some of the other seismograms' iccs_cc."
+        # The rules take for granted that the other rows are alike.
+        assert len(other_iccs) == 1, "Only some of the other rows' iccs_cc."
 
         survives = {
             "target_iccs": validity.iccs_cc(seeded.target_id),
             "other_iccs": other_iccs.pop(),
-            "mccc": validity.mccc(seeded.event_id),
+            "mccc": validity.mccc(seeded.phase_id),
         }
         moved = {
             "tracked": digests.tracked != seeded.tracked,
@@ -231,6 +294,17 @@ def _observe(engine: Engine, seeded: Seeded) -> tuple[frozenset[str], frozenset[
         return (
             frozenset(name for name, kept in survives.items() if kept),
             frozenset(name for name, changed in moved.items() if changed),
+        )
+
+
+def _other_phase_valid(engine: Engine, seeded: Seeded) -> bool:
+    """Whether every value of the second phase is still valid."""
+    assert seeded.other_phase_id is not None
+    with Session(engine) as session:
+        validity = Validity.read(session, seeded.other_phase_id)
+        digests = validity.digests(seeded.other_phase_id)
+        return validity.mccc(seeded.other_phase_id) and all(
+            validity.iccs_cc(row_id) for row_id in digests.seismogram_cc
         )
 
 
@@ -253,15 +327,15 @@ _NEW_VALUE: dict[str, Callable[[Any], Any]] = {
 
 
 def _change_event_parameter(
-    engine: Engine, seeded: Seeded, name: EventParameter, situation: Situation
+    engine: Engine, seeded: Seeded, name: PhaseParameter, situation: Situation
 ) -> None:
     with Session(engine) as session:
-        event = session.get_one(AimbatEvent, seeded.event_id)
-        value = _NEW_VALUE[name](getattr(event.parameters, name))
+        phase = session.get_one(AimbatPhase, seeded.phase_id)
+        value = _NEW_VALUE[name](getattr(phase.parameters, name))
         if situation == "orm":
-            setattr(event.parameters, name, value)
+            setattr(phase.parameters, name, value)
         else:
-            set_event_parameter(session, event.id, name, value)
+            set_phase_parameter(session, phase.id, name, value)
         session.commit()
 
 
@@ -269,15 +343,24 @@ def _change_seismogram_parameter(
     engine: Engine, seeded: Seeded, name: SeismogramParameter, situation: Situation
 ) -> None:
     with Session(engine) as session:
-        target = session.get_one(AimbatSeismogram, seeded.target_id)
-        if name == SeismogramParameter.T1:
-            value = target.t0 + Timedelta(seconds=1)
+        target = session.get_one(AimbatSeismogramParameters, seeded.target_id)
+        if name == SeismogramParameter.REFINED_PICK:
+            value = target.initial_pick + Timedelta(seconds=1)
         else:
-            value = _NEW_VALUE[name](getattr(target.parameters, name))
+            value = _NEW_VALUE[name](getattr(target, name))
         if situation == "orm":
-            setattr(target.parameters, name, value)
+            setattr(target, name, value)
         else:
-            set_seismogram_parameter(session, target.id, name, value)
+            set_seismogram_parameter(
+                session, target.phase_id, target.seismogram_id, name, value
+            )
+        session.commit()
+
+
+def _change_initial_pick(engine: Engine, seeded: Seeded) -> None:
+    with Session(engine) as session:
+        target = session.get_one(AimbatSeismogramParameters, seeded.target_id)
+        target.pick.time += Timedelta(seconds=1)
         session.commit()
 
 
@@ -287,9 +370,9 @@ class TestValidityRules:
 
     # Parametrised over the enum, not the table, so a new parameter fails
     # here until it has a rule.
-    @pytest.mark.parametrize("name", list(EventParameter))
+    @pytest.mark.parametrize("name", list(PhaseParameter))
     def test_event_parameter(
-        self, loaded_engine: Engine, name: EventParameter, situation: Situation
+        self, loaded_engine: Engine, name: PhaseParameter, situation: Situation
     ) -> None:
         """An event parameter change."""
         rule = EVENT_RULES[name]
@@ -317,3 +400,67 @@ class TestValidityRules:
         _change_seismogram_parameter(loaded_engine, seeded, name, situation)
 
         assert _observe(loaded_engine, seeded) == (rule.survives, rule.digests)
+
+
+# Initial picks have no `set_*` function yet, so only the ORM changes them.
+@pytest.mark.parametrize("refined", [False, True], ids=["unrefined", "refined"])
+@pytest.mark.parametrize("in_mccc", [True, False], ids=["in-mccc", "not-in-mccc"])
+@pytest.mark.parametrize("selected", [True, False], ids=["selected", "deselected"])
+def test_initial_pick(
+    loaded_engine: Engine, selected: bool, in_mccc: bool, refined: bool
+) -> None:
+    """An initial pick edit counts only while the refined pick is unset."""
+    rule = INITIAL_PICK_RULES[selected, in_mccc, refined]
+    seeded = _seed(
+        loaded_engine, "orm", selected=selected, in_mccc=in_mccc, refined=refined
+    )
+
+    _change_initial_pick(loaded_engine, seeded)
+
+    assert _observe(loaded_engine, seeded) == (rule.survives, rule.digests)
+
+
+@pytest.mark.parametrize("situation", _SITUATIONS)
+class TestPhaseIsolation:
+    """A change in one phase leaves another phase of the same event valid."""
+
+    @pytest.mark.parametrize("name", list(PhaseParameter))
+    def test_phase_parameter(
+        self, loaded_engine: Engine, name: PhaseParameter, situation: Situation
+    ) -> None:
+        seeded = _seed(loaded_engine, situation, other_phase=True)
+
+        _change_event_parameter(loaded_engine, seeded, name, situation)
+
+        assert _observe(loaded_engine, seeded) == (
+            EVENT_RULES[name].survives,
+            EVENT_RULES[name].digests,
+        )
+        assert _other_phase_valid(loaded_engine, seeded)
+
+    @pytest.mark.parametrize("name", list(SeismogramParameter))
+    def test_seismogram_parameter(
+        self, loaded_engine: Engine, name: SeismogramParameter, situation: Situation
+    ) -> None:
+        seeded = _seed(loaded_engine, situation, other_phase=True)
+
+        _change_seismogram_parameter(loaded_engine, seeded, name, situation)
+
+        assert _observe(loaded_engine, seeded) == (
+            SEISMOGRAM_RULES[name, True, True].survives,
+            SEISMOGRAM_RULES[name, True, True].digests,
+        )
+        assert _other_phase_valid(loaded_engine, seeded)
+
+
+def test_initial_pick_phase_isolation(loaded_engine: Engine) -> None:
+    """An initial pick edit in one phase leaves another phase valid."""
+    seeded = _seed(loaded_engine, "orm", other_phase=True)
+
+    _change_initial_pick(loaded_engine, seeded)
+
+    assert _observe(loaded_engine, seeded) == (
+        INITIAL_PICK_RULES[True, True, False].survives,
+        INITIAL_PICK_RULES[True, True, False].digests,
+    )
+    assert _other_phase_valid(loaded_engine, seeded)

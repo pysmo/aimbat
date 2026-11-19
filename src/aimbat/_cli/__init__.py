@@ -4,6 +4,8 @@ from .align import app as align
 from .data import app as data
 from .db import app as db
 from .event import app as event
+from .phase import app as phase
+from .pick import app as pick
 from .plot import app as plot
 from .project import app as project
 from .seismogram import app as seismogram
@@ -19,6 +21,8 @@ __all__ = [
     "data",
     "db",
     "event",
+    "phase",
+    "pick",
     "plot",
     "project",
     "seismogram",

@@ -26,7 +26,7 @@ from pysmo.classes import SAC
 
 import aimbat.db
 from aimbat.app import app
-from aimbat.core import add_data_to_project, create_project
+from aimbat.core import PickNaming, add_data_to_project, create_project
 from aimbat.io import DataType
 from aimbat.logger import configure_logging
 
@@ -176,9 +176,9 @@ def sac_file_good(
 ) -> Path:
     """Provides a path to a temporary copy of a known good SAC file.
 
-    testkit's reference event file has no pick headers set, but aimbat tests
-    rely on t0/t1 being populated (e.g. to test pick-header selection), so
-    they are written onto the copy rather than onto the shared testkit asset.
+    testkit's reference event file has no pick headers set, so two picks are
+    written onto the copy rather than onto the shared testkit asset: `t0`
+    labelled `P`, and `t1` without a label.
 
     Args:
         reference_event_assets: testkit fixture with paths to the reference event's files.
@@ -194,6 +194,7 @@ def sac_file_good(
 
     sac = SAC.from_file(testfile)
     sac.timestamps.t0 = sac.seismogram.begin_time + Timedelta(seconds=30)
+    sac.native.kt0 = "P"
     sac.timestamps.t1 = sac.seismogram.begin_time + Timedelta(seconds=30.2)
     sac.write(testfile)
 
@@ -341,7 +342,12 @@ def _build_loaded_project_template(data_dir: Path) -> _LoadedProjectTemplate:
             monkeypatch.setattr(aimbat.db, "engine", template_engine)
             create_project(template_engine)
             with Session(template_engine) as session:
-                add_data_to_project(session, datasources, DataType.SAC)
+                add_data_to_project(
+                    session,
+                    datasources,
+                    DataType.SAC,
+                    naming=PickNaming(unlabelled_as="P"),
+                )
         with template_engine.connect() as connection:
             image = _sqlite_connection(connection).serialize()
     finally:
@@ -376,17 +382,27 @@ def loaded_project_template(
 def _point_datasources_at(
     engine: Engine, template: _LoadedProjectTemplate, datasources: Sequence[Path]
 ) -> None:
-    """Rewrite the template's source names to this test's copies of the files."""
+    """Rewrite the template's source names to this test's copies of the files.
+
+    The source names of data sources and of the picks read from them.
+    """
+    paths = {
+        "old": f"{template.data_dir}{os.sep}",
+        "new": f"{datasources[0].parent}{os.sep}",
+    }
     with engine.begin() as connection:
         connection.execute(
             text(
                 "UPDATE aimbatdatasource "
                 "SET sourcename = replace(sourcename, :old, :new)"
             ),
-            {
-                "old": f"{template.data_dir}{os.sep}",
-                "new": f"{datasources[0].parent}{os.sep}",
-            },
+            paths,
+        )
+        connection.execute(
+            text(
+                "UPDATE aimbatpick SET source_name = replace(source_name, :old, :new)"
+            ),
+            paths,
         )
         stored = set(
             connection.execute(

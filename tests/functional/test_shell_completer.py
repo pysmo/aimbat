@@ -136,7 +136,7 @@ class TestIdCompletion:
         """
         with Session(loaded_engine) as session:
             for event in session.exec(select(AimbatEvent)).all():
-                create_snapshot(session, event, comment="before ICCS")
+                create_snapshot(session, event.phases[0].id, comment="before ICCS")
             session.commit()
         completions = [
             c for c in _complete(completer, "snapshot delete ") if c.text[0] != "-"
@@ -172,7 +172,7 @@ class TestIdCompletion:
             completer: The shell completer.
         """
         completions = _complete(completer, "event ")
-        assert {"switch", "list", "parameter"} <= {c.text for c in completions}
+        assert {"switch", "list", "note"} <= {c.text for c in completions}
         assert not any(c.display_meta_text for c in completions), "no IDs"
 
     def test_top_level_offers_exit_but_not_shell(
@@ -248,7 +248,7 @@ class TestChoiceCompletion:
         Args:
             completer: The shell completer.
         """
-        assert _ids(completer, "event parameter set window") == [
+        assert _ids(completer, "phase parameter set window") == [
             "window-pre",
             "window-post",
         ]
@@ -270,7 +270,7 @@ class TestChoiceCompletion:
         Args:
             completer: The shell completer.
         """
-        text = "event parameter set window-pre --value "
+        text = "phase parameter set window-pre --value "
         assert _complete(completer, text) == []
 
 
@@ -317,7 +317,7 @@ class TestOptionCompletion:
         Args:
             completer: The shell completer.
         """
-        texts = [c.text for c in _complete(completer, "event parameter set min-cc ")]
+        texts = [c.text for c in _complete(completer, "phase parameter set min-cc ")]
         assert texts
         assert all(t.startswith("-") for t in texts)
         assert "--value" in texts
@@ -517,3 +517,59 @@ class TestCaching:
         completions = [c.text for c in _complete(completer, "seismogram delete ")]
         assert completions
         assert all(c.startswith("-") for c in completions)
+
+
+class TestPhaseNameCompletion:
+    """Tests for the completion of `--phase`."""
+
+    def test_names_of_every_event(self, completer: ShellCompleter) -> None:
+        """Verifies `--phase` offers the phase names of the project."""
+        assert _ids(completer, "align iccs --phase ") == ["P"]
+
+    def test_names_of_the_event_typed(
+        self, completer: ShellCompleter, loaded_engine: Engine
+    ) -> None:
+        """Verifies `--phase` offers the names of the event typed on the line."""
+        from aimbat.core import default_phase_parameters
+        from aimbat.models import AimbatPhase
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event.phases.append(
+                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            )
+            session.commit()
+            event_id = str(event.id)
+        completer.invalidate()
+
+        assert _ids(completer, f"align iccs --event {event_id} --phase ") == [
+            "P",
+            "PKP",
+        ]
+        assert _ids(completer, "align iccs --event all --phase PK") == ["PKP"]
+
+    def test_phase_switch_offers_names_of_the_shell_event(
+        self,
+        completer: ShellCompleter,
+        loaded_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Verifies `phase switch` offers the phase names of the shell's event."""
+        from aimbat.core import default_phase_parameters
+        from aimbat.models import AimbatPhase
+
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event.phases.append(
+                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            )
+            session.commit()
+            event_id = str(event.id)
+        monkeypatch.setenv("DEFAULT_EVENT_ID", event_id)
+        completer.invalidate()
+
+        assert _ids(completer, "phase switch ") == ["P", "PKP"]
+        assert _ids(completer, "phase switch PK") == ["PKP"]
+        assert "switch" in {c.text for c in _complete(completer, "phase ")}

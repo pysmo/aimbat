@@ -154,15 +154,6 @@ class TestCreateEventFromJson:
         assert event.longitude == _EVENT_DATA["longitude"]
         assert event.depth == _EVENT_DATA["depth"]
 
-    def test_has_parameters(self, event_json: Path) -> None:
-        """Verifies that the created event has initialised parameters.
-
-        Args:
-            event_json: Path to a valid JSON event file.
-        """
-        event = create_event_from_json(event_json)
-        assert event.parameters is not None
-
     def test_missing_required_field_raises(self, tmp_path: Path) -> None:
         """Verifies that a JSON file missing required fields raises ValidationError.
 

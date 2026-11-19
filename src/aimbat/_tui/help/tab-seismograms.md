@@ -20,7 +20,7 @@ Each row is one seismogram (one station recording of one event). The columns are
 | Channel | Station channel code |
 | Select | `✓` if this seismogram is included in the ICCS stack, `✗` if excluded |
 | Flip | `✓` if the waveform's polarity has been inverted (multiplied by −1) |
-| Δt (s) | Arrival time residual (t1 − t0) in seconds. Empty until a phase-arrival pick has been set. |
+| Δt (s) | Refined pick minus initial pick, in seconds. Empty until a refined pick has been set. |
 | MCCC err Δt (s) | Per-seismogram timing uncertainty from the last MCCC run. Only shown after MCCC has been run. |
 | Stack CC | Correlation coefficient against the current ICCS stack. Higher is better. Seismograms below `min_cc` are excluded automatically if autoselect is on. |
 | MCCC CC | Mean cross-correlation coefficient from the MCCC cluster. Only shown after MCCC has been run. |
@@ -50,8 +50,8 @@ that seismogram in two tabs:
   normalised within the window. Use this to check whether the window
   boundaries fit the surrounding signal.
 
-The x-axis shows time in seconds relative to the phase-arrival pick (t1), or
-relative to t0 if t1 has not yet been set. The y-axis shows normalised
+The x-axis shows time in seconds relative to the refined pick, or relative to
+the initial pick if no refined pick has been set yet. The y-axis shows normalised
 amplitude — tick labels are hidden since the absolute scale is arbitrary.
 
 ### Note (right panel)
@@ -85,7 +85,7 @@ for the equivalent menu.
 |-----|--------|-------------|
 | `s` | Toggle select | Include or exclude this seismogram from the ICCS stack |
 | `f` | Toggle flip | Invert polarity — use this if a seismogram is clearly upside down |
-| `u` | Reset seismogram | Restore all per-seismogram parameters (t1, select, flip) to their defaults |
+| `u` | Reset seismogram | Restore all per-seismogram parameters (refined pick, select, flip) to their defaults |
 | `d` | Delete seismogram | Remove this seismogram from the project permanently |
 
 ---

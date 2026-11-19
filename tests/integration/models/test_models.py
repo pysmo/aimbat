@@ -6,6 +6,7 @@ type validation, and round-trip persistence of custom time types.
 
 from collections.abc import Callable
 from datetime import UTC
+from typing import Any
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -13,13 +14,16 @@ from pydantic import ValidationError
 from sqlalchemy import event
 from sqlmodel import Session, SQLModel, select
 
+from aimbat.core import default_phase_parameters
 from aimbat.io import DataType
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
-    AimbatEventParameters,
-    AimbatEventParametersSnapshot,
-    AimbatEventQuality,
+    AimbatPhase,
+    AimbatPhaseParameters,
+    AimbatPhaseParametersSnapshot,
+    AimbatPhaseQuality,
+    AimbatPick,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
@@ -27,8 +31,9 @@ from aimbat.models import (
     AimbatSeismogramQualitySnapshot,
     AimbatSnapshot,
     AimbatStation,
+    PickOrigin,
 )
-from aimbat.models._parameters import AimbatEventParametersBase
+from aimbat.models._parameters import AimbatPhaseParametersBase
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -63,7 +68,7 @@ def _make_event(
     *,
     time: str = "2010-02-27T06:34:14",
 ) -> AimbatEvent:
-    """Insert and return an event together with its mandatory parameters.
+    """Insert and return an event with one phase and its parameters.
 
     Args:
         session (Session): Database session.
@@ -81,8 +86,8 @@ def _make_event(
     session.add(ev)
     session.flush()
 
-    params = AimbatEventParameters(event=ev)
-    session.add(params)
+    phase = AimbatPhase(event=ev, name="P", parameters=default_phase_parameters("P"))
+    session.add(phase)
     session.flush()
     return ev
 
@@ -123,7 +128,7 @@ def _make_seismogram(
     event: AimbatEvent,
     station: AimbatStation,
 ) -> AimbatSeismogram:
-    """Insert and return a seismogram (with datasource and parameters).
+    """Insert and return a seismogram, with its datasource, pick and row.
 
     Args:
         session (Session): Database session.
@@ -136,7 +141,6 @@ def _make_seismogram(
     seis = AimbatSeismogram(
         begin_time=Timestamp("2010-02-27T06:30:00", tz=UTC),
         delta=Timedelta(seconds=0.05),
-        t0=Timestamp("2010-02-27T06:40:00", tz=UTC),
         event=event,
         station=station,
     )
@@ -150,7 +154,13 @@ def _make_seismogram(
     )
     session.add(ds)
 
-    sp = AimbatSeismogramParameters(seismogram=seis)
+    pick = AimbatPick(
+        time=Timestamp("2010-02-27T06:40:00", tz=UTC),
+        phase_name="P",
+        origin=PickOrigin.MANUAL,
+        seismogram=seis,
+    )
+    sp = AimbatSeismogramParameters(seismogram=seis, phase=event.phases[0], pick=pick)
     session.add(sp)
 
     session.flush()
@@ -176,12 +186,12 @@ class TestCascadeDeleteEvent:
         ev = _make_event(patched_session)
         patched_session.commit()
 
-        assert patched_session.exec(select(AimbatEventParameters)).one() is not None
+        assert patched_session.exec(select(AimbatPhaseParameters)).one() is not None
 
         patched_session.delete(ev)
         patched_session.commit()
 
-        assert patched_session.exec(select(AimbatEventParameters)).first() is None
+        assert patched_session.exec(select(AimbatPhaseParameters)).first() is None
 
     def test_delete_event_cascades_to_seismograms(
         self, patched_session: Session
@@ -308,14 +318,14 @@ class TestCascadeDeleteSnapshot:
 
         from aimbat.core import create_snapshot
 
-        create_snapshot(patched_session, ev)
+        create_snapshot(patched_session, ev.phases[0].id)
 
         snapshot = patched_session.exec(select(AimbatSnapshot)).one()
         patched_session.delete(snapshot)
         patched_session.commit()
 
         assert (
-            len(patched_session.exec(select(AimbatEventParametersSnapshot)).all()) == 0
+            len(patched_session.exec(select(AimbatPhaseParametersSnapshot)).all()) == 0
         )
         assert (
             len(patched_session.exec(select(AimbatSeismogramParametersSnapshot)).all())
@@ -336,20 +346,21 @@ class TestSnapshotDurability:
         from aimbat.core import create_snapshot, delete_seismogram
         from aimbat.core._validity import compute_digests
 
-        digests = compute_digests(patched_session, ev.id)[ev.id]
+        phase_id = ev.phases[0].id
+        digests = compute_digests(patched_session, phase_id)[phase_id]
         patched_session.add(
             AimbatSeismogramQuality(
-                seismogram=seis,
+                parameters=seis.phase_rows[0],
                 iccs_cc=0.8,
-                iccs_fingerprint=digests.seismogram_cc[seis.id],
+                iccs_fingerprint=digests.seismogram_cc[seis.phase_rows[0].id],
             )
         )
         patched_session.add(
-            AimbatEventQuality(event=ev, mccc_rmse=Timedelta(milliseconds=1))
+            AimbatPhaseQuality(phase=ev.phases[0], mccc_rmse=Timedelta(milliseconds=1))
         )
         patched_session.commit()
 
-        create_snapshot(patched_session, ev)
+        create_snapshot(patched_session, ev.phases[0].id)
         delete_seismogram(patched_session, seis.id)
 
         param_snaps = patched_session.exec(
@@ -365,7 +376,7 @@ class TestSnapshotDurability:
         assert len(quality_snaps) == 1
         assert quality_snaps[0].seismogram_id == seis.id
         assert quality_snaps[0].iccs_cc == 0.8
-        assert quality_snaps[0].seismogram_quality_id is None
+        assert quality_snaps[0].seismogram_parameters_id is None
 
 
 # ===================================================================
@@ -389,8 +400,6 @@ class TestEventValidation:
         )
         patched_session.add(ev)
         patched_session.flush()
-        params = AimbatEventParameters(event=ev)
-        patched_session.add(params)
         patched_session.commit()
 
         patched_session.refresh(ev)
@@ -405,62 +414,55 @@ class TestEventValidation:
 
 
 class TestEventParametersValidation:
-    """Validation rules on AimbatEventParametersBase (non-table base class).
+    """Validation rules on AimbatPhaseParametersBase (non-table base class).
 
     SQLModel table models skip Pydantic validation on __init__, so we test
     via the base class and via model_validate on the table class.
     """
 
-    def test_min_cc_rejects_out_of_range(self) -> None:
-        """Verifies that min_cc rejects values > 1.0."""
-        with pytest.raises(ValidationError):
-            AimbatEventParametersBase(min_cc=1.5)
+    @staticmethod
+    def _errors(model: type[AimbatPhaseParametersBase], **overrides: Any) -> list[Any]:
+        """Return the validation errors of complete parameters with `overrides`."""
+        values = default_phase_parameters("P").model_dump(exclude={"id", "phase_id"})
+        with pytest.raises(ValidationError) as excinfo:
+            model.model_validate(values | overrides)
+        return excinfo.value.errors()
 
-    def test_min_cc_rejects_negative(self) -> None:
-        """Verifies that min_cc rejects negative values."""
-        with pytest.raises(ValidationError):
-            AimbatEventParametersBase(min_cc=-0.1)
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("min_cc", 1.5),
+            ("min_cc", -0.1),
+            ("window_pre", Timedelta(seconds=5)),
+            ("window_post", Timedelta(seconds=-5)),
+            ("ramp_width", -0.1),
+            ("bandpass_fmin", 0),
+        ],
+    )
+    def test_field_rejects_value(self, field: str, value: Any) -> None:
+        """Verifies that a value out of a field's bounds is rejected for that field."""
+        errors = self._errors(AimbatPhaseParametersBase, **{field: value})
+        assert [error["loc"] for error in errors] == [(field,)]
 
-    def test_window_pre_must_be_negative(self) -> None:
-        """Verifies that window_pre must be a negative Timedelta."""
-        with pytest.raises(ValidationError):
-            AimbatEventParametersBase(window_pre=Timedelta(seconds=5))
-
-    def test_window_post_must_be_positive(self) -> None:
-        """Verifies that window_post must be a positive Timedelta."""
-        with pytest.raises(ValidationError):
-            AimbatEventParametersBase(window_post=Timedelta(seconds=-5))
-
-    def test_ramp_width_rejects_negative(self) -> None:
-        """Verifies that ramp_width rejects negative values."""
-        with pytest.raises(ValidationError):
-            AimbatEventParametersBase(ramp_width=-0.1)
-
-    def test_bandpass_fmin_rejects_zero(self) -> None:
-        """Verifies that bandpass_fmin must be strictly positive."""
-        with pytest.raises(ValidationError):
-            AimbatEventParametersBase(bandpass_fmin=0)
-
-    def test_bandpass_fmax_must_exceed_fmin(self) -> None:
-        """The bandpass validator mixin is on AimbatEventParameters (table model),
-        so we must use model_validate to trigger it.
-        """
-        with pytest.raises(ValidationError):
-            AimbatEventParameters.model_validate(
-                {"bandpass_fmin": 2.0, "bandpass_fmax": 1.0}
-            )
-
-    def test_bandpass_fmax_must_not_equal_fmin(self) -> None:
-        """Verifies that bandpass_fmax cannot equal bandpass_fmin."""
-        with pytest.raises(ValidationError):
-            AimbatEventParameters.model_validate(
-                {"bandpass_fmin": 1.0, "bandpass_fmax": 1.0}
-            )
+    @pytest.mark.parametrize("fmax", [1.0, 0.5])
+    def test_bandpass_fmax_must_exceed_fmin(self, fmax: float) -> None:
+        """Verifies that bandpass_fmax must be greater than bandpass_fmin."""
+        errors = self._errors(
+            AimbatPhaseParameters, bandpass_fmin=1.0, bandpass_fmax=fmax
+        )
+        assert "bandpass_fmax" in errors[0]["msg"]
 
     def test_model_validate_enforces_rules_on_table_class(self) -> None:
         """model_validate on the table class must also reject invalid values."""
-        with pytest.raises(ValidationError):
-            AimbatEventParameters.model_validate({"min_cc": 1.5})
+        errors = self._errors(AimbatPhaseParameters, min_cc=1.5)
+        assert [error["loc"] for error in errors] == [("min_cc",)]
+
+    def test_every_field_but_completed_required(self) -> None:
+        """Verifies that the parameters have no defaults apart from `completed`."""
+        with pytest.raises(ValidationError) as excinfo:
+            AimbatPhaseParametersBase.model_validate({})
+        missing = {error["loc"][0] for error in excinfo.value.errors()}
+        assert missing == set(AimbatPhaseParametersBase.model_fields) - {"completed"}
 
     def test_valid_parameters_accepted(self, patched_session: Session) -> None:
         """Verifies that valid parameters are accepted.
@@ -472,7 +474,7 @@ class TestEventParametersValidation:
         patched_session.commit()
         patched_session.refresh(ev)
 
-        params = ev.parameters
+        params = ev.phases[0].parameters
         assert params.completed is False
         assert params.min_cc >= 0
         assert params.min_cc <= 1
@@ -495,7 +497,7 @@ class TestSeismogramParametersValidation:
         patched_session.commit()
         patched_session.refresh(seis)
 
-        assert seis.parameters.select is True
+        assert seis.phase_rows[0].select is True
 
     def test_default_flip_is_false(self, patched_session: Session) -> None:
         """Verifies that the default 'flip' parameter is False.
@@ -509,10 +511,10 @@ class TestSeismogramParametersValidation:
         patched_session.commit()
         patched_session.refresh(seis)
 
-        assert seis.parameters.flip is False
+        assert seis.phase_rows[0].flip is False
 
-    def test_default_t1_is_none(self, patched_session: Session) -> None:
-        """Verifies that the default 't1' parameter is None.
+    def test_default_refined_pick_is_none(self, patched_session: Session) -> None:
+        """Verifies that the default 'refined_pick' parameter is None.
 
         Args:
             patched_session (Session): Database session.
@@ -523,7 +525,7 @@ class TestSeismogramParametersValidation:
         patched_session.commit()
         patched_session.refresh(seis)
 
-        assert seis.parameters.t1 is None
+        assert seis.phase_rows[0].refined_pick is None
 
     def test_seismogram_delta_must_be_positive(self) -> None:
         """model_validate enforces Pydantic type constraints for table models."""
@@ -532,7 +534,6 @@ class TestSeismogramParametersValidation:
                 {
                     "begin_time": Timestamp("2010-01-01", tz=UTC),
                     "delta": Timedelta(seconds=-1),
-                    "t0": Timestamp("2010-01-01", tz=UTC),
                 }
             )
 
@@ -572,7 +573,6 @@ class TestTimestampRoundTrip:
 
         patched_session.refresh(seis)
         assert isinstance(seis.begin_time, Timestamp)
-        assert isinstance(seis.t0, Timestamp)
 
 
 class TestTimedeltaRoundTrip:
@@ -588,7 +588,7 @@ class TestTimedeltaRoundTrip:
         patched_session.commit()
 
         patched_session.refresh(ev)
-        params = ev.parameters
+        params = ev.phases[0].parameters
         assert isinstance(params.window_pre, Timedelta)
         assert isinstance(params.window_post, Timedelta)
         assert params.window_pre.total_seconds() < 0
@@ -616,12 +616,12 @@ class TestTimedeltaRoundTrip:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        ev.parameters.window_pre = Timedelta(seconds=-12.5)
-        ev.parameters.window_post = Timedelta(seconds=17.25)
+        ev.phases[0].parameters.window_pre = Timedelta(seconds=-12.5)
+        ev.phases[0].parameters.window_post = Timedelta(seconds=17.25)
         patched_session.commit()
 
         patched_session.expire_all()
-        params = patched_session.exec(select(AimbatEventParameters)).one()
+        params = patched_session.exec(select(AimbatPhaseParameters)).one()
         assert params.window_pre == Timedelta(seconds=-12.5)
         assert params.window_post == Timedelta(seconds=17.25)
 
@@ -698,7 +698,7 @@ class TestOneToOneLinkConstraints:
     """The parameters/quality tables are one row per parent - a unique index
     on the link column enforces it."""
 
-    def test_second_seismogram_parameters_rejected(
+    def test_second_row_for_seismogram_and_phase_rejected(
         self, patched_session: Session
     ) -> None:
         from sqlalchemy.exc import IntegrityError
@@ -708,7 +708,35 @@ class TestOneToOneLinkConstraints:
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
-        patched_session.add(AimbatSeismogramParameters(seismogram=seis))
+        pick = AimbatPick(
+            time=seis.phase_rows[0].initial_pick,
+            phase_name="P",
+            origin=PickOrigin.MANUAL,
+            seismogram=seis,
+        )
+        patched_session.add(
+            AimbatSeismogramParameters(seismogram=seis, phase=ev.phases[0], pick=pick)
+        )
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_pick_of_two_rows_rejected(self, patched_session: Session) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        ev = _make_event(patched_session)
+        sta = _make_station(patched_session)
+        seis = _make_seismogram(patched_session, ev, sta)
+        other = AimbatPhase(
+            event=ev, name="S", parameters=default_phase_parameters("S")
+        )
+        patched_session.add(other)
+        patched_session.commit()
+
+        patched_session.add(
+            AimbatSeismogramParameters(
+                seismogram=seis, phase=other, pick=seis.phase_rows[0].pick
+            )
+        )
         with pytest.raises(IntegrityError):
             patched_session.flush()
 
@@ -718,20 +746,53 @@ class TestOneToOneLinkConstraints:
         ev = _make_event(patched_session)
         sta = _make_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
-        patched_session.add(AimbatSeismogramQuality(seismogram=seis, iccs_cc=0.8))
+        row = seis.phase_rows[0]
+        patched_session.add(AimbatSeismogramQuality(parameters=row, iccs_cc=0.8))
         patched_session.commit()
 
-        patched_session.add(AimbatSeismogramQuality(seismogram=seis, iccs_cc=0.5))
+        patched_session.add(AimbatSeismogramQuality(parameters=row, iccs_cc=0.5))
         with pytest.raises(IntegrityError):
             patched_session.flush()
 
-    def test_second_event_parameters_rejected(self, patched_session: Session) -> None:
+    def test_second_phase_parameters_rejected(self, patched_session: Session) -> None:
         from sqlalchemy.exc import IntegrityError
 
         ev = _make_event(patched_session)
         patched_session.commit()
 
-        patched_session.add(AimbatEventParameters(event=ev))
+        second = default_phase_parameters("P")
+        second.phase_id = ev.phases[0].id
+        patched_session.add(second)
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_second_phase_of_same_name_rejected(self, patched_session: Session) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        ev = _make_event(patched_session)
+        patched_session.commit()
+
+        patched_session.add(
+            AimbatPhase(event=ev, name="P", parameters=default_phase_parameters("P"))
+        )
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_second_data_source_rejected(self, patched_session: Session) -> None:
+        from sqlalchemy.exc import IntegrityError
+
+        ev = _make_event(patched_session)
+        sta = _make_station(patched_session)
+        seis = _make_seismogram(patched_session, ev, sta)
+        patched_session.commit()
+
+        patched_session.add(
+            AimbatDataSource(
+                sourcename="/tmp/other.sac",
+                datatype=DataType.SAC,
+                seismogram_id=seis.id,
+            )
+        )
         with pytest.raises(IntegrityError):
             patched_session.flush()
 
@@ -754,7 +815,11 @@ class TestCountColumnPropertiesMatchTypeCheckingStubs:
     @pytest.mark.parametrize(
         "model, expected_count_attrs",
         [
-            (AimbatEvent, {"seismogram_count", "station_count", "snapshot_count"}),
+            (
+                AimbatEvent,
+                {"seismogram_count", "station_count", "phase_count", "snapshot_count"},
+            ),
+            (AimbatPhase, {"snapshot_count"}),
             (AimbatStation, {"seismogram_count", "event_count"}),
             (
                 AimbatSnapshot,
@@ -791,7 +856,7 @@ class TestCountColumnPropertiesMatchTypeCheckingStubs:
 
         Regression test: the counts used to be attached to every `SELECT`
         of the owning model, so the processing paths that load an event to
-        run ICCS paid for three correlated subqueries they never read.
+        run ICCS paid for correlated subqueries they never read.
         """
         _make_event(patched_session)
         statements = _record_statements(
@@ -815,19 +880,19 @@ class TestCountColumnPropertiesMatchTypeCheckingStubs:
             ).all(),
         )
         assert len(statements) == 1
-        assert statements[0].lower().count("count(") == 3
+        assert statements[0].lower().count("count(") == 4
 
     def test_second_event_quality_rejected(self, patched_session: Session) -> None:
         from sqlalchemy.exc import IntegrityError
 
         ev = _make_event(patched_session)
         patched_session.add(
-            AimbatEventQuality(event=ev, mccc_rmse=Timedelta(milliseconds=1))
+            AimbatPhaseQuality(phase=ev.phases[0], mccc_rmse=Timedelta(milliseconds=1))
         )
         patched_session.commit()
 
         patched_session.add(
-            AimbatEventQuality(event=ev, mccc_rmse=Timedelta(milliseconds=2))
+            AimbatPhaseQuality(phase=ev.phases[0], mccc_rmse=Timedelta(milliseconds=2))
         )
         with pytest.raises(IntegrityError):
             patched_session.flush()

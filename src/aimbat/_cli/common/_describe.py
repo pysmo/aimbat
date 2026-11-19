@@ -39,6 +39,7 @@ def describe_records(
 
     from aimbat.models import (
         AimbatEvent,
+        AimbatPhase,
         AimbatSeismogram,
         AimbatSnapshot,
         AimbatStation,
@@ -80,7 +81,9 @@ def describe_records(
     elif model_class is AimbatSnapshot:
         snapshots = matching(select(AimbatSnapshot).order_by(col(AimbatSnapshot.time)))
         if event_id is not None:
-            snapshots = snapshots.where(AimbatSnapshot.event_id == event_id)
+            snapshots = snapshots.join(AimbatPhase).where(
+                col(AimbatPhase.event_id) == event_id
+            )
         for snapshot in session.exec(snapshots):
             meta = f"{snapshot.time:{_TIME_FORMAT}} {snapshot.comment or ''}"
             yield snapshot.id, short(snapshot), meta.strip()

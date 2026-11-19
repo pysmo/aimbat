@@ -16,11 +16,17 @@ The metrics themselves are described in
 
 ## Digests and fingerprints
 
-The `iccs_cc` of a seismogram depends on the parameters that shape the ICCS
-stack. These are parameters of the event, of every selected seismogram, and of
-the seismogram itself. The MCCC results depend on the event parameters that
-shape the stack or the inversion, and on the parameters of each seismogram that
-took part in the run.
+Quality values belong to a phase. The `iccs_cc` of a seismogram in a phase
+depends on the parameters that shape that phase's ICCS stack. These are
+parameters of the phase, of every selected seismogram in it, and of the
+seismogram itself. The MCCC results of a phase depend on the phase parameters
+that shape the stack or the inversion, and on the parameters of each seismogram
+that took part in the run. The seismogram parameters are those of its
+`AimbatSeismogramParameters` row for the phase.
+
+The pick that enters every digest is the effective pick: the refined pick if
+set, otherwise the initial pick. An edit to the initial pick therefore
+invalidates values only while the refined pick is unset.
 
 Which parameter is an input to which result is declared once, on each parameter
 field, with `ParameterSpec` in `aimbat.models._parameters`. The digests are
@@ -28,15 +34,18 @@ computed from these declarations, so a new parameter needs no other change to be
 tracked.
 
 A digest is a SHA-256 hash of parameter values as the database stores them. Five
-digests are computed per event:
+digests are computed per phase:
 
 | Digest        | Covers                                                                                           | Used for                                                                                             |
 | :------------ | :----------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
-| Stack         | Event parameters that are inputs to the stack, and the stack inputs of each selected seismogram. | Seismogram CC digest                                                                                 |
+| Stack         | Phase parameters that are inputs to the stack, and the stack inputs of each selected seismogram. | Seismogram CC digest                                                                                 |
 | Seismogram CC | The stack digest, and the stack inputs of one seismogram.                                        | `iccs_fingerprint`                                                                                   |
-| MCCC          | Event parameters that are inputs to MCCC, and the MCCC inputs of each seismogram in the run.     | `mccc_fingerprint`, and `mccc_hash` of a snapshot                                                    |
-| Instance      | Every seismogram CC digest of the event.                                                         | Staleness of a cached ICCS instance, which is rebuilt once it differs, and `iccs_hash` of a snapshot |
-| Tracked       | Every parameter of the event and its seismograms that is not bookkeeping.                        | Detection by the TUI of any parameter change, which causes a repaint without a rebuild               |
+| MCCC          | Phase parameters that are inputs to MCCC, and the MCCC inputs of each seismogram in the run.     | `mccc_fingerprint`, and `mccc_hash` of a snapshot                                                    |
+| Instance      | Every seismogram CC digest of the phase.                                                         | Staleness of a cached ICCS instance, which is rebuilt once it differs, and `iccs_hash` of a snapshot |
+| Tracked       | Every parameter of the phase and its seismograms that is not bookkeeping.                        | Detection by the TUI of any parameter change, which causes a repaint without a rebuild               |
+
+Each phase has its own digests, so a change in one phase leaves the values of
+the other phases of the event valid.
 
 A fingerprint is the digest that was current when a value was computed, stored
 together with the value. Checking a value compares its fingerprint with the
@@ -45,11 +54,11 @@ digest computed from the current parameters:
 - Building an ICCS instance, or running ICCS, writes each seismogram's `iccs_cc`
     together with its seismogram CC digest (`iccs_fingerprint`).
 - Running MCCC writes the results together with their MCCC digest
-    (`mccc_fingerprint`) and the IDs of the seismograms that took part
+    (`mccc_fingerprint`) and the IDs of the rows that took part
     (`mccc_members`). Membership is recorded because MCCC can include deselected
     seismograms, so `select` does not indicate which seismograms took part.
 - Code that reads quality values builds one [`Validity`][aimbat.core.Validity]
-    per command. It computes the current digests of every event involved in one
+    per command. It computes the current digests of every phase involved in one
     pass and compares them with the stored fingerprints.
 
 The digests and their encoding are defined in `aimbat.core._validity`.
@@ -58,17 +67,20 @@ The digests and their encoding are defined in `aimbat.core._validity`.
 
 | Change                                                            | `iccs_cc` out of date for    | MCCC results out of date |
 | :---------------------------------------------------------------- | :--------------------------- | :----------------------- |
-| Event parameter that shapes the stack                             | All seismograms in the event | Yes                      |
-| Event parameter of the MCCC inversion only                        | None                         | Yes                      |
-| Event parameter that is an input to neither                       | None                         | No                       |
-| Seismogram parameter that shapes the stack, seismogram selected   | All seismograms in the event | If it was in the run     |
+| Phase parameter that shapes the stack                             | All seismograms in the phase | Yes                      |
+| Phase parameter of the MCCC inversion only                        | None                         | Yes                      |
+| Phase parameter that is an input to neither                       | None                         | No                       |
+| Seismogram parameter that shapes the stack, seismogram selected   | All seismograms in the phase | If it was in the run     |
 | Seismogram parameter that shapes the stack, seismogram deselected | This seismogram only         | If it was in the run     |
-| Selection of a seismogram (either direction)                      | All seismograms in the event | No                       |
+| Initial pick, refined pick unset                                  | As for the refined pick      | As for the refined pick  |
+| Initial pick, refined pick set                                    | None                         | No                       |
+| Selection of a seismogram (either direction)                      | All seismograms in the phase | No                       |
 | Seismogram deleted                                                | All, if it was selected      | If it was in the run     |
-| Selected seismogram added                                         | All seismograms in the event | No                       |
+| Selected seismogram added                                         | All seismograms in the phase | No                       |
 
 `tests/integration/core/test_validity_rules.py` holds these rules as tables and
-checks them for every parameter.
+checks them for every parameter, and checks that a change in one phase leaves
+another phase of the same event valid.
 
 ## Restoring from snapshots
 
@@ -79,7 +91,7 @@ only values that are valid when it is taken.
 A snapshot records two stored digests of the same kind as fingerprints.
 `mccc_hash` holds the MCCC digest of the run it froze, as `mccc_fingerprint`
 does for live values. `iccs_hash` holds a single instance digest for the whole
-event, whereas live `iccs_cc` values carry one fingerprint per seismogram. A
+phase, whereas live `iccs_cc` values carry one fingerprint per seismogram. A
 change that affects one seismogram only therefore leaves the live values of the
 others valid, but prevents the `iccs_cc` values of a snapshot from being
 restored.
