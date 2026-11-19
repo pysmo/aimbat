@@ -3,8 +3,7 @@
 Registers a reader and writer only - no station, event, or seismogram
 creator. `pysmo.classes.MSeed` carries no station coordinates and no event
 data, only channel identity, timing and samples, so there is nothing for a
-creator to build a station or event from, and no pick concept to supply a
-`t0` from either.
+creator to build a station or event from, and no picks to read either.
 
 Scope boundary: this reader round-trips files AIMBAT itself wrote (e.g. via
 `aimbat.core.add_seismograms_to_project`), it is not a general-purpose

@@ -40,7 +40,8 @@ including `--use-event`, `--use-station`, `--dry-run`, and `--no-snapshot`.
 ## Adding SAC files
 
 The common case is SAC files in one or more directories, each carrying station
-and event headers and an initial pick:
+and event headers and an initial pick
+(see [Initial picks](#initial-picks)):
 
 === "CLI"
 
@@ -87,13 +88,70 @@ aimbat data add *.sac          # second run: no-op, all files already known
 
 ### Initial picks
 
-SAC files carry named time markers (`T0`–`T9`). AIMBAT reads one of them as the
-initial phase pick (`t0` in AIMBAT's terms). The default is `T0`; change it with
-`AIMBAT_SAC_PICK_HEADER`, per command or in `.env`:
+AIMBAT reads every pick stored in a SAC file, in the `A` and `T0`–`T9` headers.
+The label of a pick, in `KA` or `KT0`–`KT9`, names its phase. A pick labelled
+`P` becomes the initial pick of the seismogram in phase `P`, and the event gains
+that phase if it does not have it yet.
 
-```bash title=".env"
-AIMBAT_SAC_PICK_HEADER=t1
-```
+A pick without a label is stored but belongs to no phase. `--unlabelled-as`
+names such picks during the import:
+
+=== "CLI"
+
+    ```bash
+    aimbat data add --unlabelled-as P *.sac
+    ```
+
+=== "API"
+
+    ```python
+    from aimbat.core import PickNaming
+
+    add_data_to_project(
+        session,
+        sorted(Path().glob("*.sac")),
+        DataType.SAC,
+        naming=PickNaming(unlabelled_as="P"),
+    )
+    ```
+
+Two picks of one phase with different times on the same seismogram are an
+error, so `--unlabelled-as` suits files with at most one unlabelled pick. The
+TUI import reads labels only.
+
+`--phase` limits the phases an import may create or add initial picks to. It
+can be given more than once. Named picks of other phases are stored but belong
+to no phase. `--skip-unnamed` leaves out picks that are still unnamed:
+
+=== "CLI"
+
+    ```bash
+    aimbat data add --phase P --skip-unnamed *.sac
+    ```
+
+=== "API"
+
+    ```python
+    add_data_to_project(
+        session,
+        sorted(Path().glob("*.sac")),
+        DataType.SAC,
+        naming=PickNaming(skip_unnamed=True),
+        phases=["P"],
+    )
+    ```
+
+After an import the CLI and shell print a summary of the records added and of
+the picks: how many were stored, how many were matched to a seismogram, and
+how many became initial picks in each phase. Picks that did not become initial
+picks are completed as described in [Picks and readiness](picks.md).
+
+!!! warning "`AIMBAT_SAC_PICK_HEADER` removed"
+
+    The setting no longer exists, and a `.env` file that still sets it stops
+    every command with a settings error. Labels and `--unlabelled-as` replace
+    it during an import, and `aimbat pick name` names the picks of data
+    already in a project (see [Picks and readiness](picks.md#inside-the-project)).
 
 ### Selecting subsets
 
@@ -184,20 +242,15 @@ link explicitly to the existing event and get past the error.
 === "API"
 
     ```python
-    (
-        added_datasources,
-        existing_station_ids,
-        existing_event_ids,
-        existing_seismogram_ids,
-        duplicate_warnings,
-    ) = add_data_to_project(session, paths, DataType.SAC, dry_run=True)
+    report = add_data_to_project(session, paths, DataType.SAC, dry_run=True)
     ```
 
 The TUI has no equivalent; its file picker imports as soon as a file is chosen.
 
 The CLI and shell print which stations, events, and seismograms would be newly
 created versus already known (a near-duplicate within `event_duplicate_tolerance`
-shows as a reused event); the API returns the same information. Either way, a
+shows as a reused event), and what would become of the picks. The API returns
+the same information as an [`IngestReport`][aimbat.core.IngestReport]. Either way, a
 dry run surfaces any ambiguous-gap conflict a real run would raise.
 That makes it worth running as routine practice before a new batch: catching an
 ambiguous-gap conflict here means resolving it up front with `--use-event <ID>`
@@ -209,10 +262,10 @@ import.
 
 ## Automatic snapshots
 
-An import snapshots every event that receives at least one newly imported
-seismogram, at the end of the call. This happens regardless of `--type`, and
-gives a baseline to roll back to before any processing begins. Re-importing
-files already in the project creates no new snapshot, since nothing changed.
+An import snapshots every phase that gains at least one initial pick, at the
+end of the call. This gives a baseline to roll back to before any processing
+begins. Phases that gain nothing are not snapshotted, so re-importing files
+already in the project creates no new snapshot.
 
 === "CLI"
 
@@ -238,9 +291,9 @@ files already in the project creates no new snapshot, since nothing changed.
     [`create_snapshot`][aimbat.core.create_snapshot] explicitly for one:
 
     ```python
-    from aimbat.core import create_snapshot
+    from aimbat.core import create_snapshot, resolve_phase
 
-    create_snapshot(session, event, comment="import")
+    create_snapshot(session, resolve_phase(session, event.id).id, comment="import")
     session.commit()
     ```
 
@@ -365,9 +418,11 @@ counterpart for a caller that already has pysmo objects in memory, fetched
 from a web service, built in a notebook, or produced by a library such as
 [`pysmo.tools.project.PysmoProject`][], with no file round-trip required.
 It takes a list of `(seismogram, station, event)` triples, built from
-anything shaped like pysmo's
-[`IccsSeismogram`][pysmo.tools.iccs.IccsSeismogram],
-[`Station`][pysmo.Station], and [`Event`][pysmo.Event] protocols:
+anything shaped like pysmo's [`Seismogram`][pysmo.Seismogram],
+[`Station`][pysmo.Station], and [`Event`][pysmo.Event] protocols. A seismogram
+with an `initial_pick`, such as an
+[`IccsSeismogram`][pysmo.tools.iccs.IccsSeismogram], gives an initial pick
+without a label, named as in [Initial picks](#initial-picks):
 
 ```python
 --8<-- "docs/snippets/api_ingest_seismograms.py"
@@ -526,9 +581,9 @@ can be deselected with `select = False` instead.
 !!! tip "What prune repairs"
 
     Removing a seismogram that was in the stack or in the MCCC run leaves that
-    event's ICCS or MCCC quality out of date, so `align` and `mccc` may need
-    re-running afterwards. Each affected event is snapshotted first, unless
-    `--no-snapshot` is given.
+    phase's ICCS or MCCC quality out of date, so `align` and `mccc` may need
+    re-running afterwards. Each phase that loses a seismogram is snapshotted
+    first, unless `--no-snapshot` is given.
 
     Frozen snapshot history is preserved. A snapshot-derived operation such as
     `build_iccs_from_snapshot` or a snapshot plot silently omits a pruned

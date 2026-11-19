@@ -44,8 +44,8 @@ origin-time match, which is itself only accurate to the microsecond AIMBAT
 stores timestamps at, so any gap of a microsecond or more silently creates
 a second event).
 
-`data add` automatically creates a snapshot for each event that received new
-seismogram data, so there is no need to run `snapshot create` right after
+`data add` automatically creates a snapshot for each phase that gained
+initial picks, so there is no need to run `snapshot create` right after
 ingestion (pass `--no-snapshot` to opt out for a given invocation). Use
 `snapshot create` later for deliberate checkpoints, e.g. before trying an
 experimental parameter change.
@@ -71,14 +71,16 @@ from .common import (
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
+    phase_filter_parameter,
     print_json_dump,
+    print_pick_summary,
     print_warning,
     use_event_parameter,
     use_station_parameter,
 )
 
 if TYPE_CHECKING:
-    from aimbat.actions import AddDataResult, PruneResult
+    from aimbat.actions import AddDataResult, PruneResult, ReadinessReport
 
 app = App(name="data", help=__doc__, help_format="markdown")
 
@@ -158,6 +160,20 @@ def _print_dry_run_results(result: AddDataResult) -> None:
         print_warning(message)
 
 
+def _print_added(result: AddDataResult) -> None:
+    """Print the number of records an ingestion call created."""
+    from rich.console import Console
+
+    sources = result.sources
+    seismograms = len({s.seismogram_id for s in sources if s.new_seismogram})
+    stations = len({s.station_id for s in sources if s.new_station})
+    events = len({s.event_id for s in sources if s.new_event})
+    Console().print(
+        f"Added {seismograms} seismogram(s), {stations} station(s), "
+        + f"{events} event(s)."
+    )
+
+
 @app.command(name="add")
 @handle_issues
 def cli_data_add(
@@ -184,6 +200,35 @@ def cli_data_add(
     ] = DataType.SAC,
     station_id: Annotated[uuid.UUID | None, use_station_parameter()] = None,
     event_id: Annotated[uuid.UUID | None, use_event_parameter()] = None,
+    unlabelled_as: Annotated[
+        str | None,
+        Parameter(
+            name="unlabelled-as",
+            help=(
+                "Phase name given to picks that have no label in the data source. "
+                + "Without it, such picks are stored but belong to no phase."
+            ),
+        ),
+    ] = None,
+    skip_unnamed: Annotated[
+        bool,
+        Parameter(
+            name="skip-unnamed",
+            help="Do not store picks that have no phase name.",
+        ),
+    ] = False,
+    phases: Annotated[
+        list[str] | None,
+        Parameter(
+            name="phase",
+            negative_iterable=(),
+            help=(
+                "Phase that picks may be added to, or created for. Repeatable. "
+                + "Named picks of other phases are stored but belong to no phase. "
+                + "Without it, every phase."
+            ),
+        ),
+    ] = None,
     dry_run: Annotated[
         bool,
         Parameter(
@@ -202,8 +247,8 @@ def cli_data_add(
         Parameter(
             name="snapshot",
             help=(
-                "Automatically create a snapshot for each event that received new "
-                + "seismogram data."
+                "Automatically create a snapshot for each phase that gained "
+                + "initial picks."
             ),
         ),
     ] = True,
@@ -216,6 +261,13 @@ def cli_data_add(
     from the file. For types that cannot extract a station or event (e.g. a
     format that only carries waveform data), supply `--use-station` and/or
     `--use-event` to link to records that already exist in the project.
+
+    Picks in the data sources become the initial picks of the phase their
+    label names. SAC files keep the label of a pick in the `ka` or `kt0` to
+    `kt9` header. Picks without a label are named with `--unlabelled-as`.
+    Picks stored earlier without a matching seismogram are matched again
+    once the data sources are added. A summary of the picks is printed at
+    the end.
 
     Station and event deduplication is automatic: if a matching record already
     exists it is reused. Re-running `data add` on the same files is safe.
@@ -232,6 +284,9 @@ def cli_data_add(
     from rich.progress import Progress
 
     from aimbat.actions import add_data
+    from aimbat.core import PickNaming
+
+    naming = PickNaming(unlabelled_as=unlabelled_as, skip_unnamed=skip_unnamed)
 
     with Progress(disable=not show_progress_bar) as progress:
         task = progress.add_task("Adding data ...", total=len(data_sources))
@@ -244,6 +299,8 @@ def cli_data_add(
             data_type,
             station_id=station_id,
             event_id=event_id,
+            naming=naming,
+            phases=phases,
             dry_run=dry_run,
             auto_snapshot=auto_snapshot,
             on_progress=on_progress,
@@ -251,9 +308,18 @@ def cli_data_add(
 
     if dry_run:
         _print_dry_run_results(result)
+    else:
+        _print_added(result)
+    print_pick_summary(result.picks, len(result.snapshotted_phase_ids))
     for failed_id, error in result.snapshot_failures:
         print_warning(
-            f"Could not create an automatic snapshot for event {failed_id}: {error}"
+            f"Could not create an automatic snapshot for phase {failed_id}: {error}"
+        )
+    if result.blocking_items:
+        n = result.blocking_items
+        print_warning(
+            f"Not ready: {n} blocking item{'' if n == 1 else 's'}. "
+            + "Run `aimbat data check`."
         )
 
 
@@ -324,6 +390,124 @@ def cli_data_list(
             raw=raw,
             col_specs=col_specs,
         )
+
+
+_PROBLEMS = {
+    "unnamed_pick": "unnamed pick",
+    "unmatched_pick": "unmatched pick",
+    "ambiguous_pick": "ambiguous pick",
+    "empty_phase": "empty phase",
+    "unpromoted_picks": "unpromoted pick",
+    "conflicting_pick": "conflicting pick",
+    "unresolved_event": "unknown event",
+    "seismogram_without_picks": "seismogram without pick",
+    "pick_after_end": "pick after end",
+}
+
+
+def _print_readiness(report: ReadinessReport, *, raw: bool) -> None:
+    """Print readiness items as a table, followed by a one-line verdict."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from aimbat.db import engine
+    from aimbat.models import AimbatEvent, AimbatPick, AimbatSeismogram, AimbatTypes
+    from aimbat.utils.formatters import fmt_timestamp
+
+    from .common import id_label
+
+    console = Console()
+    if report.items:
+        table = Table()
+        for header in ("Event", "Phase", "Severity", "Problem", "Count", "Fix"):
+            table.add_column(header, overflow="fold")
+        with Session(engine) as session:
+            for item in report.items:
+                if item.event_id is None:
+                    event, phase = "-", "-"
+                else:
+                    time = session.get_one(AimbatEvent, item.event_id).time
+                    label = id_label(session, AimbatEvent, item.event_id, raw=raw)
+                    event = f"{fmt_timestamp(time)} ({label})"
+                    phase = item.phase_name or "(all)"
+                fixes = "\n".join(item.fixes)
+                if not raw:
+                    ids: list[tuple[type[AimbatTypes], uuid.UUID]] = (
+                        [(AimbatEvent, item.event_id)] if item.event_id else []
+                    )
+                    ids += [(AimbatPick, i) for i in item.pick_ids]
+                    ids += [(AimbatSeismogram, i) for i in item.seismogram_ids]
+                    for model, record_id in ids:
+                        fixes = fixes.replace(
+                            str(record_id),
+                            id_label(session, model, record_id, raw=False),
+                        )
+                table.add_row(
+                    event,
+                    phase,
+                    str(item.severity),
+                    _PROBLEMS[item.kind],
+                    str(item.count),
+                    fixes,
+                    style="red" if item.blocking else None,
+                )
+        console.print(table)
+
+    scope = f"{report.events} event(s), {report.phases} phase(s)"
+    blocking = len(report.blocking)
+    notices = len(report.items) - blocking
+    if blocking:
+        console.print(f"Not ready: {scope}, {blocking} blocking item(s).")
+    elif notices:
+        console.print(f"Ready: {scope}, no blocking items, {notices} notice(s).")
+    else:
+        console.print(f"Ready: {scope}, no blocking items.")
+
+
+@app.command(name="check")
+@handle_issues
+def cli_data_check(
+    event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()] = "all",
+    *,
+    phase: Annotated[str | None, phase_filter_parameter()] = None,
+    strict: Annotated[
+        bool,
+        Parameter(name="strict", help="Exit with status 2 for notices as well."),
+    ] = False,
+    as_json: Annotated[
+        bool,
+        Parameter(name="json", help="Print the items as JSON instead of a table."),
+    ] = False,
+    table_parameters: TableParameters = TableParameters(),
+) -> None:
+    """Check whether the data are ready for processing.
+
+    Lists what prevents processing (blocking items) and what may need
+    attention (notices), such as picks without a phase name, picks that match
+    no seismogram, or phases without initial picks, each with the command
+    that fixes it. Alignment of a phase is refused while a blocking item
+    applies to it. Without an event, every event is checked, together with
+    the picks whose event is not in the project.
+
+    The exit status is 0 when nothing blocks, 1 when the check itself fails,
+    and 2 when an item blocks, or with `--strict` when any item is found.
+    """
+    import sys
+
+    from aimbat.actions import check_data
+
+    report = check_data(event_id, phase_name=phase)
+    if as_json:
+        from dataclasses import asdict
+
+        from rich import print_json
+
+        print_json(data=[asdict(item) for item in report.items], default=str)
+    else:
+        _print_readiness(report, raw=table_parameters.raw)
+
+    if report.blocking or (strict and report.items):
+        sys.exit(2)
 
 
 def _print_prune_report(
@@ -436,7 +620,7 @@ def cli_data_prune(
         bool,
         Parameter(
             name="snapshot",
-            help="Snapshot every affected event before pruning.",
+            help="Snapshot every phase that loses seismograms before pruning.",
         ),
     ] = True,
     confirm: ConfirmParameters = ConfirmParameters(),

@@ -72,18 +72,20 @@ what window, whether to filter) is done beforehand with ICCS.
     ```python
     from sqlmodel import Session, select
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance, run_mccc
+    from aimbat.core import create_iccs_instance, resolve_phase, run_mccc
     from aimbat.models import AimbatEvent
 
     with Session(engine) as session:
         event = session.exec(select(AimbatEvent)).first()
-        bound = create_iccs_instance(session, event)
-        run_mccc(session, event, bound.iccs, all_seismograms=False)
+        phase = resolve_phase(session, event.id)
+        bound = create_iccs_instance(session, phase.id)
+        run_mccc(session, phase.id, bound.iccs, all_seismograms=False)
         session.commit()
     ```
 
-MCCC updates `t1` for all participating seismograms and stores the results with
-them. The stack and matrix image afterwards show whether the picks improved.
+MCCC updates the refined pick of all participating seismograms and stores the
+results with them. The stack and matrix image afterwards show whether the picks
+improved.
 
 ## Parameters
 

@@ -10,8 +10,8 @@ frontend (e.g. a Qt GUI) would reuse `IccsLifecycle` behind its own adapter
 using its own threading/notification primitives.
 
 Mixed into `AimbatTUI`, which provides `_current_event_id`,
-`_get_current_event`, and `refresh_all` (declared below only for the type
-checker; the real implementations live on the host class).
+`_get_current_event`, `_get_current_phase` and `refresh_all` (declared below
+only for the type checker; the real implementations live on the host class).
 """
 
 import uuid
@@ -23,14 +23,24 @@ from textual.app import App
 
 from aimbat.actions import prepare_iccs
 from aimbat.core import (
+    AmbiguousPhaseError,
     BoundICCS,
     IccsLifecycle,
     NoSeismogramsError,
+    NotReadyError,
 )
 from aimbat.core._validity import compute_digests
 from aimbat.db import engine
 from aimbat.logger import logger
-from aimbat.models import AimbatEvent
+from aimbat.models import AimbatEvent, AimbatPhase
+
+
+def several_phases_notice(error: AmbiguousPhaseError) -> str:
+    """The notice shown when processing is refused for an event with several phases."""
+    return (
+        f"This event has phases {', '.join(error.names)}. Select a phase with "
+        + "the CLI until the TUI supports it."
+    )
 
 
 class _IccsLifecycleMixin(App[None]):
@@ -48,6 +58,9 @@ class _IccsLifecycleMixin(App[None]):
     _current_event_id: uuid.UUID | None
 
     def _get_current_event(self, session: Session) -> AimbatEvent:
+        raise NotImplementedError
+
+    def _get_current_phase(self, session: Session) -> AimbatPhase:
         raise NotImplementedError
 
     def refresh_all(self) -> None:
@@ -83,8 +96,8 @@ class _IccsLifecycleMixin(App[None]):
             return
         try:
             with Session(engine) as session:
-                event = self._get_current_event(session)
-                digests = compute_digests(session, event.id)[event.id]
+                phase_id = self._get_current_phase(session).id
+                digests = compute_digests(session, phase_id)[phase_id]
                 self._iccs_lifecycle.note_checked(digests.instance)
                 self._ui_tracked_seen = digests.tracked
         except Exception:
@@ -109,14 +122,18 @@ class _IccsLifecycleMixin(App[None]):
         """
         try:
             with Session(engine) as session:
-                event_id = self._get_current_event(session).id
-            bound_iccs = prepare_iccs(event_id)
-        except (NoResultFound, NoSeismogramsError, RuntimeError):
+                phase_id = self._get_current_phase(session).id
+            bound_iccs = prepare_iccs(phase_id)
+        except (NoResultFound, AmbiguousPhaseError, NoSeismogramsError, RuntimeError):
             logger.debug(
                 "ICCS worker: no event selected, event has no seismograms, or "
                 + "no data; aborting."
             )
             self.call_from_thread(self._iccs_lifecycle.mark_aborted)
+            return
+        except NotReadyError as exc:
+            self.call_from_thread(self.notify, str(exc), severity="warning")
+            self.call_from_thread(self._iccs_lifecycle.mark_failed, is_retry=is_retry)
             return
         except Exception as exc:
             logger.exception(f"ICCS worker: unexpected error during creation: {exc}")
@@ -142,7 +159,10 @@ class _IccsLifecycleMixin(App[None]):
         Args:
             bound_iccs: The instance created by `_worker_create_iccs`.
         """
-        if bound_iccs.event_id != self._current_event_id:
+        with Session(engine) as session:
+            phase = session.get(AimbatPhase, bound_iccs.phase_id)
+            event_id = None if phase is None else phase.event_id
+        if event_id is None or event_id != self._current_event_id:
             logger.debug(
                 "ICCS worker: discarding instance for an event that is no longer "
                 + "selected."
@@ -173,10 +193,10 @@ class _IccsLifecycleMixin(App[None]):
             return
         try:
             with Session(engine) as session:
-                event = self._get_current_event(session)
-                digests = compute_digests(session, event.id)[event.id]
-                stale = self._iccs_lifecycle.is_stale(event.id, digests.instance)
-        except (NoResultFound, RuntimeError):
+                phase_id = self._get_current_phase(session).id
+                digests = compute_digests(session, phase_id)[phase_id]
+                stale = self._iccs_lifecycle.is_stale(phase_id, digests.instance)
+        except (NoResultFound, AmbiguousPhaseError, RuntimeError):
             return
         ui_changed = digests.tracked != self._ui_tracked_seen
         self._ui_tracked_seen = digests.tracked
@@ -203,8 +223,16 @@ class _IccsLifecycleMixin(App[None]):
         if self._iccs_lifecycle.ready:
             return True
         if self._current_event_id is not None:
+            try:
+                with Session(engine) as session:
+                    self._get_current_phase(session)
+            except AmbiguousPhaseError as exc:
+                self.notify(several_phases_notice(exc), severity="warning")
+                return False
+            except NoResultFound:
+                pass  # No phase: the generic notice below applies.
             self.notify(
-                "ICCS not ready: check event parameters (Parameters tab)",
+                "ICCS not ready: check phase parameters (Parameters tab)",
                 severity="warning",
             )
         else:

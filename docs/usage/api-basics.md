@@ -15,13 +15,13 @@ available for custom scripts and workflows, at two levels:
 from aimbat import actions
 from aimbat.types import SeismogramParameter
 
-run = actions.run_iccs(event_id, autoflip=True, autoselect=True)
+run = actions.run_iccs(phase_id, autoflip=True, autoselect=True)
 print(run.summary.message)
 
 actions.set_seismogram_parameters(
-    bad_seismogram_ids, {SeismogramParameter.SELECT: False}
+    phase_id, bad_seismogram_ids, {SeismogramParameter.SELECT: False}
 )
-actions.create_snapshot(event_id, comment="after ICCS")
+actions.create_snapshot(phase_id, comment="after ICCS")
 ```
 
 Actions take record IDs and return plain values. Those that change several
@@ -29,11 +29,27 @@ records, such as `set_seismogram_parameters` or `delete_seismograms`, take a
 list of IDs and save them all in one commit, so a script has no need to call
 them in a loop. The rest of this page is about the second level.
 
+Processing is done per phase, so the actions and core functions that process
+data take the ID of a phase rather than of an event.
+[`resolve_phase`][aimbat.core.resolve_phase] returns the phase of an event:
+
+```python
+from sqlmodel import Session
+from aimbat.core import resolve_phase
+from aimbat.db import engine
+
+with Session(engine) as session:
+    phase_id = resolve_phase(session, event_id).id
+```
+
+Without a name, `resolve_phase` returns the only phase of the event, and raises
+`AmbiguousPhaseError` if the event has several.
+
 !!! warning "Scripts written for earlier versions"
 
     Functions in `aimbat.core` used to commit their own changes. They no
     longer do. A script that calls a function that changes the project, such
-    as `set_event_parameter` or `create_snapshot`, must now call
+    as `set_phase_parameter` or `create_snapshot`, must now call
     `session.commit()` before its session closes, or switch to the matching
     function in `aimbat.actions`.
 
@@ -104,8 +120,8 @@ Queries by any other criterion use SQLModel's `select` with a `where` clause:
 
 ## Reading attributes
 
-Column fields (`event.time`, `station.network`, `seismogram.t0`, ...) are plain
-Python attributes, read directly off any record a query returns.
+Column fields (`event.time`, `station.network`, `seismogram.begin_time`, ...)
+are plain Python attributes, read directly off any record a query returns.
 
 A few frequently needed counts are precomputed as column properties, so reading
 them costs nothing extra:
@@ -119,7 +135,7 @@ station.seismogram_count    # seismograms recorded at this station
 ### Relationships
 
 Relationships (`event.seismograms`, `seismogram.station`,
-`seismogram.parameters`, ...) are attributes too, but the first access to one
+`seismogram.phase_rows`, ...) are attributes too, but the first access to one
 issues a query for the related records. That's cheap for a single record. Over a
 large result set it becomes one query per row:
 

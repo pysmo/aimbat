@@ -1,8 +1,8 @@
 """Align seismograms using ICCS or MCCC.
 
 This command aligns seismograms using either the ICCS or MCCC algorithm. Both
-commands update the pick stored in `t1`. If `t1` is `None`, `t0` is used as
-starting point instead, with the resulting pick stored in `t1`.
+commands update the refined pick (`refined_pick`). Where it is not yet set,
+the initial pick is the starting point.
 """
 
 from collections.abc import Iterator
@@ -16,7 +16,9 @@ from .common import (
     DebugParameter,
     event_parameter,
     handle_issues,
+    phase_parameter,
     print_warning,
+    resolve_phase_option,
 )
 
 __all__ = ["cli_iccs_run", "cli_mccc_run"]
@@ -54,6 +56,7 @@ def _print_run_summary(summary: "RunSummary") -> None:
 def cli_iccs_run(
     event_id: Annotated[UUID, event_parameter()],
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     autoselect: Annotated[
         bool,
         Parameter(
@@ -77,16 +80,20 @@ def cli_iccs_run(
     ] = False,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Run the ICCS algorithm to align seismograms for an event.
+    """Run the ICCS algorithm to align the seismograms of a phase.
 
     Iteratively cross-correlates seismograms against a running stack to refine
-    arrival time picks (`t1`). If `t1` is not yet set, `t0` is used as the
-    starting point.
+    arrival time picks (`refined_pick`). Where a refined pick is not yet set,
+    the initial pick is the starting point.
     """
     from aimbat.actions import run_iccs
 
     with _summarised_warnings():
-        run = run_iccs(event_id, autoflip=autoflip, autoselect=autoselect)
+        run = run_iccs(
+            resolve_phase_option(event_id, phase),
+            autoflip=autoflip,
+            autoselect=autoselect,
+        )
     _print_run_summary(run.summary)
 
 
@@ -95,27 +102,31 @@ def cli_iccs_run(
 def cli_mccc_run(
     event_id: Annotated[UUID, event_parameter()],
     *,
+    phase: Annotated[str | None, phase_parameter()] = None,
     all_seismograms: Annotated[
         bool,
         Parameter(
             name="all",
             help=(
-                "Include all seismograms of an event in MCCC processing, not just the"
+                "Include all seismograms of the phase in MCCC processing, not just the"
                 + " currently selected ones."
             ),
         ),
     ] = False,
     _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Run the MCCC algorithm to refine arrival time picks for an event.
+    """Run the MCCC algorithm to refine the arrival time picks of a phase.
 
     Multi-channel cross-correlation simultaneously determines the optimal time
-    shifts for all seismograms. Results are stored in `t1`.
+    shifts for all seismograms. Results are stored as refined picks
+    (`refined_pick`).
     """
     from aimbat.actions import run_mccc
 
     with _summarised_warnings():
-        run = run_mccc(event_id, all_seismograms=all_seismograms)
+        run = run_mccc(
+            resolve_phase_option(event_id, phase), all_seismograms=all_seismograms
+        )
     _print_run_summary(run.summary)
 
 

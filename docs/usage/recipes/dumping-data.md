@@ -8,9 +8,11 @@ aimbat event dump
 aimbat event dump --alias   # camelCase field names
 ```
 
-`data`, `event`, `station`, `seismogram`, and `snapshot` each have one, plus
-`parameter dump` and `quality dump` variants where those sub-resources exist
-(e.g. `aimbat event parameter dump`, `aimbat station quality dump`).
+`data`, `event`, `phase`, `station`, `seismogram`, and `snapshot` each have
+one, plus `parameter dump` and `quality dump` variants where those
+sub-resources exist (e.g. `aimbat phase parameter dump`,
+`aimbat station quality dump`). Records that belong to a phase carry its ID
+and its name.
 
 The equivalent core function follows `dump_<entity>_table`, e.g.
 [`dump_event_table`][aimbat.core.dump_event_table]:
@@ -30,8 +32,8 @@ one table:
 
 ```python
 from aimbat.core import (
-    dump_event_parameter_snapshot_table,
-    dump_event_quality_snapshot_table,
+    dump_phase_parameter_snapshot_table,
+    dump_phase_quality_snapshot_table,
     dump_seismogram_parameter_snapshot_table,
     dump_seismogram_quality_snapshot_table,
     dump_snapshot_table,
@@ -40,19 +42,19 @@ from aimbat.core import (
 with Session(engine) as session:
     data = {
         "snapshots": dump_snapshot_table(session),
-        "event_parameters": dump_event_parameter_snapshot_table(session),
+        "phase_parameters": dump_phase_parameter_snapshot_table(session),
         "seismogram_parameters": dump_seismogram_parameter_snapshot_table(session),
-        "event_quality": dump_event_quality_snapshot_table(session),
+        "phase_quality": dump_phase_quality_snapshot_table(session),
         "seismogram_quality": dump_seismogram_quality_snapshot_table(session),
     }
 ```
 
 | Key | Contents | Always present |
 | --- | --- | --- |
-| `snapshots` | metadata (ID, time, comment, `automatic` flag, hash) | Yes |
-| `event_parameters` | event parameter snapshots | Yes |
+| `snapshots` | metadata (ID, phase, time, comment, `automatic` flag, hash) | Yes |
+| `phase_parameters` | phase parameter snapshots | Yes |
 | `seismogram_parameters` | per-seismogram parameter snapshots | Yes |
-| `event_quality` | event quality (MCCC RMSE) | Only if MCCC has run |
+| `phase_quality` | phase quality (MCCC RMSE) | Only if MCCC has run |
 | `seismogram_quality` | per-seismogram quality (ICCS CC, MCCC metrics) | Only if quality metrics exist |
 
 `aimbat snapshot dump` (CLI) and `snapshot dump` (shell) build the same object.

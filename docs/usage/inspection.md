@@ -11,10 +11,11 @@ Two views help.
 
 ## By event
 
-A record section: every seismogram for one event, sorted by epicentral distance,
-with absolute time on the x-axis. Coherent arrivals show as a roughly linear
-moveout across the traces. A dashed line marks each trace's initial pick (`t0`)
-and, once set, a solid line marks the working pick (`t1`).
+A record section: every seismogram for one phase of an event, sorted by
+epicentral distance, with absolute time on the x-axis. Coherent arrivals show as
+a roughly linear moveout across the traces. A dashed line marks each trace's
+initial pick and, once set, a solid line marks its refined pick. The CLI and
+shell take `--phase` for an event with several phases.
 
 === "CLI"
 
@@ -37,18 +38,18 @@ and, once set, a solid line marks the working pick (`t1`).
 
     ```python
     from sqlmodel import Session
+    from aimbat.core import resolve_phase
     from aimbat.db import engine
-    from aimbat.models import AimbatEvent
     from aimbat.plot import plot_seismograms, show_figure
 
     with Session(engine) as session:
-        event = session.get(AimbatEvent, event_id)
-        fig, _ = plot_seismograms(event, return_fig=True)
+        phase = resolve_phase(session, event_id)
+        fig, _ = plot_seismograms(phase, return_fig=True)
 
     show_figure(fig)
     ```
 
-    Building the figure reads the event from the database, so it happens inside the
+    Building the figure reads the phase from the database, so it happens inside the
     session; showing it blocks until the window is closed, so it happens outside.
 
 With many traces, only a subset shows at first. Scrolling pans through the rest;
@@ -65,9 +66,8 @@ Look for:
 ## By station
 
 Every seismogram recorded at one station across all events in the project,
-aligned on the working pick (`t1`, or `t0` if not yet set) and stacked
-vertically in pick order. The `t0` and `t1` picks are marked as in the event
-view. Useful for telling whether a station is consistently problematic or the
+aligned on the refined pick (or the initial pick if not yet set) and stacked
+vertically in pick order. Both picks are marked as in the event view. Useful for telling whether a station is consistently problematic or the
 issue is isolated to one event.
 
 === "CLI"
@@ -115,7 +115,7 @@ never modified.
 
 1. **Detrend.** Remove the mean and linear trend.
 2. **Bandpass filter** *(optional)*. Applied only if `bandpass_apply` is enabled
-    in the event parameters, using that event's `bandpass_fmin` /
+    in the phase parameters, using that phase's `bandpass_fmin` /
     `bandpass_fmax`. Off by default, so inspection shows the waveforms as
     imported. Data pre-filtered before import can be inspected with it left
     off.
@@ -123,7 +123,7 @@ never modified.
 4. **Normalise.** Each trace to unit amplitude, so shapes are comparable
     regardless of gain.
 
-Because the filter follows the current event parameters, the plots change with
+Because the filter follows the current phase parameters, the plots change with
 it. Inspecting both filtered and unfiltered helps separate noise from signal.
 
 ## Excluding bad data

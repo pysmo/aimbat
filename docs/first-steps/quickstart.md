@@ -29,12 +29,13 @@ point AIMBAT at a different one.
 Preview the import first with `--dry-run`, then run it for real:
 
 ```bash
-aimbat data add --dry-run sample-data/*/*/*.BHZ
-aimbat data add sample-data/*/*/*.BHZ
+aimbat data add --dry-run --unlabelled-as P sample-data/*/*/*.BHZ
+aimbat data add --unlabelled-as P sample-data/*/*/*.BHZ
 ```
 
 The shell expands the glob before AIMBAT runs. Each SAC file carries its station,
-event, and initial pick in its header. `--dry-run` reports which stations,
+event, and initial pick in its header. `--unlabelled-as P` assigns a pick
+without a phase label to phase `P`. `--dry-run` reports which stations,
 events, and seismograms would be created without touching the database. Import
 also deduplicates, so re-running the real command is safe. See
 [Adding Data](../usage/data.md) for JSON sources, subset selection, and what

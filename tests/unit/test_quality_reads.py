@@ -23,7 +23,7 @@ _ALLOWED: dict[str, frozenset[str]] = {
     # Live quality, checked against a `Validity`.
     "models/_readers.py": frozenset(
         {
-            "SeismogramQualityStats.from_event",
+            "SeismogramQualityStats.from_phase",
             "SeismogramQualityStats.from_station",
             "AimbatStationRead.from_station",
             "AimbatSeismogramRead.from_seismogram",

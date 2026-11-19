@@ -1,17 +1,21 @@
 # Parameters
 
-ICCS parameters are per-event (the time window, bandpass filter, and minimum CC)
-or per-seismogram (the phase pick, `t1`). All can be changed at any time. They
-are part of the [live data](iccs-stack.md#live-data) and are captured by
-[snapshots](snapshots.md).
+ICCS parameters belong to a phase of an event (the time window, bandpass filter,
+and minimum CC) or to a seismogram in a phase (the refined pick,
+`refined_pick`). All can be changed at any time. They are part of the
+[live data](iccs-stack.md#live-data) and are captured by
+[snapshots](snapshots.md). Phase parameters are read and set with
+`aimbat phase parameter`, and seismogram parameters with
+`aimbat seismogram parameter`. Both select the phase as described in
+[Selecting an Event](event-selection.md#selecting-a-phase).
 
 Any parameter can be set directly through CLI arguments, the shell, the TUI, or
 the Python API. In practice the interactive tools below are the usual way, since
 they show the effect on the stack or matrix image as a value is chosen.
 
-Changing the time window, bandpass filter, or `t1` takes effect immediately: they
-change the CC seismograms directly, so the stack and CC values reflect the new
-value the next time they are accessed. No ICCS run is needed.
+Changing the time window, bandpass filter, or refined pick takes effect
+immediately: they change the CC seismograms directly, so the stack and CC values
+reflect the new value the next time they are accessed. No ICCS run is needed.
 
 !!! note "Autoflip and autoselect only act during an ICCS run"
 
@@ -36,7 +40,7 @@ point. Narrowing it once alignment is reasonable often improves precision.
 `bandpass_apply`, `bandpass_fmin`, and `bandpass_fmax` control an optional
 bandpass filter applied before cross-correlation. On noisy data it can improve
 alignment substantially by suppressing frequencies where the signal is weak; the
-right band depends on the event and the array.
+right band depends on the event, the phase and the array.
 
 Filtering is off by default. When on, the same filter is applied to the
 seismograms and the stack, so the cross-correlation always compares like with
@@ -49,9 +53,9 @@ like.
     rejected if `bandpass_fmin` goes first. Raise `bandpass_fmax` first and it
     works; moving the band down, lower `bandpass_fmin` first.
 
-## The phase pick (t1)
+## The refined pick
 
-`t1` is the per-seismogram pick ICCS refines each run: one value per seismogram,
+`refined_pick` is the per-seismogram pick ICCS refines each run: one value per seismogram,
 reflecting how far it needs to shift relative to the stack. Adjusted
 interactively from the stack plot, though, the same shift applies to every
 seismogram at once. Interactive picking is therefore a coarse global adjustment,
@@ -81,33 +85,38 @@ works better. `aimbat tool cc` adjusts it interactively.
 from pandas import Timedelta
 from sqlmodel import Session, select
 from aimbat.db import engine
-from aimbat.core import set_event_parameter, set_seismogram_parameter
-from aimbat.types import EventParameter, SeismogramParameter
-from aimbat.models import AimbatEvent, AimbatSeismogram
+from aimbat.core import resolve_phase, set_phase_parameter, set_seismogram_parameter
+from aimbat.types import PhaseParameter, SeismogramParameter
+from aimbat.models import AimbatEvent
 
 with Session(engine) as session:
     event = session.exec(select(AimbatEvent)).first()
-    set_event_parameter(session, event.id, EventParameter.WINDOW_PRE, Timedelta(seconds=-10))
+    phase = resolve_phase(session, event.id)
+    set_phase_parameter(session, phase.id, PhaseParameter.WINDOW_PRE, Timedelta(seconds=-10))
 
-    seismogram = session.exec(select(AimbatSeismogram)).first()
-    set_seismogram_parameter(session, seismogram.id, SeismogramParameter.SELECT, False)
+    seismogram = event.seismograms[0]
+    set_seismogram_parameter(
+        session, phase.id, seismogram.id, SeismogramParameter.SELECT, False
+    )
 
     session.commit()
 ```
 
-`set_event_parameter` validates the new value on its own. Pass
-`validate_iccs=True` to also check it doesn't break ICCS construction, the
-same check the CLI performs; a value ICCS rejects raises `IccsValidationError`
-and leaves the parameter unchanged. [`set_event_parameters`][aimbat.core.set_event_parameters]
-sets several event parameters as one validated batch, for values only valid
-together (e.g. a new `bandpass_fmin` above the old `bandpass_fmax`).
+`set_phase_parameter` validates the new value on its own. With
+`validate_iccs=True`, it also checks that the value does not break ICCS
+construction, as the CLI does. A value ICCS rejects raises
+`IccsValidationError` and leaves the parameter unchanged.
+[`set_phase_parameters`][aimbat.core.set_phase_parameters] sets several
+parameters as one validated batch, for values only valid together (e.g. a new
+`bandpass_fmin` above the old `bandpass_fmax`).
 
 ## Resetting a seismogram
 
-A seismogram's per-seismogram parameters (`t1`, `select`, `flip`) can be reset to
-their defaults, discarding any pick, deselection, or flip. Useful when one
-seismogram has drifted too far from the array to be worth correcting by hand.
-Resetting clears `t1`, so it falls back to `t0` on the next stack rebuild.
+A seismogram's per-seismogram parameters (`refined_pick`, `select`, `flip`) can
+be reset to their defaults, discarding any pick, deselection, or flip. Useful
+when one seismogram has drifted too far from the array to be worth correcting by
+hand. Resetting clears the refined pick, so the initial pick takes its place on
+the next stack rebuild.
 
 === "CLI"
 
@@ -134,7 +143,7 @@ Resetting clears `t1`, so it falls back to `t0` on the next stack rebuild.
     from aimbat.core import reset_seismogram_parameters
 
     with Session(engine) as session:
-        reset_seismogram_parameters(session, seismogram_id)
+        reset_seismogram_parameters(session, phase_id, seismogram_id)
         session.commit()
     ```
 
@@ -142,7 +151,7 @@ Resetting clears `t1`, so it falls back to `t0` on the next stack rebuild.
 
 Four tools set a value by interaction with a waveform plot rather than a typed
 number. Each wraps a `pysmo.tools.iccs` function where the exact interaction is
-documented: [`update_pick`][pysmo.tools.iccs.update_pick] (`t1`),
+documented: [`update_pick`][pysmo.tools.iccs.update_pick] (`refined_pick`),
 [`update_timewindow`][pysmo.tools.iccs.update_timewindow] (`window_pre` /
 `window_post`), [`update_min_cc`][pysmo.tools.iccs.update_min_cc] (`min_cc`), and
 [`update_bandpass`][pysmo.tools.iccs.update_bandpass] (the filter).
@@ -150,41 +159,41 @@ documented: [`update_pick`][pysmo.tools.iccs.update_pick] (`t1`),
 === "CLI"
 
     ```bash
-    aimbat tool phase <ID>    # adjust t1 by clicking on the stack
+    aimbat tool pick <ID>     # adjust the refined picks by clicking on the stack
     aimbat tool window <ID>   # set window_pre / window_post by clicking
     aimbat tool cc <ID>       # set min_cc by scrolling the matrix image
     aimbat tool bandpass <ID> # adjust the bandpass filter interactively
     ```
 
-    All four accept `--no-context` and `--all`. `phase`, `window`, and `cc`
-    also accept `--causal`; `bandpass` doesn't take one. Defaults: causal for
-    `phase`, zero-phase for `window` and `cc`. See
+    All four accept `--phase`, `--no-context` and `--all`. `pick`, `window`,
+    and `cc` also accept `--causal`, and `bandpass` does not take it.
+    Defaults: causal for `pick`, zero-phase for `window` and `cc`. See
     [The ICCS stack](iccs-stack.md) for why the defaults differ.
 
 === "Shell"
 
     ```bash
-    tool phase
+    tool pick
     tool window
     tool cc
     tool bandpass
     ```
 
-    All four accept `--no-context` and `--all`. `phase`, `window`, and `cc`
-    also accept `--causal`; `bandpass` doesn't take one. Defaults: causal for
-    `phase`, zero-phase for `window` and `cc`. See
+    All four accept `--phase`, `--no-context` and `--all`. `pick`, `window`,
+    and `cc` also accept `--causal`, and `bandpass` does not take it.
+    Defaults: causal for `pick`, zero-phase for `window` and `cc`. See
     [The ICCS stack](iccs-stack.md) for why the defaults differ.
 
 === "TUI"
 
     Press `t` for the **Tools** menu:
 
-    - **Phase arrival (t1).** Click in the stack to shift all picks.
+    - **Refined pick.** Click in the stack to shift all picks.
     - **Time window.** Click to place the boundaries.
     - **Min CC.** Scroll the matrix image to set the threshold.
     - **Bandpass filter.** Toggle the filter and adjust the bounds.
 
     Toggle **Context** (`c`) and **All seismograms** (`a`) before launching.
-    **Phase arrival**, **Time window**, and **Min CC** also show a **zero-phase**
+    **Refined pick**, **Time window**, and **Min CC** also show a **zero-phase**
     toggle (`z`); **Bandpass filter** doesn't. The TUI suspends while the
     matplotlib window is open.

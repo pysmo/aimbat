@@ -22,18 +22,20 @@ class TestMccc:
         assert event is not None
 
         # Ensure no MCCC stats initially
-        if event.quality:
-            assert event.quality.mccc_rmse is None
+        if event.phases[0].quality:
+            assert event.phases[0].quality.mccc_rmse is None
 
         # Run MCCC
-        iccs_bound = create_iccs_instance(loaded_session, event)
-        run_mccc(loaded_session, event, iccs_bound.iccs, all_seismograms=False)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        run_mccc(
+            loaded_session, event.phases[0].id, iccs_bound.iccs, all_seismograms=False
+        )
 
         # Verify event-level stats
         loaded_session.refresh(event)
-        assert event.quality is not None
-        assert event.quality.mccc_rmse is not None
-        assert isinstance(event.quality.mccc_rmse, Timedelta)
+        assert event.phases[0].quality is not None
+        assert event.phases[0].quality.mccc_rmse is not None
+        assert isinstance(event.phases[0].quality.mccc_rmse, Timedelta)
 
         # Verify seismogram-level stats
         # At least some seismograms should have MCCC stats (those that were selected)
@@ -46,6 +48,15 @@ class TestMccc:
         for sq in seis_qualities:
             assert sq.mccc_cc_mean is not None
             assert sq.mccc_error is not None
+            assert sq.mccc_refused is False
+
+        # Seismograms outside the run have no MCCC values at all
+        outside = loaded_session.exec(
+            select(AimbatSeismogramQuality).where(
+                AimbatSeismogramQuality.mccc_cc_mean == None  # noqa: E711
+            )
+        ).all()
+        assert all(sq.mccc_refused is None for sq in outside)
 
     def test_run_mccc_all_seismograms(self, loaded_session: Session) -> None:
         """Verifies that MCCC can be run on all seismograms, including deselected ones."""
@@ -54,19 +65,21 @@ class TestMccc:
 
         # Deselect one seismogram
         seis_to_deselect = event.seismograms[0]
-        seis_to_deselect.parameters.select = False
-        loaded_session.add(seis_to_deselect.parameters)
+        seis_to_deselect.phase_rows[0].select = False
+        loaded_session.add(seis_to_deselect.phase_rows[0])
         loaded_session.commit()
         loaded_session.refresh(event)
 
         # Run MCCC with all_seismograms=True
-        iccs_bound = create_iccs_instance(loaded_session, event)
-        run_mccc(loaded_session, event, iccs_bound.iccs, all_seismograms=True)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        run_mccc(
+            loaded_session, event.phases[0].id, iccs_bound.iccs, all_seismograms=True
+        )
 
         # Verify deselected seismogram has MCCC stats
         loaded_session.refresh(seis_to_deselect)
-        assert seis_to_deselect.quality is not None
-        assert seis_to_deselect.quality.mccc_cc_mean is not None
+        assert seis_to_deselect.phase_rows[0].quality is not None
+        assert seis_to_deselect.phase_rows[0].quality.mccc_cc_mean is not None
 
     def test_run_mccc_selected_only(self, loaded_session: Session) -> None:
         """Verifies that MCCC only processes selected seismograms by default."""
@@ -75,19 +88,21 @@ class TestMccc:
 
         # Deselect one seismogram
         seis_to_deselect = event.seismograms[0]
-        seis_to_deselect.parameters.select = False
-        loaded_session.add(seis_to_deselect.parameters)
+        seis_to_deselect.phase_rows[0].select = False
+        loaded_session.add(seis_to_deselect.phase_rows[0])
         loaded_session.commit()
         loaded_session.refresh(event)
 
         # Run MCCC with all_seismograms=False
-        iccs_bound = create_iccs_instance(loaded_session, event)
-        run_mccc(loaded_session, event, iccs_bound.iccs, all_seismograms=False)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        run_mccc(
+            loaded_session, event.phases[0].id, iccs_bound.iccs, all_seismograms=False
+        )
 
         # Verify deselected seismogram has NO MCCC stats
         loaded_session.refresh(seis_to_deselect)
-        if seis_to_deselect.quality:
-            assert seis_to_deselect.quality.mccc_cc_mean is None
+        if seis_to_deselect.phase_rows[0].quality:
+            assert seis_to_deselect.phase_rows[0].quality.mccc_cc_mean is None
 
 
 def _fake_mccc_result(
@@ -122,7 +137,7 @@ class TestWriteMcccQualityGuards:
         """CC mean is clamped to [0, 1] and CC std to >= 0 before storage."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        iccs = create_iccs_instance(loaded_session, event).iccs
+        iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         indices = _selected_indices(iccs)
         n = len(indices)
         assert n >= 2
@@ -134,7 +149,7 @@ class TestWriteMcccQualityGuards:
             "run_mccc",
             lambda self, **kw: _fake_mccc_result(indices, cc_means, cc_stds),
         )
-        run_mccc(loaded_session, event, iccs, all_seismograms=False)
+        run_mccc(loaded_session, event.phases[0].id, iccs, all_seismograms=False)
 
         loaded_session.expire_all()
         stored = loaded_session.exec(
@@ -153,7 +168,7 @@ class TestWriteMcccQualityGuards:
         """Metrics go to `ICCS.seismograms[indices[i]]`, not to position `i`."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        iccs = create_iccs_instance(loaded_session, event).iccs
+        iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         indices = _selected_indices(iccs)[::-1]
         n = len(indices)
         cc_means = [round(0.5 + i / (2 * n), 3) for i in range(n)]
@@ -162,14 +177,14 @@ class TestWriteMcccQualityGuards:
             "run_mccc",
             lambda self, **kw: _fake_mccc_result(indices, cc_means, [0.05] * n),
         )
-        run_mccc(loaded_session, event, iccs, all_seismograms=False)
+        run_mccc(loaded_session, event.phases[0].id, iccs, all_seismograms=False)
 
         loaded_session.expire_all()
         for index, cc_mean in zip(indices, cc_means, strict=True):
             sq = loaded_session.exec(
                 select(AimbatSeismogramQuality).where(
-                    AimbatSeismogramQuality.seismogram_id
-                    == iccs.seismograms[index].extra["id"]
+                    AimbatSeismogramQuality.seismogram_parameters_id
+                    == iccs.seismograms[index].extra["row_id"]
                 )
             ).one()
             assert sq.mccc_cc_mean == pytest.approx(cc_mean)
@@ -180,7 +195,7 @@ class TestWriteMcccQualityGuards:
         """A refused pick stores no error, but keeps its CC metrics."""
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        iccs = create_iccs_instance(loaded_session, event).iccs
+        iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         indices = _selected_indices(iccs)
         n = len(indices)
         refused = indices[0]
@@ -191,17 +206,18 @@ class TestWriteMcccQualityGuards:
                 indices, [0.8] * n, [0.05] * n, frozenset({refused})
             ),
         )
-        run_mccc(loaded_session, event, iccs, all_seismograms=False)
+        run_mccc(loaded_session, event.phases[0].id, iccs, all_seismograms=False)
 
         loaded_session.expire_all()
         for index in indices:
             sq = loaded_session.exec(
                 select(AimbatSeismogramQuality).where(
-                    AimbatSeismogramQuality.seismogram_id
-                    == iccs.seismograms[index].extra["id"]
+                    AimbatSeismogramQuality.seismogram_parameters_id
+                    == iccs.seismograms[index].extra["row_id"]
                 )
             ).one()
             assert sq.mccc_cc_mean == pytest.approx(0.8)
+            assert sq.mccc_refused is (index == refused)
             if index == refused:
                 assert sq.mccc_error is None
             else:

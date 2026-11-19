@@ -8,11 +8,19 @@ from pandas import Timedelta, Timestamp
 
 from pysmo.classes import SAC
 
-from aimbat.io import DataType, SeismogramReadContext
+from aimbat.io import (
+    DataType,
+    SeismogramReadContext,
+    SourceRecordsRequest,
+    read_picks,
+    read_source_records,
+)
 from aimbat.io.sac import (
     create_event_from_sacfile,
-    create_seismogram_from_sacfile_and_pick_header,
+    create_seismogram_from_sacfile,
     create_station_from_sacfile,
+    read_picks_from_sacfile,
+    read_records_from_sacfile,
     read_seismogram_data_from_sacfile,
     write_seismogram_data_to_sacfile,
 )
@@ -177,15 +185,6 @@ class TestCreateEvent:
         assert event.longitude == sac.event.longitude
         assert event.depth == sac.event.depth
 
-    def test_has_parameters(self, sac_file_good: Path) -> None:
-        """Verifies that the created event has initialised parameters.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-        """
-        event = create_event_from_sacfile(sac_file_good)
-        assert event.parameters is not None
-
     def test_nonexistent_file_raises(self, tmp_path: Path) -> None:
         """Verifies that creating an event from a non-existent file raises FileNotFoundError.
 
@@ -197,98 +196,173 @@ class TestCreateEvent:
 
 
 # ===================================================================
-# create_seismogram_from_sacfile_and_pick_header
+# create_seismogram_from_sacfile
 # ===================================================================
 
 
 class TestCreateSeismogram:
     """Tests for creating AimbatSeismogram objects from SAC files."""
 
-    def test_returns_aimbat_seismogram(self, sac_file_good: Path) -> None:
-        """Verifies that the function returns an AimbatSeismogram instance.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-        """
-        seis = create_seismogram_from_sacfile_and_pick_header(sac_file_good, "t0")
-        assert isinstance(seis, AimbatSeismogram)
-
     def test_fields_match_sac(self, sac_file_good: Path) -> None:
-        """Verifies that seismogram fields match the SAC header values.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-        """
+        """The seismogram's times match the SAC file."""
         sac = SAC.from_file(sac_file_good)
-        seis = create_seismogram_from_sacfile_and_pick_header(sac_file_good, "t0")
+        seis = create_seismogram_from_sacfile(sac_file_good)
 
+        assert isinstance(seis, AimbatSeismogram)
         assert isinstance(seis.begin_time, Timestamp)
         assert seis.begin_time == sac.seismogram.begin_time
         assert isinstance(seis.delta, Timedelta)
         assert seis.delta == sac.seismogram.delta
 
-    def test_t0_uses_requested_pick_header(self, sac_file_good: Path) -> None:
-        """Verifies that t0 is populated from the specified pick header.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-        """
+    def test_file_without_picks(self, sac_file_good: Path) -> None:
+        """A SAC file without picks still gives a seismogram."""
         sac = SAC.from_file(sac_file_good)
+        sac.timestamps.t0 = None
+        sac.timestamps.t1 = None
+        sac.write(sac_file_good)
 
-        seis_t0 = create_seismogram_from_sacfile_and_pick_header(sac_file_good, "t0")
-        assert seis_t0.t0 == sac.timestamps.t0
-
-        seis_t1 = create_seismogram_from_sacfile_and_pick_header(sac_file_good, "t1")
-        assert seis_t1.t0 == sac.timestamps.t1
-
-    def test_has_parameters(self, sac_file_good: Path) -> None:
-        """Verifies that the created seismogram has initialised parameters.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-        """
-        seis = create_seismogram_from_sacfile_and_pick_header(sac_file_good, "t0")
-        assert seis.parameters is not None
+        assert isinstance(
+            create_seismogram_from_sacfile(sac_file_good), AimbatSeismogram
+        )
 
     def test_nonexistent_file_raises(self, tmp_path: Path) -> None:
-        """Verifies that creating a seismogram from a non-existent file raises FileNotFoundError.
-
-        Args:
-            tmp_path (Path): Temporary directory path.
-        """
         with pytest.raises(FileNotFoundError):
-            create_seismogram_from_sacfile_and_pick_header(
-                tmp_path / "missing.sac", "t0"
-            )
+            create_seismogram_from_sacfile(tmp_path / "missing.sac")
 
-    def test_invalid_pick_header_raises(self, sac_file_good: Path) -> None:
-        """Verifies that an invalid pick header names the setting that selects it.
 
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-        """
-        with pytest.raises(ValueError, match="is not a SAC pick header") as excinfo:
-            create_seismogram_from_sacfile_and_pick_header(
-                sac_file_good, "nonexistent_header"
-            )
-        assert "sac_pick_header" in str(excinfo.value)
+# ===================================================================
+# picks
+# ===================================================================
 
-    def test_none_pick_raises(self, sac_file_good: Path) -> None:
-        """Verifies that an unset pick header names the header and the setting.
 
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-        """
+def _write_picks(
+    path: Path, picks: dict[str, tuple[Timedelta | None, str | None]]
+) -> SAC:
+    """Clear every pick header of a SAC file, then set the given ones.
+
+    Each value is an offset from the seismogram begin time (`None` leaves the
+    time unset) and a label (`None` leaves the label unset).
+    """
+    sac = SAC.from_file(path)
+    for header in ("a", *(f"t{i}" for i in range(10))):
+        setattr(sac.timestamps, header, None)
+        setattr(sac.native, f"k{header}", None)
+    for header, (offset, label) in picks.items():
+        if offset is not None:
+            setattr(sac.timestamps, header, sac.seismogram.begin_time + offset)
+        setattr(sac.native, f"k{header}", label)
+    sac.write(path)
+    return SAC.from_file(path)
+
+
+class TestReadPicks:
+    """Tests for reading picks from SAC files."""
+
+    def test_labelled_pick(self, sac_file_good: Path) -> None:
+        """A pick header with a label gives a labelled pick keyed by the header."""
+        sac = _write_picks(sac_file_good, {"t3": (Timedelta(seconds=10), "PKP")})
+        picks = read_picks_from_sacfile(sac_file_good)
+        assert len(picks) == 1
+        assert picks[0].key == "t3"
+        assert picks[0].label == "PKP"
+        assert picks[0].time == sac.timestamps.t3
+        assert picks[0].target is None
+
+    def test_undefined_label(self, sac_file_good: Path) -> None:
+        """A pick header without a label gives an unlabelled pick."""
+        _write_picks(sac_file_good, {"t0": (Timedelta(seconds=10), None)})
+        (pick,) = read_picks_from_sacfile(sac_file_good)
+        assert pick.label is None
+
+    def test_blank_label(self, sac_file_good: Path) -> None:
+        """A pick header with a blank label gives an unlabelled pick."""
+        _write_picks(sac_file_good, {"t0": (Timedelta(seconds=10), "   ")})
+        (pick,) = read_picks_from_sacfile(sac_file_good)
+        assert pick.label is None
+
+    def test_label_without_time(self, sac_file_good: Path) -> None:
+        """A label whose pick header holds no time gives no pick."""
+        _write_picks(sac_file_good, {"t5": (None, "S")})
+        assert read_picks_from_sacfile(sac_file_good) == ()
+
+    def test_a_header(self, sac_file_good: Path) -> None:
+        """The `a` header is read with its `ka` label."""
+        _write_picks(sac_file_good, {"a": (Timedelta(seconds=5), "P")})
+        (pick,) = read_picks_from_sacfile(sac_file_good)
+        assert (pick.key, pick.label) == ("a", "P")
+
+    def test_several_picks_in_header_order(self, sac_file_good: Path) -> None:
+        """Every set pick header gives one pick, in header order."""
+        _write_picks(
+            sac_file_good,
+            {
+                "t9": (Timedelta(seconds=30), "S"),
+                "t0": (Timedelta(seconds=10), "P"),
+                "a": (Timedelta(seconds=5), None),
+            },
+        )
+        picks = read_picks_from_sacfile(sac_file_good)
+        assert [p.key for p in picks] == ["a", "t0", "t9"]
+
+    def test_fixture_picks(self, sac_file_good: Path) -> None:
+        """The fixture's `t0` is read with its label, and `t1` without one."""
         sac = SAC.from_file(sac_file_good)
-        # Find a timestamp header that is None.
-        none_header = None
-        for name in ["t4", "t5", "t6", "t7", "t8", "t9"]:
-            if getattr(sac.timestamps, name) is None:
-                none_header = name
-                break
-        assert none_header is not None, "expected at least one None timestamp header"
+        picks = {p.key: p for p in read_picks_from_sacfile(sac_file_good)}
+        assert picks["t0"].time == sac.timestamps.t0
+        assert picks["t1"].time == sac.timestamps.t1
+        assert picks["t0"].label == "P"
+        assert picks["t1"].label is None
 
-        with pytest.raises(ValueError, match="No initial pick found") as excinfo:
-            create_seismogram_from_sacfile_and_pick_header(sac_file_good, none_header)
-        assert none_header in str(excinfo.value)
-        assert "sac_pick_header" in str(excinfo.value)
+    def test_label_longer_than_eight_characters_refused_by_pysmo(self) -> None:
+        """pysmo refuses a SAC label longer than eight characters on writing it."""
+        sac = SAC()
+        with pytest.raises(ValueError):
+            sac.native.kt0 = "PKiKPPKP2"
+
+    def test_registered_for_sac(self, sac_file_good: Path) -> None:
+        """`read_picks` dispatches SAC to the SAC pick reader."""
+        assert read_picks(sac_file_good, DataType.SAC) == read_picks_from_sacfile(
+            sac_file_good
+        )
+
+
+class TestReadRecordsPicks:
+    """Tests for picks in the SAC records reader."""
+
+    def test_picks_and_end_time(self, sac_file_good: Path) -> None:
+        """A request with picks gives the picks and the seismogram end time."""
+        sac = SAC.from_file(sac_file_good)
+        records = read_records_from_sacfile(
+            SourceRecordsRequest(
+                str(sac_file_good),
+                DataType.SAC,
+                station=True,
+                event=True,
+                seismogram=True,
+                picks=True,
+            )
+        )
+        assert records.picks == read_picks_from_sacfile(sac_file_good)
+        assert records.seismogram_end_time == sac.seismogram.end_time
+
+    def test_picks_only(self, sac_file_good: Path) -> None:
+        """A picks-only request builds no station, event or seismogram."""
+        records = read_source_records(
+            sac_file_good,
+            DataType.SAC,
+            station=False,
+            event=False,
+            seismogram=False,
+            picks=True,
+        )
+        assert records.picks
+        assert records.station is None
+        assert records.event is None
+        assert records.seismogram is None
+        assert records.seismogram_end_time is not None
+
+    def test_no_picks_by_default(self, sac_file_good: Path) -> None:
+        """Picks are not read unless they are asked for."""
+        records = read_source_records(sac_file_good, DataType.SAC)
+        assert records.picks == ()
+        assert records.seismogram is not None

@@ -7,7 +7,7 @@ from aimbat.core._snapshot import create_snapshot
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
-    AimbatEventParametersSnapshot,
+    AimbatPhaseParametersSnapshot,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
@@ -92,7 +92,7 @@ class TestSnapshotCounts:
             session: The database session.
             event: An AimbatEvent instance.
         """
-        create_snapshot(session, event)
+        create_snapshot(session, event.phases[0].id)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
         assert snapshot.seismogram_count == len(
@@ -118,13 +118,13 @@ class TestSnapshotCounts:
         to_flip = seismograms[0]
         to_deselect = seismograms[1]
 
-        to_flip.parameters.flip = True
-        to_deselect.parameters.select = False
-        session.add(to_flip.parameters)
-        session.add(to_deselect.parameters)
+        to_flip.phase_rows[0].flip = True
+        to_deselect.phase_rows[0].select = False
+        session.add(to_flip.phase_rows[0])
+        session.add(to_deselect.phase_rows[0])
         session.commit()
 
-        create_snapshot(session, event)
+        create_snapshot(session, event.phases[0].id)
         snapshot = session.exec(select(AimbatSnapshot)).one()
         session.refresh(snapshot)
 
@@ -148,10 +148,10 @@ class TestCascadeDeleteEvent:
             session: The database session.
             event: An AimbatEvent to delete.
         """
-        create_snapshot(session, event)
+        create_snapshot(session, event.phases[0].id)
         session.refresh(event)
-        assert len(event.snapshots) > 0
-        snapshot_ids = [s.id for s in event.snapshots]
+        snapshot_ids = [s.id for phase in event.phases for s in phase.snapshots]
+        assert snapshot_ids
 
         session.delete(event)
         session.commit()
@@ -168,13 +168,13 @@ class TestCascadeDeleteEvent:
             session: The database session.
             event: An AimbatEvent to delete.
         """
-        create_snapshot(session, event)
+        create_snapshot(session, event.phases[0].id)
         session.refresh(event)
 
         session.delete(event)
         session.commit()
 
-        assert len(session.exec(select(AimbatEventParametersSnapshot)).all()) == 0
+        assert len(session.exec(select(AimbatPhaseParametersSnapshot)).all()) == 0
         assert len(session.exec(select(AimbatSeismogramParametersSnapshot)).all()) == 0
 
 
@@ -206,7 +206,7 @@ class TestCascadeDeleteSeismogram:
             session: The database session.
             seismogram: An AimbatSeismogram to delete.
         """
-        parameters_id = seismogram.parameters.id
+        parameters_id = seismogram.phase_rows[0].id
 
         session.delete(seismogram)
         session.commit()

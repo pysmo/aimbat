@@ -7,26 +7,30 @@ SQLAlchemy (for database access) with Pydantic (for validation).
 
 The main classes and their relationships are:
 
-- `AimbatEvent` — a seismic event.
-- `AimbatStation` — a seismic recording station.
-- `AimbatSeismogram` — links an `AimbatEvent` to an `AimbatStation` and holds
-  the timing metadata (`begin_time`, `delta`, `t0`). Waveform data are accessed
-  via the associated `AimbatDataSource`.
-- `AimbatDataSource` — identifies the logical source of the waveform data for a
+- `AimbatEvent`: a seismic event.
+- `AimbatPhase`: a phase of an event, the unit of processing.
+- `AimbatStation`: a seismic recording station.
+- `AimbatSeismogram`: links an `AimbatEvent` to an `AimbatStation` and holds
+  the timing metadata (`begin_time`, `delta`). Waveform data are accessed via
+  the associated `AimbatDataSource`.
+- `AimbatDataSource`: identifies the logical source of the waveform data for a
   seismogram and its type (e.g. SAC).
-- `AimbatEventParameters` — processing parameters shared across all seismograms
-  of an event (window bounds, bandpass filter settings, MCCC settings, etc.).
-- `AimbatSeismogramParameters` — per-seismogram processing parameters
-  (`flip`, `select`, working pick `t1`).
-- `AimbatSnapshot` — captures a point-in-time copy of event and seismogram
-  parameters via `AimbatEventParametersSnapshot` and
+- `AimbatPick`: an initial pick as read or entered, with its provenance.
+- `AimbatPhaseParameters`: processing parameters shared across all
+  seismograms of a phase (window bounds, bandpass filter settings, MCCC
+  settings, etc.).
+- `AimbatSeismogramParameters`: processing state of a seismogram for one
+  phase (`flip`, `select`, `refined_pick`), with its initial pick.
+- `AimbatSnapshot`: a point-in-time copy of the parameters of a phase and its
+  seismograms via `AimbatPhaseParametersSnapshot` and
   `AimbatSeismogramParametersSnapshot`, enabling rollback and comparison.
-- `AimbatEventQuality` / `AimbatSeismogramQuality` — live quality metrics updated
-  during processing; `AimbatSeismogramQuality` stores the ICCS cross-correlation
-  coefficient `iccs_cc` and MCCC per-seismogram metrics; `AimbatEventQuality`
-  stores the MCCC global RMSE.
-- `AimbatEventQualitySnapshot` / `AimbatSeismogramQualitySnapshot` — point-in-time
-  copies of quality metrics captured alongside parameter snapshots.
+- `AimbatPhaseQuality` and `AimbatSeismogramQuality`: live quality metrics
+  updated during processing. `AimbatSeismogramQuality` stores the ICCS
+  cross-correlation coefficient `iccs_cc` and the MCCC metrics of a
+  seismogram for a phase. `AimbatPhaseQuality` stores the MCCC global RMSE.
+- `AimbatPhaseQualitySnapshot` and `AimbatSeismogramQualitySnapshot`:
+  point-in-time copies of quality metrics captured alongside parameter
+  snapshots.
 """
 
 from .._utils import export_module_names

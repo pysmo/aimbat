@@ -1,0 +1,144 @@
+"""Functional tests for `aimbat data check`.
+
+Readiness itself is tested against `aimbat.core`. These tests check the
+table, the JSON output and the exit status.
+"""
+
+import json
+import uuid
+from collections.abc import Callable
+
+import pytest
+from pandas import Timedelta
+from sqlalchemy import Engine
+from sqlmodel import Session
+
+from aimbat.app import app
+from aimbat.core import store_picks
+from aimbat.io import DataType, SourcePick
+from aimbat.models import AimbatEvent
+
+type _Cli = Callable[[str | list[str]], None]
+
+
+def _add_pick(engine: Engine, event_id: str, label: str | None) -> None:
+    """Store a matched pick that is not promoted on a seismogram of the event."""
+    with Session(engine) as session:
+        event = session.get_one(AimbatEvent, uuid.UUID(event_id))
+        seismogram = sorted(event.seismograms, key=lambda s: str(s.id))[0]
+        store_picks(
+            session,
+            [
+                SourcePick(
+                    seismogram.phase_rows[0].initial_pick + Timedelta(seconds=5),
+                    "extra",
+                    label=label,
+                )
+            ],
+            source_name="extra.json",
+            source_type=DataType.SAC,
+            source_seismogram=seismogram,
+        )
+        session.commit()
+
+
+def _status(command: str) -> int:
+    with pytest.raises(SystemExit) as exc_info:
+        app(command)
+    code = exc_info.value.code
+    return code if isinstance(code, int) else 0
+
+
+@pytest.mark.cli
+class TestDataCheck:
+    """Tests for `data check`."""
+
+    def test_ready(
+        self, loaded_engine: Engine, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        capsys.readouterr()
+        assert _status("data check") == 0
+        assert "Ready:" in capsys.readouterr().out
+
+    def test_blocking_exits_2(
+        self,
+        loaded_engine: Engine,
+        capsys: pytest.CaptureFixture[str],
+        event_id: str,
+    ) -> None:
+        _add_pick(loaded_engine, event_id, None)
+        capsys.readouterr()
+        assert _status("data check") == 2
+        output = capsys.readouterr().out
+        assert "unnamed pick" in output
+        assert "aimbat pick name PHASE --event" in output
+        assert "Not ready:" in output
+
+    def test_notice_exits_2_only_when_strict(
+        self,
+        loaded_engine: Engine,
+        capsys: pytest.CaptureFixture[str],
+        event_id: str,
+    ) -> None:
+        _add_pick(loaded_engine, event_id, "S")
+        assert _status(f"data check {event_id}") == 0
+        assert "unpromoted pick" in capsys.readouterr().out
+        assert _status(f"data check {event_id} --strict") == 2
+
+    def test_failure_exits_1(
+        self,
+        loaded_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        import aimbat.actions
+
+        def _fail(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("check failed")
+
+        monkeypatch.setattr(aimbat.actions, "check_data", _fail)
+        # At INFO, handle_issues prints the panel and exits instead of raising.
+        monkeypatch.setattr(aimbat.settings, "log_level", "INFO")
+        capsys.readouterr()
+        assert _status("data check") == 1
+        assert "check failed" in capsys.readouterr().err
+
+    def test_json(
+        self,
+        loaded_engine: Engine,
+        capsys: pytest.CaptureFixture[str],
+        event_id: str,
+    ) -> None:
+        _add_pick(loaded_engine, event_id, None)
+        capsys.readouterr()
+        assert _status("data check --json") == 2
+        (item,) = json.loads(capsys.readouterr().out)
+        assert item["kind"] == "unnamed_pick"
+        assert item["event_id"] == event_id
+        assert event_id in item["fixes"][0]
+
+    def test_phase_filter(
+        self,
+        loaded_engine: Engine,
+        capsys: pytest.CaptureFixture[str],
+        event_id: str,
+    ) -> None:
+        _add_pick(loaded_engine, event_id, "S")
+        capsys.readouterr()
+        assert _status("data check --phase P --json") == 0
+        assert json.loads(capsys.readouterr().out) == []
+        assert _status("data check --phase S --json") == 0
+        (item,) = json.loads(capsys.readouterr().out)
+        assert (item["kind"], item["phase_name"]) == ("unpromoted_picks", "S")
+
+
+@pytest.mark.cli
+def test_data_add_reports_blocking_items(
+    patched_engine: Engine,
+    cli: _Cli,
+    capsys: pytest.CaptureFixture[str],
+    multi_event_data: list[object],
+) -> None:
+    capsys.readouterr()
+    cli(["data", "add", "--no-progress", *map(str, multi_event_data[:2])])
+    assert "Run `aimbat data check`" in capsys.readouterr().err

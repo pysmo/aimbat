@@ -8,9 +8,11 @@ Before a change that might need undoing:
 - before an experimental configuration (a different window or filter)
 - before running MCCC
 
-`aimbat data add` snapshots each event that received new data, so a clean
+`aimbat data add` snapshots each phase that gained initial picks, so a clean
 post-import baseline already exists. See
-[Adding Data](data.md#automatic-snapshots).
+[Adding Data](data.md#automatic-snapshots). The `pick` commands that complete
+initial picks do the same (see
+[Picks and Readiness](picks.md#inside-the-project)).
 
 !!! tip "Snapshot good parameter combinations — final results are exported from snapshots"
 
@@ -21,22 +23,27 @@ post-import baseline already exists. See
 
 ## What a snapshot captures
 
-A snapshot freezes an event's processing state at a point in time:
+A snapshot freezes the processing state of one phase of an event at a point in
+time:
 
-- all event-level parameters: time window, bandpass filter, minimum CC
-- per-seismogram `t1`, `select`, and `flip` for every seismogram in the event
+- the phase parameters: time window, bandpass filter, minimum CC
+- per-seismogram `refined_pick`, `select`, and `flip` for every seismogram in the
+    phase
 - quality metrics available at the time: ICCS CC per seismogram (present once the
-    event has been opened), and MCCC metrics plus the global RMSE (only if MCCC
+    phase has been opened), and MCCC metrics plus the global RMSE (only if MCCC
     has run)
-- whether it was created automatically (`aimbat data add`) or explicitly
+- whether it was created automatically (by `aimbat data add` or a `pick`
+    command) or explicitly
 
 Waveform data are not copied. A snapshot records a position in parameter space,
 not the data. Restoring one reconstructs the exact ICCS state, because the CC and
 context seismograms are fully determined by the raw data and the parameters.
 
-Snapshots are per-event; each event keeps its own list. A seismogram added after
-a snapshot has no entry in it, and is included in a rollback with its current
-live parameters. The snapshot's event-level parameters still apply to it.
+Snapshots are per phase. Each phase keeps its own list, and `snapshot create`
+selects the phase with `--phase` as other processing commands do. A seismogram
+added to the phase after a snapshot has no entry in it, and is included in a
+rollback with its current live parameters. The snapshot's phase parameters
+still apply to it.
 
 ## Creating a snapshot
 
@@ -64,12 +71,13 @@ live parameters. The snapshot's event-level parameters still apply to it.
     ```python
     from sqlmodel import Session, select
     from aimbat.db import engine
-    from aimbat.core import create_snapshot
+    from aimbat.core import create_snapshot, resolve_phase
     from aimbat.models import AimbatEvent
 
     with Session(engine) as session:
         event = session.exec(select(AimbatEvent)).first()
-        create_snapshot(session, event, comment="after bandpass 1–3Hz")
+        phase = resolve_phase(session, event.id)
+        create_snapshot(session, phase.id, comment="after bandpass 1–3Hz")
         session.commit()
     ```
 
@@ -117,7 +125,7 @@ the same information as attributes.
 === "CLI"
 
     ```bash
-    aimbat snapshot details <SNAPSHOT_ID>          # saved event parameters
+    aimbat snapshot details <SNAPSHOT_ID>          # saved phase parameters
     aimbat snapshot preview <SNAPSHOT_ID>          # stack plot
     aimbat snapshot preview --matrix <SNAPSHOT_ID> # matrix image
     ```
@@ -153,15 +161,16 @@ the same information as attributes.
     waveform data live but uses the snapshot's parameters; it never writes to
     the database.
 
-`details` shows the event-level parameters as they were when the snapshot was
+`details` shows the phase parameters as they were when the snapshot was
 taken. `preview` builds the stack from the snapshot's parameters without
 modifying the database.
 
 ## Rolling back
 
 Rolling back restores the snapshot's parameters as the current live values,
-overwriting the event's current parameters. Any ICCS runs or parameter changes
-made since are undone. The snapshot is not deleted and can be rolled back to
+overwriting the current parameters of the snapshot's phase. Other phases of the
+event are unaffected. Any ICCS runs or parameter changes made to the phase since
+are undone. The snapshot is not deleted and can be rolled back to
 again.
 
 === "CLI"
@@ -192,6 +201,9 @@ again.
         rollback_to_snapshot(session, snapshot_id)
         session.commit()
     ```
+
+Seismograms added after the snapshot was taken keep their parameters, and the
+rollback reports how many there are.
 
 If the snapshot holds MCCC quality data, the live quality metrics are restored
 too. See

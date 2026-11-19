@@ -3,22 +3,26 @@
 from pathlib import Path
 
 import pytest
+from pandas import Timedelta
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from aimbat.core import (
     create_iccs_instance,
     create_snapshot,
+    promote_picks,
     prune_project,
     run_mccc,
+    store_picks,
 )
 from aimbat.core._iccs import current_instance_digest
 from aimbat.core._validity import Validity
-from aimbat.io import DataType, SourceUnavailableError
+from aimbat.io import DataType, SourcePick, SourceUnavailableError
 from aimbat.io._base import _source_probes
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
+    AimbatPhase,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatSeismogramParametersSnapshot,
@@ -61,7 +65,7 @@ class TestPruneProject:
         seismogram = event.seismograms[0]
         seismogram_id = seismogram.id
         datasource_id = seismogram.datasource.id
-        parameters_id = seismogram.parameters.id
+        parameters_id = seismogram.phase_rows[0].id
         _unlink_seismogram_source(loaded_session, seismogram)
 
         report = prune_project(loaded_session, "all", auto_snapshot=False)
@@ -95,7 +99,7 @@ class TestPruneProject:
         event = _first_event(loaded_session)
         seismogram = event.seismograms[0]
         seismogram_id = seismogram.id
-        create_snapshot(loaded_session, event, comment="baseline")
+        create_snapshot(loaded_session, event.phases[0].id, comment="baseline")
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         snapshot_id = snapshot.id
         count_before = snapshot.seismogram_count
@@ -117,23 +121,28 @@ class TestPruneProject:
         self, loaded_session: Session
     ) -> None:
         event = _first_event(loaded_session)
-        event_id = event.id
-        iccs_bound = create_iccs_instance(loaded_session, event)
-        run_mccc(loaded_session, event, iccs_bound.iccs, all_seismograms=False)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        run_mccc(
+            loaded_session, event.phases[0].id, iccs_bound.iccs, all_seismograms=False
+        )
         loaded_session.refresh(event)
-        assert event.quality is not None and event.quality.mccc_rmse is not None
-        instance_before = current_instance_digest(loaded_session, event_id)
+        assert (
+            event.phases[0].quality is not None
+            and event.phases[0].quality.mccc_rmse is not None
+        )
+        phase_id = event.phases[0].id
+        instance_before = current_instance_digest(loaded_session, phase_id)
 
-        surviving_id = event.seismograms[1].id
+        surviving_id = event.seismograms[1].phase_rows[0].id
         pruned = event.seismograms[0]
         _unlink_seismogram_source(loaded_session, pruned)
 
         prune_project(loaded_session, "all", auto_snapshot=False)
 
-        validity = Validity.read(loaded_session, event_id)
-        assert not validity.mccc(event_id)
+        validity = Validity.read(loaded_session, phase_id)
+        assert not validity.mccc(phase_id)
         assert not validity.iccs_cc(surviving_id)
-        assert current_instance_digest(loaded_session, event_id) != instance_before
+        assert current_instance_digest(loaded_session, phase_id) != instance_before
 
     def test_auto_snapshot_runs_before_delete(self, loaded_session: Session) -> None:
         event = _first_event(loaded_session)
@@ -144,12 +153,36 @@ class TestPruneProject:
         prune_project(loaded_session, "all", auto_snapshot=True)
 
         snapshots = loaded_session.exec(
-            select(AimbatSnapshot).where(AimbatSnapshot.event_id == event.id)
+            select(AimbatSnapshot)
+            .join(AimbatPhase)
+            .where(AimbatPhase.event_id == event.id)
         ).all()
         auto = [s for s in snapshots if s.comment == "Automatic snapshot before prune"]
         assert len(auto) == 1
         # The snapshot froze the pre-prune seismogram set.
         assert auto[0].seismogram_count == seismograms_before
+
+    def test_auto_snapshot_only_for_phases_losing_rows(
+        self, loaded_session: Session
+    ) -> None:
+        event = _first_event(loaded_session)
+        orphan, kept = event.seismograms[0], event.seismograms[1]
+        stored = store_picks(
+            loaded_session,
+            [SourcePick(kept.begin_time + Timedelta(seconds=1), "s", "S")],
+            source_name="/data/s-picks",
+            source_type=DataType.SAC,
+            source_seismogram=kept,
+        )
+        (s_phase,) = promote_picks(loaded_session, stored.stored).phases_created
+        p_phase_ids = {row.phase_id for row in orphan.phase_rows}
+        _unlink_seismogram_source(loaded_session, orphan)
+
+        prune_project(loaded_session, "all", auto_snapshot=True)
+
+        snapshotted = set(loaded_session.exec(select(AimbatSnapshot.phase_id)).all())
+        assert snapshotted == p_phase_ids
+        assert s_phase.id not in snapshotted
 
     def test_snapshot_failure_aborts_without_deleting(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
@@ -179,7 +212,9 @@ class TestPruneProject:
 
         assert (
             loaded_session.exec(
-                select(AimbatSnapshot).where(AimbatSnapshot.event_id == event.id)
+                select(AimbatSnapshot)
+                .join(AimbatPhase)
+                .where(AimbatPhase.event_id == event.id)
             ).first()
             is None
         )
@@ -218,7 +253,7 @@ class TestPruneProject:
     ) -> None:
         event = _first_event(loaded_session)
         event_id = event.id
-        create_snapshot(loaded_session, event, comment="baseline")
+        create_snapshot(loaded_session, event.phases[0].id, comment="baseline")
         for seismogram in list(event.seismograms):
             _unlink_seismogram_source(loaded_session, seismogram)
 
@@ -230,7 +265,9 @@ class TestPruneProject:
         assert report.deleted_snapshots.get(event_id, 0) >= 1
         assert (
             loaded_session.exec(
-                select(AimbatSnapshot).where(AimbatSnapshot.event_id == event_id)
+                select(AimbatSnapshot)
+                .join(AimbatPhase)
+                .where(AimbatPhase.event_id == event_id)
             ).first()
             is None
         )

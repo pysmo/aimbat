@@ -12,26 +12,30 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
-from pysmo import MiniEvent, MiniStation
+from pysmo import MiniEvent, MiniSeismogram, MiniStation
 from pysmo.classes import SAC
 from pysmo.tools.iccs import MiniIccsSeismogram
 
 import aimbat
 from aimbat.core import (
+    PickNaming,
     add_data_to_project,
     add_seismograms_to_project,
     dump_data_table,
     get_data_for_event,
+    store_picks,
 )
-from aimbat.io import DataType
+from aimbat.io import DataType, SourcePick, StationEventTarget
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
-    AimbatEventParameters,
+    AimbatPhase,
+    AimbatPick,
     AimbatSeismogram,
+    AimbatSeismogramParameters,
     AimbatStation,
+    PickOrigin,
 )
-from aimbat.utils import exception_message
 
 # ---------------------------------------------------------------------------
 # Module-level fixtures
@@ -196,51 +200,19 @@ class TestAddDataToProject:
             "Expected no data sources to be added when an error occurs."
         )
 
-    def test_add_sac_file_with_missing_pick(
+    def test_add_sac_file_without_picks(
         self, sac_file_good: Path, patched_session: Session
     ) -> None:
-        """Verifies that a SAC file missing its pick names the header and the file.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-            patched_session (Session): Database session.
-        """
+        """A SAC file without picks is added, with no phase."""
         sac = SAC.from_file(sac_file_good)
         sac.timestamps.t0 = None
+        sac.timestamps.t1 = None
         sac.write(sac_file_good)
-        with pytest.raises(ValueError, match="No initial pick found") as excinfo:
-            add_data_to_project(
-                patched_session,
-                [sac_file_good],
-                data_type=DataType.SAC,
-            )
-        message = exception_message(excinfo.value)
-        assert "sac_pick_header" in message, "should name the setting to change"
-        assert str(sac_file_good) in message, "should name the offending data source"
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
 
-    def test_add_sac_file_with_invalid_pick_header(
-        self,
-        sac_file_good: Path,
-        patched_session: Session,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Verifies that a pick header that doesn't exist is reported as such.
-
-        Args:
-            sac_file_good (Path): Path to a valid SAC file.
-            patched_session (Session): Database session.
-            monkeypatch: The pytest monkeypatch fixture.
-        """
-        monkeypatch.setattr(aimbat.settings, "sac_pick_header", "not_a_header")
-        with pytest.raises(ValueError, match="is not a SAC pick header") as excinfo:
-            add_data_to_project(
-                patched_session,
-                [sac_file_good],
-                data_type=DataType.SAC,
-            )
-        assert str(sac_file_good) in exception_message(excinfo.value), (
-            "should name the offending data source"
-        )
+        assert len(patched_session.exec(select(AimbatSeismogram)).all()) == 1
+        assert patched_session.exec(select(AimbatPick)).all() == []
+        assert patched_session.exec(select(AimbatPhase)).all() == []
 
     def test_dry_run_all_new(
         self,
@@ -264,13 +236,12 @@ class TestAddDataToProject:
         assert len(datasource) == 0, "Expected no data sources after dry run."
 
         assert result is not None
-        (
-            added_datasources,
-            existing_station_ids,
-            existing_event_ids,
-            existing_seismogram_ids,
-            duplicate_warnings,
-        ) = result
+        report = result
+        added_datasources = report.datasources
+        existing_station_ids = report.existing_station_ids
+        existing_event_ids = report.existing_event_ids
+        existing_seismogram_ids = report.existing_seismogram_ids
+        duplicate_warnings = report.duplicate_warnings
         n = len(multi_event_data)
         assert len(added_datasources) == n
         assert all(
@@ -310,13 +281,12 @@ class TestAddDataToProject:
         )
 
         assert result is not None
-        (
-            added_datasources,
-            existing_station_ids,
-            existing_event_ids,
-            existing_seismogram_ids,
-            duplicate_warnings,
-        ) = result
+        report = result
+        added_datasources = report.datasources
+        existing_station_ids = report.existing_station_ids
+        existing_event_ids = report.existing_event_ids
+        existing_seismogram_ids = report.existing_seismogram_ids
+        duplicate_warnings = report.duplicate_warnings
         n = len(multi_event_data)
         assert len(added_datasources) == n
         assert all(
@@ -341,17 +311,14 @@ class TestAddDataToProject:
             multi_event_data (list[Path]): List of paths to SAC files.
             patched_session (Session): Database session.
         """
-        (
-            added_datasources,
-            existing_station_ids,
-            existing_event_ids,
-            existing_seismogram_ids,
-            duplicate_warnings,
-        ) = add_data_to_project(
+        report = add_data_to_project(
             patched_session,
             multi_event_data,
             data_type=DataType.SAC,
         )
+        added_datasources = report.datasources
+        existing_seismogram_ids = report.existing_seismogram_ids
+        duplicate_warnings = report.duplicate_warnings
 
         n = len(multi_event_data)
         assert len(added_datasources) == n
@@ -380,17 +347,14 @@ class TestAddDataToProject:
             data_type=DataType.SAC,
         )
 
-        (
-            added_datasources,
-            _existing_station_ids,
-            _existing_event_ids,
-            existing_seismogram_ids,
-            duplicate_warnings,
-        ) = add_data_to_project(
+        report = add_data_to_project(
             patched_session,
             multi_event_data,
             data_type=DataType.SAC,
         )
+        added_datasources = report.datasources
+        existing_seismogram_ids = report.existing_seismogram_ids
+        duplicate_warnings = report.duplicate_warnings
 
         assert len(added_datasources) == len(multi_event_data)
         assert all(
@@ -438,8 +402,6 @@ class TestNearDuplicateEventDetection:
         event = AimbatEvent(time=time, latitude=35.0, longitude=-120.0, depth=10.0)
         session.add(event)
         session.flush()
-        session.add(AimbatEventParameters(event=event))
-        session.flush()
         return event
 
     # -- Noise band (within event_duplicate_tolerance) --------------------
@@ -458,9 +420,11 @@ class TestNearDuplicateEventDetection:
         existing = patched_session.exec(select(AimbatEvent)).one()
         near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
 
-        added_datasources, _, _, _, duplicate_warnings = add_data_to_project(
+        report = add_data_to_project(
             patched_session, [near_dup], data_type=DataType.SAC
         )
+        added_datasources = report.datasources
+        duplicate_warnings = report.duplicate_warnings
 
         assert len(patched_session.exec(select(AimbatEvent)).all()) == 1
         assert added_datasources[0].seismogram.event_id == existing.id
@@ -481,15 +445,12 @@ class TestNearDuplicateEventDetection:
         existing = patched_session.exec(select(AimbatEvent)).one()
         near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
 
-        (
-            added_datasources,
-            _existing_station_ids,
-            existing_event_ids,
-            _existing_seismogram_ids,
-            duplicate_warnings,
-        ) = add_data_to_project(
+        report = add_data_to_project(
             patched_session, [near_dup], data_type=DataType.SAC, dry_run=True
         )
+        added_datasources = report.datasources
+        existing_event_ids = report.existing_event_ids
+        duplicate_warnings = report.duplicate_warnings
 
         assert len(duplicate_warnings) == 1
         assert str(near_dup) in duplicate_warnings[0]
@@ -573,9 +534,10 @@ class TestNearDuplicateEventDetection:
         """
         near_dup = self._shifted_copy(sac_file_good, tmp_path, 0.02, "near_dup.sac")
 
-        added_datasources, _, _, _, _ = add_data_to_project(
+        report = add_data_to_project(
             patched_session, [sac_file_good, near_dup], data_type=DataType.SAC
         )
+        added_datasources = report.datasources
 
         events = patched_session.exec(select(AimbatEvent)).all()
         assert len(events) == 1
@@ -618,9 +580,10 @@ class TestNearDuplicateEventDetection:
         far = self._seed_event(patched_session, new_time - Timedelta(seconds=0.09))
         close = self._seed_event(patched_session, new_time + Timedelta(seconds=0.04))
 
-        added_datasources, _, _, _, _ = add_data_to_project(
+        report = add_data_to_project(
             patched_session, [sac_file_good], data_type=DataType.SAC
         )
+        added_datasources = report.datasources
 
         assert len(patched_session.exec(select(AimbatEvent)).all()) == 2
         assert added_datasources[0].seismogram.event_id == close.id
@@ -643,9 +606,10 @@ class TestNearDuplicateEventDetection:
 
         # Closest match is in the noise band, so the event is reused rather
         # than raising, despite an ambiguous-gap match also being in range.
-        added_datasources, _, _, _, _ = add_data_to_project(
+        report = add_data_to_project(
             patched_session, [sac_file_good], data_type=DataType.SAC
         )
+        added_datasources = report.datasources
 
         assert added_datasources[0].seismogram.event_id == noise_band_event.id
 
@@ -847,8 +811,10 @@ class TestAddDataJsonEvent:
             assert event.longitude == _EVENT_DATA["longitude"]
             assert event.depth == _EVENT_DATA["depth"]
 
-    def test_event_has_parameters(self, engine: Engine, event_json: Path) -> None:
-        """Verifies that the imported event has initialised parameters.
+    def test_event_has_no_phases(self, engine: Engine, event_json: Path) -> None:
+        """Verifies that an event imported on its own has no phases.
+
+        Phases come from initial picks, and an event file has none.
 
         Args:
             engine: In-memory SQLAlchemy Engine.
@@ -859,7 +825,7 @@ class TestAddDataJsonEvent:
 
         with Session(engine) as session:
             event = session.exec(select(AimbatEvent)).one()
-            assert event.parameters is not None
+            assert event.phases == []
 
 
 class TestUuidValidation:
@@ -1053,6 +1019,109 @@ class TestDryRun:
 # ===================================================================
 
 
+class TestInitialPick:
+    """Picks read from an ingested SAC file.
+
+    The fixture file has a pick in `t0` labelled `P` and one in `t1` without a
+    label.
+    """
+
+    def test_labelled_pick_promoted(self, engine: Engine, sac_file_good: Path) -> None:
+        """The labelled pick is stored with its provenance and becomes the
+        initial pick of its phase. The unlabelled one is stored unnamed."""
+        with Session(engine) as session:
+            add_data_to_project(session, [sac_file_good], DataType.SAC)
+            session.commit()
+
+        with Session(engine) as session:
+            sac = SAC.from_file(sac_file_good)
+            seismogram = session.exec(select(AimbatSeismogram)).one()
+            picks = {p.source_key: p for p in session.exec(select(AimbatPick)).all()}
+            phase = session.exec(select(AimbatPhase)).one()
+            row = session.exec(select(AimbatSeismogramParameters)).one()
+            assert set(picks) == {"t0", "t1"}
+            pick = picks["t0"]
+            assert pick.origin is PickOrigin.SOURCE
+            assert pick.source_name == str(sac_file_good)
+            assert pick.source_type is DataType.SAC
+            assert pick.seismogram_id == seismogram.id
+            assert pick.time == sac.timestamps.t0.round("us")  # type: ignore[union-attr]
+            assert (phase.name, phase.event_id) == ("P", seismogram.event_id)
+            assert phase.parameters is not None
+            assert (row.seismogram_id, row.phase_id, row.pick_id) == (
+                seismogram.id,
+                phase.id,
+                pick.id,
+            )
+            assert picks["t1"].phase_name is None
+            assert picks["t1"].seismogram_id == seismogram.id
+
+    def test_unlabelled_as_names_unlabelled_picks(
+        self, engine: Engine, sac_file_good: Path
+    ) -> None:
+        """`unlabelled_as` names the unlabelled pick, which then gets its phase."""
+        with Session(engine) as session:
+            add_data_to_project(
+                session,
+                [sac_file_good],
+                DataType.SAC,
+                naming=PickNaming(unlabelled_as="S"),
+            )
+            session.commit()
+
+        with Session(engine) as session:
+            phases = {p.name: p for p in session.exec(select(AimbatPhase)).all()}
+            assert set(phases) == {"P", "S"}
+            assert phases["S"].seismogram_parameters[0].pick.source_key == "t1"
+
+    def test_two_picks_of_one_phase_refused(
+        self, engine: Engine, sac_file_good: Path
+    ) -> None:
+        """Naming the unlabelled pick after the labelled one gives the seismogram
+        two different initial picks of one phase, which is an error."""
+        with (
+            Session(engine) as session,
+            pytest.raises(ValueError, match="two different P picks"),
+        ):
+            add_data_to_project(
+                session,
+                [sac_file_good],
+                DataType.SAC,
+                naming=PickNaming(unlabelled_as="P"),
+            )
+
+    def test_re_add_stores_nothing_new(
+        self, engine: Engine, sac_file_good: Path
+    ) -> None:
+        """Adding the same data source again adds no pick, phase or row."""
+        for _ in range(2):
+            with Session(engine) as session:
+                add_data_to_project(session, [sac_file_good], DataType.SAC)
+                session.commit()
+
+        with Session(engine) as session:
+            assert len(session.exec(select(AimbatPick)).all()) == 2
+            assert len(session.exec(select(AimbatPhase)).all()) == 1
+            assert len(session.exec(select(AimbatSeismogramParameters)).all()) == 1
+
+    def test_seismogram_with_rows_not_moved_to_another_event(
+        self, engine: Engine, sac_file_good: Path, event_json: Path
+    ) -> None:
+        """Re-linking an ingested seismogram to another event is refused."""
+        with Session(engine) as session:
+            add_data_to_project(session, [sac_file_good], DataType.SAC)
+            add_data_to_project(session, [event_json], DataType.JSON_EVENT)
+            session.commit()
+            seismogram = session.exec(select(AimbatSeismogram)).one()
+            other = session.exec(
+                select(AimbatEvent).where(AimbatEvent.id != seismogram.event_id)
+            ).one()
+            with pytest.raises(ValueError, match="cannot be moved"):
+                add_data_to_project(
+                    session, [sac_file_good], DataType.SAC, event_id=other.id
+                )
+
+
 class TestAddSeismogramsToProject:
     """Tests for add_seismograms_to_project (direct triple ingestion)."""
 
@@ -1092,15 +1161,73 @@ class TestAddSeismogramsToProject:
         """A single triple is linked to a new station, event, and seismogram."""
         seismogram, station, event = self._triple()
 
-        added, _, _, _, _ = add_seismograms_to_project(
+        report = add_seismograms_to_project(
             patched_session, [(seismogram, station, event)], data_dir=tmp_path
         )
+        added = report.datasources
 
         assert len(added) == 1
         aimbat_seismogram = added[0].seismogram
-        assert aimbat_seismogram.t0 == seismogram.initial_pick
         assert aimbat_seismogram.station.name == station.name
         assert aimbat_seismogram.event.time == event.time
+
+    def test_initial_pick_promoted(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """The seismogram's initial pick, named by `naming`, becomes the
+        initial pick of its row."""
+        seismogram, station, event = self._triple()
+
+        report = add_seismograms_to_project(
+            patched_session,
+            [(seismogram, station, event)],
+            data_dir=tmp_path,
+            naming=PickNaming(unlabelled_as="P"),
+        )
+        added = report.datasources
+
+        (row,) = added[0].seismogram.phase_rows
+        assert row.initial_pick == seismogram.initial_pick
+        assert row.pick.source_key == "initial_pick"
+        assert row.pick.source_type is DataType.MSEED
+        assert row.phase.name == "P"
+
+    def test_unnamed_initial_pick_not_promoted(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """Without a name, the initial pick is stored but belongs to no phase."""
+        seismogram, station, event = self._triple()
+
+        report = add_seismograms_to_project(
+            patched_session, [(seismogram, station, event)], data_dir=tmp_path
+        )
+        added = report.datasources
+
+        assert added[0].seismogram.phase_rows == []
+        pick = patched_session.exec(select(AimbatPick)).one()
+        assert (pick.time, pick.phase_name) == (seismogram.initial_pick, None)
+
+    def test_plain_seismogram_gives_no_pick(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """A seismogram without an initial pick is added without picks."""
+        seismogram, station, event = self._triple()
+        plain = MiniSeismogram(
+            begin_time=seismogram.begin_time,
+            delta=seismogram.delta,
+            data=seismogram.data,
+        )
+
+        report = add_seismograms_to_project(
+            patched_session,
+            [(plain, station, event)],
+            data_dir=tmp_path,
+            naming=PickNaming(unlabelled_as="P"),
+        )
+        added = report.datasources
+
+        assert len(added) == 1
+        assert patched_session.exec(select(AimbatPick)).all() == []
 
     def test_files_land_under_data_dir(
         self, patched_session: Session, tmp_path: Path
@@ -1199,11 +1326,12 @@ class TestAddSeismogramsToProject:
             station_name="COLA", begin_time=Timestamp("2020-01-01T02:00:00Z")
         )
 
-        added, *_ = add_seismograms_to_project(
+        report = add_seismograms_to_project(
             patched_session,
             [(seismogram2, station2, near_dup_event)],
             data_dir=tmp_path,
         )
+        added = report.datasources
 
         assert len(patched_session.exec(select(AimbatEvent)).all()) == 1
         assert added[0].seismogram.event_id == existing.id
@@ -1238,7 +1366,6 @@ class TestAddSeismogramsToProject:
         add_seismograms_to_project(
             patched_session, [(seismogram, station, event)], data_dir=tmp_path
         )
-        first_t0 = patched_session.exec(select(AimbatSeismogram)).one().t0
 
         other_seismogram, _, _ = self._triple()
         other_seismogram.data = other_seismogram.data + 1000.0
@@ -1247,8 +1374,7 @@ class TestAddSeismogramsToProject:
         )
 
         assert len(patched_session.exec(select(AimbatSeismogram)).all()) == 1
-        aimbat_seismogram = patched_session.exec(select(AimbatSeismogram)).one()
-        assert aimbat_seismogram.t0 == first_t0
+        assert len(patched_session.exec(select(AimbatPick)).all()) == 1
 
         [mseed_file] = tmp_path.glob("*.mseed")
         on_disk = MSeed.from_file(mseed_file)
@@ -1266,12 +1392,13 @@ class TestAddSeismogramsToProject:
 
         other_seismogram, _, _ = self._triple()
         other_seismogram.data = other_seismogram.data + 1000.0
-        *_, duplicate_warnings = add_seismograms_to_project(
+        report = add_seismograms_to_project(
             patched_session,
             [(other_seismogram, station, event)],
             data_dir=tmp_path,
             dry_run=True,
         )
+        duplicate_warnings = report.duplicate_warnings
 
         assert len(duplicate_warnings) == 1
         assert "collision" in duplicate_warnings[0].lower()
@@ -1321,6 +1448,189 @@ class TestAddSeismogramsToProject:
 
         assert list(tmp_path.glob("*.mseed")) == []
         assert len(patched_session.exec(select(AimbatSeismogram)).all()) == 0
+
+
+class TestPicksAcrossCalls:
+    """Picks stored before their seismogram, matched and promoted by a later add."""
+
+    _EVENT_TIME = Timestamp("2020-06-01T00:00:00Z")
+    _BEGIN = Timestamp("2020-06-01T00:05:00Z")
+
+    @classmethod
+    def _event(cls) -> MiniEvent:
+        return MiniEvent(
+            time=cls._EVENT_TIME, latitude=35.0, longitude=-120.0, depth=10.0
+        )
+
+    @staticmethod
+    def _station(channel: str = "BHZ") -> MiniStation:
+        return MiniStation(
+            name="ANMO",
+            network="IU",
+            location="00",
+            channel=channel,
+            latitude=34.9459,
+            longitude=-106.4572,
+            elevation=1820.0,
+        )
+
+    @classmethod
+    def _seismogram(cls) -> MiniSeismogram:
+        return MiniSeismogram(
+            begin_time=cls._BEGIN, delta=Timedelta(seconds=0.05), data=np.arange(100.0)
+        )
+
+    @classmethod
+    def _store_pick(
+        cls, session: Session, *, channel: str | None = "BHZ", label: str = "S"
+    ) -> AimbatPick:
+        """Store a pick that names its seismogram by station code and event time."""
+        target = StationEventTarget(
+            network="IU",
+            station="ANMO",
+            location="00",
+            channel=channel,
+            event_time=cls._EVENT_TIME,
+        )
+        (pick,) = store_picks(
+            session,
+            [SourcePick(cls._BEGIN + Timedelta(seconds=2), "1", label, target)],
+            source_name="/data/picks.json",
+            source_type=DataType.SAC,
+        ).stored
+        return pick
+
+    def test_pick_matched_and_promoted_by_a_later_add(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        pick = self._store_pick(patched_session)
+        assert pick.seismogram_id is None
+
+        report = add_seismograms_to_project(
+            patched_session,
+            [(self._seismogram(), self._station(), self._event())],
+            data_dir=tmp_path,
+        )
+
+        assert report.rematched == [pick]
+        assert pick.seismogram_id == report.datasources[0].seismogram_id
+        (row,) = report.promotion.rows
+        assert row.pick is pick
+        assert row.phase.name == "S"
+        assert [phase.name for phase in report.promotion.phases_created] == ["S"]
+
+    def test_ambiguity_during_rematching_does_not_fail_the_add(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        pick = self._store_pick(patched_session, channel=None)
+        event = self._event()
+
+        report = add_seismograms_to_project(
+            patched_session,
+            [
+                (self._seismogram(), self._station("BHZ"), event),
+                (self._seismogram(), self._station("BHN"), event),
+            ],
+            data_dir=tmp_path,
+        )
+
+        assert len(report.datasources) == 2
+        assert report.rematched == []
+        assert report.promotion.rows == []
+        patched_session.refresh(pick)
+        assert pick.seismogram_id is None
+
+    def test_dry_run_reports_and_leaves_the_project_unchanged(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        pick = self._store_pick(patched_session)
+
+        report = add_seismograms_to_project(
+            patched_session,
+            [(self._seismogram(), self._station(), self._event())],
+            data_dir=tmp_path,
+            dry_run=True,
+        )
+
+        assert [p.id for p in report.rematched] == [pick.id]
+        assert len(report.promotion.rows) == 1
+        assert report.promotion.phases_created[0].event.time == self._EVENT_TIME
+        patched_session.refresh(pick)
+        assert pick.seismogram_id is None
+        assert patched_session.exec(select(AimbatPhase)).all() == []
+        assert patched_session.exec(select(AimbatSeismogramParameters)).all() == []
+        assert patched_session.exec(select(AimbatSeismogram)).all() == []
+
+    def test_phases_limit_the_promotion(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        pick = self._store_pick(patched_session, label="S")
+        seismogram = MiniIccsSeismogram(
+            begin_time=self._BEGIN,
+            delta=Timedelta(seconds=0.05),
+            data=np.arange(100.0),
+            initial_pick=self._BEGIN + Timedelta(seconds=1),
+        )
+
+        report = add_seismograms_to_project(
+            patched_session,
+            [(seismogram, self._station(), self._event())],
+            data_dir=tmp_path,
+            naming=PickNaming(unlabelled_as="P"),
+            phases=["P"],
+        )
+
+        assert [row.phase.name for row in report.promotion.rows] == ["P"]
+        assert report.promotion.unpromoted == [pick]
+        assert [p.name for p in patched_session.exec(select(AimbatPhase)).all()] == [
+            "P"
+        ]
+
+    def test_phases_keep_an_existing_excluded_phase_unchanged(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """An existing phase not among `phases` gains no rows."""
+        naming = PickNaming(unlabelled_as="P")
+
+        def triple(channel: str) -> tuple[MiniIccsSeismogram, MiniStation, MiniEvent]:
+            seismogram = MiniIccsSeismogram(
+                begin_time=self._BEGIN,
+                delta=Timedelta(seconds=0.05),
+                data=np.arange(100.0),
+                initial_pick=self._BEGIN + Timedelta(seconds=1),
+            )
+            return seismogram, self._station(channel), self._event()
+
+        add_seismograms_to_project(
+            patched_session, [triple("BHZ")], data_dir=tmp_path, naming=naming
+        )
+        (phase,) = patched_session.exec(select(AimbatPhase)).all()
+
+        report = add_seismograms_to_project(
+            patched_session,
+            [triple("BHN")],
+            data_dir=tmp_path,
+            naming=naming,
+            phases=["S"],
+        )
+
+        assert report.promotion.rows == []
+        assert [p.phase_name for p in report.promotion.unpromoted] == ["P"]
+        patched_session.refresh(phase)
+        assert len(phase.seismogram_parameters) == 1
+
+    def test_invalid_phase_name_rejected_before_anything_is_added(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        with pytest.raises(ValueError, match="whitespace"):
+            add_seismograms_to_project(
+                patched_session,
+                [(self._seismogram(), self._station(), self._event())],
+                data_dir=tmp_path,
+                phases=["P S"],
+            )
+
+        assert patched_session.exec(select(AimbatSeismogram)).all() == []
 
 
 class TestSourceReadCount:

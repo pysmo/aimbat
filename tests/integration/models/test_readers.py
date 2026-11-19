@@ -35,7 +35,7 @@ def mock_snapshot(loaded_session: Session) -> AimbatSnapshot:
     """Creates and returns a snapshot for the first event."""
     event = loaded_session.exec(select(AimbatEvent)).first()
     assert event is not None
-    create_snapshot(loaded_session, event, comment="test snapshot")
+    create_snapshot(loaded_session, event.phases[0].id, comment="test snapshot")
     snapshot = loaded_session.exec(select(AimbatSnapshot)).one_or_none()
     assert snapshot is not None
     return snapshot

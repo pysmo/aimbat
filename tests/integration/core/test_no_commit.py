@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 from aimbat import core
 from aimbat.io import DataType
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot, AimbatStation
-from aimbat.types import EventParameter, SeismogramParameter
+from aimbat.types import PhaseParameter, SeismogramParameter
 
 type _Case = Callable[[Session], Callable[[], object]]
 """Prepares a call on a session and returns it. Preparation may commit."""
@@ -30,8 +30,12 @@ def _seismogram(session: Session) -> AimbatSeismogram:
     return seismogram
 
 
+def _phase_id(session: Session) -> UUID:
+    return _seismogram(session).phase_rows[0].phase_id
+
+
 def _snapshot_id(session: Session) -> UUID:
-    core.create_snapshot(session, _event(session))
+    core.create_snapshot(session, _phase_id(session))
     session.commit()
     return session.exec(select(AimbatSnapshot.id)).one()
 
@@ -48,16 +52,16 @@ def _delete_snapshot(session: Session) -> Callable[[], object]:
 
 def _run_iccs(session: Session) -> Callable[[], object]:
     event = _event(session)
-    bound = core.create_iccs_instance(session, event)
+    bound = core.create_iccs_instance(session, event.phases[0].id)
     session.commit()
-    return lambda: core.run_iccs(session, event, bound.iccs, True, True)
+    return lambda: core.run_iccs(session, event.phases[0].id, bound.iccs, True, True)
 
 
 def _run_mccc(session: Session) -> Callable[[], object]:
     event = _event(session)
-    bound = core.create_iccs_instance(session, event)
+    bound = core.create_iccs_instance(session, event.phases[0].id)
     session.commit()
-    return lambda: core.run_mccc(session, event, bound.iccs, False)
+    return lambda: core.run_mccc(session, event.phases[0].id, bound.iccs, False)
 
 
 def _prune(session: Session) -> Callable[[], object]:
@@ -73,32 +77,39 @@ def _station_id(session: Session) -> UUID:
 
 _CASES: dict[str, _Case] = {
     "delete_event": lambda s: lambda: core.delete_event(s, _event(s).id),
-    "toggle_event_completed": lambda s: (
-        lambda: core.toggle_event_completed(s, _event(s).id)
+    "toggle_phase_completed": lambda s: (
+        lambda: core.toggle_phase_completed(s, _phase_id(s))
     ),
-    "set_event_parameters": lambda s: (
-        lambda: core.set_event_parameters(s, _event(s).id, {EventParameter.MIN_CC: 0.3})
+    "set_phase_parameters": lambda s: (
+        lambda: core.set_phase_parameters(s, _phase_id(s), {PhaseParameter.MIN_CC: 0.3})
     ),
     "save_note": lambda s: lambda: core.save_note(s, "event", _event(s).id, "note"),
     "delete_station": lambda s: lambda: core.delete_station(s, _station_id(s)),
     "delete_seismogram": lambda s: lambda: core.delete_seismogram(s, _seismogram(s).id),
     "set_seismogram_parameters": lambda s: (
         lambda: core.set_seismogram_parameters(
-            s, [_seismogram(s).id], {SeismogramParameter.FLIP: True}
+            s, _phase_id(s), [_seismogram(s).id], {SeismogramParameter.FLIP: True}
         )
     ),
-    "set_seismogram_picks": lambda s: (
-        lambda: core.set_seismogram_picks(
-            s, {_seismogram(s).id: _seismogram(s).t0 + Timedelta(seconds=1)}
+    "set_refined_picks": lambda s: (
+        lambda: core.set_refined_picks(
+            s,
+            _phase_id(s),
+            {
+                _seismogram(s).id: _seismogram(s).phase_rows[0].initial_pick
+                + Timedelta(seconds=1)
+            },
         )
     ),
     "reset_seismogram_parameters": lambda s: (
-        lambda: core.reset_seismogram_parameters(s, _seismogram(s).id)
+        lambda: core.reset_seismogram_parameters(s, _phase_id(s), _seismogram(s).id)
     ),
-    "create_snapshot": lambda s: lambda: core.create_snapshot(s, _event(s)),
+    "create_snapshot": lambda s: lambda: core.create_snapshot(s, _phase_id(s)),
     "rollback_to_snapshot": _rollback,
     "delete_snapshot": _delete_snapshot,
-    "create_iccs_instance": lambda s: lambda: core.create_iccs_instance(s, _event(s)),
+    "create_iccs_instance": lambda s: (
+        lambda: core.create_iccs_instance(s, _phase_id(s))
+    ),
     "run_iccs": _run_iccs,
     "run_mccc": _run_mccc,
     "prune_project": _prune,
@@ -123,9 +134,19 @@ def test_does_not_commit(
 
 
 def test_add_data_does_not_commit(
-    patched_session: Session, sac_file_good: Path, monkeypatch: pytest.MonkeyPatch
+    patched_session: Session,
+    multi_event_data: list[Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _forbid_commit(monkeypatch)
 
-    added, *_ = core.add_data_to_project(patched_session, [sac_file_good], DataType.SAC)
-    core.create_snapshots_for_added_data(patched_session, added, set())
+    report = core.add_data_to_project(
+        patched_session,
+        multi_event_data,
+        DataType.SAC,
+        naming=core.PickNaming(unlabelled_as="P"),
+    )
+    assert report.promotion.rows
+    core.create_snapshots_for_added_data(
+        patched_session, {row.phase_id: 1 for row in report.promotion.rows}
+    )

@@ -3,8 +3,8 @@
 `prune_project` probes every data source in scope (see
 `aimbat.io.source_present`), deletes the `AimbatSeismogram` rows whose source
 can no longer be read, and repairs the fallout a plain delete leaves behind:
-emptied stations and events are optionally cleaned up, and each affected
-event is snapshotted first.
+emptied stations and events are optionally cleaned up, and each phase that
+loses rows is snapshotted first.
 
 Frozen snapshot history survives a prune untouched: a pruned seismogram's
 `*Snapshot` rows keep their values and their own `seismogram_id`; only the
@@ -33,7 +33,9 @@ from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
     AimbatNote,
+    AimbatPhase,
     AimbatSeismogram,
+    AimbatSeismogramParameters,
     AimbatSnapshot,
     AimbatStation,
 )
@@ -113,8 +115,9 @@ def prune_project(
         prune_empty_stations: Also delete stations left with no seismograms.
         prune_empty_events: Also delete events left with no seismograms.
             Deleting an event irreversibly destroys its snapshot history.
-        auto_snapshot: Snapshot every affected event before deleting anything.
-            A snapshot failure aborts the prune with nothing deleted.
+        auto_snapshot: Snapshot every phase that loses rows before deleting
+            anything. A snapshot failure aborts the prune with nothing
+            deleted.
         force: Treat a source whose presence cannot be determined (an
             unreadable file, a missing parent directory, an unreachable mount)
             as vanished instead of stopping. Without it, such a source is a
@@ -132,9 +135,9 @@ def prune_project(
         NoResultFound: If `event_id` is not `"all"` and names no event.
         SourceUnavailableError: If a source's presence cannot be determined
             and `force` is not set; nothing is pruned.
-        RuntimeError: If `auto_snapshot` is set and an affected event cannot
+        RuntimeError: If `auto_snapshot` is set and an affected phase cannot
             be snapshotted; nothing is pruned. Snapshots already taken for
-            other events remain in the session until the caller rolls back.
+            other phases remain in the session until the caller rolls back.
     """
     all_scope = isinstance(event_id, str) and event_id.lower() == "all"
     if not all_scope and session.get(AimbatEvent, event_id) is None:
@@ -233,9 +236,9 @@ def prune_project(
     if prune_empty_events:
         for e in emptied_events:
             count = session.exec(
-                select(func.count(col(AimbatSnapshot.id))).where(
-                    col(AimbatSnapshot.event_id) == e.id
-                )
+                select(func.count(col(AimbatSnapshot.id)))
+                .join(AimbatPhase)
+                .where(col(AimbatPhase.event_id) == e.id)
             ).one()
             if count:
                 deleted_snapshots[e.id] = count
@@ -283,9 +286,19 @@ def prune_project(
     from ._iccs import clear_iccs_cache
     from ._snapshot import create_snapshot
 
-    snapshot_event_ids = [e.id for e in events_losing_seismograms]
     prune_station_ids = [s.id for s in emptied_stations] if prune_empty_stations else []
     prune_event_ids = [e.id for e in emptied_events] if prune_empty_events else []
+    # The snapshots of a deleted event go with it.
+    snapshot_phase_ids = session.exec(
+        select(AimbatPhase.id)
+        .join(AimbatSeismogramParameters)
+        .where(
+            col(AimbatSeismogramParameters.seismogram_id).in_(orphan_ids),
+            col(AimbatPhase.event_id).not_in(prune_event_ids),
+        )
+        .distinct()
+        .order_by(col(AimbatPhase.id))
+    ).all()
 
     # Detach the eagerly loaded report graph now, while its relationships are
     # still populated. The caller's commit expires every attached instance,
@@ -297,20 +310,17 @@ def prune_project(
     session.expunge_all()
 
     if auto_snapshot:
-        for event_uuid in snapshot_event_ids:
-            snap_event = session.get(AimbatEvent, event_uuid)
-            if snap_event is None:
-                continue
+        for phase_id in snapshot_phase_ids:
             try:
                 create_snapshot(
                     session,
-                    snap_event,
+                    phase_id,
                     comment="Automatic snapshot before prune",
                     automatic=True,
                 )
             except Exception as exc:
                 raise RuntimeError(
-                    f"Aborting prune: could not snapshot event {event_uuid} "
+                    f"Aborting prune: could not snapshot phase {phase_id} "
                     + f"first ({exc}). Nothing was deleted."
                 ) from exc
 

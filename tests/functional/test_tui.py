@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from pandas import Timestamp
+from pandas import Timedelta, Timestamp
 from sqlalchemy import Engine
 from sqlmodel import Session, select
 from textual.binding import Binding
@@ -41,6 +41,7 @@ from aimbat._tui.modals import (
     ActionMenuModal,
     AlignModal,
     InteractiveToolsModal,
+    ParametersModal,
     SchemaStaleModal,
     SnapshotDetailsModal,
     ToolLaunchResult,
@@ -51,12 +52,15 @@ from aimbat.core import (
     IccsLifecycle,
     create_snapshot,
     current_instance_digest,
+    default_phase_parameters,
     get_current_revision,
+    store_picks,
 )
 from aimbat.core import create_iccs_instance as _real_create_iccs_instance
+from aimbat.io import DataType, SourcePick
 from aimbat.models import (
     AimbatEvent,
-    AimbatEventParameters,
+    AimbatPhase,
     AimbatSeismogram,
     AimbatSnapshot,
 )
@@ -505,7 +509,7 @@ class TestICCSStalenessRetry:
 
         call_count = 0
 
-        def _always_fails(event_id: uuid.UUID) -> BoundICCS:
+        def _always_fails(phase_id: uuid.UUID) -> BoundICCS:
             nonlocal call_count
             call_count += 1
             raise ValueError("simulated persistent failure")
@@ -529,8 +533,9 @@ class TestICCSStalenessRetry:
                 # Mirror what `_check_iccs_staleness` records before a fresh
                 # attempt, so later polls see an unchanged instance digest.
                 with Session(loaded_engine_from_file) as session:
+                    phase_id = session.get_one(AimbatEvent, event.id).phases[0].id
                     app._iccs_lifecycle.note_checked(
-                        current_instance_digest(session, event.id)
+                        current_instance_digest(session, phase_id)
                     )
 
                 app._create_iccs()
@@ -553,6 +558,51 @@ class TestICCSStalenessRetry:
 
         asyncio.run(_run())
 
+    def test_not_ready_phase_warns(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A phase with blocking readiness items is refused with a warning."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+            row = event.phases[0].seismogram_parameters[0]
+            store_picks(
+                session,
+                [SourcePick(row.initial_pick + Timedelta(seconds=5), "extra")],
+                source_name="extra.json",
+                source_type=DataType.SAC,
+                source_seismogram=row.seismogram,
+            )
+            session.commit()
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                app._current_event_id = event_id
+
+                app._create_iccs()
+                await _wait_for_iccs_worker(app)
+                assert app._iccs_lifecycle.bound is None
+
+        asyncio.run(_run())
+
+        assert len(notifications) == 1
+        message, severity = notifications[0]
+        assert "not ready for processing" in message
+        assert severity == "warning"
+
     def test_retry_can_succeed_after_one_failure(
         self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -561,12 +611,12 @@ class TestICCSStalenessRetry:
 
         attempts = 0
 
-        def _fail_once_then_succeed(event_id: uuid.UUID) -> BoundICCS:
+        def _fail_once_then_succeed(phase_id: uuid.UUID) -> BoundICCS:
             nonlocal attempts
             attempts += 1
             if attempts == 1:
                 raise ValueError("simulated transient failure")
-            return prepare_iccs(event_id)
+            return prepare_iccs(phase_id)
 
         monkeypatch.setattr(
             aimbat._tui._iccs_lifecycle, "prepare_iccs", _fail_once_then_succeed
@@ -587,8 +637,9 @@ class TestICCSStalenessRetry:
                 assert event is not None
                 app._current_event_id = event.id
                 with Session(loaded_engine_from_file) as session:
+                    phase_id = session.get_one(AimbatEvent, event.id).phases[0].id
                     app._iccs_lifecycle.note_checked(
-                        current_instance_digest(session, event.id)
+                        current_instance_digest(session, phase_id)
                     )
 
                 app._create_iccs()
@@ -675,8 +726,6 @@ class TestICCSEmptyEvent:
                 depth=29.0,
             )
             session.add(empty)
-            session.flush()
-            session.add(AimbatEventParameters(event=empty))
             session.commit()
             empty_id = empty.id
 
@@ -746,8 +795,10 @@ class TestStalenessUIRefresh:
                 with Session(loaded_engine_from_file) as session:
                     ev = session.get(AimbatEvent, event.id)
                     assert ev is not None
-                    ev.parameters.mccc_damp = ev.parameters.mccc_damp + 0.5
-                    session.add(ev.parameters)
+                    ev.phases[0].parameters.mccc_damp = (
+                        ev.phases[0].parameters.mccc_damp + 0.5
+                    )
+                    session.add(ev.phases[0].parameters)
                     session.commit()
 
                 app._check_iccs_staleness()
@@ -790,7 +841,7 @@ class TestIccsAssignmentRace:
                     stale_event_reloaded = session.get(AimbatEvent, stale_event.id)
                     assert stale_event_reloaded is not None
                     stale_bound = _real_create_iccs_instance(
-                        session, stale_event_reloaded
+                        session, stale_event_reloaded.phases[0].id
                     )
 
                 # Simulate the user having switched to a different event
@@ -803,7 +854,9 @@ class TestIccsAssignmentRace:
 
                 await _wait_for_iccs_worker(app)
                 assert app._iccs_lifecycle.bound is not None
-                assert app._iccs_lifecycle.bound.event_id == current_event.id
+                with Session(loaded_engine_from_file) as session:
+                    current = session.get_one(AimbatEvent, current_event.id)
+                    assert app._iccs_lifecycle.bound.phase_id == current.phases[0].id
 
         asyncio.run(_run())
 
@@ -825,7 +878,9 @@ class TestIccsAssignmentRace:
                 with Session(loaded_engine_from_file) as session:
                     event_reloaded = session.get(AimbatEvent, event.id)
                     assert event_reloaded is not None
-                    stale_bound = _real_create_iccs_instance(session, event_reloaded)
+                    stale_bound = _real_create_iccs_instance(
+                        session, event_reloaded.phases[0].id
+                    )
 
                 # Simulate the event having been deleted (and none selected)
                 # while `stale_bound` was still being built.
@@ -923,6 +978,89 @@ class TestRequireIccs:
         assert severity == "warning"
 
 
+class TestParametersOnSeveralPhases:
+    """Opening the parameters of an event with several phases warns."""
+
+    def test_names_the_phases(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event.phases.append(
+                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            )
+            session.commit()
+            event_id = event.id
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                app._current_event_id = event_id
+
+                app.action_open_parameters()
+
+                assert not isinstance(app.screen, ParametersModal)
+
+        asyncio.run(_run())
+
+        assert len(notifications) == 1
+        message, severity = notifications[0]
+        assert "This event has phases P, PKP" in message
+        assert "Select a phase with the CLI" in message
+        assert severity == "warning"
+
+    def test_selecting_and_aligning_show_the_notice(
+        self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine)
+        with Session(loaded_engine) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event.phases.append(
+                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            )
+            session.commit()
+            event_id = event.id
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+
+                app._select_event(str(event_id))
+                await _wait_for_iccs_worker(app)
+                app.action_open_align()
+
+                assert not app._iccs_lifecycle.ready
+
+        asyncio.run(_run())
+
+        notices = [m for m, s in notifications if s == "warning"]
+        assert len(notices) == 2
+        assert all("This event has phases P, PKP" in m for m in notices)
+
+
 @pytest.mark.slow
 class TestAlignModalLosesIccsWhileOpen:
     """The align menu re-checks the ICCS instance when the modal closes.
@@ -954,7 +1092,7 @@ class TestAlignModalLosesIccsWhileOpen:
                     assert event is not None
                     app._current_event_id = event.id
                     app._iccs_lifecycle.assign(
-                        _real_create_iccs_instance(session, event)
+                        _real_create_iccs_instance(session, event.phases[0].id)
                     )
                 assert app._iccs_lifecycle.ready is True
 
@@ -1042,7 +1180,7 @@ class TestRowActionMenuWiring:
         with Session(loaded_engine) as session:
             event = session.get(AimbatEvent, event_id)
             assert event is not None
-            assert event.parameters.completed is True
+            assert event.phases[0].parameters.completed is True
 
     def test_seismogram_action_toggles_select(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -1080,7 +1218,7 @@ class TestRowActionMenuWiring:
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, seismogram_id)
             assert seismogram is not None
-            assert seismogram.parameters.select is False
+            assert seismogram.phase_rows[0].select is False
 
     def test_snapshot_action_shows_details(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -1092,7 +1230,7 @@ class TestRowActionMenuWiring:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
             event_id = event.id
-            create_snapshot(session, event, "wiring test snapshot")
+            create_snapshot(session, event.phases[0].id, "wiring test snapshot")
             session.commit()
 
         async def _run() -> None:
@@ -1166,7 +1304,7 @@ class TestRowActionFooterHotkeys:
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, seismogram_id)
             assert seismogram is not None
-            assert seismogram.parameters.select is False
+            assert seismogram.phase_rows[0].select is False
 
     def test_footer_shows_row_action_only_for_focused_table(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -1503,7 +1641,7 @@ class TestCausalZeroPhaseToggle:
                 modal = InteractiveToolsModal()
                 pilot.app.push_screen(modal)
                 await pilot.pause()
-                # _TOOLS[0] == "phase", causal default True.
+                # _TOOLS[0] == "pick", causal default True.
                 assert modal._causal is True
                 table = modal.query_one("#tools-table", DataTable)
                 # _TOOLS[1] == "window", causal default False.
@@ -1556,9 +1694,9 @@ class TestCausalZeroPhaseToggle:
                 await _wait_for_iccs_worker(app)
                 assert app._iccs_lifecycle.bound is not None
 
-                # "phase"'s causal default is True; pass the non-default
+                # "pick"'s causal default is True; pass the non-default
                 # value through explicitly.
-                app._run_tool("phase", True, False, False)
+                app._run_tool("pick", True, False, False)
                 await pilot.pause()
 
         asyncio.run(_run())
@@ -1774,7 +1912,7 @@ class TestToggleSeismogramBoolRefresh:
         with Session(loaded_engine) as session:
             refetched = session.get(AimbatSeismogram, seis_id)
             assert refetched is not None
-            assert refetched.parameters.select is False
+            assert refetched.phase_rows[0].select is False
 
 
 # ===========================================================================
@@ -1918,10 +2056,12 @@ class TestAddDataAutoSnapshot:
         with Session(engine) as session:
             event = session.exec(select(AimbatEvent)).one()
             snapshot = session.exec(
-                select(AimbatSnapshot).where(AimbatSnapshot.event_id == event.id)
+                select(AimbatSnapshot)
+                .join(AimbatPhase)
+                .where(AimbatPhase.event_id == event.id)
             ).one()
             assert snapshot.automatic is True
-            assert snapshot.comment == "Added 1 seismogram"
+            assert snapshot.comment == "Added 1 pick"
 
 
 @pytest.mark.slow

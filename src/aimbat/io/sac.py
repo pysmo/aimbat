@@ -1,8 +1,9 @@
 """SAC file I/O for AIMBAT.
 
-Reads and writes seismogram data from SAC files via `pysmo`, and creates
+Reads and writes seismogram data from SAC files via `pysmo`, creates
 `AimbatStation`, `AimbatEvent`, and `AimbatSeismogram` model instances from
-SAC file metadata.
+SAC file metadata, and reads the picks stored in the `a` and `t0`-`t9`
+headers together with their `ka` and `kt0`-`kt9` labels.
 
 This module registers its capabilities with the I/O dispatch layer on import,
 so importing it is sufficient to enable SAC support.
@@ -11,22 +12,23 @@ so importing it is sufficient to enable SAC support.
 from __future__ import annotations
 
 from os import PathLike
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
 import numpy.typing as npt
 
 from pysmo.classes import SAC
 
-from aimbat import settings
 from aimbat.logger import logger
 
 from ._base import (
     SeismogramReadContext,
+    SourcePick,
     SourceRecords,
     SourceRecordsRequest,
     event_creator,
     file_source_present,
+    pick_reader,
     seismogram_creator,
     seismogram_data_reader,
     seismogram_data_writer,
@@ -42,13 +44,15 @@ if TYPE_CHECKING:
 __all__ = [
     "create_event_from_sacfile",
     "create_seismogram_from_sacfile",
-    "create_seismogram_from_sacfile_and_pick_header",
     "create_station_from_sacfile",
+    "read_picks_from_sacfile",
     "read_records_from_sacfile",
     "read_seismogram_data_from_sacfile",
     "sac_source_present",
     "write_seismogram_data_to_sacfile",
 ]
+
+_SAC_PICK_HEADERS: Final = ("a", *(f"t{i}" for i in range(10)))
 
 
 @source_probe(DataType.SAC)
@@ -113,38 +117,52 @@ def _station_from_sac(sac: SAC) -> AimbatStation:
 def _event_from_sac(sac: SAC) -> AimbatEvent:
     """Build an `AimbatEvent` from an already-read SAC file."""
 
-    from aimbat.models import AimbatEvent, AimbatEventParameters
+    from aimbat.models import AimbatEvent
 
-    return AimbatEvent.model_validate(
-        sac.event, update={"parameters": AimbatEventParameters()}
-    )
+    return AimbatEvent.model_validate(sac.event)
 
 
-def _seismogram_from_sac(sac: SAC, sac_pick_header: str) -> AimbatSeismogram:
-    """Build an `AimbatSeismogram` from an already-read SAC file.
+def _seismogram_from_sac(sac: SAC) -> AimbatSeismogram:
+    """Build an `AimbatSeismogram` from an already-read SAC file."""
 
-    Raises:
-        ValueError: If `sac_pick_header` is not a SAC pick header, or if the
-            file has no pick stored in it.
+    from aimbat.models import AimbatSeismogram
+
+    return AimbatSeismogram.model_validate(sac.seismogram)
+
+
+def _picks_from_sac(sac: SAC) -> tuple[SourcePick, ...]:
+    """Return the picks of an already-read SAC file.
+
+    Each pick header (`a`, `t0`-`t9`) that holds a time gives one pick, keyed
+    by the header name and labelled from its label header (`ka`, `kt0`-`kt9`).
+    A label without a time gives no pick.
     """
 
-    from aimbat.models import AimbatSeismogram, AimbatSeismogramParameters
+    picks = []
+    for header in _SAC_PICK_HEADERS:
+        time = getattr(sac.timestamps, header)
+        if time is None:
+            continue
+        label = getattr(sac.native, f"k{header}")
+        picks.append(SourcePick(time=time, key=header, label=label))
+    return tuple(picks)
 
-    if not hasattr(sac.timestamps, sac_pick_header):
-        raise ValueError(
-            f"{sac_pick_header!r} is not a SAC pick header. Point the "
-            + "sac_pick_header setting (AIMBAT_SAC_PICK_HEADER) at one that is."
-        )
-    t0 = getattr(sac.timestamps, sac_pick_header)
-    if t0 is None:
-        raise ValueError(
-            f"No initial pick found in SAC header {sac_pick_header!r}. Either add "
-            + "the pick, or point the sac_pick_header setting "
-            + "(AIMBAT_SAC_PICK_HEADER) at a header that has one."
-        )
-    return AimbatSeismogram.model_validate(
-        sac.seismogram, update={"t0": t0, "parameters": AimbatSeismogramParameters()}
-    )
+
+@pick_reader(DataType.SAC)
+def read_picks_from_sacfile(sacfile: str | PathLike[str]) -> tuple[SourcePick, ...]:
+    """Read the picks stored in a SAC file.
+
+    Args:
+        sacfile: Name of the SAC file.
+
+    Returns:
+        One pick for each of the `a` and `t0`-`t9` headers that holds a time,
+            labelled from the matching `ka` or `kt0`-`kt9` header.
+    """
+
+    logger.debug(f"Reading picks from {sacfile}.")
+
+    return _picks_from_sac(SAC.from_file(sacfile))
 
 
 @source_records_reader(DataType.SAC)
@@ -155,12 +173,8 @@ def read_records_from_sacfile(request: SourceRecordsRequest) -> SourceRecords:
         request: The records wanted, and the SAC file to build them from.
 
     Returns:
-        The requested records.
-
-    Raises:
-        ValueError: If a seismogram is wanted and the configured
-            `sac_pick_header` is not a SAC pick header, or the file has no
-            pick stored in it.
+        The requested records. The end time of the seismogram is included
+            when a seismogram or picks are asked for.
     """
 
     logger.debug(f"Reading records from {request.sourcename}.")
@@ -169,11 +183,11 @@ def read_records_from_sacfile(request: SourceRecordsRequest) -> SourceRecords:
     return SourceRecords(
         station=_station_from_sac(sac) if request.station else None,
         event=_event_from_sac(sac) if request.event else None,
-        seismogram=(
-            _seismogram_from_sac(sac, settings.sac_pick_header)
-            if request.seismogram
-            else None
+        seismogram=_seismogram_from_sac(sac) if request.seismogram else None,
+        seismogram_end_time=(
+            sac.seismogram.end_time if request.seismogram or request.picks else None
         ),
+        picks=_picks_from_sac(sac) if request.picks else (),
     )
 
 
@@ -209,31 +223,9 @@ def create_event_from_sacfile(sacfile: str | PathLike[str]) -> AimbatEvent:
     return _event_from_sac(SAC.from_file(sacfile))
 
 
-def create_seismogram_from_sacfile_and_pick_header(
-    sacfile: str | PathLike[str], sac_pick_header: str
-) -> AimbatSeismogram:
-    """Create an `AimbatSeismogram` instance from a SAC file.
-
-    Args:
-        sacfile: Name of the SAC file.
-        sac_pick_header: SAC header to use as t0 in AIMBAT.
-
-    Returns:
-        A new `AimbatSeismogram` instance, with `t0` set from `sac_pick_header`.
-
-    Raises:
-        ValueError: If `sac_pick_header` is not a SAC pick header, or if the
-            file has no pick stored in it.
-    """
-
-    logger.debug(f"Reading seismogram metadata from {sacfile}.")
-
-    return _seismogram_from_sac(SAC.from_file(sacfile), sac_pick_header)
-
-
 @seismogram_creator(DataType.SAC)
 def create_seismogram_from_sacfile(sacfile: str | PathLike[str]) -> AimbatSeismogram:
-    """Create an `AimbatSeismogram` instance from a SAC file, using the configured pick header.
+    """Create an `AimbatSeismogram` instance from a SAC file.
 
     Args:
         sacfile: Name of the SAC file.
@@ -241,6 +233,7 @@ def create_seismogram_from_sacfile(sacfile: str | PathLike[str]) -> AimbatSeismo
     Returns:
         A new `AimbatSeismogram` instance.
     """
-    return create_seismogram_from_sacfile_and_pick_header(
-        sacfile, settings.sac_pick_header
-    )
+
+    logger.debug(f"Reading seismogram metadata from {sacfile}.")
+
+    return _seismogram_from_sac(SAC.from_file(sacfile))

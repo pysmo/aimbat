@@ -10,6 +10,6 @@ with Session(engine) as session:
     # Filter — seismograms marked as selected
     selected = session.exec(
         select(AimbatSeismogram).where(
-            AimbatSeismogram.parameters.has(select=True)  # type: ignore[attr-defined]
+            AimbatSeismogram.phase_rows.any(select=True)  # type: ignore[attr-defined]
         )
     ).all()

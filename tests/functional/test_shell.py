@@ -36,18 +36,21 @@ def _worker_logfile() -> str:
 @pytest.fixture()
 def shell_subprocess(
     db_path: Path,
-) -> Callable[[str], subprocess.CompletedProcess[str]]:
+) -> Callable[..., subprocess.CompletedProcess[str]]:
     """Run ``aimbat shell`` as a subprocess with stdin piped in.
 
     Args:
         db_path: Path to the temporary project database file.
 
     Returns:
-        A callable that accepts stdin text and returns the completed process.
+        A callable that accepts stdin text, and optionally extra environment
+        variables, and returns the completed process.
     """
 
-    def _run(stdin: str) -> subprocess.CompletedProcess[str]:
-        env = os.environ.copy()
+    def _run(
+        stdin: str, extra_env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy() | (extra_env or {})
         env["AIMBAT_DB_URL"] = f"sqlite+pysqlite:///{db_path}"
         env["AIMBAT_LOGFILE"] = _worker_logfile()
         env["COLUMNS"] = "1000"
@@ -151,7 +154,7 @@ class TestShellSubprocess:
     def test_exits_cleanly_on_exit_command(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        shell_subprocess: Callable[[str], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """Shell exits with code 0 when the user types 'exit'."""
         aimbat_subprocess(["project", "create"])
@@ -161,7 +164,7 @@ class TestShellSubprocess:
     def test_exits_cleanly_on_eof(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        shell_subprocess: Callable[[str], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """Shell exits cleanly when stdin is closed (simulates Ctrl+D)."""
         aimbat_subprocess(["project", "create"])
@@ -171,7 +174,7 @@ class TestShellSubprocess:
     def test_executes_command(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        shell_subprocess: Callable[[str], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """Commands typed in the shell produce output."""
         aimbat_subprocess(["project", "create"])
@@ -182,7 +185,7 @@ class TestShellSubprocess:
     def test_unknown_command_does_not_crash(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        shell_subprocess: Callable[[str], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """An unrecognised command is ignored; the shell keeps running."""
         aimbat_subprocess(["project", "create"])
@@ -192,7 +195,7 @@ class TestShellSubprocess:
     def test_aimbat_prefix_stripped_and_command_runs(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        shell_subprocess: Callable[[str], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """Typing 'aimbat <command>' strips the prefix and still runs the command."""
         aimbat_subprocess(["project", "create"])
@@ -204,7 +207,7 @@ class TestShellSubprocess:
     def test_event_switch_requires_no_db_write(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        shell_subprocess: Callable[[str], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """'event switch' without an ID resets to the DB default without error."""
         aimbat_subprocess(["project", "create"])
@@ -214,7 +217,7 @@ class TestShellSubprocess:
     def test_invalid_event_flag_does_not_crash(
         self,
         aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
-        shell_subprocess: Callable[[str], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """The shell should not crash when an invalid --event is specified."""
         aimbat_subprocess(["project", "create"])
@@ -228,3 +231,140 @@ class TestShellSubprocess:
 
         # We want to ensure there is only ONE error panel (no double errors)
         assert combined_output.count("Error") == 1
+
+
+@pytest.mark.slow
+@pytest.mark.cli
+class TestPhaseSwitch:
+    """Tests for the shell-only `phase switch` command."""
+
+    @pytest.fixture()
+    def event_with_two_phases(
+        self,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        sac_file_good: Path,
+    ) -> str:
+        """Create a project with one event that has phases P and PKP.
+
+        Returns:
+            The event's ID.
+        """
+        import json
+
+        aimbat_subprocess(["project", "create"])
+        added = aimbat_subprocess(
+            [
+                "data",
+                "add",
+                str(sac_file_good),
+                "--unlabelled-as",
+                "PKP",
+                "--no-progress",
+            ]
+        )
+        assert added.returncode == 0, added.stderr
+        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        return events[0]["id"]
+
+    def test_switch_follows_phase(
+        self,
+        event_with_two_phases: str,
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        """The ICCS status line names the switched phase."""
+        result = shell_subprocess(
+            f"event switch {event_with_two_phases}\nphase switch PKP\nexit\n"
+        )
+        assert result.returncode == 0, result.stderr
+        assert "phase PKP" in result.stdout
+
+    def test_without_phase_the_event_is_ambiguous(
+        self,
+        event_with_two_phases: str,
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        """Clearing the phase falls back to the single-phase rule."""
+        result = shell_subprocess(
+            f"event switch {event_with_two_phases}\nphase switch P\nphase switch\n"
+            + "exit\n"
+        )
+        assert result.returncode == 0, result.stderr
+        ready = result.stdout.index("phase P)")
+        assert result.stdout.index("has phases P, PKP", ready) > ready
+
+    def test_unknown_phase_is_refused(
+        self,
+        event_with_two_phases: str,
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        """A phase the event lacks is refused with the event's phases."""
+        result = shell_subprocess(
+            f"event switch {event_with_two_phases}\nphase switch S\nexit\n"
+        )
+        assert result.returncode == 0, result.stderr
+        output = result.stdout + result.stderr
+        assert "has no phase 'S'" in output
+        assert "P, PKP" in output
+
+    def test_needs_an_event(
+        self,
+        event_with_two_phases: str,
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        """A phase cannot be switched without an event context."""
+        result = shell_subprocess("phase switch P\nexit\n")
+        assert result.returncode == 0, result.stderr
+        assert "event switch" in result.stdout + result.stderr
+
+    def test_event_switch_clears_a_phase_the_event_lacks(
+        self,
+        event_with_two_phases: str,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+        multi_event_data: list[Path],
+    ) -> None:
+        """Switching to an event without the shell's phase clears the phase."""
+        import json
+
+        added = aimbat_subprocess(
+            ["data", "add", str(multi_event_data[0]), "--unlabelled-as", "P"]
+            + ["--no-progress"]
+        )
+        assert added.returncode == 0, added.stderr
+        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        (other,) = {e["id"] for e in events} - {event_with_two_phases}
+
+        result = shell_subprocess(
+            f"event switch {event_with_two_phases}\nphase switch PKP\n"
+            + f"event switch {other}\nexit\n"
+        )
+        assert result.returncode == 0, result.stderr
+        assert "no phase 'PKP'" in result.stdout
+        assert f"ICCS ready (event {other[:8]})" in result.stdout
+
+    def test_exported_default_phase_is_the_shell_phase(
+        self,
+        event_with_two_phases: str,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+        multi_event_data: list[Path],
+    ) -> None:
+        """An exported `DEFAULT_PHASE` is followed and cleared like `--phase`."""
+        import json
+
+        added = aimbat_subprocess(
+            ["data", "add", str(multi_event_data[0]), "--unlabelled-as", "P"]
+            + ["--no-progress"]
+        )
+        assert added.returncode == 0, added.stderr
+        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        (other,) = {e["id"] for e in events} - {event_with_two_phases}
+
+        result = shell_subprocess(
+            f"event switch {event_with_two_phases}\nevent switch {other}\nexit\n",
+            {"DEFAULT_PHASE": "PKP"},
+        )
+        assert result.returncode == 0, result.stderr
+        assert "phase PKP" in result.stdout
+        assert "no phase 'PKP'" in result.stdout
+        assert f"ICCS ready (event {other[:8]})" in result.stdout

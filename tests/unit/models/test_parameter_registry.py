@@ -10,26 +10,26 @@ from sqlmodel import SQLModel
 
 from pysmo.tools.iccs import ICCS, MiniIccsSeismogram
 
-from aimbat.core._event import (
-    EventParameterBool,
-    EventParameterFloat,
-    EventParameterInt,
-    EventParameterTimedelta,
+from aimbat.core._phase import (
+    PhaseParameterBool,
+    PhaseParameterFloat,
+    PhaseParameterInt,
+    PhaseParameterTimedelta,
 )
 from aimbat.core._seismogram import (
     SeismogramParameterBool,
     SeismogramParameterTimestamp,
 )
 from aimbat.models._parameters import (
-    EVENT_PARAMETER_SPECS,
+    PHASE_PARAMETER_SPECS,
     SEISMOGRAM_PARAMETER_SPECS,
-    AimbatEventParametersBase,
+    AimbatPhaseParametersBase,
     AimbatSeismogramParametersBase,
     ParameterSpec,
     Reach,
     _parameter_specs,
 )
-from aimbat.types import EventParameter, SeismogramParameter
+from aimbat.types import PhaseParameter, SeismogramParameter
 
 
 def _plain_type(annotation: Any) -> Any:
@@ -59,7 +59,7 @@ def _members(literal_alias: TypeAliasType) -> set[str]:
 
 class TestSpecs:
     def test_every_event_parameter_has_a_spec(self) -> None:
-        assert set(EVENT_PARAMETER_SPECS) == set(AimbatEventParametersBase.model_fields)
+        assert set(PHASE_PARAMETER_SPECS) == set(AimbatPhaseParametersBase.model_fields)
 
     def test_every_seismogram_parameter_has_a_spec(self) -> None:
         assert set(SEISMOGRAM_PARAMETER_SPECS) == set(
@@ -99,7 +99,7 @@ class TestIccsAttributes:
 
     def test_event_parameters_name_iccs_attributes(self) -> None:
         iccs_fields = {field.name for field in attrs.fields(ICCS)}
-        named = {spec.iccs_attribute for spec in EVENT_PARAMETER_SPECS.values()}
+        named = {spec.iccs_attribute for spec in PHASE_PARAMETER_SPECS.values()}
         assert named - {None} <= iccs_fields
 
     def test_seismogram_parameters_name_iccs_seismogram_attributes(self) -> None:
@@ -110,8 +110,8 @@ class TestIccsAttributes:
 
 class TestEnumsFollowTheModels:
     def test_event_parameter_enum(self) -> None:
-        assert {str(member) for member in EventParameter} == set(
-            AimbatEventParametersBase.model_fields
+        assert {str(member) for member in PhaseParameter} == set(
+            AimbatPhaseParametersBase.model_fields
         )
 
     def test_seismogram_parameter_enum(self) -> None:
@@ -122,18 +122,18 @@ class TestEnumsFollowTheModels:
     @pytest.mark.parametrize(
         ("literal_alias", "plain_type"),
         [
-            (EventParameterBool, bool),
-            (EventParameterFloat, float),
-            (EventParameterInt, int),
-            (EventParameterTimedelta, Timedelta),
+            (PhaseParameterBool, bool),
+            (PhaseParameterFloat, float),
+            (PhaseParameterInt, int),
+            (PhaseParameterTimedelta, Timedelta),
         ],
         ids=lambda value: getattr(value, "__name__", None),
     )
-    def test_event_setter_overload_groups(
+    def test_phase_setter_overload_groups(
         self, literal_alias: TypeAliasType, plain_type: type
     ) -> None:
         assert _members(literal_alias) == _fields_of_type(
-            AimbatEventParametersBase, plain_type
+            AimbatPhaseParametersBase, plain_type
         )
 
     @pytest.mark.parametrize(

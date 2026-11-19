@@ -3,8 +3,9 @@ Ingest seismograms directly from a PysmoProject, with no SAC/JSON round-trip.
 
 A PysmoProject fetches waveforms on demand and is just one possible producer
 of (seismogram, station, event) triples. add_seismograms_to_project accepts
-triples built from any pysmo Station/Event/IccsSeismogram-shaped objects,
-however the caller likes (a notebook, an ObsPy Stream + inventory, ...).
+triples built from any pysmo Station/Event/Seismogram objects, however the
+caller likes (a notebook, an ObsPy Stream + inventory, ...). A seismogram with
+an initial_pick, such as an IccsSeismogram, also gives an initial pick.
 
 This reuses one event and three stations from AIMBAT's own Alaska teleseismic
 sample dataset (../aimbat-sampledata): the 2014-04-12 M7.6 Solomon Islands
@@ -22,7 +23,7 @@ from pysmo.tools.iccs import MiniIccsSeismogram
 from pysmo.tools.project import FetchContext, ProjectEntry, PysmoProject
 from pysmo.tools.signal import remove_response
 
-from aimbat.core import add_seismograms_to_project
+from aimbat.core import PickNaming, add_seismograms_to_project
 from aimbat.db import engine
 
 station_atka = MiniStation(
@@ -72,9 +73,7 @@ class ToMiniIccsSeismogramWithResponseRemoved:
         corrected = remove_response(
             seismogram, response, pre_filt=self.pre_filt, replace=True
         )
-        # initial_pick is set from the predicted arrival - AimbatSeismogram.t0
-        # needs no further fallback, since IccsSeismogram.initial_pick is a
-        # required field.
+        # The predicted arrival becomes the initial pick.
         return clone_to_mini(
             MiniIccsSeismogram, corrected, update={"initial_pick": context.reference}
         )
@@ -103,5 +102,11 @@ items = [
 ]
 
 with Session(engine) as session:
-    add_seismograms_to_project(session, items, data_dir="waveforms")
+    # The initial pick has no phase label, so it is named here.
+    add_seismograms_to_project(
+        session,
+        items,
+        data_dir="waveforms",
+        naming=PickNaming(unlabelled_as="P"),
+    )
     session.commit()

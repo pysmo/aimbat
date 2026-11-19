@@ -10,7 +10,7 @@ import aimbat.plot._iccs as plot_iccs
 from aimbat.core import clear_iccs_cache, create_iccs_instance
 from aimbat.models import AimbatEvent
 from aimbat.plot import update_min_cc, update_pick
-from aimbat.types import EventParameter
+from aimbat.types import PhaseParameter
 
 
 class TestUpdateReturnsChanges:
@@ -27,9 +27,9 @@ class TestUpdateReturnsChanges:
         """
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        before = event.parameters.min_cc
+        before = event.phases[0].parameters.min_cc
         clear_iccs_cache()
-        iccs = create_iccs_instance(loaded_session, event).iccs
+        iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
 
         # Stands in for the interactive widget, which mutates the instance.
         def _set(iccs_arg: Any, *args: object, **kwargs: object) -> None:
@@ -41,9 +41,9 @@ class TestUpdateReturnsChanges:
             iccs, context=False, all_seismograms=False, causal=False, return_fig=False
         )
 
-        assert changes == {EventParameter.MIN_CC: 0.25}
+        assert changes == {PhaseParameter.MIN_CC: 0.25}
         loaded_session.expire_all()
-        assert event.parameters.min_cc == before
+        assert event.phases[0].parameters.min_cc == before
 
     def test_picks_are_keyed_by_seismogram_id(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
@@ -57,7 +57,7 @@ class TestUpdateReturnsChanges:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         clear_iccs_cache()
-        iccs = create_iccs_instance(loaded_session, event).iccs
+        iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         shift = Timedelta(seconds=1)
 
         def _shift(iccs_arg: Any, *args: object, **kwargs: object) -> None:
@@ -75,4 +75,7 @@ class TestUpdateReturnsChanges:
             return_fig=False,
         )
 
-        assert picks == {seis.id: seis.t0 + shift for seis in event.seismograms}
+        assert picks == {
+            seis.id: seis.phase_rows[0].initial_pick + shift
+            for seis in event.seismograms
+        }

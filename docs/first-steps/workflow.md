@@ -28,7 +28,7 @@ MCCC is an optional final pass that adds formal timing errors.
 ```mermaid
 flowchart TD
   A@{ shape: circle, label: "Start"}
-  A --> B>Import seismograms containing initial picks t0];
+  A --> B>Import seismograms containing initial picks];
   B --> F
   E[Adjust AIMBAT parameters];
   E --> F>Run ICCS with initial/updated parameters]

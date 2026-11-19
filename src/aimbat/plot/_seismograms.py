@@ -13,7 +13,7 @@ from matplotlib.backend_bases import MouseEvent
 from pysmo.tools.plotutils import relative_time_array, time_array
 
 from aimbat.logger import logger
-from aimbat.models import AimbatEvent, AimbatStation
+from aimbat.models import AimbatEvent, AimbatPhase, AimbatStation
 
 from ._plot_utils import clean_timedelta, event_seismograms, station_seismograms
 
@@ -24,20 +24,21 @@ _VISIBLE_SEISMOGRAMS = 7
 
 def _draw_picks(
     ax: plt.Axes,
-    t0: list[tuple[float, float, float]],
-    t1: list[tuple[float, float, float]],
+    initial: list[tuple[float, float, float]],
+    refined: list[tuple[float, float, float]],
 ) -> None:
-    """Mark the `t0` and `t1` picks with a short vertical line on each seismogram.
+    """Mark the initial and refined picks with a short vertical line on each seismogram.
 
     Args:
         ax: Axes to draw on.
-        t0: `(x, ymin, ymax)` of the `t0` marker for each seismogram.
-        t1: `(x, ymin, ymax)` of the `t1` marker for each seismogram that has one.
+        initial: `(x, ymin, ymax)` of the initial pick marker for each seismogram.
+        refined: `(x, ymin, ymax)` of the refined pick marker for each seismogram
+            that has one.
     """
     colour = ax.spines["bottom"].get_edgecolor()
     marks: list[tuple[list[tuple[float, float, float]], str, Literal["--", "-"]]] = [
-        (t0, "t0", "--"),
-        (t1, "t1", "-"),
+        (initial, "initial pick", "--"),
+        (refined, "refined pick", "-"),
     ]
     handles = []
     for picks, label, style in marks:
@@ -103,22 +104,40 @@ def _add_scroll_pan(ax: plt.Axes) -> None:
 
 
 @singledispatch
-def _plot_seis(arg: AimbatEvent | AimbatStation) -> tuple[plt.Figure, plt.Axes]:
-    """Plot seismograms for an event or station.
+def _plot_seis(
+    arg: AimbatEvent | AimbatPhase | AimbatStation,
+) -> tuple[plt.Figure, plt.Axes]:
+    """Plot seismograms for an event, a phase or a station.
 
     Dispatches to the implementation registered for the type of `arg`.
 
     Args:
-        arg: Event or station to plot seismograms for.
+        arg: Event, phase or station to plot seismograms for.
 
     Returns:
         The created figure and axes.
 
     Raises:
-        NotImplementedError: If `arg` is neither an `AimbatEvent` nor an
-            `AimbatStation`.
+        NotImplementedError: If `arg` is not an `AimbatEvent`, an
+            `AimbatPhase` or an `AimbatStation`.
     """
     raise NotImplementedError(f"Cannot plot type: {type(arg)}")
+
+
+@_plot_seis.register
+def _(phase: AimbatPhase) -> tuple[plt.Figure, plt.Axes]:
+    """Plot the seismograms of one phase of an event ordered by great circle distance.
+
+    Args:
+        phase: Phase whose seismograms are plotted.
+
+    Returns:
+        The created figure and axes.
+
+    Raises:
+        RuntimeError: If the phase has no seismograms.
+    """
+    return _plot_event(phase)
 
 
 @_plot_seis.register
@@ -126,7 +145,7 @@ def _(event: AimbatEvent) -> tuple[plt.Figure, plt.Axes]:
     """Plot all seismograms for a particular event ordered by great circle distance.
 
     Args:
-        event: Event whose seismograms are plotted.
+        event: Event whose seismograms are plotted, once for each phase.
 
     Returns:
         The created figure and axes.
@@ -134,8 +153,14 @@ def _(event: AimbatEvent) -> tuple[plt.Figure, plt.Axes]:
     Raises:
         RuntimeError: If the event has no seismograms.
     """
+    return _plot_event(event)
 
-    if len(seismograms := event_seismograms(event)) == 0:
+
+def _plot_event(target: AimbatEvent | AimbatPhase) -> tuple[plt.Figure, plt.Axes]:
+    """Plot the seismograms of an event or of one of its phases."""
+    event = target.event if isinstance(target, AimbatPhase) else target
+
+    if len(seismograms := event_seismograms(target)) == 0:
         raise RuntimeError(f"No seismograms found in event {event.id}.")
 
     logger.debug(f"Found {len(seismograms)} seismograms for event {event.id}.")
@@ -152,18 +177,18 @@ def _(event: AimbatEvent) -> tuple[plt.Figure, plt.Axes]:
         distance_spacing = (distance_max - distance_min) / (len(seismograms) - 1)
         scaling_factor = distance_spacing * 0.8
 
-    t0_marks, t1_marks = [], []
-    for seismogram, station, distance_km, t0, t1, id in seismograms:
+    initial_marks, refined_marks = [], []
+    for seismogram, station, distance_km, initial, refined, id in seismograms:
         data = seismogram.data * scaling_factor + distance_km
         times = time_array(seismogram)
         pd.Series(data, index=times).plot(
             ax=ax, scalex=True, scaley=True, label=f"Seismogram: {id}"
         )
         ymin, ymax = distance_km - scaling_factor / 2, distance_km + scaling_factor / 2
-        t0_marks.append((mdates.date2num(t0), ymin, ymax))
-        if t1 is not None:
-            t1_marks.append((mdates.date2num(t1), ymin, ymax))
-    _draw_picks(ax, t0_marks, t1_marks)
+        initial_marks.append((mdates.date2num(initial), ymin, ymax))
+        if refined is not None:
+            refined_marks.append((mdates.date2num(refined), ymin, ymax))
+    _draw_picks(ax, initial_marks, refined_marks)
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
     # Keep a strong reference alive on the figure: mplcursors stops working
@@ -214,16 +239,16 @@ def _(station: AimbatStation) -> tuple[plt.Figure, plt.Axes]:
 
     fig, ax = plt.subplots(figsize=(10, 6), layout="tight")
 
-    t0_marks, t1_marks = [], []
-    for i, (seismogram, event, t0, t1, id) in enumerate(seismograms):
-        pick = t1 or t0
+    initial_marks, refined_marks = [], []
+    for i, (seismogram, event, initial, refined, id) in enumerate(seismograms):
+        pick = refined or initial
         data = seismogram.data * 0.4 + i
         rel_times = relative_time_array(seismogram, pick)
         ax.plot(rel_times, data, label=f"Seismogram: {id}")
-        t0_marks.append(((t0 - pick).total_seconds(), i - 0.2, i + 0.2))
-        if t1 is not None:
-            t1_marks.append((0.0, i - 0.2, i + 0.2))
-    _draw_picks(ax, t0_marks, t1_marks)
+        initial_marks.append(((initial - pick).total_seconds(), i - 0.2, i + 0.2))
+        if refined is not None:
+            refined_marks.append((0.0, i - 0.2, i + 0.2))
+    _draw_picks(ax, initial_marks, refined_marks)
 
     cursor = mplcursors.cursor(ax.lines, hover=True)
     # See the matching comment in the AimbatEvent branch above: this
@@ -236,7 +261,9 @@ def _(station: AimbatStation) -> tuple[plt.Figure, plt.Axes]:
 
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(clean_timedelta))
     ax.yaxis.set_visible(False)
-    plt.xlabel(xlabel="Time relative to pick (t1, or t0 if unset)")
+    plt.xlabel(
+        xlabel="Time relative to the refined pick (or the initial pick if unset)"
+    )
     plt.title(f"Station {station.network} -- {station.name}")
 
     if len(seismograms) > _VISIBLE_SEISMOGRAMS:
@@ -247,33 +274,35 @@ def _(station: AimbatStation) -> tuple[plt.Figure, plt.Axes]:
 
 @overload
 def plot_seismograms(
-    plot_for: AimbatEvent | AimbatStation, return_fig: Literal[True]
+    plot_for: AimbatEvent | AimbatPhase | AimbatStation, return_fig: Literal[True]
 ) -> tuple[plt.Figure, plt.Axes]: ...
 
 
 @overload
 def plot_seismograms(
-    plot_for: AimbatEvent | AimbatStation, return_fig: Literal[False]
+    plot_for: AimbatEvent | AimbatPhase | AimbatStation, return_fig: Literal[False]
 ) -> None: ...
 
 
 def plot_seismograms(
-    plot_for: AimbatEvent | AimbatStation, return_fig: bool
+    plot_for: AimbatEvent | AimbatPhase | AimbatStation, return_fig: bool
 ) -> tuple[plt.Figure, plt.Axes] | None:
-    """Plot all seismograms for a particular event or station.
+    """Plot all seismograms for a particular event, phase or station.
+
+    An event or station plot shows a seismogram once for each of its phases.
 
     Args:
-        plot_for: What to plot the seismograms for (Event or Station).
+        plot_for: What to plot the seismograms for (event, phase or station).
         return_fig: Whether to return the figure and axes objects instead of showing the plot.
 
     Returns:
         figure and axes objects if return_fig is True, otherwise None.
 
     Raises:
-        RuntimeError: If no seismograms are found for the event or station.
+        RuntimeError: If no seismograms are found for the event, phase or station.
 
     Note:
-        The seismograms use the filter settings specified in the event parameters.
+        Each seismogram uses the filter settings of its phase.
         `plot_for` is read while the figure is built, so it must still be attached
         to a session at that point; nothing touches it afterwards. Pass
         `return_fig=True` and call `show_figure` separately to close the session

@@ -55,7 +55,7 @@ src/aimbat/
 ├── models/          # SQLModel ORM definitions (events, seismograms, stations, etc.)
 │   ├── _models.py        # All table models
 │   ├── _parameters.py    # Parameter bases and ParameterSpec (what each parameter affects)
-│   ├── _quality.py       # AimbatEventQualityBase, AimbatSeismogramQualityBase
+│   ├── _quality.py       # AimbatPhaseQualityBase, AimbatSeismogramQualityBase
 │   └── _readers.py       # Read models for display and export
 ├── plot/            # Matplotlib plots and interactive tools
 ├── types/           # Custom Pydantic and SQLAlchemy types
@@ -70,10 +70,10 @@ src/aimbat/
 ### Data Flow
 
 1. Data are ingested via `aimbat data add` → `actions` → `core/_data.py` → `io/` → stored in SQLite
-2. Commands that act on an event take `--event-id`, defaulting to the `DEFAULT_EVENT_ID` environment variable; nothing about the selection is stored in the project. `core` functions take the event ID directly
-3. ICCS (Iterative Cross-Correlation and Stack) aligns seismograms: `core/_iccs.py` wraps `pysmo.tools.iccs`; ICCS CC values are written to `AimbatSeismogramQuality` whenever an instance is built
-4. MCCC (Multi-Channel Cross-Correlation) refines arrival time picks; results are written to `AimbatEventQuality` and `AimbatSeismogramQuality`
-5. Snapshots (`core/_snapshot.py`) capture a point-in-time copy of parameters **and** quality metrics
+2. Commands that act on an event take `--event-id`, defaulting to the `DEFAULT_EVENT_ID` environment variable; nothing about the selection is stored in the project. The CLI resolves the event's phase (`resolve_phase_option`) and passes its ID on: `core` and `actions` functions that process data take the phase ID
+3. ICCS (Iterative Cross-Correlation and Stack) aligns the seismograms of a phase: `core/_iccs.py` wraps `pysmo.tools.iccs` and caches one `BoundICCS` per phase; ICCS CC values are written to `AimbatSeismogramQuality` whenever an instance is built
+4. MCCC (Multi-Channel Cross-Correlation) refines arrival time picks; results are written to `AimbatPhaseQuality` and `AimbatSeismogramQuality`
+5. Snapshots (`core/_snapshot.py`) capture a point-in-time copy of a phase's parameters **and** quality metrics
 
 ### Transactions
 
@@ -87,26 +87,27 @@ Parameters and quality follow the same three-layer pattern:
 
 | Layer | Parameters | Quality |
 |-------|-----------|---------|
-| Base (fields only) | `AimbatEventParametersBase` / `AimbatSeismogramParametersBase` | `AimbatEventQualityBase` / `AimbatSeismogramQualityBase` |
-| Live table (one row per event/seismogram) | `AimbatEventParameters` / `AimbatSeismogramParameters` | `AimbatEventQuality` / `AimbatSeismogramQuality` |
-| Snapshot table (point-in-time copy) | `AimbatEventParametersSnapshot` / `AimbatSeismogramParametersSnapshot` | `AimbatEventQualitySnapshot` / `AimbatSeismogramQualitySnapshot` |
+| Base (fields only) | `AimbatPhaseParametersBase` / `AimbatSeismogramParametersBase` | `AimbatPhaseQualityBase` / `AimbatSeismogramQualityBase` |
+| Live table (one row per phase / per seismogram and phase) | `AimbatPhaseParameters` / `AimbatSeismogramParameters` | `AimbatPhaseQuality` / `AimbatSeismogramQuality` |
+| Snapshot table (point-in-time copy) | `AimbatPhaseParametersSnapshot` / `AimbatSeismogramParametersSnapshot` | `AimbatPhaseQualitySnapshot` / `AimbatSeismogramQualitySnapshot` |
 
-- **AimbatEvent**: seismic event; its parameters, quality and snapshots hang off it
-- **AimbatSeismogram**: links to AimbatEvent + AimbatStation; stores `t0` (initial pick); delegates `data` to the data source
-- **AimbatSeismogramParameters**: per-seismogram `t1` (refined pick), `flip`, `select`
-- **AimbatSeismogramQuality**: live quality: `iccs_cc` (written whenever an ICCS instance is built), `mccc_error`, `mccc_cc_mean`, `mccc_cc_std` (written after MCCC runs)
-- **AimbatEventQuality**: live quality: `mccc_rmse` (written after MCCC runs)
-- **AimbatSnapshot**: point-in-time container; holds parameter snapshots for all seismograms and, when available, quality snapshots
+- **AimbatEvent**: seismic event; its phases hang off it
+- **AimbatPhase**: the unit of processing, one per seismic phase of an event; its parameters, quality and snapshots hang off it. Core and action functions that process data take a phase ID; `resolve_phase` finds the phase of an event
+- **AimbatSeismogram**: links to AimbatEvent + AimbatStation; delegates `data` to the data source
+- **AimbatSeismogramParameters**: the row of a seismogram in a phase: `refined_pick`, `flip`, `select`, and its initial pick through `AimbatPick`
+- **AimbatSeismogramQuality**: live quality of a row: `iccs_cc` (written whenever an ICCS instance is built), `mccc_error`, `mccc_cc_mean`, `mccc_cc_std` (written after MCCC runs)
+- **AimbatPhaseQuality**: live quality: `mccc_rmse` (written after MCCC runs)
+- **AimbatSnapshot**: point-in-time container for one phase; holds parameter snapshots for its rows and, when available, quality snapshots
 - **SAPandasTimestamp / SAPandasTimedelta** in `types/_sqlalchemy.py`: custom SQLAlchemy type decorators storing pandas timestamps as UTC datetimes and timedeltas as nanosecond integers
 
 ### Quality validity
 
 - Each parameter declares what it affects through a `ParameterSpec` in `models/_parameters.py` (stack, MCCC, or bookkeeping).
-- Quality values are stored with a fingerprint of the parameters they were computed from: `AimbatSeismogramQuality.iccs_fingerprint` and `AimbatEventQuality.mccc_fingerprint`.
+- Quality values are stored with a fingerprint of the parameters they were computed from: `AimbatSeismogramQuality.iccs_fingerprint` and `AimbatPhaseQuality.mccc_fingerprint`.
 - `core/_validity.py` computes the current digests. A stored value counts only while its fingerprint matches; a `Validity` object, built once per command, is passed to every reader of quality values.
 - Nothing nulls stale values. There are no database triggers; a parameter change simply makes the old fingerprint stop matching.
 - Snapshots store quality values without fingerprints. A rollback restores parameters first, then restores quality values from a snapshot whose digests match (`resync_quality`) and stamps them with the current digests.
-- MCCC membership is stored explicitly (`AimbatEventQuality.mccc_members`), not inferred from `select`, since MCCC can be run with `--all`.
+- MCCC membership is stored explicitly (`AimbatPhaseQuality.mccc_members`), not inferred from `select`, since MCCC can be run with `--all`.
 
 ### Configuration
 

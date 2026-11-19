@@ -32,7 +32,7 @@ tab.
     parameters change. Running `align iccs` is not required to see them: any
     ICCS-consuming command, such as a plot or opening the shell or TUI,
     computes them from whatever picks are currently set.
-- **Picks (`t1`), select, and flip** reflect the database values loaded into the
+- **Refined picks, select, and flip** reflect the database values loaded into the
     instance. A change from any interface takes effect immediately, with no
     restart.
 
@@ -43,10 +43,10 @@ shell) is detected.
 
 ## How the stack is assembled
 
-Each seismogram is windowed around its current pick (`t1`, or `t0` if `t1` is not
-yet set) and tapered at both ends to suppress edge effects. These windowed,
-tapered copies, the **CC seismograms**, are averaged into the **stack**, using
-only seismograms with `select = True`.
+Each seismogram is windowed around its current pick (the refined pick, or the
+initial pick if no refined pick is set yet) and tapered at both ends to suppress
+edge effects. These windowed, tapered copies, the **CC seismograms**, are
+averaged into the **stack**, using only seismograms with `select = True`.
 
 This does not require running ICCS. The stack, and each seismogram's correlation
 with it, are built lazily and cached as soon as the instance exists, from
@@ -109,13 +109,14 @@ poor ones.
     ```python
     from sqlmodel import Session, select
     from aimbat.db import engine
-    from aimbat.core import create_iccs_instance
+    from aimbat.core import create_iccs_instance, resolve_phase
     from aimbat.models import AimbatEvent
     from aimbat.plot import plot_stack
 
     with Session(engine) as session:
         event = session.exec(select(AimbatEvent)).first()
-        bound = create_iccs_instance(session, event)
+        phase = resolve_phase(session, event.id)
+        bound = create_iccs_instance(session, phase.id)
         session.commit()  # keeps the CC values the instance just measured
 
     plot_stack(bound.iccs, context=True, all_seismograms=False, return_fig=False)

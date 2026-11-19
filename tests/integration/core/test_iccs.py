@@ -1,8 +1,11 @@
 """Integration tests for ICCS alignment and how it affects MCCC quality."""
 
+from uuid import uuid4
+
 import pytest
 from pandas import Timedelta, Timestamp
 from sqlalchemy import Engine
+from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from aimbat.core import (
@@ -12,6 +15,7 @@ from aimbat.core import (
     clear_iccs_cache,
     create_iccs_instance,
     create_snapshot,
+    default_phase_parameters,
     rollback_to_snapshot,
     run_iccs,
     run_mccc,
@@ -21,7 +25,7 @@ from aimbat.core._iccs import current_instance_digest
 from aimbat.core._validity import Validity
 from aimbat.models import (
     AimbatEvent,
-    AimbatEventParameters,
+    AimbatPhase,
     AimbatSeismogramQuality,
     AimbatSnapshot,
 )
@@ -40,13 +44,15 @@ class TestIccsMcccInterplay:
         assert event is not None
 
         # 1. Run MCCC to populate quality stats
-        iccs_bound = create_iccs_instance(loaded_session, event)
-        run_mccc(loaded_session, event, iccs_bound.iccs, all_seismograms=False)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        run_mccc(
+            loaded_session, event.phases[0].id, iccs_bound.iccs, all_seismograms=False
+        )
 
         # Verify stats are present
         loaded_session.refresh(event)
-        assert event.quality is not None
-        assert event.quality.mccc_rmse is not None
+        assert event.phases[0].quality is not None
+        assert event.phases[0].quality.mccc_rmse is not None
 
         # Ensure at least one seismogram has MCCC stats
         seis_quality = loaded_session.exec(select(AimbatSeismogramQuality)).first()
@@ -55,20 +61,26 @@ class TestIccsMcccInterplay:
 
         # 2. Modify t1 for one seismogram to ensure ICCS will change it
         seis = event.seismograms[0]
-        assert seis.parameters.t1 is not None
-        seis.parameters.t1 += Timedelta(seconds=0.1)  # Nudge by 0.1s
-        loaded_session.add(seis.parameters)
+        assert seis.phase_rows[0].refined_pick is not None
+        seis.phase_rows[0].refined_pick += Timedelta(seconds=0.1)  # Nudge by 0.1s
+        loaded_session.add(seis.phase_rows[0])
         loaded_session.commit()
         loaded_session.refresh(event)
 
         # 3. Run ICCS
-        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         run_iccs(
-            loaded_session, event, iccs_bound.iccs, autoflip=False, autoselect=False
+            loaded_session,
+            event.phases[0].id,
+            iccs_bound.iccs,
+            autoflip=False,
+            autoselect=False,
         )
 
         # 4. Verify MCCC stats are out of date
-        assert not Validity.read(loaded_session, event.id).mccc(event.id)
+        assert not Validity.read(loaded_session, event.phases[0].id).mccc(
+            event.phases[0].id
+        )
 
     def test_run_iccs_preserves_mccc_stats_on_no_change(
         self, loaded_session: Session
@@ -78,54 +90,64 @@ class TestIccsMcccInterplay:
 
         from pandas import Timedelta
 
-        from aimbat.models import AimbatEventQuality
+        from aimbat.models import AimbatPhaseQuality
 
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
         # 1. Run ICCS first to ensure alignment
-        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         run_iccs(
-            loaded_session, event, iccs_bound.iccs, autoflip=False, autoselect=False
+            loaded_session,
+            event.phases[0].id,
+            iccs_bound.iccs,
+            autoflip=False,
+            autoselect=False,
         )
         loaded_session.refresh(event)
 
         # 2. Manually populate MCCC quality stats (to avoid MCCC moving t1)
-        if event.quality is None:
-            event.quality = AimbatEventQuality(id=uuid4(), event_id=event.id)
-        event.quality.mccc_rmse = Timedelta(seconds=0.01)
-        loaded_session.add(event.quality)
+        if event.phases[0].quality is None:
+            event.phases[0].quality = AimbatPhaseQuality(
+                id=uuid4(), phase_id=event.phases[0].id
+            )
+        event.phases[0].quality.mccc_rmse = Timedelta(seconds=0.01)
+        loaded_session.add(event.phases[0].quality)
 
         for seis in event.seismograms:
-            if seis.quality is None:
+            if seis.phase_rows[0].quality is None:
                 from aimbat.models import AimbatSeismogramQuality
 
-                seis.quality = AimbatSeismogramQuality(
-                    id=uuid4(), seismogram_id=seis.id
+                seis.phase_rows[0].quality = AimbatSeismogramQuality(
+                    id=uuid4(), seismogram_parameters_id=seis.phase_rows[0].id
                 )
-            seis.quality.mccc_cc_mean = 0.99
-            loaded_session.add(seis.quality)
+            seis.phase_rows[0].quality.mccc_cc_mean = 0.99
+            loaded_session.add(seis.phase_rows[0].quality)
 
         loaded_session.commit()
         loaded_session.refresh(event)
 
-        assert event.quality.mccc_rmse is not None
-        initial_rmse = event.quality.mccc_rmse
+        assert event.phases[0].quality.mccc_rmse is not None
+        initial_rmse = event.phases[0].quality.mccc_rmse
 
         # 3. Run ICCS again (should result in no change since already aligned)
-        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         run_iccs(
-            loaded_session, event, iccs_bound.iccs, autoflip=False, autoselect=False
+            loaded_session,
+            event.phases[0].id,
+            iccs_bound.iccs,
+            autoflip=False,
+            autoselect=False,
         )
         loaded_session.refresh(event)
 
         # 4. Verify MCCC stats remain
-        assert event.quality is not None
-        assert event.quality.mccc_rmse == initial_rmse
+        assert event.phases[0].quality is not None
+        assert event.phases[0].quality.mccc_rmse == initial_rmse
 
         for s in event.seismograms:
-            assert s.quality is not None
-            assert s.quality.mccc_cc_mean == 0.99
+            assert s.phase_rows[0].quality is not None
+            assert s.phase_rows[0].quality.mccc_cc_mean == 0.99
 
     def test_run_iccs_t1_change_makes_all_iccs_cc_out_of_date(
         self, loaded_session: Session
@@ -141,28 +163,36 @@ class TestIccsMcccInterplay:
         assert event is not None
 
         # 1. Run ICCS to populate iccs_cc
-        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         run_iccs(
-            loaded_session, event, iccs_bound.iccs, autoflip=False, autoselect=False
+            loaded_session,
+            event.phases[0].id,
+            iccs_bound.iccs,
+            autoflip=False,
+            autoselect=False,
         )
         loaded_session.refresh(event)
 
         # Store initial ICCS CCs
-        initial_ccs = {s.id: s.quality.iccs_cc for s in event.seismograms if s.quality}
+        initial_ccs = {
+            s.phase_rows[0].id: s.phase_rows[0].quality.iccs_cc
+            for s in event.seismograms
+            if s.phase_rows[0].quality
+        }
         assert len(initial_ccs) > 1
 
         # 2. Change t1 on a selected seismogram, which changes the stack
         seis_to_change = event.seismograms[0]
-        assert seis_to_change.parameters.select is True
-        assert seis_to_change.parameters.t1 is not None
-        seis_to_change.parameters.t1 += Timedelta(seconds=0.1)
-        loaded_session.add(seis_to_change.parameters)
+        assert seis_to_change.phase_rows[0].select is True
+        assert seis_to_change.phase_rows[0].refined_pick is not None
+        seis_to_change.phase_rows[0].refined_pick += Timedelta(seconds=0.1)
+        loaded_session.add(seis_to_change.phase_rows[0])
         loaded_session.commit()
         loaded_session.refresh(event)
 
         # 3. Verify iccs_cc is out of date for ALL seismograms (stack changed)
-        validity = Validity.read(loaded_session, event.id)
-        assert not any(validity.iccs_cc(seismogram_id) for seismogram_id in initial_ccs)
+        validity = Validity.read(loaded_session, event.phases[0].id)
+        assert not any(validity.iccs_cc(row_id) for row_id in initial_ccs)
 
     def test_run_iccs_refreshes_min_cc_from_db(self, loaded_session: Session) -> None:
         """A `min_cc` change does not rebuild the ICCS instance (it is not a
@@ -172,22 +202,27 @@ class TestIccsMcccInterplay:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
-        iccs_bound = create_iccs_instance(loaded_session, event)
-        assert iccs_bound.iccs.min_cc == event.parameters.min_cc
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        assert iccs_bound.iccs.min_cc == event.phases[0].parameters.min_cc
 
-        event.parameters.min_cc = 0.123
-        loaded_session.add(event.parameters)
+        event.phases[0].parameters.min_cc = 0.123
+        loaded_session.add(event.phases[0].parameters)
         loaded_session.commit()
 
         # The instance is unchanged by the bare threshold edit...
         assert not iccs_bound.is_stale(
-            event.id, current_instance_digest(loaded_session, event.id)
+            event.phases[0].id,
+            current_instance_digest(loaded_session, event.phases[0].id),
         )
         assert iccs_bound.iccs.min_cc != 0.123
 
         # ...but run_iccs picks it up.
         run_iccs(
-            loaded_session, event, iccs_bound.iccs, autoflip=False, autoselect=True
+            loaded_session,
+            event.phases[0].id,
+            iccs_bound.iccs,
+            autoflip=False,
+            autoselect=True,
         )
         assert iccs_bound.iccs.min_cc == 0.123
 
@@ -202,7 +237,7 @@ class TestCcStats:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
-        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         iccs = iccs_bound.iccs
 
         stats = cc_stats(iccs)
@@ -223,7 +258,7 @@ class TestCcStats:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
-        iccs_bound = create_iccs_instance(loaded_session, event)
+        iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         iccs = iccs_bound.iccs
         for i, seis in enumerate(iccs.seismograms):
             seis.select = i == 0
@@ -236,7 +271,7 @@ class TestCcStats:
 
 
 class TestCreateIccsInstanceNoSeismograms:
-    """`create_iccs_instance` on an event with no seismograms."""
+    """`create_iccs_instance` on a phase with no seismograms."""
 
     @staticmethod
     def _empty_event(session: Session) -> AimbatEvent:
@@ -246,17 +281,22 @@ class TestCreateIccsInstanceNoSeismograms:
             longitude=-72.90,
             depth=22.9,
         )
+        event.phases.append(
+            AimbatPhase(name="P", parameters=default_phase_parameters("P"))
+        )
         session.add(event)
         session.flush()
-        session.add(AimbatEventParameters(event=event))
-        session.flush()
         return event
+
+    def test_unknown_phase(self, loaded_session: Session) -> None:
+        with pytest.raises(NoResultFound):
+            create_iccs_instance(loaded_session, uuid4())
 
     def test_raises_no_seismograms_error(self, loaded_session: Session) -> None:
         """A clean, catchable error rather than a failure deep inside pysmo."""
         event = self._empty_event(loaded_session)
         with pytest.raises(NoSeismogramsError):
-            create_iccs_instance(loaded_session, event)
+            create_iccs_instance(loaded_session, event.phases[0].id)
 
     def test_does_not_poison_the_cache(self, loaded_session: Session) -> None:
         """A failed build must not leave a half-initialised instance cached.
@@ -269,10 +309,10 @@ class TestCreateIccsInstanceNoSeismograms:
         event = self._empty_event(loaded_session)
 
         with pytest.raises(NoSeismogramsError):
-            create_iccs_instance(loaded_session, event)
+            create_iccs_instance(loaded_session, event.phases[0].id)
         # Second call must raise again, not hand back a cached broken instance.
         with pytest.raises(NoSeismogramsError):
-            create_iccs_instance(loaded_session, event)
+            create_iccs_instance(loaded_session, event.phases[0].id)
 
 
 class TestIccsCacheEviction:
@@ -291,18 +331,18 @@ class TestIccsCacheEviction:
         assert len(events) >= 3, "need at least 3 events to exercise eviction"
         first, second, third = events[0], events[1], events[2]
 
-        create_iccs_instance(loaded_session, first)
-        create_iccs_instance(loaded_session, second)
-        assert first.id in iccs_module._iccs_cache
-        assert second.id in iccs_module._iccs_cache
+        create_iccs_instance(loaded_session, first.phases[0].id)
+        create_iccs_instance(loaded_session, second.phases[0].id)
+        assert first.phases[0].id in iccs_module._iccs_cache
+        assert second.phases[0].id in iccs_module._iccs_cache
 
-        create_iccs_instance(loaded_session, third)
+        create_iccs_instance(loaded_session, third.phases[0].id)
 
-        assert first.id not in iccs_module._iccs_cache, (
+        assert first.phases[0].id not in iccs_module._iccs_cache, (
             "oldest entry should have been evicted once the cache was full"
         )
-        assert second.id in iccs_module._iccs_cache
-        assert third.id in iccs_module._iccs_cache
+        assert second.phases[0].id in iccs_module._iccs_cache
+        assert third.phases[0].id in iccs_module._iccs_cache
 
     def test_cache_hit_refreshes_recency(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
@@ -317,18 +357,18 @@ class TestIccsCacheEviction:
         assert len(events) >= 3
         first, second, third = events[0], events[1], events[2]
 
-        create_iccs_instance(loaded_session, first)
-        create_iccs_instance(loaded_session, second)
+        create_iccs_instance(loaded_session, first.phases[0].id)
+        create_iccs_instance(loaded_session, second.phases[0].id)
         # Touch `first` again so `second` becomes the least-recently-used.
-        create_iccs_instance(loaded_session, first)
+        create_iccs_instance(loaded_session, first.phases[0].id)
 
-        create_iccs_instance(loaded_session, third)
+        create_iccs_instance(loaded_session, third.phases[0].id)
 
-        assert first.id in iccs_module._iccs_cache
-        assert second.id not in iccs_module._iccs_cache, (
+        assert first.phases[0].id in iccs_module._iccs_cache
+        assert second.phases[0].id not in iccs_module._iccs_cache, (
             "re-accessing first should have made second the eviction target"
         )
-        assert third.id in iccs_module._iccs_cache
+        assert third.phases[0].id in iccs_module._iccs_cache
 
 
 class TestCachedInstanceAfterWriteBack:
@@ -338,11 +378,17 @@ class TestCachedInstanceAfterWriteBack:
         clear_iccs_cache()
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        bound = create_iccs_instance(loaded_session, event)
+        bound = create_iccs_instance(loaded_session, event.phases[0].id)
 
-        run_iccs(loaded_session, event, bound.iccs, autoflip=False, autoselect=False)
+        run_iccs(
+            loaded_session,
+            event.phases[0].id,
+            bound.iccs,
+            autoflip=False,
+            autoselect=False,
+        )
 
-        assert create_iccs_instance(loaded_session, event) is bound
+        assert create_iccs_instance(loaded_session, event.phases[0].id) is bound
 
     def test_rollback_after_run_rebuilds(self, loaded_session: Session) -> None:
         """Rolling back to the parameters the instance was built from must not
@@ -350,15 +396,21 @@ class TestCachedInstanceAfterWriteBack:
         clear_iccs_cache()
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        bound = create_iccs_instance(loaded_session, event)
-        create_snapshot(loaded_session, event)
+        bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
-        run_iccs(loaded_session, event, bound.iccs, autoflip=False, autoselect=False)
+        run_iccs(
+            loaded_session,
+            event.phases[0].id,
+            bound.iccs,
+            autoflip=False,
+            autoselect=False,
+        )
         rollback_to_snapshot(loaded_session, snapshot.id)
 
-        rebuilt = create_iccs_instance(loaded_session, event)
-        stored = {s.id: s.parameters.t1 for s in event.seismograms}
+        rebuilt = create_iccs_instance(loaded_session, event.phases[0].id)
+        stored = {s.id: s.phase_rows[0].refined_pick for s in event.seismograms}
         assert all(
             seis.refined_pick == stored[seis.extra["id"]]
             for seis in rebuilt.iccs.seismograms
@@ -372,13 +424,48 @@ class TestCachedInstanceAfterWriteBack:
         clear_iccs_cache()
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        bound = create_iccs_instance(loaded_session, event)
-        event.parameters.window_pre = event.parameters.window_pre - Timedelta(seconds=1)
+        bound = create_iccs_instance(loaded_session, event.phases[0].id)
+        event.phases[0].parameters.window_pre = event.phases[
+            0
+        ].parameters.window_pre - Timedelta(seconds=1)
         loaded_session.commit()
 
-        run_iccs(loaded_session, event, bound.iccs, autoflip=False, autoselect=False)
+        run_iccs(
+            loaded_session,
+            event.phases[0].id,
+            bound.iccs,
+            autoflip=False,
+            autoselect=False,
+        )
 
-        assert create_iccs_instance(loaded_session, event) is not bound
+        assert create_iccs_instance(loaded_session, event.phases[0].id) is not bound
+
+
+class TestCachedInstanceAfterInitialPickEdit:
+    """An initial pick edit rebuilds the cached instance only while it is the
+    effective pick."""
+
+    @pytest.mark.parametrize("refined", [False, True], ids=["unrefined", "refined"])
+    def test_edit(self, loaded_session: Session, refined: bool) -> None:
+        clear_iccs_cache()
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        row = event.seismograms[0].phase_rows[0]
+        if refined:
+            row.refined_pick = row.initial_pick
+            loaded_session.commit()
+        bound = create_iccs_instance(loaded_session, event.phases[0].id)
+
+        row.pick.time += Timedelta(seconds=1)
+        loaded_session.commit()
+
+        rebuilt = create_iccs_instance(loaded_session, event.phases[0].id)
+        assert (rebuilt is bound) is refined
+        if not refined:
+            (seismogram,) = (
+                s for s in rebuilt.iccs.seismograms if s.extra["row_id"] == row.id
+            )
+            assert seismogram.initial_pick == row.pick.time
 
 
 class TestBuildIccsFromSnapshot:
@@ -396,18 +483,20 @@ class TestBuildIccsFromSnapshot:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
 
-        original_window_pre = event.parameters.window_pre
+        original_window_pre = event.phases[0].parameters.window_pre
 
         # Take a snapshot that captures the original window_pre
-        create_snapshot(loaded_session, event)
+        create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
         # Shrink window_pre in the live DB after the snapshot was taken
-        event.parameters.window_pre = original_window_pre - Timedelta(seconds=1)
-        loaded_session.add(event.parameters)
+        event.phases[0].parameters.window_pre = original_window_pre - Timedelta(
+            seconds=1
+        )
+        loaded_session.add(event.phases[0].parameters)
         loaded_session.commit()
         loaded_session.refresh(event)
-        assert event.parameters.window_pre != original_window_pre
+        assert event.phases[0].parameters.window_pre != original_window_pre
 
         # Build ICCS from snapshot — must use the original value, not the live one
         bound = build_iccs_from_snapshot(loaded_session, snapshot.id)
@@ -424,15 +513,15 @@ class TestBuildIccsFromSnapshot:
         assert event is not None
 
         seis = event.seismograms[0]
-        original_select = seis.parameters.select
+        original_select = seis.phase_rows[0].select
 
         # Take a snapshot that captures the original select flag
-        create_snapshot(loaded_session, event)
+        create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
         # Toggle select in the live DB after the snapshot was taken
-        seis.parameters.select = not original_select
-        loaded_session.add(seis.parameters)
+        seis.phase_rows[0].select = not original_select
+        loaded_session.add(seis.phase_rows[0])
         loaded_session.commit()
         loaded_session.refresh(event)
 
@@ -456,22 +545,22 @@ class TestSyncIccsParameters:
         """
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        iccs = create_iccs_instance(loaded_session, event).iccs
+        iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
 
         seis = event.seismograms[0]
-        new_pick = seis.t0 + Timedelta(seconds=1)
-        seis.parameters.t1 = new_pick
-        seis.parameters.flip = not seis.parameters.flip
-        seis.parameters.select = not seis.parameters.select
-        loaded_session.add(seis.parameters)
+        new_pick = seis.phase_rows[0].initial_pick + Timedelta(seconds=1)
+        seis.phase_rows[0].refined_pick = new_pick
+        seis.phase_rows[0].flip = not seis.phase_rows[0].flip
+        seis.phase_rows[0].select = not seis.phase_rows[0].select
+        loaded_session.add(seis.phase_rows[0])
         loaded_session.commit()
 
-        sync_iccs_parameters(loaded_session, event, iccs)
+        sync_iccs_parameters(loaded_session, event.phases[0].id, iccs)
 
         iccs_seis = next(s for s in iccs.seismograms if s.extra["id"] == seis.id)
         assert iccs_seis.refined_pick == new_pick
-        assert iccs_seis.flip == seis.parameters.flip
-        assert iccs_seis.select == seis.parameters.select
+        assert iccs_seis.flip == seis.phase_rows[0].flip
+        assert iccs_seis.select == seis.phase_rows[0].select
 
 
 class TestQualityWriteTransaction:
@@ -493,7 +582,7 @@ class TestQualityWriteTransaction:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            create_iccs_instance(session, event)
+            create_iccs_instance(session, event.phases[0].id)
             assert any(
                 q.iccs_cc is not None
                 for q in session.exec(select(AimbatSeismogramQuality)).all()
@@ -523,12 +612,12 @@ class TestQualityWriteTransaction:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            create_iccs_instance(session, event)
-            assert event.id in core_iccs._iccs_cache
+            create_iccs_instance(session, event.phases[0].id)
+            assert event.phases[0].id in core_iccs._iccs_cache
             session.rollback()
-            assert event.id not in core_iccs._iccs_cache
+            assert event.phases[0].id not in core_iccs._iccs_cache
 
-            create_iccs_instance(session, event)
+            create_iccs_instance(session, event.phases[0].id)
             session.commit()
 
         with Session(loaded_engine) as session:
@@ -549,10 +638,10 @@ class TestQualityWriteTransaction:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            create_iccs_instance(session, event)
+            create_iccs_instance(session, event.phases[0].id)
             session.commit()
             session.rollback()
-            assert event.id in core_iccs._iccs_cache
+            assert event.phases[0].id in core_iccs._iccs_cache
 
     def test_failed_mccc_quality_write_rolls_back_the_picks(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -573,13 +662,15 @@ class TestQualityWriteTransaction:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            create_iccs_instance(session, event)
+            create_iccs_instance(session, event.phases[0].id)
             session.commit()
             before = {
-                q.seismogram_id: q.iccs_cc
+                q.parameters.seismogram_id: q.iccs_cc
                 for q in session.exec(select(AimbatSeismogramQuality)).all()
             }
-            picks_before = {s.id: s.parameters.t1 for s in event.seismograms}
+            picks_before = {
+                s.id: s.phase_rows[0].refined_pick for s in event.seismograms
+            }
         assert any(cc is not None for cc in before.values())
 
         def _boom(*args: object, **kwargs: object) -> None:
@@ -591,15 +682,17 @@ class TestQualityWriteTransaction:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            iccs = create_iccs_instance(session, event).iccs
+            iccs = create_iccs_instance(session, event.phases[0].id).iccs
             with pytest.raises(RuntimeError, match="quality write failed"):
-                run_mccc(session, event, iccs, all_seismograms=True)
+                run_mccc(session, event.phases[0].id, iccs, all_seismograms=True)
 
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            assert {s.id: s.parameters.t1 for s in event.seismograms} == picks_before
             assert {
-                q.seismogram_id: q.iccs_cc
+                s.id: s.phase_rows[0].refined_pick for s in event.seismograms
+            } == picks_before
+            assert {
+                q.parameters.seismogram_id: q.iccs_cc
                 for q in session.exec(select(AimbatSeismogramQuality)).all()
             } == before

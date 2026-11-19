@@ -67,7 +67,7 @@ class TestDeleteStation:
 
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        create_iccs_instance(loaded_session, event)  # writes live iccs_cc
+        create_iccs_instance(loaded_session, event.phases[0].id)  # writes live iccs_cc
 
         seismograms = list(event.seismograms)  # preload the collection
         doomed = seismograms[0]
@@ -75,12 +75,12 @@ class TestDeleteStation:
             (s for s in seismograms if s.station_id != doomed.station_id), None
         )
         assert survivor is not None
-        station_id, survivor_id = doomed.station_id, survivor.id
+        station_id, survivor_id = doomed.station_id, survivor.phase_rows[0].id
 
         delete_station(loaded_session, station_id)
 
         assert loaded_session.get(AimbatSeismogram, doomed.id) is None
-        assert not Validity.read(loaded_session, event.id).iccs_cc(survivor_id)
+        assert not Validity.read(loaded_session, event_id=event.id).iccs_cc(survivor_id)
 
 
 class TestGetStationsInEvent:

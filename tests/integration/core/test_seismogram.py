@@ -16,13 +16,14 @@ from aimbat.core import (
     delete_seismogram,
     dump_seismogram_parameter_table,
     dump_seismogram_table,
-    get_selected_seismograms,
+    get_seismogram_parameters,
+    get_selected_rows,
     reset_seismogram_parameters,
+    set_refined_picks,
     set_seismogram_parameter,
     set_seismogram_parameters,
-    set_seismogram_picks,
 )
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatStation
+from aimbat.models import AimbatEvent, AimbatPhase, AimbatSeismogram, AimbatStation
 from aimbat.models._parameters import AimbatSeismogramParametersBase
 from aimbat.plot import plot_seismograms
 from aimbat.types import SeismogramParameter
@@ -95,17 +96,17 @@ class TestDeleteSeismogram:
 
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
-        create_iccs_instance(loaded_session, event)  # writes live iccs_cc
+        create_iccs_instance(loaded_session, event.phases[0].id)  # writes live iccs_cc
 
         seismograms = list(event.seismograms)  # preload the collection
         assert len(seismograms) > 1
-        victim_id, survivor_id = seismograms[0].id, seismograms[1].id
-        assert seismograms[0].quality is not None
+        victim_id, survivor_id = seismograms[0].id, seismograms[1].phase_rows[0].id
+        assert seismograms[0].phase_rows[0].quality is not None
 
         delete_seismogram(loaded_session, victim_id)
 
         assert loaded_session.get(AimbatSeismogram, victim_id) is None
-        assert not Validity.read(loaded_session, event.id).iccs_cc(survivor_id)
+        assert not Validity.read(loaded_session, event_id=event.id).iccs_cc(survivor_id)
 
 
 class TestSetSeismogramParameter:
@@ -120,12 +121,17 @@ class TestSetSeismogramParameter:
             loaded_session: The database session.
             seismogram: An AimbatSeismogram instance.
         """
-        original = getattr(seismogram.parameters, SeismogramParameter.SELECT)
+        original = getattr(seismogram.phase_rows[0], SeismogramParameter.SELECT)
         set_seismogram_parameter(
-            loaded_session, seismogram.id, SeismogramParameter.SELECT, not original
+            loaded_session,
+            seismogram.phase_rows[0].phase_id,
+            seismogram.id,
+            SeismogramParameter.SELECT,
+            not original,
         )
         assert (
-            getattr(seismogram.parameters, SeismogramParameter.SELECT) is not original
+            getattr(seismogram.phase_rows[0], SeismogramParameter.SELECT)
+            is not original
         )
 
     def test_set_timestamp_parameter(
@@ -137,22 +143,47 @@ class TestSetSeismogramParameter:
             loaded_session: The database session.
             seismogram: An AimbatSeismogram instance.
         """
-        t1 = seismogram.t0
+        t1 = seismogram.phase_rows[0].initial_pick
         set_seismogram_parameter(
-            loaded_session, seismogram.id, SeismogramParameter.T1, t1
+            loaded_session,
+            seismogram.phase_rows[0].phase_id,
+            seismogram.id,
+            SeismogramParameter.REFINED_PICK,
+            t1,
         )
-        assert getattr(seismogram.parameters, SeismogramParameter.T1) == t1
+        assert getattr(seismogram.phase_rows[0], SeismogramParameter.REFINED_PICK) == t1
 
-    def test_set_by_id_not_found(self, loaded_session: Session) -> None:
-        """Verifies that a ValueError is raised for an unknown seismogram ID.
+    def test_set_by_id_not_found(
+        self, loaded_session: Session, seismogram: AimbatSeismogram
+    ) -> None:
+        """Verifies that NoResultFound is raised for an unknown seismogram ID.
 
         Args:
             loaded_session: The database session.
+            seismogram: Any seismogram, for its phase.
         """
-        with pytest.raises(ValueError):
+        with pytest.raises(NoResultFound):
             set_seismogram_parameter(
-                loaded_session, uuid.uuid4(), SeismogramParameter.FLIP, True
+                loaded_session,
+                seismogram.phase_rows[0].phase_id,
+                uuid.uuid4(),
+                SeismogramParameter.FLIP,
+                True,
             )
+
+    def test_seismogram_of_another_phase(self, loaded_session: Session) -> None:
+        """A seismogram without a row in the phase is not changed."""
+        events = loaded_session.exec(select(AimbatEvent)).all()
+        other = events[1].seismograms[0]
+        with pytest.raises(NoResultFound, match=str(other.id)):
+            set_seismogram_parameter(
+                loaded_session,
+                events[0].phases[0].id,
+                other.id,
+                SeismogramParameter.FLIP,
+                True,
+            )
+        assert other.phase_rows[0].flip is False
 
     @pytest.mark.parametrize("commit", [False, True])
     def test_change_is_kept_only_if_the_caller_commits(
@@ -163,9 +194,14 @@ class TestSetSeismogramParameter:
             seismogram = session.exec(select(AimbatSeismogram)).first()
             assert seismogram is not None
             seismogram_id = seismogram.id
-            original = getattr(seismogram.parameters, SeismogramParameter.SELECT)
+            phase_id = seismogram.phase_rows[0].phase_id
+            original = getattr(seismogram.phase_rows[0], SeismogramParameter.SELECT)
             set_seismogram_parameter(
-                session, seismogram_id, SeismogramParameter.SELECT, not original
+                session,
+                phase_id,
+                seismogram_id,
+                SeismogramParameter.SELECT,
+                not original,
             )
             if commit:
                 session.commit()
@@ -175,7 +211,8 @@ class TestSetSeismogramParameter:
             assert seismogram is not None
             expected = (not original) if commit else original
             assert (
-                getattr(seismogram.parameters, SeismogramParameter.SELECT) is expected
+                getattr(seismogram.phase_rows[0], SeismogramParameter.SELECT)
+                is expected
             )
 
 
@@ -183,71 +220,78 @@ class TestSetSeismogramParameters:
     """Tests for setting parameters on several seismograms at once."""
 
     @staticmethod
-    def _one_per_event(session: Session) -> list[AimbatSeismogram]:
-        events = session.exec(select(AimbatEvent)).all()
-        assert len(events) > 1
-        return [events[0].seismograms[0], events[1].seismograms[0]]
+    def _two_of_one_phase(session: Session) -> list[AimbatSeismogram]:
+        event = session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        return list(event.seismograms[:2])
 
-    def test_sets_across_events(self, loaded_session: Session) -> None:
-        """Seismograms of different events are updated in one call."""
-        seismograms = self._one_per_event(loaded_session)
+    def test_sets_several(self, loaded_session: Session) -> None:
+        """Several seismograms of a phase are updated in one call."""
+        seismograms = self._two_of_one_phase(loaded_session)
 
         set_seismogram_parameters(
             loaded_session,
+            seismograms[0].phase_rows[0].phase_id,
             [s.id for s in seismograms],
             {SeismogramParameter.FLIP: True, SeismogramParameter.SELECT: False},
         )
 
         for seismogram in seismograms:
-            assert seismogram.parameters.flip is True
-            assert seismogram.parameters.select is False
+            assert seismogram.phase_rows[0].flip is True
+            assert seismogram.phase_rows[0].select is False
 
     def test_invalid_value_changes_nothing(self, loaded_engine: Engine) -> None:
         """A value that fails validation leaves every seismogram as it was."""
         with Session(loaded_engine) as session:
-            ids = [s.id for s in self._one_per_event(session)]
+            seismograms = self._two_of_one_phase(session)
+            phase_id = seismograms[0].phase_rows[0].phase_id
+            ids = [s.id for s in seismograms]
             with pytest.raises(ValidationError):
                 set_seismogram_parameters(
-                    session, ids, {SeismogramParameter.FLIP: "maybe"}
+                    session, phase_id, ids, {SeismogramParameter.FLIP: "maybe"}
                 )
 
         with Session(loaded_engine) as session:
             for seismogram_id in ids:
                 seismogram = session.get(AimbatSeismogram, seismogram_id)
                 assert seismogram is not None
-                assert seismogram.parameters.flip is False
+                assert seismogram.phase_rows[0].flip is False
 
     def test_unknown_id_changes_nothing(self, loaded_engine: Engine) -> None:
         """An unknown ID is named in the error, and nothing is changed."""
         unknown = uuid.uuid4()
         with Session(loaded_engine) as session:
-            known = self._one_per_event(session)[0].id
+            seismogram = self._two_of_one_phase(session)[0]
+            known, phase_id = seismogram.id, seismogram.phase_rows[0].phase_id
             with pytest.raises(NoResultFound, match=str(unknown)):
                 set_seismogram_parameters(
-                    session, [known, unknown], {SeismogramParameter.FLIP: True}
+                    session,
+                    phase_id,
+                    [known, unknown],
+                    {SeismogramParameter.FLIP: True},
                 )
 
         with Session(loaded_engine) as session:
-            seismogram = session.get(AimbatSeismogram, known)
-            assert seismogram is not None
-            assert seismogram.parameters.flip is False
+            assert session.get_one(AimbatSeismogram, known).phase_rows[0].flip is False
 
 
-class TestSetSeismogramPicks:
+class TestSetRefinedPicks:
     """Tests for setting each seismogram's refined pick to its own value."""
 
     def test_sets_each_pick(self, loaded_session: Session) -> None:
-        """Every seismogram receives its own pick, across events."""
-        events = loaded_session.exec(select(AimbatEvent)).all()
-        seismograms = [events[0].seismograms[0], events[1].seismograms[0]]
+        """Every seismogram receives its own pick."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        seismograms = list(event.seismograms[:2])
         picks = {
-            s.id: s.t0 + Timedelta(seconds=i + 1) for i, s in enumerate(seismograms)
+            s.id: s.phase_rows[0].initial_pick + Timedelta(seconds=i + 1)
+            for i, s in enumerate(seismograms)
         }
 
-        set_seismogram_picks(loaded_session, picks)
+        set_refined_picks(loaded_session, event.phases[0].id, picks)
 
         for seismogram in seismograms:
-            assert seismogram.parameters.t1 == picks[seismogram.id]
+            assert seismogram.phase_rows[0].refined_pick == picks[seismogram.id]
 
     def test_unknown_id_changes_nothing(self, loaded_engine: Engine) -> None:
         """An unknown ID is named in the error, and nothing is changed."""
@@ -255,20 +299,22 @@ class TestSetSeismogramPicks:
         with Session(loaded_engine) as session:
             seismogram = session.exec(select(AimbatSeismogram)).first()
             assert seismogram is not None
-            known, before = seismogram.id, seismogram.parameters.t1
+            known, before = seismogram.id, seismogram.phase_rows[0].refined_pick
             with pytest.raises(NoResultFound, match=str(unknown)):
-                set_seismogram_picks(
+                set_refined_picks(
                     session,
+                    seismogram.phase_rows[0].phase_id,
                     {
-                        known: seismogram.t0 + Timedelta(seconds=1),
-                        unknown: seismogram.t0,
+                        known: seismogram.phase_rows[0].initial_pick
+                        + Timedelta(seconds=1),
+                        unknown: seismogram.phase_rows[0].initial_pick,
                     },
                 )
 
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, known)
             assert seismogram is not None
-            assert seismogram.parameters.t1 == before
+            assert seismogram.phase_rows[0].refined_pick == before
 
 
 class TestResetSeismogramParameters:
@@ -284,29 +330,48 @@ class TestResetSeismogramParameters:
             seismogram: An AimbatSeismogram whose parameters are modified then reset.
         """
         set_seismogram_parameter(
-            loaded_session, seismogram.id, SeismogramParameter.FLIP, True
+            loaded_session,
+            seismogram.phase_rows[0].phase_id,
+            seismogram.id,
+            SeismogramParameter.FLIP,
+            True,
         )
         set_seismogram_parameter(
-            loaded_session, seismogram.id, SeismogramParameter.SELECT, False
+            loaded_session,
+            seismogram.phase_rows[0].phase_id,
+            seismogram.id,
+            SeismogramParameter.SELECT,
+            False,
         )
         set_seismogram_parameter(
-            loaded_session, seismogram.id, SeismogramParameter.T1, seismogram.t0
+            loaded_session,
+            seismogram.phase_rows[0].phase_id,
+            seismogram.id,
+            SeismogramParameter.REFINED_PICK,
+            seismogram.phase_rows[0].initial_pick,
         )
-        reset_seismogram_parameters(loaded_session, seismogram.id)
+        reset_seismogram_parameters(
+            loaded_session, seismogram.phase_rows[0].phase_id, seismogram.id
+        )
         defaults = AimbatSeismogramParametersBase()
         for field_name in AimbatSeismogramParametersBase.model_fields:
-            assert getattr(seismogram.parameters, field_name) == getattr(
+            assert getattr(seismogram.phase_rows[0], field_name) == getattr(
                 defaults, field_name
             )
 
-    def test_reset_parameters_by_id_not_found(self, loaded_session: Session) -> None:
+    def test_reset_parameters_by_id_not_found(
+        self, loaded_session: Session, seismogram: AimbatSeismogram
+    ) -> None:
         """Verifies that resetting a non-existent seismogram ID raises NoResultFound.
 
         Args:
             loaded_session: The database session.
+            seismogram: Any seismogram, for its phase.
         """
         with pytest.raises(NoResultFound):
-            reset_seismogram_parameters(loaded_session, uuid.uuid4())
+            reset_seismogram_parameters(
+                loaded_session, seismogram.phase_rows[0].phase_id, uuid.uuid4()
+            )
 
     def test_reset_parameters_persists_across_sessions(
         self, loaded_engine: Engine
@@ -324,34 +389,36 @@ class TestResetSeismogramParameters:
             seismogram = session.exec(select(AimbatSeismogram)).first()
             assert seismogram is not None
             seismogram_id = seismogram.id
+            phase_id = seismogram.phase_rows[0].phase_id
             set_seismogram_parameter(
-                session, seismogram_id, SeismogramParameter.FLIP, True
+                session, phase_id, seismogram_id, SeismogramParameter.FLIP, True
             )
-            reset_seismogram_parameters(session, seismogram_id)
+            reset_seismogram_parameters(session, phase_id, seismogram_id)
 
         with Session(loaded_engine) as session:
             seismogram = session.get(AimbatSeismogram, seismogram_id)
             assert seismogram is not None
             defaults = AimbatSeismogramParametersBase()
             assert (
-                getattr(seismogram.parameters, SeismogramParameter.FLIP)
+                getattr(seismogram.phase_rows[0], SeismogramParameter.FLIP)
                 == defaults.flip
             )
 
 
-class TestGetSelectedSeismograms:
-    """Tests for retrieving selected seismograms."""
+class TestGetSelectedRows:
+    """Tests for retrieving the selected seismograms of a phase."""
 
     def test_all_selected_by_default(self, loaded_session: Session) -> None:
-        """Verifies that all seismograms in an event are selected by default.
+        """Verifies that all seismograms of a phase are selected by default.
 
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None, "expected an event to be present in the database"
-        selected = get_selected_seismograms(loaded_session, event_id=event.id)
-        assert len(selected) > 0
+        phase = loaded_session.exec(select(AimbatPhase)).first()
+        assert phase is not None, "expected a phase to be present in the database"
+        selected = get_selected_rows(loaded_session, phase.id)
+        assert len(selected) == len(phase.seismogram_parameters) > 0
+        assert all(row.phase_id == phase.id for row in selected)
 
     def test_after_deselecting_one(
         self, loaded_session: Session, seismogram: AimbatSeismogram
@@ -362,29 +429,18 @@ class TestGetSelectedSeismograms:
             loaded_session: The database session.
             seismogram: An AimbatSeismogram to deselect.
         """
-        event = seismogram.event
-        count_before = len(get_selected_seismograms(loaded_session, event_id=event.id))
+        phase_id = seismogram.phase_rows[0].phase_id
+        count_before = len(get_selected_rows(loaded_session, phase_id))
         set_seismogram_parameter(
-            loaded_session, seismogram.id, SeismogramParameter.SELECT, False
+            loaded_session,
+            phase_id,
+            seismogram.id,
+            SeismogramParameter.SELECT,
+            False,
         )
-        assert (
-            len(get_selected_seismograms(loaded_session, event_id=event.id))
-            == count_before - 1
-        )
-
-    def test_all_events(self, loaded_session: Session) -> None:
-        """Verifies that get_selected_seismograms returns seismograms across all events.
-
-        Args:
-            loaded_session: The database session.
-        """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None, "expected an event to be present in the database"
-        selected_single = get_selected_seismograms(
-            loaded_session, event_id=event.id, all_events=False
-        )
-        selected_all = get_selected_seismograms(loaded_session, all_events=True)
-        assert len(selected_all) >= len(selected_single)
+        selected = get_selected_rows(loaded_session, phase_id)
+        assert len(selected) == count_before - 1
+        assert seismogram.id not in {row.seismogram_id for row in selected}
 
 
 class TestDumpSeismogramTableToJson:
@@ -428,6 +484,31 @@ class TestDumpSeismogramParameterTableToJson:
         assert len(result) > 0
         assert "select" in result[0]
 
+    def test_rows_carry_their_phase_name(self, loaded_session: Session) -> None:
+        """Verifies that each row names its phase, and that the name filters rows."""
+        result = dump_seismogram_parameter_table(loaded_session, by_alias=True)
+        assert {row["phaseName"] for row in result} == {"P"}
+        assert dump_seismogram_parameter_table(loaded_session, phase_name="S") == []
+
+
+class TestGetSeismogramParameters:
+    """Tests for `get_seismogram_parameters`."""
+
+    def test_row_of_the_phase(
+        self, loaded_session: Session, seismogram: AimbatSeismogram
+    ) -> None:
+        row = seismogram.phase_rows[0]
+        assert (
+            get_seismogram_parameters(loaded_session, row.phase_id, seismogram.id)
+            is row
+        )
+
+    def test_not_in_phase(
+        self, loaded_session: Session, seismogram: AimbatSeismogram
+    ) -> None:
+        with pytest.raises(NoResultFound, match="is not in phase"):
+            get_seismogram_parameters(loaded_session, uuid.uuid4(), seismogram.id)
+
 
 class TestPlotSeismograms:
     """Tests for plotting seismograms."""
@@ -443,8 +524,15 @@ class TestPlotSeismograms:
         fig, _ = plot_seismograms(plot_for=event, return_fig=True)
         assert isinstance(fig, Figure)
 
+    def test_plot_phase_plots_its_rows(self, loaded_session: Session) -> None:
+        """Verifies that plotting a phase draws one trace per seismogram of the phase."""
+        phase = loaded_session.exec(select(AimbatPhase)).first()
+        assert phase is not None
+        _, ax = plot_seismograms(plot_for=phase, return_fig=True)
+        assert len(ax.lines) == len(phase.seismogram_parameters)
+
     def test_plot_event_marks_picks(self, loaded_session: Session) -> None:
-        """Verifies that the event plot marks t0 and t1 at their times on each seismogram.
+        """Verifies that the event plot marks both picks at their times on each seismogram.
 
         Args:
             loaded_session: The database session.
@@ -452,7 +540,9 @@ class TestPlotSeismograms:
         event = loaded_session.exec(select(AimbatEvent)).first()
         assert event is not None
         picked = event.seismograms[0]
-        picked.parameters.t1 = picked.t0 + Timedelta(seconds=2)
+        picked.phase_rows[0].refined_pick = picked.phase_rows[
+            0
+        ].initial_pick + Timedelta(seconds=2)
         loaded_session.add(picked)
         loaded_session.commit()
 
@@ -461,27 +551,31 @@ class TestPlotSeismograms:
         marks = {
             c.get_label(): c for c in ax.collections if isinstance(c, LineCollection)
         }
-        t0_x = sorted(seg[0][0] for seg in marks["t0"].get_segments())
+        t0_x = sorted(seg[0][0] for seg in marks["initial pick"].get_segments())
         assert t0_x == pytest.approx(
-            sorted(mdates.date2num(s.t0) for s in event.seismograms)
+            sorted(
+                mdates.date2num(s.phase_rows[0].initial_pick) for s in event.seismograms
+            )
         )
-        t1_segments = marks["t1"].get_segments()
+        t1_segments = marks["refined pick"].get_segments()
         assert len(t1_segments) == 1
         assert t1_segments[0][0][0] == pytest.approx(
-            mdates.date2num(picked.parameters.t1)
+            mdates.date2num(picked.phase_rows[0].refined_pick)
         )
 
     def test_plot_station_marks_picks(
         self, loaded_session: Session, station: AimbatStation
     ) -> None:
-        """Verifies that the station plot marks t1 at zero and t0 at its offset from t1.
+        """Verifies that the station plot marks the refined pick at zero and the initial pick at its offset.
 
         Args:
             loaded_session: The database session.
             station: An AimbatStation instance.
         """
         seismogram = station.seismograms[0]
-        seismogram.parameters.t1 = seismogram.t0 + Timedelta(seconds=2)
+        seismogram.phase_rows[0].refined_pick = seismogram.phase_rows[
+            0
+        ].initial_pick + Timedelta(seconds=2)
         loaded_session.add(seismogram)
         loaded_session.commit()
 
@@ -490,9 +584,9 @@ class TestPlotSeismograms:
         marks = {
             c.get_label(): c for c in ax.collections if isinstance(c, LineCollection)
         }
-        t1_x = [seg[0][0] for seg in marks["t1"].get_segments()]
+        t1_x = [seg[0][0] for seg in marks["refined pick"].get_segments()]
         assert t1_x and all(x == 0.0 for x in t1_x)
-        assert -2.0 in [seg[0][0] for seg in marks["t0"].get_segments()]
+        assert -2.0 in [seg[0][0] for seg in marks["initial pick"].get_segments()]
 
     def test_plot_station_returns_figure(
         self, loaded_session: Session, station: AimbatStation

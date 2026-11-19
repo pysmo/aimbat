@@ -8,7 +8,6 @@ from pydantic import model_validator
 from sqlalchemy import Float
 from sqlmodel import Field, SQLModel
 
-from aimbat import settings
 from aimbat.types import (
     PydanticNegativeTimedelta,
     PydanticNonNegativeFloat,
@@ -19,7 +18,7 @@ from aimbat.types import (
 )
 
 __all__ = [
-    "AimbatEventParametersBase",
+    "AimbatPhaseParametersBase",
     "AimbatSeismogramParametersBase",
 ]
 
@@ -76,7 +75,7 @@ class ParameterSpec:
 
 
 def _shapes_signal(iccs_attribute: str) -> ParameterSpec:
-    """Spec of an event parameter that changes the signal ICCS and MCCC work on."""
+    """Spec of a phase parameter that changes the signal ICCS and MCCC work on."""
     return ParameterSpec(
         stack=Reach.EVENT, mccc=Reach.EVENT, iccs_attribute=iccs_attribute
     )
@@ -85,12 +84,12 @@ def _shapes_signal(iccs_attribute: str) -> ParameterSpec:
 _MCCC_ONLY = ParameterSpec(mccc=Reach.EVENT)
 
 
-class AimbatEventParametersBase(SQLModel):
-    """Base class defining event-level processing parameters for AIMBAT.
+class AimbatPhaseParametersBase(SQLModel):
+    """Base class defining phase-level processing parameters for AIMBAT.
 
     This class serves as a base that is inherited by the actual classes that
     create the database tables. It covers the settings applied uniformly to
-    all seismograms of an event: window bounds, taper ramp width, bandpass
+    all seismograms of a phase: window bounds, taper ramp width, bandpass
     filter settings, the CC threshold for automatic de-selection, and MCCC
     settings.
     """
@@ -98,12 +97,11 @@ class AimbatEventParametersBase(SQLModel):
     completed: Annotated[bool, ParameterSpec(bookkeeping=True)] = Field(
         default=False,
         title="Completed",
-        description="Mark an event as completed.",
+        description="Mark a phase as completed.",
     )
 
     ramp_width: Annotated[PydanticNonNegativeFloat, _shapes_signal("ramp_width")] = (
         Field(
-            default_factory=lambda: settings.ramp_width,
             sa_type=Float,
             title="Ramp width",
             description=(
@@ -116,7 +114,6 @@ class AimbatEventParametersBase(SQLModel):
     window_pre: Annotated[PydanticNegativeTimedelta, _shapes_signal("window_pre")] = (
         Field(
             sa_type=SAPandasTimedelta,
-            default_factory=lambda: settings.window_pre,
             title="Window pre",
             description="Pre-pick window length in seconds.",
         )
@@ -125,20 +122,17 @@ class AimbatEventParametersBase(SQLModel):
     window_post: Annotated[PydanticPositiveTimedelta, _shapes_signal("window_post")] = (
         Field(
             sa_type=SAPandasTimedelta,
-            default_factory=lambda: settings.window_post,
             title="Window post",
             description="Post-pick window length in seconds.",
         )
     )
 
     bandpass_apply: Annotated[bool, _shapes_signal("bandpass_apply")] = Field(
-        default_factory=lambda: settings.bandpass_apply,
         title="Bandpass apply",
         description="Whether to apply bandpass filter to seismograms.",
     )
 
     bandpass_fmin: Annotated[float, _shapes_signal("bandpass_fmin")] = Field(
-        default_factory=lambda: settings.bandpass_fmin,
         gt=0,
         title="Bandpass f min",
         description=(
@@ -148,7 +142,6 @@ class AimbatEventParametersBase(SQLModel):
     )
 
     bandpass_fmax: Annotated[float, _shapes_signal("bandpass_fmax")] = Field(
-        default_factory=lambda: settings.bandpass_fmax,
         gt=0,
         title="Bandpass f max",
         description=(
@@ -158,7 +151,6 @@ class AimbatEventParametersBase(SQLModel):
     )
 
     corners: Annotated[int, _shapes_signal("corners")] = Field(
-        default_factory=lambda: settings.corners,
         gt=0,
         title="Corners",
         description=(
@@ -171,7 +163,6 @@ class AimbatEventParametersBase(SQLModel):
     min_cc: Annotated[float, ParameterSpec(iccs_attribute="min_cc")] = Field(
         ge=0.0,
         le=1.0,
-        default_factory=lambda: settings.min_cc,
         title="Min CC",
         description=(
             "Minimum cross-correlation used when automatically de-selecting "
@@ -180,14 +171,12 @@ class AimbatEventParametersBase(SQLModel):
     )
 
     mccc_damp: Annotated[float, _MCCC_ONLY] = Field(
-        default_factory=lambda: settings.mccc_damp,
         ge=0,
         title="MCCC damp",
         description="Damping factor for MCCC algorithm.",
     )
 
     mccc_min_cc: Annotated[float, _MCCC_ONLY] = Field(
-        default_factory=lambda: settings.mccc_min_cc,
         ge=0,
         le=1,
         title="MCCC min CC",
@@ -211,11 +200,11 @@ class AimbatEventParametersBase(SQLModel):
 
 
 class AimbatSeismogramParametersBase(SQLModel):
-    """Base class defining seismogram-level processing parameters for AIMBAT.
+    """Base class defining the processing parameters of a seismogram for one phase.
 
     This class serves as a base that is inherited by the actual classes that
-    create the database tables. It covers the per-seismogram `flip` and
-    `select` flags and the working arrival-time pick `t1`.
+    create the database tables. It covers the `flip` and `select` flags and
+    the refined arrival-time pick `refined_pick`.
     """
 
     flip: Annotated[
@@ -237,7 +226,7 @@ class AimbatSeismogramParametersBase(SQLModel):
         description="Whether or not this seismogram should be used for processing.",
     )
 
-    t1: Annotated[
+    refined_pick: Annotated[
         PydanticTimestamp | None,
         ParameterSpec(
             stack=Reach.CONDITIONAL,
@@ -247,9 +236,9 @@ class AimbatSeismogramParametersBase(SQLModel):
     ] = Field(
         default=None,
         sa_type=SAPandasTimestamp,
-        title="T1",
+        title="Refined pick",
         description=(
-            "Working pick. This pick serves as working as well as output pick. It"
+            "Refined arrival-time pick, serving as working and as output pick. It"
             + " is changed by: 1. Picking the phase arrival in the stack, 2. "
             + "Running ICCS, 3. Running MCCC."
         ),
@@ -274,8 +263,8 @@ def _parameter_specs(model: type[SQLModel]) -> dict[str, ParameterSpec]:
     return specs
 
 
-EVENT_PARAMETER_SPECS = _parameter_specs(AimbatEventParametersBase)
-"""What each event parameter affects, keyed by field name."""
+PHASE_PARAMETER_SPECS = _parameter_specs(AimbatPhaseParametersBase)
+"""What each phase parameter affects, keyed by field name."""
 
 SEISMOGRAM_PARAMETER_SPECS = _parameter_specs(AimbatSeismogramParametersBase)
 """What each seismogram parameter affects, keyed by field name."""

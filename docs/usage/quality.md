@@ -99,8 +99,8 @@ standard error of the mean.
 
 ## Python API
 
-Per-seismogram metrics are stored in `AimbatSeismogramQuality` and accessed via
-`seismogram.quality`:
+Per-seismogram metrics are stored in `AimbatSeismogramQuality`, one record for
+each row of `seismogram.phase_rows`, and accessed via `row.quality`:
 
 | Attribute      | Description                                                        |
 | -------------- | ------------------------------------------------------------------ |
@@ -109,8 +109,8 @@ Per-seismogram metrics are stored in `AimbatSeismogramQuality` and accessed via
 | `mccc_cc_std`  | MCCC waveform consistency (std of CC across pairs)                 |
 | `mccc_error`   | MCCC timing precision (`pd.Timedelta`, SEM from covariance matrix) |
 
-The per-event MCCC global array fit is stored in `AimbatEventQuality` and
-accessed via `event.quality`:
+The MCCC global array fit of a phase is stored in `AimbatPhaseQuality` and
+accessed via `phase.quality`, with `phase` from `event.phases`:
 
 | Attribute   | Description                       |
 | ----------- | ---------------------------------- |
@@ -118,5 +118,5 @@ accessed via `event.quality`:
 
 Once alignment has run across many events, quality metrics accumulate across
 stations and events. Aggregating them into DataFrames or per-station and
-per-event summaries is covered in
+per-phase summaries is covered in
 [Quality analysis](recipes.md#quality-analysis).

@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 import pytest
-from pandas import Timestamp
+from pandas import Timedelta, Timestamp
 from sqlalchemy import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
@@ -29,7 +29,6 @@ from aimbat.io import _base as io_base
 from aimbat.models import (
     AimbatDataSource,
     AimbatEvent,
-    AimbatEventParameters,
     AimbatSeismogram,
     AimbatSeismogramParameters,
     AimbatStation,
@@ -58,10 +57,7 @@ def _persist_sac(session: Session, sac_file: Path) -> AimbatSeismogram:
     """
     sac = SAC.from_file(sac_file)
 
-    event = AimbatEvent.model_validate(
-        sac.event,
-        update={"parameters": AimbatEventParameters()},
-    )
+    event = AimbatEvent.model_validate(sac.event)
     session.add(event)
     session.flush()
 
@@ -72,7 +68,6 @@ def _persist_sac(session: Session, sac_file: Path) -> AimbatSeismogram:
     seismogram = AimbatSeismogram.model_validate(
         sac.seismogram,
         update={
-            "t0": sac.timestamps.t0,
             "parameters": AimbatSeismogramParameters(),
             "event": event,
             "station": station,
@@ -163,10 +158,7 @@ class TestSacEvent:
             session (Session): Database session.
         """
         sac = SAC.from_file(sac_file_good)
-        event = AimbatEvent.model_validate(
-            sac.event,
-            update={"parameters": AimbatEventParameters()},
-        )
+        event = AimbatEvent.model_validate(sac.event)
         session.add(event)
         session.commit()
         session.refresh(event)
@@ -186,10 +178,7 @@ class TestSacEvent:
             session (Session): Database session.
         """
         sac = SAC.from_file(sac_file_good)
-        event = AimbatEvent.model_validate(
-            sac.event,
-            update={"parameters": AimbatEventParameters()},
-        )
+        event = AimbatEvent.model_validate(sac.event)
         session.add(event)
         session.commit()
 
@@ -223,7 +212,6 @@ class TestSacSeismogram:
 
         assert seis.begin_time == sac.seismogram.begin_time.round("us")
         assert seis.delta == sac.seismogram.delta
-        assert seis.t0 == sac.timestamps.t0.round("us")  # type: ignore
 
     def test_read_data_from_sac(self, sac_file_good: Path, session: Session) -> None:
         """Verifies that AimbatSeismogram.data returns the waveform from the SAC file.
@@ -342,7 +330,7 @@ class TestSacSeismogram:
             with Session(engine_from_file) as session_b:
                 other = session_b.get(AimbatSeismogram, seismogram_id)
                 assert other is not None
-                other.t0 = other.begin_time
+                other.begin_time += Timedelta(seconds=1)
                 session_b.commit()
 
             # Session B's commit did not flush session A's staged write.
@@ -436,7 +424,7 @@ class TestSacSeismogram:
 
         with pytest.raises(RuntimeError, match="abort savepoint"):
             with session.begin_nested():
-                seis.t0 = seis.begin_time
+                seis.begin_time += Timedelta(seconds=1)
                 raise RuntimeError("abort savepoint")
 
         # Savepoint rolled back; the staged write is still pending.

@@ -104,7 +104,7 @@ class TestLookup:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            create_snapshot(session, event, comment="before ICCS")
+            create_snapshot(session, event.phases[0].id, comment="before ICCS")
             snapshot = session.exec(select(AimbatSnapshot)).one()
             (row,) = _lookup(cli, capsys, str(snapshot.id))
             assert "Snapshot" in row
@@ -169,7 +169,7 @@ class TestLookup:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            create_snapshot(session, event, comment=comment)
+            create_snapshot(session, event.phases[0].id, comment=comment)
             snapshot = session.exec(select(AimbatSnapshot)).one()
             (row,) = _lookup(cli, capsys, str(snapshot.id))
             assert comment in row

@@ -28,6 +28,9 @@ from ._data import *
 from ._event import *
 from ._iccs import *
 from ._note import *
+from ._phase import *
+from ._picks import *
+from ._readiness import *
 from ._seismogram import *
 from ._snapshot import *
 from ._station import *

@@ -1,7 +1,7 @@
 """Actions that add data sources to a project or remove vanished ones."""
 
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -10,9 +10,10 @@ from pandas import Timestamp
 from sqlalchemy import Engine
 
 from aimbat import core
-from aimbat.core import PruneReport
+from aimbat.core import PickNaming, PruneReport
 from aimbat.io import DataType
 
+from ._picks import PickSummary
 from ._session import open_session
 
 __all__ = [
@@ -52,10 +53,18 @@ class AddDataResult:
 
     Populated in dry runs only.
     """
-    snapshotted_event_ids: list[UUID]
-    """Events that received new seismograms and were snapshotted."""
+    picks: PickSummary
+    """What became of the picks read from the data sources."""
+    snapshotted_phase_ids: list[UUID]
+    """Phases that gained rows and were snapshotted."""
     snapshot_failures: list[tuple[UUID, str]]
-    """Event ID and error message for each automatic snapshot that failed."""
+    """Phase ID and error message for each automatic snapshot that failed."""
+    blocking_items: int
+    """Blocking readiness items of the events the data sources belong to.
+
+    Not counted in a dry run. Initial picks are not checked against the end
+    of their seismogram here (see `aimbat.core.readiness`).
+    """
     dry_run: bool
 
 
@@ -65,6 +74,8 @@ def add_data(
     *,
     station_id: UUID | None = None,
     event_id: UUID | None = None,
+    naming: PickNaming = PickNaming(),
+    phases: Collection[str] | None = None,
     dry_run: bool = False,
     auto_snapshot: bool = True,
     on_progress: Callable[[int, int], None] | None = None,
@@ -73,7 +84,9 @@ def add_data(
     """Add data sources to the project.
 
     Data sources that are already part of the project are reused rather than
-    duplicated.
+    duplicated. Picks read from the data sources are stored and, when named,
+    promoted to initial picks of the phase of that name. Picks stored earlier
+    without a matching seismogram are matched again.
 
     Args:
         data_sources: Data sources to add.
@@ -82,10 +95,12 @@ def add_data(
             of the station read from each source.
         event_id: Existing event to link every data source to, instead of
             the event read from each source.
+        naming: How picks are named. See `aimbat.core.PickNaming`.
+        phases: Names of the phases the call may create or add rows to.
+            Every phase if `None`.
         dry_run: If True, report what would be added without changing the
             project.
-        auto_snapshot: If True, snapshot every event that receives a new
-            seismogram.
+        auto_snapshot: If True, snapshot every phase that gains rows.
         on_progress: Callback invoked as `on_progress(done, total)` after
             each data source.
         engine: Engine to use. Defaults to the project engine.
@@ -93,19 +108,20 @@ def add_data(
     Raises:
         FileNotFoundError: If a data source does not exist.
         ValueError: If a new event nearly, but not exactly, matches an
-            existing one. See `aimbat.core.add_data_to_project`.
+            existing one (see `aimbat.core.add_data_to_project`), or a name
+            in `phases` is not a valid phase name.
     """
     with open_session(engine) as session:
-        added, station_ids, event_ids, seismogram_ids, warnings = (
-            core.add_data_to_project(
-                session,
-                data_sources,
-                data_type,
-                station_id=station_id,
-                event_id=event_id,
-                dry_run=dry_run,
-                on_progress=on_progress,
-            )
+        report = core.add_data_to_project(
+            session,
+            data_sources,
+            data_type,
+            station_id=station_id,
+            event_id=event_id,
+            dry_run=dry_run,
+            on_progress=on_progress,
+            naming=naming,
+            phases=phases,
         )
         sources = [
             AddedDataSource(
@@ -113,24 +129,35 @@ def add_data(
                 station_id=ds.seismogram.station_id,
                 event_id=ds.seismogram.event_id,
                 seismogram_id=ds.seismogram_id,
-                new_station=ds.seismogram.station_id not in station_ids,
-                new_event=ds.seismogram.event_id not in event_ids,
-                new_seismogram=ds.seismogram_id not in seismogram_ids,
+                new_station=ds.seismogram.station_id not in report.existing_station_ids,
+                new_event=ds.seismogram.event_id not in report.existing_event_ids,
+                new_seismogram=ds.seismogram_id not in report.existing_seismogram_ids,
             )
-            for ds in added
+            for ds in report.datasources
         ]
+        picks = PickSummary.from_reports(
+            report.stored, report.rematched, report.promotion
+        )
+        warnings = report.duplicate_warnings
         if dry_run:
-            return AddDataResult(sources, warnings, [], [], dry_run=True)
+            return AddDataResult(sources, warnings, picks, [], [], 0, dry_run=True)
 
         session.commit()
+        blocking = sum(
+            item.blocking
+            for event_id in dict.fromkeys(s.event_id for s in sources)
+            for item in core.readiness(session, event_id=event_id, read_data=False)
+        )
         snapshotted: list[UUID] = []
         failures: list[tuple[UUID, str]] = []
         if auto_snapshot:
             snapshotted, failures = core.create_snapshots_for_added_data(
-                session, added, seismogram_ids
+                session, picks.phase_rows
             )
             session.commit()
-    return AddDataResult(sources, warnings, snapshotted, failures, dry_run=False)
+    return AddDataResult(
+        sources, warnings, picks, snapshotted, failures, blocking, dry_run=False
+    )
 
 
 @dataclass(frozen=True)
@@ -228,8 +255,8 @@ def prune_data(
             seismograms.
         prune_empty_events: If True, also delete events left without
             seismograms.
-        auto_snapshot: If True, snapshot every event that loses seismograms
-            before deleting anything.
+        auto_snapshot: If True, snapshot every phase that loses rows before
+            deleting anything.
         force: If True, treat a data source whose presence cannot be
             determined (an unreadable file, an unreachable mount) as
             vanished. Otherwise such a source is an error and nothing is

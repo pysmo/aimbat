@@ -6,6 +6,9 @@ providing waveform data only, for example, would register
 `register_seismogram_data_reader` and `register_seismogram_data_writer` but
 not the creator functions.
 
+Picks are read as `SourcePick` objects: a time and the label the source gives
+it, if any. Naming, matching and storing picks are not part of this package.
+
 The SAC data source (`aimbat.io.sac`) registers its capabilities
 automatically when imported.
 """
@@ -30,6 +33,9 @@ from aimbat.logger import logger
 from ._data import DataType
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
+    from pandas import Timestamp
     from sqlalchemy.orm import Session
 
     from aimbat.models import (
@@ -40,19 +46,27 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "PickReader",
+    "PickTarget",
     "SeismogramReadContext",
+    "SeismogramTarget",
+    "SourcePick",
     "SourceRecords",
     "SourceRecordsRequest",
     "SourceUnavailableError",
+    "StationEventTarget",
     "clear_seismogram_data_cache",
     "create_event",
     "create_seismogram",
     "create_station",
     "event_creator",
     "file_source_present",
+    "pick_reader",
+    "read_picks",
     "read_seismogram_data",
     "read_source_records",
     "register_event_creator",
+    "register_pick_reader",
     "register_seismogram_creator",
     "register_seismogram_data_reader",
     "register_seismogram_data_writer",
@@ -68,6 +82,7 @@ __all__ = [
     "stage_seismogram_data",
     "station_creator",
     "supports_event_creation",
+    "supports_pick_reading",
     "supports_seismogram_creation",
     "supports_seismogram_data_reading",
     "supports_seismogram_data_writing",
@@ -97,6 +112,68 @@ class SeismogramReadContext:
 
 
 @dataclass(frozen=True, slots=True)
+class StationEventTarget:
+    """A pick target given by station codes and event origin time, as read.
+
+    A field is `None` when the source does not give it. A location of `"--"`
+    is normalised to `""`, the blank location.
+    """
+
+    network: str | None = None
+    station: str | None = None
+    location: str | None = None
+    channel: str | None = None
+    """`None` stands for the only channel of the station for the event."""
+    event_time: Timestamp | None = None
+
+    def __post_init__(self) -> None:
+        if self.location == "--":
+            object.__setattr__(self, "location", "")
+        if self.event_time is not None and self.event_time.tzinfo is None:
+            raise ValueError("The event time of a pick target must be timezone-aware.")
+
+
+@dataclass(frozen=True, slots=True)
+class SeismogramTarget:
+    """A pick target given by the ID of an AIMBAT seismogram."""
+
+    seismogram_id: UUID
+
+
+type PickTarget = StationEventTarget | SeismogramTarget
+"""Where a pick read from a data source belongs."""
+
+
+@dataclass(frozen=True, slots=True)
+class SourcePick:
+    """One initial pick as read from a data source, before it is named or matched.
+
+    The key and the label are stripped of surrounding blanks, and a blank
+    label is stored as `None`.
+
+    Raises:
+        ValueError: If `time` is not timezone-aware or `key` is blank.
+    """
+
+    time: Timestamp
+    key: str
+    """Where the pick is held in the data source, unique within that source."""
+    label: str | None = None
+    """What the data source calls the pick, if anything."""
+    target: PickTarget | None = None
+    """`None` stands for the seismogram built from the same data source."""
+
+    def __post_init__(self) -> None:
+        if self.time.tzinfo is None:
+            raise ValueError("The time of a pick must be timezone-aware.")
+        object.__setattr__(self, "key", self.key.strip())
+        if not self.key:
+            raise ValueError("The key of a pick must not be blank.")
+        if self.label is not None:
+            object.__setattr__(self, "label", self.label.strip() or None)
+
+
+@dataclass(frozen=True, slots=True)
 class SourceRecordsRequest:
     """Which records one read of a data source is asked to produce."""
 
@@ -105,19 +182,23 @@ class SourceRecordsRequest:
     station: bool
     event: bool
     seismogram: bool
+    picks: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class SourceRecords:
     """The records built from a single read of one data source.
 
-    A field is `None` when it was not asked for, or when the source has
-    nothing to build it from.
+    A field is `None` or empty when it was not asked for, or when the source
+    has nothing to build it from.
     """
 
     station: AimbatStation | None = None
     event: AimbatEvent | None = None
     seismogram: AimbatSeismogram | None = None
+    seismogram_end_time: Timestamp | None = None
+    """End time of the seismogram, so picks can be checked against it."""
+    picks: tuple[SourcePick, ...] = ()
 
 
 type SeismogramDataReader = Callable[[SeismogramReadContext], npt.NDArray[np.floating]]
@@ -125,6 +206,9 @@ type SeismogramDataReader = Callable[[SeismogramReadContext], npt.NDArray[np.flo
 
 type SourceRecordsReader = Callable[[SourceRecordsRequest], SourceRecords]
 """A registered source-records reader: given a request, build every record it asks for from one read of the source."""
+
+type PickReader = Callable[[str | PathLike[str]], tuple[SourcePick, ...]]
+"""A registered pick reader: given a logical source identifier, return every pick the source holds."""
 
 type SourcePresenceProbe = Callable[[SeismogramReadContext], bool]
 """A registered source-presence probe: given a read context, return whether the source still provides this seismogram.
@@ -171,6 +255,7 @@ _seismogram_creators: dict[
     DataType, Callable[[str | PathLike[str]], AimbatSeismogram]
 ] = {}
 _source_records_readers: dict[DataType, SourceRecordsReader] = {}
+_pick_readers: dict[DataType, PickReader] = {}
 _seismogram_data_readers: dict[DataType, SeismogramDataReader] = {}
 _seismogram_data_writers: dict[
     DataType, Callable[[str | PathLike[str], npt.NDArray[np.floating]], None]
@@ -249,6 +334,23 @@ def register_source_records_reader(
         logger.warning(f"Overwriting existing source records reader for {datatype}.")
     logger.debug(f"Registering source records reader for {datatype}.")
     _source_records_readers[datatype] = fn
+
+
+def register_pick_reader(datatype: DataType, fn: PickReader) -> None:
+    """Register a function that reads the picks of a data source.
+
+    A data type whose source-records reader serves picks registers a pick
+    reader as well, so that `supports_pick_reading` holds for both paths.
+
+    Args:
+        datatype: The data type this reader handles.
+        fn: Callable that accepts a logical source identifier and returns
+            every pick the source holds.
+    """
+    if datatype in _pick_readers:
+        logger.warning(f"Overwriting existing pick reader for {datatype}.")
+    logger.debug(f"Registering pick reader for {datatype}.")
+    _pick_readers[datatype] = fn
 
 
 def register_seismogram_data_reader(
@@ -412,6 +514,28 @@ def source_records_reader(
     return decorator
 
 
+def pick_reader(datatype: DataType) -> Callable[[PickReader], PickReader]:
+    """Decorator that registers a function as a pick reader for `datatype`.
+
+    Args:
+        datatype: The data type the decorated function reads picks from.
+
+    Example:
+        ```python
+        @pick_reader(DataType.SAC)
+        def read_picks_from_sacfile(
+            sacfile: str | PathLike[str],
+        ) -> tuple[SourcePick, ...]: ...
+        ```
+    """
+
+    def decorator(fn: PickReader) -> PickReader:
+        register_pick_reader(datatype, fn)
+        return fn
+
+    return decorator
+
+
 def seismogram_data_reader(
     datatype: DataType,
 ) -> Callable[[SeismogramDataReader], SeismogramDataReader]:
@@ -505,6 +629,11 @@ def supports_seismogram_creation(datatype: DataType) -> bool:
 def supports_source_records_reading(datatype: DataType) -> bool:
     """Return whether `datatype` has a registered source-records reader."""
     return datatype in _source_records_readers
+
+
+def supports_pick_reading(datatype: DataType) -> bool:
+    """Return whether `datatype` has a registered pick reader."""
+    return datatype in _pick_readers
 
 
 def supports_seismogram_data_reading(datatype: DataType) -> bool:
@@ -652,6 +781,28 @@ def create_seismogram(
     return creator(datasource)
 
 
+def read_picks(
+    datasource: str | PathLike[str], datatype: DataType
+) -> tuple[SourcePick, ...]:
+    """Read every pick a data source holds.
+
+    Args:
+        datasource: Logical source identifier for the data source.
+        datatype: Data type of the source.
+
+    Returns:
+        The picks of the source, in the order the source gives them.
+
+    Raises:
+        NotImplementedError: If `datatype` has no registered pick reader.
+    """
+    logger.debug(f"Reading picks from {datasource}.")
+    reader = _pick_readers.get(datatype)
+    if reader is None:
+        raise NotImplementedError(f"{datatype} does not support reading picks.")
+    return reader(datasource)
+
+
 def read_source_records(
     datasource: str | PathLike[str],
     datatype: DataType,
@@ -659,12 +810,13 @@ def read_source_records(
     station: bool = True,
     event: bool = True,
     seismogram: bool = True,
+    picks: bool = False,
 ) -> SourceRecords:
     """Build the requested records from a data source, reading it once where possible.
 
     Data types with a registered source-records reader (SAC) read the source
     a single time and build everything asked for from it. The rest fall back
-    to their individual creators, one read each.
+    to their individual creators and pick reader, one read each.
 
     Args:
         datasource: Logical source identifier for the data source.
@@ -672,15 +824,17 @@ def read_source_records(
         station: Whether an `AimbatStation` is wanted.
         event: Whether an `AimbatEvent` is wanted.
         seismogram: Whether an `AimbatSeismogram` is wanted.
+        picks: Whether the picks of the source are wanted.
 
     Returns:
-        The requested records; the fields that were not asked for are `None`.
+        The requested records. Fields that were not asked for are `None` or
+            empty.
 
     Raises:
         NotImplementedError: If a record is asked for that `datatype` has no
-            registered creator for.
+            registered creator or pick reader for.
     """
-    if not (station or event or seismogram):
+    if not (station or event or seismogram or picks):
         return SourceRecords()
 
     reader = _source_records_readers.get(datatype)
@@ -692,6 +846,7 @@ def read_source_records(
                 station=station,
                 event=event,
                 seismogram=seismogram,
+                picks=picks,
             )
         )
 
@@ -699,6 +854,7 @@ def read_source_records(
         station=create_station(datasource, datatype) if station else None,
         event=create_event(datasource, datatype) if event else None,
         seismogram=create_seismogram(datasource, datatype) if seismogram else None,
+        picks=read_picks(datasource, datatype) if picks else (),
     )
 
 

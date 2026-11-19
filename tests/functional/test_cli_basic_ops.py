@@ -61,7 +61,7 @@ class TestDataAdd:
     ) -> None:
         """Verifies that data are added and snapshotted automatically."""
         files = " ".join(f.as_posix() for f in multi_event_data)
-        cli(f"data add {files} --no-progress")
+        cli(f"data add {files} --no-progress --unlabelled-as P")
 
         assert len(cli_json("seismogram dump")) == len(multi_event_data)
         snapshots = cli_json("snapshot dump")
@@ -83,6 +83,60 @@ class TestDataAdd:
         assert isinstance(snapshots, dict)
         assert snapshots["snapshots"] == []
 
+    def test_summary_after_a_real_add(
+        self,
+        patched_engine: Engine,
+        multi_event_data: Sequence[Path],
+        cli: _Cli,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        files = " ".join(f.as_posix() for f in multi_event_data)
+        capsys.readouterr()
+        cli(f"data add {files} --no-progress --unlabelled-as P")
+        output = capsys.readouterr().out
+
+        n = len(multi_event_data)
+        assert re.search(rf"Added {n} seismogram\(s\)", output)
+        assert re.search(
+            rf"Picks: \d+ stored, \d+ matched, {n} promoted \(P: {n}\)", output
+        )
+        assert "Phases created for event" in output
+        assert "Snapshotted" in output
+
+    def test_phase_option_limits_promotion(
+        self,
+        patched_engine: Engine,
+        multi_event_data: Sequence[Path],
+        cli: _Cli,
+        cli_json: _CliJson,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        files = " ".join(f.as_posix() for f in multi_event_data)
+        capsys.readouterr()
+        cli(f"data add {files} --no-progress --unlabelled-as P --phase S")
+        output = capsys.readouterr().out
+
+        assert "0 promoted" in output
+        assert "not given with --phase" in output
+        assert "Snapshotted" not in output
+        snapshots = cli_json("snapshot dump")
+        assert isinstance(snapshots, dict)
+        assert snapshots["snapshots"] == []
+
+    def test_skip_unnamed(
+        self,
+        patched_engine: Engine,
+        multi_event_data: Sequence[Path],
+        cli: _Cli,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        files = " ".join(f.as_posix() for f in multi_event_data)
+        capsys.readouterr()
+        cli(f"data add {files} --no-progress --skip-unnamed")
+        output = capsys.readouterr().out
+
+        assert re.search(r"Picks: 0 stored, .* \d+ unnamed skipped\.", output)
+
     def test_dry_run_summary_predicts_the_real_add(
         self,
         patched_engine: Engine,
@@ -99,16 +153,17 @@ class TestDataAdd:
         files = " ".join(f.as_posix() for f in multi_event_data)
         capsys.readouterr()
         cli(f"data add {files} --no-progress --dry-run")
-        summary = capsys.readouterr().out.splitlines()[-1].strip()
+        output = capsys.readouterr().out
         assert cli_json("event dump") == []
 
-        match = re.fullmatch(
+        pattern = re.compile(
             r"(\d+) station\(s\) added, (\d+) skipped\. "
             r"(\d+) event\(s\) added, (\d+) skipped\. "
-            r"(\d+) seismogram\(s\) added, (\d+) skipped\.",
-            summary,
+            r"(\d+) seismogram\(s\) added, (\d+) skipped\."
         )
-        assert match is not None, f"Unexpected dry-run summary line: {summary!r}"
+        matches = [pattern.fullmatch(line.strip()) for line in output.splitlines()]
+        match = next((m for m in matches if m is not None), None)
+        assert match is not None, f"No dry-run summary line in: {output!r}"
         stations, _, events, _, seismograms, _ = (int(g) for g in match.groups())
 
         cli(f"data add {files} --no-progress --no-snapshot")
