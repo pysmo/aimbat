@@ -125,8 +125,9 @@ def dump_seismogram_table(
         exclude: Set of field names to exclude from the output.
         event_id: Event ID to filter seismograms by (if none is provided,
             seismograms for all events are dumped).
-        phase_name: Phase whose processing state the read model shows. Without
-            it, a seismogram's only row is shown (see
+        phase_name: Phase whose seismograms are dumped, with that phase's
+            processing state in the read model. Without it, every seismogram
+            is dumped, showing its only row (see
             `AimbatSeismogramRead.from_seismogram`).
 
     Returns:
@@ -147,6 +148,20 @@ def dump_seismogram_table(
         )
     else:
         statement = select(AimbatSeismogram)
+
+    if phase_name is not None:
+        statement = (
+            statement.join(
+                AimbatSeismogramParameters,
+                col(AimbatSeismogramParameters.seismogram_id)
+                == col(AimbatSeismogram.id),
+            )
+            .join(
+                AimbatPhase,
+                col(AimbatPhase.id) == col(AimbatSeismogramParameters.phase_id),
+            )
+            .where(AimbatPhase.name == phase_name)
+        )
 
     statement = statement.options(
         selectinload(rel(AimbatSeismogram.station)),

@@ -14,18 +14,21 @@ monkeypatched to the test fixture's database:
 """
 
 import asyncio
+import threading
 import uuid
 from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import cast
 
 import pytest
 from pandas import Timedelta, Timestamp
 from sqlalchemy import Engine
+from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 from textual.binding import Binding
 from textual.widgets import DataTable, Static, TabbedContent, TabPane
+from textual.worker import WorkerCancelled
 from textual_fspicker import FileOpen
 
 import aimbat._tui._iccs_lifecycle
@@ -42,6 +45,7 @@ from aimbat._tui.modals import (
     AlignModal,
     InteractiveToolsModal,
     ParametersModal,
+    PhaseSelectModal,
     SchemaStaleModal,
     SnapshotDetailsModal,
     ToolLaunchResult,
@@ -50,6 +54,7 @@ from aimbat.actions import prepare_iccs
 from aimbat.core import (
     BoundICCS,
     IccsLifecycle,
+    RunSummary,
     create_snapshot,
     current_instance_digest,
     default_phase_parameters,
@@ -860,6 +865,109 @@ class TestIccsAssignmentRace:
 
         asyncio.run(_run())
 
+    def test_result_for_another_phase_of_the_event_is_discarded(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A build for P that ends after a switch to PKP is dropped, and PKP is built."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            p_phase_id = event.phases[0].id
+            pkp = AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            event.phases.append(pkp)
+            session.commit()
+            event_id, pkp_id = event.id, pkp.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                with Session(loaded_engine_from_file) as session:
+                    stale_bound = _real_create_iccs_instance(session, p_phase_id)
+
+                started: list[uuid.UUID] = []
+                monkeypatch.setattr(
+                    AimbatTUI,
+                    "_worker_create_iccs",
+                    lambda self, phase_id, is_retry=False: started.append(phase_id),
+                )
+                app._current_event_id = event_id
+                app._current_phase_name = "PKP"
+
+                app._assign_iccs(stale_bound)
+
+                assert app._iccs_lifecycle.bound is None
+                assert started == [pkp_id]
+
+        asyncio.run(_run())
+
+    def test_request_dropped_during_a_build_is_replayed(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A request made while a build runs is replayed if that build yields nothing."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id, phase_id = event.id, event.phases[0].id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                started: list[uuid.UUID] = []
+                monkeypatch.setattr(
+                    AimbatTUI,
+                    "_worker_create_iccs",
+                    lambda self, phase_id, is_retry=False: started.append(phase_id),
+                )
+                app._current_event_id = event_id
+                assert app._iccs_lifecycle.start_creating()  # a build in flight
+
+                app._create_iccs()
+                assert started == []
+
+                app._end_creation_without_instance(None)  # that build aborts
+                assert started == [phase_id]
+
+        asyncio.run(_run())
+
+    def test_request_during_a_successful_build_is_replayed(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A rebuild asked for during a build follows it, since it may predate a change."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id, phase_id = event.id, event.phases[0].id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                with Session(loaded_engine_from_file) as session:
+                    built = _real_create_iccs_instance(session, phase_id)
+
+                started: list[uuid.UUID] = []
+                monkeypatch.setattr(
+                    AimbatTUI,
+                    "_worker_create_iccs",
+                    lambda self, phase_id, is_retry=False: started.append(phase_id),
+                )
+                app._current_event_id = event_id
+                assert app._iccs_lifecycle.start_creating()
+                app._create_iccs()  # e.g. the Parameters modal closed with changes
+
+                app._assign_iccs(built)
+
+                assert started == [phase_id]
+
+        asyncio.run(_run())
+
     def test_stale_worker_result_for_deleted_event_is_discarded(
         self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -906,7 +1014,7 @@ class TestRequireIccs:
 
     See `_IccsLifecycleMixin._require_iccs`: with no current event it points
     the user at the Project tab; with an event selected but no bound ICCS
-    instance yet, it points at the Parameters tab instead.
+    instance yet, it points at the phase parameters instead.
     """
 
     def test_no_event_selected(
@@ -1018,10 +1126,10 @@ class TestParametersOnSeveralPhases:
         assert len(notifications) == 1
         message, severity = notifications[0]
         assert "This event has phases P, PKP" in message
-        assert "Select a phase with the CLI" in message
+        assert "Press p to select one" in message
         assert severity == "warning"
 
-    def test_selecting_and_aligning_show_the_notice(
+    def test_selecting_opens_the_picker_and_escape_leaves_no_phase(
         self, loaded_engine: Engine, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine)
@@ -1049,16 +1157,464 @@ class TestParametersOnSeveralPhases:
                 )
 
                 app._select_event(str(event_id))
+                await pilot.pause()
+                assert isinstance(app.screen, PhaseSelectModal)
+                await pilot.press("escape")
                 await _wait_for_iccs_worker(app)
-                app.action_open_align()
 
+                assert app._current_phase_name is None
                 assert not app._iccs_lifecycle.ready
+                bar = app.query_one("#event-bar", Static)
+                assert "select a phase (p)" in str(bar.render())
+                app.action_open_align()
 
         asyncio.run(_run())
 
         notices = [m for m, s in notifications if s == "warning"]
-        assert len(notices) == 2
-        assert all("This event has phases P, PKP" in m for m in notices)
+        assert notices == ["This event has phases P, PKP. Press p to select one."]
+
+    def test_choosing_a_phase_filters_the_tabs(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event.phases.append(
+                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            )
+            session.commit()
+            event_id = event.id
+            p_phase = next(p for p in event.phases if p.name == "P")
+            p_rows = len(p_phase.seismogram_parameters)
+            create_snapshot(session, p_phase.id, "P snapshot")
+            session.commit()
+        assert p_rows > 0
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                app._select_event(str(event_id))
+                await pilot.pause()
+                assert isinstance(app.screen, PhaseSelectModal)
+                await pilot.press("enter")  # cursor starts on P, the first
+                await _wait_for_iccs_worker(app)
+                await pilot.pause()
+
+                assert app._current_phase_name == "P"
+                assert app._iccs_lifecycle.ready
+                table = app.query_one("#seismogram-table", DataTable)
+                snapshots = app.query_one("#snapshot-table", DataTable)
+                assert table.row_count == p_rows
+                assert snapshots.row_count == 1
+                assert "|  P " in str(app.query_one("#event-bar", Static).render())
+
+                # PKP has no seismograms or snapshots, so its tabs are empty.
+                await pilot.press("p")
+                await pilot.pause()
+                assert isinstance(app.screen, PhaseSelectModal)
+                await pilot.press("down", "enter")
+                await _wait_for_iccs_worker(app)
+                await pilot.pause()
+                assert app._current_phase_name == "PKP"
+                assert table.row_count == 0
+                assert snapshots.row_count == 0
+                assert "|  PKP " in str(app.query_one("#event-bar", Static).render())
+
+        asyncio.run(_run())
+
+    def test_a_deleted_event_clears_the_phase(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                app._current_event_id = uuid.uuid4()
+                app._current_phase_name = "P"
+
+                with Session(loaded_engine_from_file) as session:
+                    with pytest.raises(NoResultFound):
+                        app._get_current_event(session)
+
+                assert app._current_event_id is None
+                assert app._current_phase_name is None
+
+        asyncio.run(_run())
+
+    def test_phase_key_on_an_event_without_phases_opens_nothing(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+            for phase in list(event.phases):
+                session.delete(phase)
+            session.commit()
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                app._current_event_id = event_id
+                app.action_select_phase()
+                await pilot.pause()
+                assert not isinstance(app.screen, PhaseSelectModal)
+
+        asyncio.run(_run())
+
+        assert ("The event has no phases.", "warning") in notifications
+
+    def test_poll_clears_a_phase_the_event_no_longer_has(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                # As if PKP was selected, then renamed from the CLI.
+                app._current_event_id = event_id
+                app._current_phase_name = "PKP"
+
+                app._check_iccs_staleness()
+                await _wait_for_iccs_worker(app)
+
+                assert app._current_phase_name is None
+                assert app._iccs_lifecycle.ready
+
+        asyncio.run(_run())
+
+        assert ("The event has no phase PKP any more", "warning") in [
+            (m.split(".")[0], s) for m, s in notifications
+        ]
+
+    def test_only_phase_carries_to_an_event_with_several(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            first, second = session.exec(select(AimbatEvent)).all()[:2]
+            second.phases.append(
+                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            )
+            session.commit()
+            first_id, second_id = first.id, second.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                app._select_event(str(first_id))  # P only, no name chosen
+                await _wait_for_iccs_worker(app)
+                app._select_event(str(second_id))
+                await _wait_for_iccs_worker(app)
+                await pilot.pause()
+
+                assert not isinstance(app.screen, PhaseSelectModal)
+                assert app._current_phase_name == "P"
+
+        asyncio.run(_run())
+
+    def test_choosing_the_current_phase_keeps_the_instance(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                app._select_event(str(event_id))
+                await _wait_for_iccs_worker(app)
+                bound = app._iccs_lifecycle.bound
+                assert bound is not None
+
+                app._on_phase_chosen("P")
+                await _wait_for_iccs_worker(app)
+
+                assert app._iccs_lifecycle.bound is bound
+
+        asyncio.run(_run())
+
+    def test_phase_key_is_off_while_a_dialog_is_open(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                app._select_event(str(event_id))
+                await _wait_for_iccs_worker(app)
+                assert app.check_action("select_phase", ()) is True
+
+                app.action_select_phase()
+                await pilot.pause()
+                assert isinstance(app.screen, PhaseSelectModal)
+                assert app.check_action("select_phase", ()) is False
+                await pilot.press("p")
+                await pilot.pause()
+                assert len(app.screen_stack) == 2
+
+        asyncio.run(_run())
+
+    def test_processing_clears_a_phase_the_event_no_longer_has(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id = event.id
+
+        notifications: list[str] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, **kwargs: notifications.append(message),
+                )
+                app._current_event_id = event_id
+                app._current_phase_name = "PKP"  # renamed from the CLI since
+
+                assert app._require_iccs() is False
+
+                assert app._current_phase_name is None
+                await _wait_for_iccs_worker(app)
+
+        asyncio.run(_run())
+
+        assert notifications == [
+            "The event has no phase PKP any more. The phase selection is cleared."
+        ]
+
+    def test_phase_name_carries_to_an_event_that_has_it(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            first, second = session.exec(select(AimbatEvent)).all()[:2]
+            first.phases.append(
+                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+            )
+            session.commit()
+            first_id, second_id = first.id, second.id
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                app._current_phase_name = "P"
+                app._select_event(str(first_id))
+                await pilot.pause()
+                assert not isinstance(app.screen, PhaseSelectModal)
+                assert app._current_phase_name == "P"
+
+                app._current_phase_name = "PKP"
+                app._select_event(str(second_id))
+                await pilot.pause()
+                assert not isinstance(app.screen, PhaseSelectModal)
+                assert app._current_phase_name is None
+                await _wait_for_iccs_worker(app)
+                assert app._iccs_lifecycle.ready
+
+        asyncio.run(_run())
+
+
+class _FakeAlignResult:
+    summary = RunSummary("Alignment complete", warning=False)
+
+
+@pytest.mark.slow
+class TestAlignGuard:
+    """While an alignment runs, the main thread leaves its ICCS instance alone.
+
+    See `IccsLifecycle.aligning`: the align worker changes the instance in
+    place, so the poll, panel refreshes, rebuilds and row actions that write
+    must not touch it until the worker stops.
+    """
+
+    def test_nothing_reads_or_replaces_the_instance(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = session.exec(select(AimbatEvent)).first()
+            assert event is not None
+            event_id, seismogram_id = event.id, event.seismograms[0].id
+
+        notifications: list[tuple[str, str]] = []
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                app._select_event(str(event_id))
+                await _wait_for_iccs_worker(app)
+                bound = app._iccs_lifecycle.bound
+                assert bound is not None
+                selects = [s.select for s in bound.iccs.seismograms]
+
+                monkeypatch.setattr(
+                    app,
+                    "notify",
+                    lambda message, *, severity="information", **kwargs: (
+                        notifications.append((message, severity))
+                    ),
+                )
+                handed: list[BoundICCS | None] = []
+                monkeypatch.setattr(
+                    SeismogramPanel,
+                    "refresh_data",
+                    lambda self, session, event_id, phase_name, bound_iccs: (
+                        handed.append(bound_iccs)
+                    ),
+                )
+                started: list[uuid.UUID] = []
+                monkeypatch.setattr(
+                    AimbatTUI,
+                    "_worker_create_iccs",
+                    lambda self, phase_id, is_retry=False: started.append(phase_id),
+                )
+
+                assert app._iccs_lifecycle.start_aligning()
+                app._check_iccs_staleness()
+                app._create_iccs()
+                app.refresh_all()
+                app._handle_row_action(
+                    "tab-seismograms", str(seismogram_id), "toggle_select"
+                )
+
+                assert started == []
+                assert handed == [None]
+                assert app._iccs_lifecycle.bound is bound
+                assert [s.select for s in bound.iccs.seismograms] == selects
+                for action in (
+                    "open_align",
+                    "open_interactive_tools",
+                    "open_parameters",
+                    "select_phase",
+                ):
+                    assert app.check_action(action, ()) is False
+                bar = app.query_one("#event-bar", Static)
+                assert "aligning" in str(bar.render())
+
+        asyncio.run(_run())
+
+        assert ("Alignment running: wait for it to finish", "warning") in notifications
+
+    @pytest.mark.parametrize("fails", [False, True])
+    def test_worker_end_clears_the_guard(
+        self,
+        fails: bool,
+        loaded_engine_from_file: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+
+        def _fake_run_iccs(phase_id: uuid.UUID, **kwargs: bool) -> _FakeAlignResult:
+            if fails:
+                raise RuntimeError("simulated alignment failure")
+            return _FakeAlignResult()
+
+        monkeypatch.setattr("aimbat.actions.run_iccs", _fake_run_iccs)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                assert app._iccs_lifecycle.start_aligning()
+                app._run_align_tool(uuid.uuid4(), "iccs", False, False, False)
+                await app.workers.wait_for_complete()
+                await pilot.pause()
+
+                assert app._iccs_lifecycle.aligning is False
+
+        asyncio.run(_run())
+
+    def test_cancelled_worker_keeps_the_guard_until_its_thread_ends(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Textual marks a cancelled thread worker CANCELLED while it still runs."""
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        release = threading.Event()
+        running = threading.Event()
+
+        def _blocking_run_iccs(phase_id: uuid.UUID, **kwargs: bool) -> _FakeAlignResult:
+            running.set()
+            release.wait(timeout=10)
+            return _FakeAlignResult()
+
+        monkeypatch.setattr("aimbat.actions.run_iccs", _blocking_run_iccs)
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+
+                assert app._iccs_lifecycle.start_aligning()
+                worker = app._run_align_tool(uuid.uuid4(), "iccs", False, False, False)
+                assert await asyncio.to_thread(running.wait, 5)
+                worker.cancel()
+                with suppress(WorkerCancelled):
+                    await app.workers.wait_for_complete()
+                await pilot.pause()
+                assert app._iccs_lifecycle.aligning is True
+
+                release.set()
+                for _ in range(100):
+                    if not app._iccs_lifecycle.aligning:
+                        break
+                    await pilot.pause(delay=0.05)
+                assert app._iccs_lifecycle.aligning is False
+
+        asyncio.run(_run())
 
 
 @pytest.mark.slow
@@ -1471,13 +2027,13 @@ class TestHotkeyScoping:
                 event_table.focus()
                 await pilot.pause()
                 assert app.check_action("open_parameters", ()) is True
-                assert "p" in pilot.app.screen.active_bindings
+                assert "P" in pilot.app.screen.active_bindings
 
                 station_table = pilot.app.query_one("#project-station-table", DataTable)
                 station_table.focus()
                 await pilot.pause()
                 assert app.check_action("open_parameters", ()) is False
-                assert "p" not in pilot.app.screen.active_bindings
+                assert "P" not in pilot.app.screen.active_bindings
 
         asyncio.run(_run())
 
@@ -1499,7 +2055,7 @@ class TestHotkeyScoping:
                 app.refresh_all()
                 await pilot.pause(delay=0.5)
 
-                # Leave focus on the stations table (where 'p' is hidden),
+                # Leave focus on the stations table (where 'P' is hidden),
                 # then switch tabs — the seismograms-tab branch must not
                 # inherit that restriction.
                 station_table = pilot.app.query_one("#project-station-table", DataTable)
@@ -1508,7 +2064,7 @@ class TestHotkeyScoping:
                 await pilot.press("L")  # -> tab-seismograms
                 await pilot.pause()
                 assert app.check_action("open_parameters", ()) is True
-                assert "p" in pilot.app.screen.active_bindings
+                assert "P" in pilot.app.screen.active_bindings
 
         asyncio.run(_run())
 
@@ -1533,7 +2089,7 @@ class TestHotkeyScoping:
                 await pilot.press("L")  # -> tab-snapshots
                 await pilot.pause()
                 assert app.check_action("open_parameters", ()) is False
-                assert "p" not in pilot.app.screen.active_bindings
+                assert "P" not in pilot.app.screen.active_bindings
 
         asyncio.run(_run())
 

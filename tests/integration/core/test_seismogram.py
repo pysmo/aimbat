@@ -13,6 +13,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session, select
 
 from aimbat.core import (
+    default_phase_parameters,
     delete_seismogram,
     dump_seismogram_parameter_table,
     dump_seismogram_table,
@@ -23,7 +24,15 @@ from aimbat.core import (
     set_seismogram_parameter,
     set_seismogram_parameters,
 )
-from aimbat.models import AimbatEvent, AimbatPhase, AimbatSeismogram, AimbatStation
+from aimbat.models import (
+    AimbatEvent,
+    AimbatPhase,
+    AimbatPick,
+    AimbatSeismogram,
+    AimbatSeismogramParameters,
+    AimbatStation,
+    PickOrigin,
+)
 from aimbat.models._parameters import AimbatSeismogramParametersBase
 from aimbat.plot import plot_seismograms
 from aimbat.types import SeismogramParameter
@@ -455,6 +464,42 @@ class TestDumpSeismogramTableToJson:
         result = dump_seismogram_table(loaded_session)
         assert isinstance(result, list)
         assert len(result) > 0
+
+    def test_phase_name_dumps_only_its_seismograms(
+        self, loaded_session: Session
+    ) -> None:
+        """Seismograms of the event that are not in the phase are left out."""
+        event = loaded_session.exec(select(AimbatEvent)).first()
+        assert event is not None
+        (p_phase,) = event.phases
+        p_member = p_phase.seismogram_parameters[0]
+        pkp = AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
+        event.phases.append(pkp)
+        pick = AimbatPick(
+            time=p_member.pick.time,
+            phase_name="PKP",
+            origin=PickOrigin.MANUAL,
+            seismogram_id=p_member.seismogram_id,
+        )
+        loaded_session.add(
+            AimbatSeismogramParameters(
+                seismogram_id=p_member.seismogram_id, phase=pkp, pick=pick
+            )
+        )
+        loaded_session.flush()
+
+        def ids(phase_name: str, event_id: uuid.UUID | None) -> set[str]:
+            rows = dump_seismogram_table(
+                loaded_session,
+                from_read_model=True,
+                event_id=event_id,
+                phase_name=phase_name,
+            )
+            return {str(row["id"]) for row in rows}
+
+        assert ids("PKP", event.id) == {str(p_member.seismogram_id)}
+        assert ids("P", event.id) == {str(s.id) for s in event.seismograms}
+        assert ids("PKP", None) == {str(p_member.seismogram_id)}
 
 
 class TestDumpSeismogramParameterTableToJson:

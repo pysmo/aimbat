@@ -108,7 +108,8 @@ for the equivalent menu.
 |-----|--------|
 | `a` | Run alignment (opens ICCS / MCCC menu) |
 | `t` | Open interactive tools |
-| `p` | Edit processing parameters |
+| `p` | Select the phase of the selected event |
+| `P` | Edit processing parameters |
 | `n` | Create a new snapshot |
 | `r` | Refresh all panels |
 | `c` | Toggle light/dark colour theme |

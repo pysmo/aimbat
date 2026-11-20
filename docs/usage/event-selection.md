@@ -99,8 +99,9 @@ aimbat [6a4a/PKP]> align iccs
 ```
 
 The phase must belong to the event of the shell. `phase switch` without a name
-clears the phase, so the event's only phase is used again. `event switch` to an
-event without the phase also clears it.
+clears the phase, so the event's only phase is used again. `event switch` keeps
+the phase, or the previous event's only phase, when the new event has a phase
+of that name, and clears it otherwise.
 
 Listings that can cover several phases, such as `phase list` and
 `snapshot list`, read `--phase` as a filter by name. They do not read
@@ -108,16 +109,20 @@ Listings that can cover several phases, such as `phase list` and
 
 ## TUI
 
-The TUI keeps its own event selection, independent of the CLI and shell.
+The TUI keeps its own event and phase selection, independent of the CLI and
+shell.
 
 Pressing `s` on a row in the **Project** tab's **Events** table (or `Enter`,
 then **Select event**) selects that event. It then shows in the bar at the top
 of the screen, is marked `▶` in the table, and populates the **Live data** and
 **Snapshots** tabs.
 
-The TUI processes the only phase of the selected event. For an event with
-several phases it shows a notice, and processing is done with the CLI until the
-TUI can select a phase.
+An event with only one phase needs no further selection. Selecting an event
+with several phases opens a list of its phases, and `p` switches phase. The
+bar shows the current phase. The **Live data** and **Snapshots** tabs show
+that phase only, and stay empty until a phase is chosen. Selecting another
+event keeps the current phase, chosen or the previous event's only phase, when
+the event has a phase of that name, and clears it otherwise.
 
 ## Python API
 

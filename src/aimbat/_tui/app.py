@@ -27,7 +27,11 @@ from textual.widgets import (
 from textual_fspicker import FileOpen, FileSave, Filters
 
 from aimbat import actions, settings
-from aimbat._tui._iccs_lifecycle import _IccsLifecycleMixin, several_phases_notice
+from aimbat._tui._iccs_lifecycle import (
+    _IccsLifecycleMixin,
+    phase_names,
+    several_phases_notice,
+)
 from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
 from aimbat._tui._tools import CAUSAL_TOOL_REGISTRY, TOOL_REGISTRY, VIEW_ONLY_TOOLS
 from aimbat._tui.modals import (
@@ -38,6 +42,7 @@ from aimbat._tui.modals import (
     InteractiveToolsModal,
     NoProjectModal,
     ParametersModal,
+    PhaseSelectModal,
     SchemaStaleModal,
     SnapshotCommentModal,
     SnapshotDetailsModal,
@@ -84,6 +89,31 @@ _LIGHT_THEME = settings.tui_light_theme
 
 _MAIN_TABS = {"tab-project", "tab-seismograms", "tab-snapshots"}
 
+# Bindings that change, replace or read the ICCS instance an alignment
+# worker is changing.
+_BLOCKED_WHILE_ALIGNING = frozenset(
+    {
+        "add_data",
+        "new_snapshot",
+        "open_align",
+        "open_interactive_tools",
+        "open_parameters",
+        "select_phase",
+    }
+)
+
+# Row actions that only read the database, allowed while an alignment runs.
+# Any other row action is refused until it ends.
+_ROW_ACTIONS_WHILE_ALIGNING = frozenset(
+    {
+        "preview_image",
+        "preview_stack",
+        "save_results",
+        "show_details",
+        "view_seismograms",
+    }
+)
+
 
 # ---------------------------------------------------------------------------
 # Main application
@@ -106,7 +136,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 
     BINDINGS = [
         Binding("i", "add_data", "Add Data", show=True),
-        Binding("p", "open_parameters", "Parameters", show=True),
+        Binding("p", "select_phase", "Phase", show=True),
+        Binding("P", "open_parameters", "Parameters", show=True),
         Binding("t", "open_interactive_tools", "Tools", show=True),
         Binding("a", "open_align", "Align", show=True),
         Binding("n", "new_snapshot", "New Snapshot", show=True),
@@ -142,6 +173,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """
         self._init_iccs_lifecycle()
         self._current_event_id: uuid.UUID | None = None
+        self._current_phase_name: str | None = None
         self._active_tab: str = "tab-project"
 
         self.theme = _DEFAULT_THEME
@@ -236,8 +268,14 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         Returns:
             Whether the action is currently available.
         """
+        if self._iccs_lifecycle.aligning and action in _BLOCKED_WHILE_ALIGNING:
+            return False
         if action == "add_data":
             return self._active_tab == "tab-project"
+        if action == "select_phase":
+            return self._current_event_id is not None and not isinstance(
+                self.screen, ModalScreen
+            )
         if action == "new_snapshot":
             return (
                 self._active_tab == "tab-seismograms"
@@ -287,16 +325,23 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if event is not None:
                 return event
             self._current_event_id = None
+            self._current_phase_name = None
         raise NoResultFound("No event selected")
 
     def _get_current_phase(self, session: Session) -> AimbatPhase:
-        """Return the only phase of the current event.
+        """Return the selected phase of the current event.
+
+        Without a selected phase name, returns the event's only phase.
 
         Raises:
-            NoResultFound: If no event is selected, or it has no phase.
-            AmbiguousPhaseError: If the event has several phases.
+            NoResultFound: If no event is selected, or it has no phase of
+                the selected name, or no phase at all.
+            AmbiguousPhaseError: If no phase name is selected and the event
+                has several phases.
         """
-        return resolve_phase(session, self._get_current_event(session).id)
+        return resolve_phase(
+            session, self._get_current_event(session).id, self._current_phase_name
+        )
 
     # ------------------------------------------------------------------
     # Suspend helper
@@ -360,14 +405,31 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """
         self.refresh_bindings()
         with Session(engine) as session:
-            self._refresh_event_bar(session)
-            self.query_one(ProjectPanel).refresh_data(session, self._current_event_id)
-            self.query_one(SeismogramPanel).refresh_data(
-                session, self._current_event_id, self._iccs_lifecycle.bound
+            phase = self._resolved_phase(session)
+            event_id = None if phase is None else phase.event_id
+            phase_name = None if phase is None else phase.name
+            self._refresh_event_bar(session, phase)
+            self.query_one(ProjectPanel).refresh_data(
+                session, self._current_event_id, phase_name
             )
-            self.query_one(SnapshotPanel).refresh_data(session, self._current_event_id)
+            # While an alignment changes the instance, the table shows the
+            # stored CC values instead of reading it.
+            bound = (
+                None if self._iccs_lifecycle.aligning else self._iccs_lifecycle.bound
+            )
+            self.query_one(SeismogramPanel).refresh_data(
+                session, event_id, phase_name, bound
+            )
+            self.query_one(SnapshotPanel).refresh_data(session, event_id, phase_name)
 
-    def _refresh_event_bar(self, session: Session) -> None:
+    def _resolved_phase(self, session: Session) -> AimbatPhase | None:
+        """Return the current phase, or `None` while there is none to process."""
+        try:
+            return self._get_current_phase(session)
+        except (NoResultFound, AmbiguousPhaseError):
+            return None
+
+    def _refresh_event_bar(self, session: Session, phase: AimbatPhase | None) -> None:
         """Update the status bar with the current event's time, location and ICCS status.
 
         Shows a prompt to select an event or add data when no event is
@@ -376,19 +438,28 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
 
         Args:
             session: Database session to read the current event with.
+            phase: The current phase, or `None` while there is none.
         """
         bar = self.query_one("#event-bar", Static)
         try:
             event = self._get_current_event(session)
-            iccs_status = (
-                " ● ICCS ready" if self._iccs_lifecycle.ready else " ○ no ICCS"
-            )
+            if self._iccs_lifecycle.aligning:
+                iccs_status = " ◐ aligning"
+            elif self._iccs_lifecycle.ready:
+                iccs_status = " ● ICCS ready"
+            else:
+                iccs_status = " ○ no ICCS"
             time_str = fmt_timestamp(event.time) if event.time else "unknown"
             lat = f"{event.latitude:.3f}°"
             lon = f"{event.longitude:.3f}°"
+            phase_str = (
+                phase.name
+                if phase is not None
+                else "[yellow]select a phase (p)[/yellow]"
+            )
             bar.update(
-                f"▶ {time_str}  |  {lat}, {lon}  [dim]{iccs_status}  switch "
-                + "events on the Project tab[/dim]"
+                f"▶ {time_str}  |  {lat}, {lon}  |  {phase_str}  [dim]{iccs_status}  "
+                + "switch events on the Project tab[/dim]"
             )
         except NoResultFound:
             has_events = session.exec(select(AimbatEvent)).first() is not None
@@ -451,6 +522,13 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             item_id: ID of the row's underlying database entity.
             action: Action key chosen, or `None` if the menu was cancelled.
         """
+        if (
+            self._iccs_lifecycle.aligning
+            and action is not None
+            and action not in _ROW_ACTIONS_WHILE_ALIGNING
+        ):
+            self.notify("Alignment running: wait for it to finish", severity="warning")
+            return
         if action == "delete":
             self._confirm_delete(tab, item_id)
         elif action == "select":
@@ -471,33 +549,92 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             self._reset_seismogram_parameters(item_id)
 
     def _select_event(self, item_id: str) -> None:
-        """Make the given event the active event and rebuild its ICCS instance."""
+        """Make the given event the active event and rebuild its ICCS instance.
+
+        The current phase name, whether selected or the previous event's
+        only phase, is kept if the event has a phase of that name, and
+        cleared otherwise. An event with several phases and no kept name
+        opens the phase picker before any instance is built.
+        """
         logger.debug(f"User selected event {item_id[:8]}.")
-        self._current_event_id = uuid.UUID(item_id)
+        event_id = uuid.UUID(item_id)
+        with Session(engine) as session:
+            previous = self._resolved_phase(session)
+            names = phase_names(session, event_id)
+        carried = self._current_phase_name if previous is None else previous.name
+        self._current_event_id = event_id
+        self._current_phase_name = carried if carried in names else None
+        self.notify("Event selected", timeout=2)
+        if self._current_phase_name is None and len(names) > 1:
+            self._iccs_lifecycle.clear()
+            self.refresh_all()
+            self.push_screen(PhaseSelectModal(event_id), self._on_phase_chosen)
+            return
         self._create_iccs()
         self.refresh_all()
-        self.notify("Event selected", timeout=2)
-        try:
-            with Session(engine) as session:
-                self._get_current_phase(session)
-        except AmbiguousPhaseError as exc:
-            self.notify(several_phases_notice(exc), severity="warning")
-        except NoResultFound:
-            pass
+
+    def action_select_phase(self) -> None:
+        """Open the phase picker for the active event."""
+        if self._current_event_id is None or isinstance(self.screen, ModalScreen):
+            return
+        with Session(engine) as session:
+            if not phase_names(session, self._current_event_id):
+                self.notify("The event has no phases.", severity="warning")
+                return
+            phase = self._resolved_phase(session)
+        self.push_screen(
+            PhaseSelectModal(
+                self._current_event_id, None if phase is None else phase.name
+            ),
+            self._on_phase_chosen,
+        )
+
+    def _on_phase_chosen(self, name: str | None) -> None:
+        """Make the chosen phase the current phase and rebuild its ICCS instance."""
+        if name is None:
+            return
+        logger.debug(f"User selected phase {name!r}.")
+        with Session(engine) as session:
+            current = self._resolved_phase(session)
+        self._current_phase_name = name
+        if current is not None and current.name == name and self._iccs_lifecycle.ready:
+            return
+        self._create_iccs()
+        self.refresh_all()
+        self.notify(f"Phase {name} selected", timeout=2)
 
     def _toggle_event_completed(self, item_id: str) -> None:
-        """Flip the `completed` flag on the parameters of the given event's phase."""
+        """Flip the `completed` flag of a phase of the given event.
+
+        Uses the selected phase for the active event and the only phase for
+        any other event. Another event with several phases opens the phase
+        picker for that event first.
+        """
         logger.debug(f"User toggled completed flag for event {item_id[:8]}.")
-        try:
-            with Session(engine) as session:
-                phase_id = resolve_phase(session, uuid.UUID(item_id)).id
-            actions.toggle_phase_completed(phase_id)
-            self.refresh_all()
-            self.notify("Completed flag toggled", timeout=2)
-        except AmbiguousPhaseError as exc:
-            self.notify(several_phases_notice(exc), severity="warning")
-        except Exception as exc:
-            self.notify(str(exc), severity="error")
+        event_id = uuid.UUID(item_id)
+        name = self._current_phase_name if event_id == self._current_event_id else None
+
+        def toggle(phase_name: str | None) -> None:
+            try:
+                with Session(engine) as session:
+                    phase_id = resolve_phase(session, event_id, phase_name).id
+                actions.toggle_phase_completed(phase_id)
+                self.refresh_all()
+                self.notify("Completed flag toggled", timeout=2)
+            except Exception as exc:
+                self.notify(str(exc), severity="error")
+
+        with Session(engine) as session:
+            phase_count = len(phase_names(session, event_id))
+        if name is None and phase_count > 1:
+
+            def on_chosen(chosen: str | None) -> None:
+                if chosen is not None:
+                    toggle(chosen)
+
+            self.push_screen(PhaseSelectModal(event_id), on_chosen)
+            return
+        toggle(name)
 
     def _view_seismograms(self, tab: str, item_id: str) -> None:
         """Suspend the TUI and show a matplotlib plot of seismograms for an event or station.
@@ -607,6 +744,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     actions.delete_events([uuid.UUID(item_id)])
                     if self._current_event_id == uuid.UUID(item_id):
                         self._current_event_id = None
+                        self._current_phase_name = None
                         self._iccs_lifecycle.clear()
                     self.refresh_all()
                     self.notify("Event deleted", timeout=2)
@@ -736,6 +874,8 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             with Session(engine) as session:
                 phase_id = self._get_current_phase(session).id
         except NoResultFound:
+            if self._drop_missing_phase():
+                return
             self.notify(
                 "No event selected: select one on the Project tab",
                 severity="warning",
@@ -899,6 +1039,9 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if bound is None:
                 self.notify("ICCS not ready: please wait", severity="warning")
                 return
+            if not self._iccs_lifecycle.start_aligning():
+                return
+            self.refresh_all()
             self._run_align_tool(bound.phase_id, *result)
 
         self.push_screen(AlignModal(), on_result)
@@ -914,14 +1057,10 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
     ) -> None:
         """Run ICCS or MCCC in a background thread and post the result to the main thread.
 
-        Note:
-            The run mutates the phase's cached ICCS instance, normally the
-            one the TUI holds, in place on this worker thread. Nothing
-            prevents the main thread's 5s staleness poll or a panel refresh
-            from reading it (or replacing it via `_create_iccs()`)
-            concurrently - there is no lock. Not currently known to cause a
-            visible failure in practice, but a torn read is possible while
-            an alignment is in flight.
+        The run changes the phase's cached ICCS instance in place. The
+        caller sets `IccsLifecycle.aligning` first, which keeps the main
+        thread from reading or replacing the instance until
+        `_end_alignment` clears it, once this thread is done.
 
         Args:
             phase_id: ID of the phase to align.
@@ -937,36 +1076,53 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             f"Alignment worker starting: algorithm={algorithm!r}, autoflip="
             + f"{autoflip!r}, autoselect={autoselect!r}, all_seis={all_seis!r}."
         )
-        summary = RunSummary("Alignment complete", warning=False)
         try:
-            if algorithm == "iccs":
-                summary = actions.run_iccs(
-                    phase_id, autoflip=autoflip, autoselect=autoselect
-                ).summary
-            elif algorithm == "mccc":
-                summary = actions.run_mccc(phase_id, all_seismograms=all_seis).summary
-        except Exception as exc:
-            logger.exception(f"Alignment worker error ({algorithm}): {exc}")
-            self.call_from_thread(self.notify, str(exc), severity="error")
-            return
-        self.call_from_thread(
-            self._post_align_complete,
-            summary.message,
-            "warning" if summary.warning else "information",
-        )
+            summary = RunSummary("Alignment complete", warning=False)
+            try:
+                if algorithm == "iccs":
+                    summary = actions.run_iccs(
+                        phase_id, autoflip=autoflip, autoselect=autoselect
+                    ).summary
+                elif algorithm == "mccc":
+                    summary = actions.run_mccc(
+                        phase_id, all_seismograms=all_seis
+                    ).summary
+            except Exception as exc:
+                logger.exception(f"Alignment worker error ({algorithm}): {exc}")
+                self.call_from_thread(self.notify, str(exc), severity="error")
+                return
+            self.call_from_thread(
+                self._post_align_complete,
+                summary.message,
+                "warning" if summary.warning else "information",
+            )
+        finally:
+            # Ended from this thread, not from the worker's state: Textual
+            # marks a cancelled thread worker CANCELLED while the thread runs.
+            with suppress(RuntimeError):  # The app has already exited.
+                self.call_from_thread(self._end_alignment)
 
     def _post_align_complete(
         self, msg: str, severity: Literal["information", "warning", "error"]
     ) -> None:
-        """Refresh all panels and show the alignment result notification.
+        """Show the alignment result notification.
 
         Args:
             msg: Notification text.
             severity: Notification severity level.
         """
-        self.refresh_all()
         # About 25 characters a second, so a multi-sentence summary stays readable.
         self.notify(msg, severity=severity, timeout=max(4, len(msg) / 25))
+
+    def _end_alignment(self) -> None:
+        """End the alignment guard once the align worker's thread is done.
+
+        Then checks the phase for changes made meanwhile and refreshes every
+        panel.
+        """
+        self._iccs_lifecycle.finish_aligning()
+        if not self._check_iccs_staleness():
+            self.refresh_all()
 
     def action_new_snapshot(self) -> None:
         """Prompt for an optional comment and create a snapshot of the current event's parameters."""

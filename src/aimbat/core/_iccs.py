@@ -144,6 +144,7 @@ class IccsLifecycle:
     bound: BoundICCS | None = None
     retry_pending: bool = False
     instance_digest_seen: str | None = None
+    aligning: bool = False
     _creating: bool = field(default=False, repr=False, init=False)
 
     @property
@@ -200,6 +201,25 @@ class IccsLifecycle:
         self._creating = False
         if not is_retry:
             self.retry_pending = True
+
+    def start_aligning(self) -> bool:
+        """Begin an alignment run on the bound instance.
+
+        While it runs, the run changes the instance in place, so the caller
+        must neither read nor replace the instance until `finish_aligning`.
+
+        Returns:
+            False if an alignment is already running, in which case the
+            caller should not start another.
+        """
+        if self.aligning:
+            return False
+        self.aligning = True
+        return True
+
+    def finish_aligning(self) -> None:
+        """Record that the alignment run has ended, in any state."""
+        self.aligning = False
 
     def assign(self, bound_iccs: BoundICCS) -> None:
         """Record a newly created instance as ready."""
