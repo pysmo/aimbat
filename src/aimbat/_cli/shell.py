@@ -138,6 +138,21 @@ def _has_phase(event_id: uuid.UUID, name: str) -> bool:
     return True
 
 
+def _only_phase_name(event_id: uuid.UUID) -> str | None:
+    """Return the name of an event's only phase, or None if it has none or several."""
+    from sqlalchemy.exc import NoResultFound
+    from sqlmodel import Session
+
+    from aimbat.core import AmbiguousPhaseError, resolve_phase
+    from aimbat.db import engine
+
+    try:
+        with Session(engine) as session:
+            return resolve_phase(session, event_id).name
+    except (NoResultFound, AmbiguousPhaseError):
+        return None
+
+
 def _check_iccs(
     console: "Console",
     prev: "BoundICCS | None",
@@ -328,14 +343,20 @@ def cli_shell(
                 else:
                     try:
                         new_event_id = _parse_event_id(tokens[2])
-                        if shell_phase is not None and not _has_phase(
-                            new_event_id, shell_phase
-                        ):
-                            console.print(
-                                f"[dim]The event has no phase {shell_phase!r}."
-                                + " The phase context is cleared.[/dim]"
-                            )
-                            _set_shell_phase(None)
+                        if shell_phase is not None:
+                            if not _has_phase(new_event_id, shell_phase):
+                                console.print(
+                                    f"[dim]The event has no phase {shell_phase!r}."
+                                    + " The phase context is cleared.[/dim]"
+                                )
+                                _set_shell_phase(None)
+                        elif shell_event_id is not None:
+                            # The previous event's only phase carries over too.
+                            carried = _only_phase_name(shell_event_id)
+                            if carried is not None and _has_phase(
+                                new_event_id, carried
+                            ):
+                                _set_shell_phase(carried)
                         _set_shell_event(new_event_id)
                         current_bound = _check_iccs(
                             console, None, startup=True, event_id=shell_event_id

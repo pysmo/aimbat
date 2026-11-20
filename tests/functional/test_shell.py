@@ -342,6 +342,32 @@ class TestPhaseSwitch:
         assert "no phase 'PKP'" in result.stdout
         assert f"ICCS ready (event {other[:8]})" in result.stdout
 
+    def test_event_switch_keeps_the_previous_event_only_phase(
+        self,
+        event_with_two_phases: str,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+        multi_event_data: list[Path],
+    ) -> None:
+        """Without `phase switch`, the previous event's only phase carries over."""
+        import json
+
+        added = aimbat_subprocess(
+            ["data", "add", str(multi_event_data[0]), "--unlabelled-as", "P"]
+            + ["--no-progress"]
+        )
+        assert added.returncode == 0, added.stderr
+        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        (other,) = {e["id"] for e in events} - {event_with_two_phases}
+
+        result = shell_subprocess(
+            f"event switch {other}\nevent switch {event_with_two_phases}\nexit\n"
+        )
+        assert result.returncode == 0, result.stderr
+        assert f"ICCS ready (event {event_with_two_phases[:8]}, phase P)" in (
+            result.stdout
+        )
+
     def test_exported_default_phase_is_the_shell_phase(
         self,
         event_with_two_phases: str,

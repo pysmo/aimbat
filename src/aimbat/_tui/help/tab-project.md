@@ -3,10 +3,10 @@
 The Project tab lists everything in the database: seismic events and
 recording stations. **Processing in AIMBAT is per phase of an event** —
 select an event here before the Live data and Snapshots tabs show anything.
-The TUI processes the only phase of the selected event. An event with
-several phases (listed in the Phases column) can be inspected here, but is
-processed with the CLI and its `--phase` option until the TUI can select a
-phase.
+Selecting an event with several phases (listed in the Phases column) opens
+a list of its phases to choose from, and `p` switches phase.
+The Live data and Snapshots tabs show the current phase only, and stay
+empty until a phase is chosen.
 
 **Changes are written to the database immediately** — there is no save step
 and no undo. On the Live data tab, press `n` to create a snapshot of the
@@ -38,15 +38,17 @@ there.
 
 ### Event bar (top of screen)
 
-The bar above the tabs shows the currently selected event and its ICCS
-status:
+The bar above the tabs shows the currently selected event, its current
+phase (or a prompt to select one with `p`), and the ICCS status:
 
 - **● ICCS ready** — the event's seismograms are loaded in memory and
   alignment can run.
+- **◐ aligning** — ICCS or MCCC is running. Actions that change the data
+  are unavailable until it finishes.
 - **○ no ICCS** — ICCS is built automatically in the background when you
   select an event. If this status persists, the ICCS instance could not be
   built — usually because a parameter combination is invalid or a waveform
-  file is missing. Press `p` to check the phase parameters; the most common
+  file is missing. Press `P` to check the phase parameters; the most common
   cause is a time window longer than the available waveform data. The
   status updates automatically once the problem is fixed.
 
@@ -58,7 +60,7 @@ drives the quality panel and note on the right.
 
 With the events table focused, press `s` (or `Enter` → **Select event**) to
 select a row. This loads the event's seismograms into memory and makes it
-the target for processing: `p` Parameters is available here; `a` Align,
+the target for processing: `p` Phase and `P` Parameters are available here; `a` Align,
 `t` Tools, and `n` New Snapshot become available on the Live data tab.
 
 ### Stations table (bottom)
@@ -116,13 +118,14 @@ in the database.
 
 ## Global key bindings
 
-These work from this tab. `p` additionally requires the Events table
+These work from this tab. `P` additionally requires the Events table
 (not Stations) to be focused:
 
 | Key | Action |
 |-----|--------|
 | `i` | Add data files to the project |
-| `p` | Edit processing parameters for the selected event (Events table must be focused) |
+| `p` | Select the phase of the selected event |
+| `P` | Edit processing parameters for the current phase (Events table must be focused) |
 | `r` | Refresh all panels |
 | `c` | Toggle light/dark colour theme |
 | `H` / `L` | Switch tabs (vim-style left/right) |

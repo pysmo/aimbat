@@ -181,3 +181,33 @@ class TestNoteChecked:
         lifecycle.note_checked("a")
 
         assert lifecycle.instance_digest_seen == "a"
+
+
+class TestAligning:
+    """Tests for IccsLifecycle.start_aligning and finish_aligning."""
+
+    def test_start_sets_the_flag_once(self) -> None:
+        lifecycle = IccsLifecycle()
+
+        assert lifecycle.start_aligning() is True
+        assert lifecycle.aligning is True
+        assert lifecycle.start_aligning() is False
+
+    def test_finish_clears_the_flag(self) -> None:
+        lifecycle = IccsLifecycle()
+        lifecycle.start_aligning()
+
+        lifecycle.finish_aligning()
+
+        assert lifecycle.aligning is False
+        assert lifecycle.start_aligning() is True
+
+    def test_does_not_touch_the_bound_instance(self) -> None:
+        lifecycle = IccsLifecycle()
+        bound = _make_bound(uuid.uuid4())
+        lifecycle.assign(bound)
+
+        lifecycle.start_aligning()
+        lifecycle.finish_aligning()
+
+        assert lifecycle.bound is bound

@@ -10,14 +10,15 @@ frontend (e.g. a Qt GUI) would reuse `IccsLifecycle` behind its own adapter
 using its own threading/notification primitives.
 
 Mixed into `AimbatTUI`, which provides `_current_event_id`,
-`_get_current_event`, `_get_current_phase` and `refresh_all` (declared below
+`_current_phase_name`, `_get_current_event`, `_get_current_phase` and
+`refresh_all` (declared below
 only for the type checker; the real implementations live on the host class).
 """
 
 import uuid
 
 from sqlalchemy.exc import NoResultFound
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 from textual import work
 from textual.app import App
 
@@ -35,12 +36,20 @@ from aimbat.logger import logger
 from aimbat.models import AimbatEvent, AimbatPhase
 
 
-def several_phases_notice(error: AmbiguousPhaseError) -> str:
-    """The notice shown when processing is refused for an event with several phases."""
-    return (
-        f"This event has phases {', '.join(error.names)}. Select a phase with "
-        + "the CLI until the TUI supports it."
+def phase_names(session: Session, event_id: uuid.UUID) -> list[str]:
+    """Names of the phases of an event, without loading their rows."""
+    return list(
+        session.exec(
+            select(AimbatPhase.name)
+            .where(AimbatPhase.event_id == event_id)
+            .order_by(col(AimbatPhase.name))
+        ).all()
     )
+
+
+def several_phases_notice(error: AmbiguousPhaseError) -> str:
+    """The notice shown when processing is refused because no phase is selected."""
+    return f"This event has phases {', '.join(error.names)}. Press p to select one."
 
 
 class _IccsLifecycleMixin(App[None]):
@@ -53,9 +62,14 @@ class _IccsLifecycleMixin(App[None]):
     # (MCCC parameters or `min_cc`) made in another process.
     _ui_tracked_seen: str | None
 
+    # Set when `_create_iccs` is called while a build is in flight, so the
+    # request is replayed when that build ends without an instance.
+    _creation_requested: bool
+
     # Provided by AimbatTUI; declared here only so the type checker accepts
     # the calls below - the host class's own definitions take precedence.
     _current_event_id: uuid.UUID | None
+    _current_phase_name: str | None
 
     def _get_current_event(self, session: Session) -> AimbatEvent:
         raise NotImplementedError
@@ -70,6 +84,7 @@ class _IccsLifecycleMixin(App[None]):
         """Reset ICCS lifecycle state and start the periodic staleness check."""
         self._iccs_lifecycle = IccsLifecycle()
         self._ui_tracked_seen = None
+        self._creation_requested = False
         self.set_interval(5, self._check_iccs_staleness)
 
     def _create_iccs(self, *, is_retry: bool = False) -> None:
@@ -89,27 +104,42 @@ class _IccsLifecycleMixin(App[None]):
                 retry flag, so a persistently failing event gets exactly one
                 automatic retry rather than retrying forever.
         """
+        if self._iccs_lifecycle.aligning:
+            logger.debug("Alignment running; not replacing its ICCS instance.")
+            return
         if not self._iccs_lifecycle.start_creating():
             logger.debug(
-                "ICCS creation already in progress; skipping duplicate request."
+                "ICCS creation already in progress; replaying the request after it."
             )
+            self._creation_requested = True
             return
+        self._creation_requested = False
         try:
             with Session(engine) as session:
                 phase_id = self._get_current_phase(session).id
+        except (NoResultFound, AmbiguousPhaseError, RuntimeError):
+            logger.debug("No phase to build ICCS for; skipping creation.")
+            self._iccs_lifecycle.mark_aborted()
+            return
+        except Exception as exc:
+            logger.exception(f"Resolving the phase for ICCS failed: {exc}")
+            self._iccs_lifecycle.mark_aborted()
+            return
+        try:
+            with Session(engine) as session:
                 digests = compute_digests(session, phase_id)[phase_id]
                 self._iccs_lifecycle.note_checked(digests.instance)
                 self._ui_tracked_seen = digests.tracked
         except Exception:
-            # Best-effort bookkeeping only: any failure here (no event
-            # selected, a locked DB, ...) must not prevent the worker below
-            # from running, since it alone resets `start_creating()`'s guard.
+            # Best-effort bookkeeping only: any failure here (a locked DB,
+            # ...) must not prevent the worker below from running, since it
+            # alone resets `start_creating()`'s guard.
             pass
-        self._worker_create_iccs(is_retry)
+        self._worker_create_iccs(phase_id, is_retry)
 
     @work(thread=True)
-    def _worker_create_iccs(self, is_retry: bool = False) -> None:
-        """Create the ICCS instance for the current event without blocking the UI.
+    def _worker_create_iccs(self, phase_id: uuid.UUID, is_retry: bool = False) -> None:
+        """Create the ICCS instance for a phase without blocking the UI.
 
         On success, hands the new `BoundICCS` instance to `_assign_iccs` on
         the main thread. On failure, notifies the user and, unless this call
@@ -117,23 +147,23 @@ class _IccsLifecycleMixin(App[None]):
         attempt.
 
         Args:
+            phase_id: ID of the phase, resolved on the main thread by
+                `_create_iccs`.
             is_retry: Whether this call is the one-shot retry after a
                 previous failure.
         """
         try:
-            with Session(engine) as session:
-                phase_id = self._get_current_phase(session).id
             bound_iccs = prepare_iccs(phase_id)
-        except (NoResultFound, AmbiguousPhaseError, NoSeismogramsError, RuntimeError):
+        except (NoResultFound, NoSeismogramsError, RuntimeError):
             logger.debug(
-                "ICCS worker: no event selected, event has no seismograms, or "
-                + "no data; aborting."
+                "ICCS worker: phase gone, phase has no seismograms, or no data; "
+                + "aborting."
             )
-            self.call_from_thread(self._iccs_lifecycle.mark_aborted)
+            self.call_from_thread(self._end_creation_without_instance, None)
             return
         except NotReadyError as exc:
             self.call_from_thread(self.notify, str(exc), severity="warning")
-            self.call_from_thread(self._iccs_lifecycle.mark_failed, is_retry=is_retry)
+            self.call_from_thread(self._end_creation_without_instance, is_retry)
             return
         except Exception as exc:
             logger.exception(f"ICCS worker: unexpected error during creation: {exc}")
@@ -141,43 +171,71 @@ class _IccsLifecycleMixin(App[None]):
                 self.notify, f"ICCS init failed: {exc}", severity="error"
             )
             # Give the staleness poller one retry attempt on the next tick.
-            self.call_from_thread(self._iccs_lifecycle.mark_failed, is_retry=is_retry)
+            self.call_from_thread(self._end_creation_without_instance, is_retry)
             return
         logger.debug("ICCS worker: instance created successfully.")
         self.call_from_thread(self._assign_iccs, bound_iccs)
 
+    def _end_creation_without_instance(self, failed_retry: bool | None) -> None:
+        """Record a build that produced no instance, then replay a dropped request.
+
+        Args:
+            failed_retry: `None` if the build was aborted (nothing to build
+                for), else whether the failed build was itself the one-shot
+                retry.
+        """
+        if failed_retry is None:
+            self._iccs_lifecycle.mark_aborted()
+        else:
+            self._iccs_lifecycle.mark_failed(is_retry=failed_retry)
+        if self._creation_requested:
+            self._creation_requested = False
+            self._create_iccs()
+
     def _assign_iccs(self, bound_iccs: BoundICCS) -> None:
         """Store the newly created ICCS instance and refresh all panels.
 
-        Discards the instance instead if the selected event changed while
-        the worker was building it (e.g. the event was deleted, or a
-        different event was selected, before this call ran); otherwise a
-        slow, stale worker could bind an instance for an event that is no
-        longer current. When an event is still selected, immediately starts
-        a fresh attempt for it.
+        Discards the instance instead if the current phase changed while
+        the worker was building it (the event was deleted, or another event
+        or phase was selected, before this call ran); otherwise a slow,
+        stale worker could bind an instance for a phase that is no longer
+        current. When a phase is still current, immediately starts a fresh
+        attempt for it.
 
         Args:
             bound_iccs: The instance created by `_worker_create_iccs`.
         """
-        with Session(engine) as session:
-            phase = session.get(AimbatPhase, bound_iccs.phase_id)
-            event_id = None if phase is None else phase.event_id
-        if event_id is None or event_id != self._current_event_id:
+        current_phase_id: uuid.UUID | None
+        try:
+            with Session(engine) as session:
+                current_phase_id = self._get_current_phase(session).id
+        except (NoResultFound, AmbiguousPhaseError):
+            current_phase_id = None
+        if bound_iccs.phase_id != current_phase_id:
             logger.debug(
-                "ICCS worker: discarding instance for an event that is no longer "
-                + "selected."
+                "ICCS worker: discarding instance for a phase that is no longer "
+                + "current."
             )
             self._iccs_lifecycle.mark_aborted()
-            if self._current_event_id is not None:
+            self._creation_requested = False
+            if current_phase_id is not None:
                 self._create_iccs()
+            self.refresh_all()
             return
         self._iccs_lifecycle.assign(bound_iccs)
+        if self._creation_requested:
+            # Requested during the build, after a change the instance may
+            # predate (parameters, membership, a rollback).
+            self._creation_requested = False
+            self._create_iccs()
+            self.refresh_all()
+            return
         logger.info("ICCS instance ready and assigned.")
         # Rebuilding ICCS re-upserts iccs_cc per seismogram, which also feeds
         # ProjectPanel's quality panel and station cc_mean/cc_sem column.
         self.refresh_all()
 
-    def _check_iccs_staleness(self) -> None:
+    def _check_iccs_staleness(self) -> bool:
         """React to an external change to the current event.
 
         A change to a parameter the instance is built from (the instance
@@ -187,17 +245,23 @@ class _IccsLifecycleMixin(App[None]):
         creation previously failed (e.g. an invalid parameter set via the
         CLI), retries once, then waits for a further change before retrying
         again. This avoids retrying forever against a persistently failing
-        event.
+        event. Does nothing while an alignment runs, since the run's own
+        commits change the digests.
+
+        Returns:
+            Whether the panels were refreshed.
         """
-        if self._current_event_id is None:
-            return
+        if self._current_event_id is None or self._iccs_lifecycle.aligning:
+            return False
         try:
             with Session(engine) as session:
                 phase_id = self._get_current_phase(session).id
                 digests = compute_digests(session, phase_id)[phase_id]
                 stale = self._iccs_lifecycle.is_stale(phase_id, digests.instance)
-        except (NoResultFound, AmbiguousPhaseError, RuntimeError):
-            return
+        except NoResultFound:
+            return self._drop_missing_phase()
+        except (AmbiguousPhaseError, RuntimeError):
+            return False
         ui_changed = digests.tracked != self._ui_tracked_seen
         self._ui_tracked_seen = digests.tracked
         if stale:
@@ -205,14 +269,41 @@ class _IccsLifecycleMixin(App[None]):
                 "ICCS staleness detected; recreating instance and refreshing UI."
             )
             self._create_iccs()
-            self.refresh_all()
         elif self._iccs_lifecycle.retry_pending:
             logger.debug("Retrying ICCS creation after a previous failure.")
             self._create_iccs(is_retry=True)
-            self.refresh_all()
         elif ui_changed:
             logger.debug("Event modified without a stack change; refreshing UI only.")
-            self.refresh_all()
+        else:
+            return False
+        self.refresh_all()
+        return True
+
+    def _drop_missing_phase(self) -> bool:
+        """Clear a selected phase name that the active event no longer has.
+
+        A phase can be renamed or removed from another process. The event's
+        only phase, if it has just one, is then used again.
+
+        Returns:
+            Whether the name was cleared.
+        """
+        event_id, name = self._current_event_id, self._current_phase_name
+        if event_id is None or name is None:
+            return False
+        with Session(engine) as session:
+            if session.get(AimbatEvent, event_id) is None:
+                return False
+            if name in phase_names(session, event_id):
+                return False
+        self._current_phase_name = None
+        self.notify(
+            f"The event has no phase {name} any more. The phase selection is cleared.",
+            severity="warning",
+        )
+        self._create_iccs()
+        self.refresh_all()
+        return True
 
     def _require_iccs(self) -> bool:
         """Check that the ICCS instance is ready, showing a contextual warning otherwise.
@@ -230,9 +321,11 @@ class _IccsLifecycleMixin(App[None]):
                 self.notify(several_phases_notice(exc), severity="warning")
                 return False
             except NoResultFound:
-                pass  # No phase: the generic notice below applies.
+                if self._drop_missing_phase():
+                    return False
+                # No phase at all: the generic notice below applies.
             self.notify(
-                "ICCS not ready: check phase parameters (Parameters tab)",
+                "ICCS not ready: check phase parameters (press P)",
                 severity="warning",
             )
         else:

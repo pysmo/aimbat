@@ -88,8 +88,9 @@ def cli_seismogram_list(
         str | None,
         phase_parameter(
             help=(
-                "Name of the phase whose selection, picks and quality are shown."
-                + " Not needed for seismograms in only one phase."
+                "Name of the phase whose seismograms are listed, with their"
+                + " selection, picks and quality in that phase. Not needed for"
+                + " seismograms in only one phase."
             )
         ),
     ] = None,

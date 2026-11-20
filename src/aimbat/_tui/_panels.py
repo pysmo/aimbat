@@ -25,6 +25,7 @@ from textual.widgets import DataTable, Static
 from pysmo.tools.plotutils import relative_time_array
 
 from aimbat.core import (
+    AmbiguousPhaseError,
     BoundICCS,
     NoteTarget,
     cc_stats,
@@ -213,14 +214,17 @@ def _update_note(
             note_widget.set_entity(entity_kind, uuid.UUID(item_id))
 
 
-def _event_quality(session: Session, event_id: uuid.UUID) -> SeismogramQualityStats:
-    """Quality statistics of the only phase of an event.
+def _event_quality(
+    session: Session, event_id: uuid.UUID, phase_name: str | None
+) -> SeismogramQualityStats:
+    """Quality statistics of the named phase of an event, or of its only phase.
 
     Raises:
-        NoResultFound: If the event does not exist or has no phase.
-        AmbiguousPhaseError: If the event has several phases.
+        NoResultFound: If the event does not exist or has no such phase.
+        AmbiguousPhaseError: If `phase_name` is `None` and the event has
+            several phases.
     """
-    return get_phase_quality(session, resolve_phase(session, event_id).id)
+    return get_phase_quality(session, resolve_phase(session, event_id, phase_name).id)
 
 
 def _update_quality_panel(
@@ -238,6 +242,14 @@ def _update_quality_panel(
         try:
             with Session(engine) as session:
                 stats = quality_fn(session, uuid.UUID(item_id))
+        except AmbiguousPhaseError as exc:
+            panel.update(
+                f"[dim]Phases {', '.join(exc.names)}. Statistics are shown for "
+                + "the selected phase of the selected event.[/dim]"
+            )
+            panel.border_subtitle = ""
+            _update_note(note_widget, entity_kind, item_id)
+            return
         except (ValueError, SQLAlchemyError):
             pass
     body, subtitle = format_quality_panel(stats)
@@ -405,6 +417,8 @@ class ProjectPanel(Widget):
         """Initialise selection state and configure the event and station table columns."""
         self._highlighted_event_id: str | None = None
         self._highlighted_station_id: str | None = None
+        self._current_event_id: uuid.UUID | None = None
+        self._current_phase_name: str | None = None
         self._quality_source: Literal["event", "station"] = "event"
         self._refreshing: bool = False
         _setup_table(
@@ -424,7 +438,10 @@ class ProjectPanel(Widget):
         )
 
     def refresh_data(
-        self, session: Session, current_event_id: uuid.UUID | None
+        self,
+        session: Session,
+        current_event_id: uuid.UUID | None,
+        current_phase_name: str | None = None,
     ) -> None:
         """Reload the event and station tables from the database.
 
@@ -439,7 +456,11 @@ class ProjectPanel(Widget):
                 panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
                 if no event is selected.
+            current_phase_name: Name of the selected phase of the active
+                event, whose statistics the quality panel shows for it.
         """
+        self._current_event_id = current_event_id
+        self._current_phase_name = current_phase_name
         et = self.query_one("#project-event-table", DataTable)
         st = self.query_one("#project-station-table", DataTable)
         et_saved, st_saved = et.cursor_row, st.cursor_row
@@ -581,9 +602,16 @@ class ProjectPanel(Widget):
             self.query_one("#project-note", NoteWidget),
             "event",
             "Live event statistics",
-            _event_quality,
+            self._highlighted_event_quality,
             item_id,
         )
+
+    def _highlighted_event_quality(
+        self, session: Session, event_id: uuid.UUID
+    ) -> SeismogramQualityStats:
+        """Statistics of the selected phase for the active event, else of the only phase."""
+        name = self._current_phase_name if event_id == self._current_event_id else None
+        return _event_quality(session, event_id, name)
 
     def _update_station_quality(self, item_id: str | None) -> None:
         """Refresh the quality panel and note widget for the given station."""
@@ -651,6 +679,7 @@ class SeismogramPanel(Widget):
         self,
         session: Session,
         current_event_id: uuid.UUID | None,
+        phase_name: str | None,
         bound_iccs: BoundICCS | None,
     ) -> None:
         """Reload the seismogram table from the database and cache the bound ICCS instance.
@@ -666,8 +695,9 @@ class SeismogramPanel(Widget):
             session: Database session to read from, shared with the other
                 panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
-                if no event is selected.
-            bound_iccs: Current ICCS instance for the active event, or
+                if no event or phase is selected.
+            phase_name: Name of the current phase, whose rows are shown.
+            bound_iccs: Current ICCS instance for the current phase, or
                 `None` if it is not ready.
         """
         self._bound_iccs = bound_iccs
@@ -696,6 +726,7 @@ class SeismogramPanel(Widget):
                     by_title=True,
                     exclude=_SEISMOGRAM_TABLE_EXCLUDE,
                     event_id=event.id,
+                    phase_name=phase_name,
                 )
                 if event is not None
                 else None
@@ -907,19 +938,23 @@ class SnapshotPanel(Widget):
         )
 
     def refresh_data(
-        self, session: Session, current_event_id: uuid.UUID | None
+        self,
+        session: Session,
+        current_event_id: uuid.UUID | None,
+        phase_name: str | None,
     ) -> None:
-        """Reload the snapshot table for the active event from the database.
+        """Reload the snapshot table for the current phase from the database.
 
-        Clears the table if no event is active. Preserves cursor position
-        where possible and refreshes the quality panel once the cursor has
-        settled.
+        Clears the table if no event or phase is current. Preserves cursor
+        position where possible and refreshes the quality panel once the
+        cursor has settled.
 
         Args:
             session: Database session to read from, shared with the other
                 panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
-                if no event is selected.
+                if no event or phase is selected.
+            phase_name: Name of the current phase, whose snapshots are shown.
         """
         table = self.query_one("#snapshot-table", DataTable)
         saved_row = table.cursor_row
@@ -934,6 +969,7 @@ class SnapshotPanel(Widget):
                         by_title=True,
                         exclude=_SNAPSHOT_TABLE_EXCLUDE,
                         event_id=event.id,
+                        phase_name=phase_name,
                     )
                     _populate_rows(table, snapshots, AimbatSnapshotRead)
         self._refreshing = True
