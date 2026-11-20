@@ -29,15 +29,16 @@ point AIMBAT at a different one.
 Preview the import first with `--dry-run`, then run it for real:
 
 ```bash
-aimbat data add --dry-run --unlabelled-as P sample-data/*/*/*.BHZ
-aimbat data add --unlabelled-as P sample-data/*/*/*.BHZ
+aimbat data add --dry-run sample-data/*/*/*.BHZ
+aimbat data add sample-data/*/*/*.BHZ
 ```
 
-The shell expands the glob before AIMBAT runs. Each SAC file carries its station,
-event, and initial pick in its header. `--unlabelled-as P` assigns a pick
-without a phase label to phase `P`. `--dry-run` reports which stations,
-events, and seismograms would be created without touching the database. Import
-also deduplicates, so re-running the real command is safe. See
+The shell expands the glob before AIMBAT runs. Each SAC file carries its
+station, event, and initial picks in its header, each pick labelled with its
+phase. Every event has a `P` pick. The deep event of 2014-11-01 in the Fiji
+region also has a `pP` pick, so it has two phases. `--dry-run` reports which
+stations, events, and seismograms would be created without touching the
+database. Import also deduplicates, so re-running the real command is safe. See
 [Adding Data](../usage/data.md) for JSON sources, subset selection, and what
 `--dry-run` catches.
 
@@ -49,7 +50,8 @@ aimbat tui
 
 The rest of the work happens here:
 
-1. **Project tab** — select an event to work on.
+1. **Project tab** — select an event to work on. For an event with more than one
+    phase, such as the 2014-11-01 event, a menu of its phases follows.
 2. **Live data tab** — the seismogram table for that event. Adjust parameters,
     run ICCS, and inspect the alignment.
 3. **Snapshots tab** — save the parameter state, and export results from a

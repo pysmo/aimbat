@@ -99,7 +99,7 @@ test = [
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.17.4" },
-    { name = "testkit", git = "https://github.com/pysmo/testkit?tag=v0.2.0" },
+    { name = "testkit", git = "https://github.com/pysmo/testkit?tag=v0.4.0" },
 ]
 
 [[package]]
@@ -2672,8 +2672,8 @@ wheels = [
 
 [[package]]
 name = "testkit"
-version = "0.2.0"
-source = { git = "https://github.com/pysmo/testkit?tag=v0.2.0#01d40a5aea5c93c885d095946c751fc3984571d6" }
+version = "0.4.0"
+source = { git = "https://github.com/pysmo/testkit?tag=v0.4.0#5cd014a4bed6f39ac59e543bcb64590a638e1117" }
 
 [[package]]
 name = "textual"

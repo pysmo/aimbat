@@ -90,14 +90,20 @@ def _patch_engine(monkeypatch: pytest.MonkeyPatch, engine: Engine) -> None:
 
 
 async def _wait_for_iccs_worker(app: AimbatTUI) -> None:
-    """Wait for the background ICCS-creation worker to actually finish.
+    """Wait until no worker is running, including workers started meanwhile.
 
     A fixed `pilot.pause(delay=...)` races against the worker thread, which
     on a successful retry does real seismogram I/O and can outlast a short
     sleep on slower CI runners (observed flaking on Windows). Waiting on the
     worker itself is deterministic regardless of how long it takes.
+
+    `wait_for_complete()` waits only for the workers present when it is
+    called. A finished build can start another (`_assign_iccs` discards an
+    instance for a phase that is no longer current and builds again), so
+    wait until none is left.
     """
-    await app.workers.wait_for_complete()
+    while any(not worker.is_finished for worker in app.workers):
+        await app.workers.wait_for_complete()
 
 
 # ===========================================================================
@@ -2665,3 +2671,47 @@ class TestAddDataTypeMenuExcludesUncreatableTypes:
         offered_types = {key for key, _ in captured[0]._actions}
         assert "mseed" not in offered_types
         assert "sac" in offered_types
+
+
+class TestPhaseSelectorOnLabelledData:
+    """The phase picker on testkit's real data with labelled P and pP picks."""
+
+    def test_each_phase_has_its_own_rows_and_instance(
+        self, multi_phase_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = multi_phase_engine_from_file
+        _patch_engine(monkeypatch, engine)
+        with Session(engine) as session:
+            event = session.exec(select(AimbatEvent)).one()
+            event_id = event.id
+            phase_ids = {phase.name: phase.id for phase in event.phases}
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                table = app.query_one("#seismogram-table", DataTable)
+
+                app._select_event(str(event_id))
+                await pilot.pause()
+                assert isinstance(app.screen, PhaseSelectModal)
+                assert [key for key, _ in app.screen._actions] == ["P", "pP"]
+
+                for keys, name, rows in (
+                    (("down", "enter"), "pP", 13),
+                    (("p", "up", "enter"), "P", 14),
+                ):
+                    await pilot.press(*keys)
+                    await _wait_for_iccs_worker(app)
+                    await pilot.pause()
+
+                    assert app._current_phase_name == name
+                    bound = app._iccs_lifecycle.bound
+                    assert bound is not None
+                    assert bound.phase_id == phase_ids[name]
+                    assert len(bound.iccs.seismograms) == rows
+                    assert table.row_count == rows
+                    bar = str(app.query_one("#event-bar", Static).render())
+                    assert f"|  {name} " in bar
+
+        asyncio.run(_run())

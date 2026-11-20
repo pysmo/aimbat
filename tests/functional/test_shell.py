@@ -8,6 +8,7 @@ import os
 import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -394,3 +395,64 @@ class TestPhaseSwitch:
         assert "phase PKP" in result.stdout
         assert "no phase 'PKP'" in result.stdout
         assert f"ICCS ready (event {other[:8]})" in result.stdout
+
+
+@pytest.mark.slow
+@pytest.mark.cli
+class TestPhaseSwitchOnLabelledData:
+    """`phase switch` on testkit's real data with labelled P and pP picks."""
+
+    @pytest.fixture()
+    def event_id(
+        self,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        multi_phase_data: list[Path],
+    ) -> str:
+        """Create a project from the data, with no pick naming options.
+
+        Returns:
+            The event's ID.
+        """
+        import json
+
+        aimbat_subprocess(["project", "create"])
+        added = aimbat_subprocess(
+            ["data", "add", *map(str, multi_phase_data), "--no-progress"]
+        )
+        assert added.returncode == 0, added.stderr
+        (event,) = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        return event["id"]
+
+    def test_switch_selects_what_commands_act_on(
+        self,
+        event_id: str,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        """Commands act on the switched phase, checked in the project afterwards."""
+        import json
+
+        result = shell_subprocess(
+            f"event switch {event_id}\nphase switch pP\nalign iccs\n"
+            + "phase switch P\nphase parameter set min_cc 0.42\nexit\n"
+        )
+        assert result.returncode == 0, result.stderr
+        assert f"ICCS ready (event {event_id[:8]}, phase pP)" in result.stdout
+
+        def dump(*command: str) -> list[dict[str, Any]]:
+            return json.loads(aimbat_subprocess(command).stdout)
+
+        # Only alignment sets refined picks; building an instance on a switch
+        # already writes CC values, for either phase.
+        aligned = {
+            row["phase_name"]
+            for row in dump("seismogram", "parameter", "dump")
+            if row["refined_pick"] is not None
+        }
+        assert aligned == {"pP"}
+        min_cc = {
+            row["phase_name"]: row["min_cc"]
+            for row in dump("phase", "parameter", "dump")
+        }
+        assert min_cc["P"] == pytest.approx(0.42)
+        assert min_cc["pP"] != pytest.approx(0.42)

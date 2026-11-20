@@ -31,6 +31,8 @@ fixtures come in a few families:
 - `engine` provides a new, empty project in an in-memory database.
 - The `loaded_*` fixtures provide a project with the multi-event test data
     added.
+- The `multi_phase_*` fixtures provide a project with one event and two phases,
+    P and pP, added from labelled picks. One station has no pP pick.
 - Every project fixture other than `engine` also installs its project as
     `aimbat.db.engine`, so that actions and CLI commands use it.
     `patched_engine` is `engine` installed in this way.
