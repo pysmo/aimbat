@@ -131,6 +131,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(core)** [**breaking**] Check quality values by parameter fingerprint
 - **(actions)** [**breaking**] Add a layer for whole user actions
 - [**breaking**] Process each phase of an event separately
+- **(tui)** Select a phase of the selected event
 
 ### 🧪 Testing
 
