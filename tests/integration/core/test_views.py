@@ -8,7 +8,7 @@ from sqlmodel import Session, col, select
 
 from aimbat.core import resolve_phase
 from aimbat.core._snapshot import create_snapshot
-from aimbat.core._validity import Validity, compute_digests, encode_members
+from aimbat.core._validity import Validity
 from aimbat.models import (
     AimbatEvent,
     AimbatPhase,
@@ -20,34 +20,7 @@ from aimbat.models import (
     SeismogramQualityStats,
 )
 
-
-def _stamp(session: Session) -> None:
-    """Stamp all live quality as computed from the current parameters.
-
-    The MCCC run's members are taken to be the rows with MCCC values.
-    """
-    for phase_id, digests in compute_digests(session).items():
-        rows = session.exec(
-            select(AimbatSeismogramQuality).where(
-                col(AimbatSeismogramQuality.seismogram_parameters_id).in_(
-                    list(digests.seismogram_cc)
-                )
-            )
-        ).all()
-        for row in rows:
-            row.iccs_fingerprint = digests.seismogram_cc[row.seismogram_parameters_id]
-        eq = session.exec(
-            select(AimbatPhaseQuality).where(
-                col(AimbatPhaseQuality.phase_id) == phase_id
-            )
-        ).first()
-        if eq is not None:
-            members = {
-                r.seismogram_parameters_id for r in rows if r.mccc_cc_mean is not None
-            }
-            eq.mccc_members = encode_members(members)
-            eq.mccc_fingerprint = digests.mccc(members)
-    session.commit()
+from testsupport.project import first, stamp_quality
 
 
 def _write_seismogram_quality(
@@ -89,7 +62,8 @@ def _write_seismogram_quality(
             sq.mccc_cc_std = None
         session.add(sq)
     session.flush()
-    _stamp(session)
+    stamp_quality(session)
+    session.commit()
 
 
 def _write_event_quality(session: Session, event_id: uuid.UUID) -> None:
@@ -114,7 +88,8 @@ def _write_event_quality(session: Session, event_id: uuid.UUID) -> None:
         eq.mccc_rmse = pd.Timedelta(milliseconds=1)
     session.add(eq)
     session.flush()
-    _stamp(session)
+    stamp_quality(session)
+    session.commit()
 
 
 class TestSeismogramQualityStatsFromPhase:
@@ -122,8 +97,7 @@ class TestSeismogramQualityStatsFromPhase:
 
     def test_all_none_when_no_quality(self, loaded_session: Session) -> None:
         """Aggregate fields are None and count equals total seismograms when no quality exists."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         phase = event.phases[0]
         total = len(event.seismograms)
 
@@ -137,8 +111,7 @@ class TestSeismogramQualityStatsFromPhase:
 
     def test_aggregates_iccs_cc(self, loaded_session: Session) -> None:
         """cc_mean is computed from seismograms with iccs_cc set."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seis_ids = [s.id for s in event.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=False)
@@ -155,8 +128,7 @@ class TestSeismogramQualityStatsFromPhase:
 
     def test_aggregates_mccc_fields(self, loaded_session: Session) -> None:
         """MCCC aggregate fields are populated after an MCCC run."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seis_ids = [s.id for s in event.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
@@ -172,8 +144,7 @@ class TestSeismogramQualityStatsFromPhase:
 
     def test_mccc_rmse_from_phase_quality(self, loaded_session: Session) -> None:
         """mccc_rmse is taken from the phase quality record."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seis_ids = [s.id for s in event.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
@@ -190,8 +161,7 @@ class TestSeismogramQualityStatsFromPhase:
         self, loaded_session: Session
     ) -> None:
         """Count reflects all seismograms of the phase, not just those with quality data."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         total = len(event.seismograms)
         partial_ids = [s.id for s in event.seismograms][: total // 2]
 
@@ -210,8 +180,7 @@ class TestSeismogramQualityStatsFromStation:
 
     def test_all_none_when_no_quality(self, loaded_session: Session) -> None:
         """Aggregate fields are None when no seismograms have quality records."""
-        station = loaded_session.exec(select(AimbatStation)).first()
-        assert station is not None
+        station = first(loaded_session, AimbatStation)
 
         stats = SeismogramQualityStats.from_station(
             station, Validity.read(loaded_session)
@@ -223,8 +192,7 @@ class TestSeismogramQualityStatsFromStation:
 
     def test_aggregates_quality(self, loaded_session: Session) -> None:
         """ICCS and MCCC fields are aggregated across all seismograms at the station."""
-        station = loaded_session.exec(select(AimbatStation)).first()
-        assert station is not None
+        station = first(loaded_session, AimbatStation)
         seis_ids = [s.id for s in station.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
@@ -241,8 +209,7 @@ class TestSeismogramQualityStatsFromStation:
 
     def test_mccc_rmse_is_always_none(self, loaded_session: Session) -> None:
         """mccc_rmse is None for station stats — it is an event-level metric."""
-        station = loaded_session.exec(select(AimbatStation)).first()
-        assert station is not None
+        station = first(loaded_session, AimbatStation)
         seis_ids = [s.id for s in station.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
@@ -262,12 +229,10 @@ class TestSeismogramQualityStatsFromSnapshot:
         self, loaded_session: Session
     ) -> None:
         """Aggregate fields are None when the snapshot has no quality records."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
 
-        snapshot = loaded_session.exec(select(AimbatSnapshot)).first()
-        assert snapshot is not None
+        snapshot = first(loaded_session, AimbatSnapshot)
 
         stats = SeismogramQualityStats.from_snapshot(snapshot)
 
@@ -278,8 +243,7 @@ class TestSeismogramQualityStatsFromSnapshot:
 
     def test_aggregates_frozen_quality(self, loaded_session: Session) -> None:
         """Quality fields reflect values frozen at snapshot time, not live changes."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seis_ids = [s.id for s in event.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
@@ -287,8 +251,7 @@ class TestSeismogramQualityStatsFromSnapshot:
         loaded_session.refresh(event)
         create_snapshot(loaded_session, event.phases[0].id)
 
-        snapshot = loaded_session.exec(select(AimbatSnapshot)).first()
-        assert snapshot is not None
+        snapshot = first(loaded_session, AimbatSnapshot)
         stats = SeismogramQualityStats.from_snapshot(snapshot)
 
         assert stats.count == snapshot.seismogram_count
@@ -300,8 +263,7 @@ class TestSeismogramQualityStatsFromSnapshot:
         self, loaded_session: Session
     ) -> None:
         """Snapshot stats are unaffected by live quality changes made after snapshotting."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seis_ids = [s.id for s in event.seismograms]
 
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=True)
@@ -312,8 +274,7 @@ class TestSeismogramQualityStatsFromSnapshot:
         # Overwrite live quality after snapshotting.
         _write_seismogram_quality(loaded_session, seis_ids, with_mccc=False)
 
-        snapshot = loaded_session.exec(select(AimbatSnapshot)).first()
-        assert snapshot is not None
+        snapshot = first(loaded_session, AimbatSnapshot)
         stats = SeismogramQualityStats.from_snapshot(snapshot)
 
         assert stats.mccc_cc_mean == pytest.approx(0.9)

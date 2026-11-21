@@ -35,32 +35,11 @@ from aimbat.models import (
 )
 from aimbat.models._parameters import AimbatPhaseParametersBase
 
+from testsupport.project import add_station
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_station(session: Session, *, name: str = "AAK") -> AimbatStation:
-    """Insert and return a minimal station.
-
-    Args:
-        session (Session): Database session.
-        name (str): Station name (default: "AAK").
-
-    Returns:
-        AimbatStation: The created station.
-    """
-    sta = AimbatStation(
-        name=name,
-        network="II",
-        location="00",
-        channel="BHZ",
-        latitude=42.63,
-        longitude=74.49,
-    )
-    session.add(sta)
-    session.flush()
-    return sta
 
 
 def _make_event(
@@ -202,7 +181,7 @@ class TestCascadeDeleteEvent:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -222,7 +201,7 @@ class TestCascadeDeleteEvent:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -242,7 +221,7 @@ class TestCascadeDeleteEvent:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -264,7 +243,7 @@ class TestCascadeDeleteEvent:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -288,7 +267,7 @@ class TestCascadeDeleteStation:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -312,7 +291,7 @@ class TestCascadeDeleteSnapshot:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -341,7 +320,7 @@ class TestSnapshotDurability:
         self, patched_session: Session
     ) -> None:
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         from aimbat.core import create_snapshot, delete_seismogram
         from aimbat.core._validity import compute_digests
@@ -492,7 +471,7 @@ class TestSeismogramParametersValidation:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
         patched_session.refresh(seis)
@@ -506,7 +485,7 @@ class TestSeismogramParametersValidation:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
         patched_session.refresh(seis)
@@ -520,7 +499,7 @@ class TestSeismogramParametersValidation:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
         patched_session.refresh(seis)
@@ -567,7 +546,7 @@ class TestTimestampRoundTrip:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -601,7 +580,7 @@ class TestTimedeltaRoundTrip:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -639,7 +618,7 @@ class TestTimedeltaRoundTrip:
             patched_session (Session): Database session.
         """
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         seis.delta = 0.05  # type: ignore[assignment]  # bare seconds, no validation
         patched_session.commit()
@@ -704,7 +683,7 @@ class TestOneToOneLinkConstraints:
         from sqlalchemy.exc import IntegrityError
 
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 
@@ -724,7 +703,7 @@ class TestOneToOneLinkConstraints:
         from sqlalchemy.exc import IntegrityError
 
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         other = AimbatPhase(
             event=ev, name="S", parameters=default_phase_parameters("S")
@@ -744,7 +723,7 @@ class TestOneToOneLinkConstraints:
         from sqlalchemy.exc import IntegrityError
 
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         row = seis.phase_rows[0]
         patched_session.add(AimbatSeismogramQuality(parameters=row, iccs_cc=0.8))
@@ -782,7 +761,7 @@ class TestOneToOneLinkConstraints:
         from sqlalchemy.exc import IntegrityError
 
         ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         seis = _make_seismogram(patched_session, ev, sta)
         patched_session.commit()
 

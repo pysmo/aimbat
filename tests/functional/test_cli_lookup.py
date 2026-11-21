@@ -10,6 +10,8 @@ from sqlmodel import Session, select
 from aimbat.core import create_snapshot
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot, AimbatStation
 
+from testsupport.project import first
+
 _ROW = re.compile(r"\W*(Event|Station|Seismogram|Snapshot)\s")
 
 
@@ -40,8 +42,7 @@ class TestLookup:
             capsys: The pytest capsys fixture.
         """
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             (row,) = _lookup(cli, capsys, str(event.id))
             assert "Event" in row
             assert f"{event.time:%Y-%m-%d %H:%M:%S}" in row
@@ -60,8 +61,7 @@ class TestLookup:
             capsys: The pytest capsys fixture.
         """
         with Session(loaded_engine) as session:
-            station = session.exec(select(AimbatStation)).first()
-            assert station is not None
+            station = first(session, AimbatStation)
             (row,) = _lookup(cli, capsys, str(station.id))
             assert "Station" in row
             assert f"{station.network}.{station.name}" in row
@@ -80,8 +80,7 @@ class TestLookup:
             capsys: The pytest capsys fixture.
         """
         with Session(loaded_engine) as session:
-            seismogram = session.exec(select(AimbatSeismogram)).first()
-            assert seismogram is not None
+            seismogram = first(session, AimbatSeismogram)
             station, event = seismogram.station, seismogram.event
             (row,) = _lookup(cli, capsys, str(seismogram.id))
             assert "Seismogram" in row
@@ -102,8 +101,7 @@ class TestLookup:
             capsys: The pytest capsys fixture.
         """
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             create_snapshot(session, event.phases[0].id, comment="before ICCS")
             snapshot = session.exec(select(AimbatSnapshot)).one()
             (row,) = _lookup(cli, capsys, str(snapshot.id))
@@ -124,8 +122,7 @@ class TestLookup:
             capsys: The pytest capsys fixture.
         """
         with Session(loaded_engine) as session:
-            station = session.exec(select(AimbatStation)).first()
-            assert station is not None
+            station = first(session, AimbatStation)
             prefix = str(station.id).replace("-", "")[:12]
             rows = _lookup(cli, capsys, prefix)
             assert any(f"{station.network}.{station.name}" in row for row in rows)
@@ -167,8 +164,7 @@ class TestLookup:
         """
         comment = "before [/red] ICCS [pre]"
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             create_snapshot(session, event.phases[0].id, comment=comment)
             snapshot = session.exec(select(AimbatSnapshot)).one()
             (row,) = _lookup(cli, capsys, str(snapshot.id))

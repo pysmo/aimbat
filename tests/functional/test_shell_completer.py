@@ -16,7 +16,7 @@ from aimbat.core import create_snapshot
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 from aimbat.utils import string_to_uuid
 
-from testsupport.project import add_empty_phase
+from testsupport.project import add_empty_phase, first
 
 
 @pytest.fixture()
@@ -203,8 +203,7 @@ class TestIdCompletion:
             monkeypatch: The pytest monkeypatch fixture.
         """
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
             expected = set(
                 session.exec(
@@ -463,8 +462,7 @@ class TestCaching:
         """
         before = _ids(completer, "seismogram delete ")
         with Session(loaded_engine) as session:
-            seismogram = session.exec(select(AimbatSeismogram)).first()
-            assert seismogram is not None
+            seismogram = first(session, AimbatSeismogram)
             session.delete(seismogram)
             session.commit()
 
@@ -534,8 +532,7 @@ class TestPhaseNameCompletion:
         """Verifies `--phase` offers the names of the event typed on the line."""
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = str(event.id)
@@ -556,8 +553,7 @@ class TestPhaseNameCompletion:
         """Verifies `phase switch` offers the phase names of the shell's event."""
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = str(event.id)

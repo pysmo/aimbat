@@ -7,17 +7,18 @@ import numpy as np
 import pytest
 from pandas import Timedelta, Timestamp
 from sqlalchemy import Engine
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from pysmo.tools.iccs import ICCS, IccsResult, IccsStatus, McccResult
 
 from aimbat.models import AimbatEvent
 
+from testsupport.project import first
+
 
 def _event_id(engine: Engine) -> str:
     with Session(engine) as session:
-        event = session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(session, AimbatEvent)
         return str(event.id)
 
 

@@ -30,11 +30,7 @@ from aimbat.models import (
     AimbatStation,
 )
 
-
-def _first_event(session: Session) -> AimbatEvent:
-    event = session.exec(select(AimbatEvent)).first()
-    assert event is not None
-    return event
+from testsupport.project import first
 
 
 def _unlink_seismogram_source(session: Session, seismogram: AimbatSeismogram) -> Path:
@@ -48,7 +44,7 @@ class TestPruneProject:
     def test_dry_run_reports_but_keeps_everything(
         self, loaded_session: Session
     ) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         _unlink_seismogram_source(loaded_session, seismogram)
 
@@ -61,7 +57,7 @@ class TestPruneProject:
     def test_prune_deletes_seismogram_and_cascades(
         self, loaded_session: Session
     ) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         seismogram_id = seismogram.id
         datasource_id = seismogram.datasource.id
@@ -84,7 +80,7 @@ class TestPruneProject:
         and the later `expunge_all()` detached them, so
         `orphan_seismograms[0].station` raised `DetachedInstanceError`.
         """
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         station_name = seismogram.station.name
         _unlink_seismogram_source(loaded_session, seismogram)
@@ -96,7 +92,7 @@ class TestPruneProject:
         assert report.orphan_seismograms[0].event.id == event.id
 
     def test_frozen_snapshot_rows_survive_prune(self, loaded_session: Session) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         seismogram_id = seismogram.id
         create_snapshot(loaded_session, event.phases[0].id, comment="baseline")
@@ -120,7 +116,7 @@ class TestPruneProject:
     def test_live_quality_is_out_of_date_for_affected_event(
         self, loaded_session: Session
     ) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         run_mccc(
             loaded_session, event.phases[0].id, iccs_bound.iccs, all_seismograms=False
@@ -145,7 +141,7 @@ class TestPruneProject:
         assert current_instance_digest(loaded_session, phase_id) != instance_before
 
     def test_auto_snapshot_runs_before_delete(self, loaded_session: Session) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         _unlink_seismogram_source(loaded_session, seismogram)
 
@@ -165,7 +161,7 @@ class TestPruneProject:
     def test_auto_snapshot_only_for_phases_losing_rows(
         self, loaded_session: Session
     ) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         orphan, kept = event.seismograms[0], event.seismograms[1]
         stored = store_picks(
             loaded_session,
@@ -187,7 +183,7 @@ class TestPruneProject:
     def test_snapshot_failure_aborts_without_deleting(
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         seismogram_id = seismogram.id
         _unlink_seismogram_source(loaded_session, seismogram)
@@ -204,7 +200,7 @@ class TestPruneProject:
         assert loaded_session.get(AimbatSeismogram, seismogram_id) is not None
 
     def test_no_snapshot_flag_suppresses_it(self, loaded_session: Session) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         _unlink_seismogram_source(loaded_session, seismogram)
 
@@ -220,8 +216,7 @@ class TestPruneProject:
         )
 
     def test_emptied_station_is_removed(self, loaded_session: Session) -> None:
-        station = loaded_session.exec(select(AimbatStation)).first()
-        assert station is not None
+        station = first(loaded_session, AimbatStation)
         station_id = station.id
         for seismogram in list(station.seismograms):
             path = Path(seismogram.datasource.sourcename)
@@ -236,7 +231,7 @@ class TestPruneProject:
         assert loaded_session.get(AimbatStation, station_id) is None
 
     def test_emptied_event_kept_without_flag(self, loaded_session: Session) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         event_id = event.id
         for seismogram in list(event.seismograms):
             _unlink_seismogram_source(loaded_session, seismogram)
@@ -251,7 +246,7 @@ class TestPruneProject:
     def test_emptied_event_pruned_with_flag_reports_snapshot_loss(
         self, loaded_session: Session
     ) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         event_id = event.id
         create_snapshot(loaded_session, event.phases[0].id, comment="baseline")
         for seismogram in list(event.seismograms):
@@ -291,7 +286,7 @@ class TestPruneProject:
             raise SourceUnavailableError("cannot stat")
 
         monkeypatch.setitem(_source_probes, DataType.SAC, _boom)
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         count_before = len(event.seismograms)
 
         with pytest.raises(SourceUnavailableError):
@@ -303,7 +298,7 @@ class TestPruneProject:
     def test_missing_parent_directory_requires_force(
         self, loaded_session: Session, tmp_path: Path
     ) -> None:
-        event = _first_event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         # Point the source at a path whose parent does not exist.
         seismogram.datasource.sourcename = str(tmp_path / "gone" / "x.sac")

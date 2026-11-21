@@ -14,6 +14,8 @@ from aimbat.models import (
     AimbatSnapshot,
 )
 
+from testsupport.project import first
+
 
 @pytest.fixture
 def session(loaded_session: Session) -> Session:
@@ -38,7 +40,7 @@ def event(session: Session) -> AimbatEvent:
     Returns:
         An AimbatEvent.
     """
-    return session.exec(select(AimbatEvent)).first()  # type: ignore[return-value]
+    return first(session, AimbatEvent)
 
 
 @pytest.fixture
@@ -51,7 +53,7 @@ def seismogram(session: Session) -> AimbatSeismogram:
     Returns:
         An AimbatSeismogram.
     """
-    return session.exec(select(AimbatSeismogram)).first()  # type: ignore[return-value]
+    return first(session, AimbatSeismogram)
 
 
 # ---------------------------------------------------------------------------

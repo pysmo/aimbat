@@ -31,6 +31,7 @@ from aimbat.io import DataType
 from aimbat.logger import configure_logging
 
 from testsupport.cli import LOG_DIR, worker_logfile
+from testsupport.sources import EVENT_DATA, STATION_DATA
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -265,6 +266,22 @@ def engine_from_file(
 
     yield engine
     engine.dispose()
+
+
+@pytest.fixture
+def station_json(tmp_path: Path) -> Path:
+    """Path to a JSON station source holding `STATION_DATA`."""
+    path = tmp_path / "station.json"
+    path.write_text(json.dumps(STATION_DATA))
+    return path
+
+
+@pytest.fixture
+def event_json(tmp_path: Path) -> Path:
+    """Path to a JSON event source holding `EVENT_DATA`."""
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps(EVENT_DATA))
+    return path
 
 
 @pytest.fixture

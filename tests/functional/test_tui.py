@@ -70,7 +70,7 @@ from aimbat.models import (
 )
 from aimbat.types import SeismogramParameter
 
-from testsupport.project import add_empty_phase
+from testsupport.project import add_empty_phase, first
 
 _TUI_SIZE = (120, 40)
 
@@ -339,8 +339,7 @@ class TestTUIWithData:
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
                 with Session(loaded_engine) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app = cast(AimbatTUI, pilot.app)
                 app._current_event_id = event.id
                 app.refresh_all()
@@ -396,8 +395,7 @@ class TestSeismogramPlotDebounce:
         )
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -539,8 +537,7 @@ class TestICCSStalenessRetry:
                 await _wait_for_iccs_worker(app)
 
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 # Mirror what `_check_iccs_staleness` records before a fresh
                 # attempt, so later polls see an unchanged instance digest.
@@ -576,8 +573,7 @@ class TestICCSStalenessRetry:
         """A phase with blocking readiness items is refused with a warning."""
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
             row = event.phases[0].seismogram_parameters[0]
             store_picks(
@@ -645,8 +641,7 @@ class TestICCSStalenessRetry:
                 await _wait_for_iccs_worker(app)
 
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 with Session(loaded_engine_from_file) as session:
                     phase_id = session.get_one(AimbatEvent, event.id).phases[0].id
@@ -697,8 +692,7 @@ class TestICCSStalenessRetry:
                 await _wait_for_iccs_worker(app)
 
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
 
                 app._create_iccs()
@@ -784,8 +778,7 @@ class TestStalenessUIRefresh:
                 await _wait_for_iccs_worker(app)
 
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -878,8 +871,7 @@ class TestIccsAssignmentRace:
         """A build for P that ends after a switch to PKP is dropped, and PKP is built."""
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             p_phase_id = event.phases[0].id
             pkp = add_empty_phase(session, event, "PKP")
             session.commit()
@@ -915,8 +907,7 @@ class TestIccsAssignmentRace:
         """A request made while a build runs is replayed if that build yields nothing."""
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id, phase_id = event.id, event.phases[0].id
 
         async def _run() -> None:
@@ -947,8 +938,7 @@ class TestIccsAssignmentRace:
         """A rebuild asked for during a build follows it, since it may predate a change."""
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id, phase_id = event.id, event.phases[0].id
 
         async def _run() -> None:
@@ -986,8 +976,7 @@ class TestIccsAssignmentRace:
                 await _wait_for_iccs_worker(app)
 
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
 
                 with Session(loaded_engine_from_file) as session:
                     event_reloaded = session.get(AimbatEvent, event.id)
@@ -1076,8 +1065,7 @@ class TestRequireIccs:
                 )
 
                 with Session(loaded_engine) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 assert app._iccs_lifecycle.ready is False
 
@@ -1100,8 +1088,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine)
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = event.id
@@ -1138,8 +1125,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine)
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = event.id
@@ -1180,8 +1166,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = event.id
@@ -1251,8 +1236,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
             for phase in list(event.phases):
                 session.delete(phase)
@@ -1285,8 +1269,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         notifications: list[tuple[str, str]] = []
@@ -1349,8 +1332,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -1374,8 +1356,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -1401,8 +1382,7 @@ class TestParametersOnSeveralPhases:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         notifications: list[str] = []
@@ -1480,8 +1460,7 @@ class TestAlignGuard:
     ) -> None:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id, seismogram_id = event.id, event.seismograms[0].id
 
         notifications: list[tuple[str, str]] = []
@@ -1640,8 +1619,7 @@ class TestAlignModalLosesIccsWhileOpen:
                 await _wait_for_iccs_worker(app)
 
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                    assert event is not None
+                    event = first(session, AimbatEvent)
                     app._current_event_id = event.id
                     app._iccs_lifecycle.assign(
                         _real_create_iccs_instance(session, event.phases[0].id)
@@ -1741,8 +1719,7 @@ class TestRowActionMenuWiring:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> uuid.UUID:
@@ -1779,8 +1756,7 @@ class TestRowActionMenuWiring:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
             create_snapshot(session, event.phases[0].id, "wiring test snapshot")
             session.commit()
@@ -1829,8 +1805,7 @@ class TestRowActionFooterHotkeys:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> uuid.UUID:
@@ -1944,8 +1919,7 @@ class TestHotkeyScoping:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -1973,8 +1947,7 @@ class TestHotkeyScoping:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -2007,8 +1980,7 @@ class TestHotkeyScoping:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -2039,8 +2011,7 @@ class TestHotkeyScoping:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -2070,8 +2041,7 @@ class TestHotkeyScoping:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -2130,8 +2100,7 @@ class TestEventSwitcherRetirement:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
 
         async def _run() -> None:
@@ -2239,8 +2208,7 @@ class TestCausalZeroPhaseToggle:
                 app = cast(AimbatTUI, pilot.app)
                 await _wait_for_iccs_worker(app)
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -2285,8 +2253,7 @@ class TestCausalZeroPhaseToggle:
                 app = cast(AimbatTUI, pilot.app)
                 await _wait_for_iccs_worker(app)
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -2361,8 +2328,7 @@ class TestRunToolRebuildsIccs:
                 app = cast(AimbatTUI, pilot.app)
                 await _wait_for_iccs_worker(app)
                 with Session(engine) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -2405,8 +2371,7 @@ class TestRunToolRebuildsIccs:
                 app = cast(AimbatTUI, pilot.app)
                 await _wait_for_iccs_worker(app)
                 with Session(loaded_engine_from_file) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
                 app._current_event_id = event.id
                 app._create_iccs()
                 await _wait_for_iccs_worker(app)
@@ -2434,8 +2399,7 @@ class TestToggleSeismogramBoolRefresh:
         _patch_engine(monkeypatch, loaded_engine)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             event_id = event.id
             seis = session.exec(
                 select(AimbatSeismogram).where(AimbatSeismogram.event_id == event_id)
@@ -2534,8 +2498,7 @@ class TestNoteWidgetAutoSave:
                 app = cast(AimbatTUI, pilot.app)
                 await pilot.pause()
                 with Session(loaded_engine) as session:
-                    event = session.exec(select(AimbatEvent)).first()
-                assert event is not None
+                    event = first(session, AimbatEvent)
 
                 note = app.query_one("#project-note", NoteWidget)
                 note.set_entity("event", event.id)

@@ -35,6 +35,8 @@ from aimbat.models import (
 )
 from aimbat.types import PhaseParameter, SeismogramParameter
 
+from testsupport.project import first
+
 _NAMING = core.PickNaming(unlabelled_as="P")
 """The test data label no picks, so they are named here."""
 
@@ -148,8 +150,7 @@ class TestListDeletes:
     def test_delete_events_evicts_cached_iccs(self, loaded_engine: Engine) -> None:
         """A deleted event's cached ICCS instances do not linger in the cache."""
         with Session(loaded_engine) as session:
-            phase = session.exec(select(AimbatPhase)).first()
-            assert phase is not None
+            phase = first(session, AimbatPhase)
             event_id, phase_id = phase.event_id, phase.id
         actions.prepare_iccs(phase_id)
         assert phase_id in core_iccs._iccs_cache
@@ -300,8 +301,7 @@ class TestPhaseParameters:
 class TestPicks:
     def test_sets_each_pick(self, loaded_engine: Engine) -> None:
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             phase_id = event.phases[0].id
             picks = {
                 s.id: s.phase_rows[0].initial_pick + Timedelta(seconds=i)
@@ -525,8 +525,7 @@ class TestPruneData:
     @staticmethod
     def _remove_one_source(engine: Engine) -> uuid.UUID:
         with Session(engine) as session:
-            seismogram = session.exec(select(AimbatSeismogram)).first()
-            assert seismogram is not None
+            seismogram = first(session, AimbatSeismogram)
             Path(seismogram.datasource.sourcename).unlink()
             return seismogram.id
 

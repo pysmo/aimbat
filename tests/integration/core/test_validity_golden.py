@@ -31,6 +31,8 @@ from aimbat.models import (
     PickOrigin,
 )
 
+from testsupport.project import first
+
 _PHASE_ID = uuid.UUID("00000000-0000-4000-8000-0000000000e1")
 # Row IDs.
 _A1 = uuid.UUID("00000000-0000-4000-8000-0000000000a1")
@@ -198,8 +200,7 @@ class TestRead:
     def test_pending_change_is_read(self, loaded_engine: Engine) -> None:
         """A change not yet flushed is part of the digests."""
         with Session(loaded_engine) as session:
-            phase = session.exec(select(AimbatPhase)).first()
-            assert phase is not None
+            phase = first(session, AimbatPhase)
             before = compute_digests(session, phase.id)[phase.id]
             with session.no_autoflush:
                 phase.parameters.corners += 1

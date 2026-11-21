@@ -14,24 +14,14 @@ from aimbat.io import DataType
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot, AimbatStation
 from aimbat.types import PhaseParameter, SeismogramParameter
 
+from testsupport.project import first
+
 type _Case = Callable[[Session], Callable[[], object]]
 """Prepares a call on a session and returns it. Preparation may commit."""
 
 
-def _event(session: Session) -> AimbatEvent:
-    event = session.exec(select(AimbatEvent)).first()
-    assert event is not None
-    return event
-
-
-def _seismogram(session: Session) -> AimbatSeismogram:
-    seismogram = session.exec(select(AimbatSeismogram)).first()
-    assert seismogram is not None
-    return seismogram
-
-
 def _phase_id(session: Session) -> UUID:
-    return _seismogram(session).phase_rows[0].phase_id
+    return first(session, AimbatSeismogram).phase_rows[0].phase_id
 
 
 def _snapshot_id(session: Session) -> UUID:
@@ -51,44 +41,47 @@ def _delete_snapshot(session: Session) -> Callable[[], object]:
 
 
 def _run_iccs(session: Session) -> Callable[[], object]:
-    event = _event(session)
+    event = first(session, AimbatEvent)
     bound = core.create_iccs_instance(session, event.phases[0].id)
     session.commit()
     return lambda: core.run_iccs(session, event.phases[0].id, bound.iccs, True, True)
 
 
 def _run_mccc(session: Session) -> Callable[[], object]:
-    event = _event(session)
+    event = first(session, AimbatEvent)
     bound = core.create_iccs_instance(session, event.phases[0].id)
     session.commit()
     return lambda: core.run_mccc(session, event.phases[0].id, bound.iccs, False)
 
 
 def _prune(session: Session) -> Callable[[], object]:
-    Path(_seismogram(session).datasource.sourcename).unlink()
+    Path(first(session, AimbatSeismogram).datasource.sourcename).unlink()
     return lambda: core.prune_project(session, "all")
 
 
-def _station_id(session: Session) -> UUID:
-    station = session.exec(select(AimbatStation)).first()
-    assert station is not None
-    return station.id
-
-
 _CASES: dict[str, _Case] = {
-    "delete_event": lambda s: lambda: core.delete_event(s, _event(s).id),
+    "delete_event": lambda s: lambda: core.delete_event(s, first(s, AimbatEvent).id),
     "toggle_phase_completed": lambda s: (
         lambda: core.toggle_phase_completed(s, _phase_id(s))
     ),
     "set_phase_parameters": lambda s: (
         lambda: core.set_phase_parameters(s, _phase_id(s), {PhaseParameter.MIN_CC: 0.3})
     ),
-    "save_note": lambda s: lambda: core.save_note(s, "event", _event(s).id, "note"),
-    "delete_station": lambda s: lambda: core.delete_station(s, _station_id(s)),
-    "delete_seismogram": lambda s: lambda: core.delete_seismogram(s, _seismogram(s).id),
+    "save_note": lambda s: (
+        lambda: core.save_note(s, "event", first(s, AimbatEvent).id, "note")
+    ),
+    "delete_station": lambda s: (
+        lambda: core.delete_station(s, first(s, AimbatStation).id)
+    ),
+    "delete_seismogram": lambda s: (
+        lambda: core.delete_seismogram(s, first(s, AimbatSeismogram).id)
+    ),
     "set_seismogram_parameters": lambda s: (
         lambda: core.set_seismogram_parameters(
-            s, _phase_id(s), [_seismogram(s).id], {SeismogramParameter.FLIP: True}
+            s,
+            _phase_id(s),
+            [first(s, AimbatSeismogram).id],
+            {SeismogramParameter.FLIP: True},
         )
     ),
     "set_refined_picks": lambda s: (
@@ -96,13 +89,17 @@ _CASES: dict[str, _Case] = {
             s,
             _phase_id(s),
             {
-                _seismogram(s).id: _seismogram(s).phase_rows[0].initial_pick
+                first(s, AimbatSeismogram).id: first(s, AimbatSeismogram)
+                .phase_rows[0]
+                .initial_pick
                 + Timedelta(seconds=1)
             },
         )
     ),
     "reset_seismogram_parameters": lambda s: (
-        lambda: core.reset_seismogram_parameters(s, _phase_id(s), _seismogram(s).id)
+        lambda: core.reset_seismogram_parameters(
+            s, _phase_id(s), first(s, AimbatSeismogram).id
+        )
     ),
     "create_snapshot": lambda s: lambda: core.create_snapshot(s, _phase_id(s)),
     "rollback_to_snapshot": _rollback,

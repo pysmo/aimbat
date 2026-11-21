@@ -1,6 +1,5 @@
 """Integration tests for adding data to the project (aimbat.core._data)."""
 
-import json
 import shutil
 import uuid
 from pathlib import Path
@@ -37,58 +36,8 @@ from aimbat.models import (
     PickOrigin,
 )
 
-# ---------------------------------------------------------------------------
-# Module-level fixtures
-# ---------------------------------------------------------------------------
-
-
-_STATION_DATA: dict[str, str | float] = {
-    "name": "ANMO",
-    "network": "IU",
-    "location": "00",
-    "channel": "BHZ",
-    "latitude": 34.9459,
-    "longitude": -106.4572,
-    "elevation": 1820.0,
-}
-
-_EVENT_DATA: dict[str, str | float] = {
-    "time": "2020-01-01T00:00:00Z",
-    "latitude": 35.0,
-    "longitude": -120.0,
-    "depth": 10.0,
-}
-
-
-@pytest.fixture()
-def station_json(tmp_path: Path) -> Path:
-    """Path to a temporary JSON file containing a station record.
-
-    Args:
-        tmp_path: The pytest tmp_path fixture.
-
-    Returns:
-        Path to the JSON station file.
-    """
-    path = tmp_path / "station.json"
-    path.write_text(json.dumps(_STATION_DATA))
-    return path
-
-
-@pytest.fixture()
-def event_json(tmp_path: Path) -> Path:
-    """Path to a temporary JSON file containing an event record.
-
-    Args:
-        tmp_path: The pytest tmp_path fixture.
-
-    Returns:
-        Path to the JSON event file.
-    """
-    path = tmp_path / "event.json"
-    path.write_text(json.dumps(_EVENT_DATA))
-    return path
-
+from testsupport.project import first
+from testsupport.sources import EVENT_DATA, STATION_DATA
 
 # ===================================================================
 # Session-level tests (patched_session / loaded_session)
@@ -558,7 +507,7 @@ class TestNearDuplicateEventDetection:
             event_json: Path to a JSON event file.
             patched_session: Database session.
         """
-        new_time = Timestamp(_EVENT_DATA["time"])
+        new_time = Timestamp(EVENT_DATA["time"])
         self._seed_event(patched_session, new_time + Timedelta(seconds=2))
 
         add_data_to_project(
@@ -669,8 +618,7 @@ class TestGetDataSources:
         Args:
             loaded_session (Session): Database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         data_sources = get_data_for_event(loaded_session, event.id)
         assert len(data_sources) != 0, "Expected data sources for the event."
         assert all(isinstance(ds, AimbatDataSource) for ds in data_sources), (
@@ -768,11 +716,11 @@ class TestAddDataJsonStation:
 
         with Session(engine) as session:
             station = session.exec(select(AimbatStation)).one()
-            assert station.name == _STATION_DATA["name"]
-            assert station.network == _STATION_DATA["network"]
-            assert station.location == _STATION_DATA["location"]
-            assert station.channel == _STATION_DATA["channel"]
-            assert station.latitude == _STATION_DATA["latitude"]
+            assert station.name == STATION_DATA["name"]
+            assert station.network == STATION_DATA["network"]
+            assert station.location == STATION_DATA["location"]
+            assert station.channel == STATION_DATA["channel"]
+            assert station.latitude == STATION_DATA["latitude"]
 
 
 class TestAddDataJsonEvent:
@@ -807,9 +755,9 @@ class TestAddDataJsonEvent:
         with Session(engine) as session:
             event = session.exec(select(AimbatEvent)).one()
             assert event.time == Timestamp("2020-01-01T00:00:00Z")
-            assert event.latitude == _EVENT_DATA["latitude"]
-            assert event.longitude == _EVENT_DATA["longitude"]
-            assert event.depth == _EVENT_DATA["depth"]
+            assert event.latitude == EVENT_DATA["latitude"]
+            assert event.longitude == EVENT_DATA["longitude"]
+            assert event.depth == EVENT_DATA["depth"]
 
     def test_event_has_no_phases(self, engine: Engine, event_json: Path) -> None:
         """Verifies that an event imported on its own has no phases.

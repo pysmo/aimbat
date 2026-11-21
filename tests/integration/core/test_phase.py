@@ -40,6 +40,8 @@ from aimbat.models._parameters import PHASE_PARAMETER_SPECS
 from aimbat.types import PhaseParameter
 from aimbat.utils import format_validation_error
 
+from testsupport.project import first
+
 
 def _event(session: Session, *names: str, minute: int = 0) -> AimbatEvent:
     event = AimbatEvent(
@@ -145,8 +147,7 @@ class TestSetPhaseParameter:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         new_value = Timedelta(seconds=20)
         set_phase_parameter(
             loaded_session, event.phases[0].id, PhaseParameter.WINDOW_POST, new_value
@@ -159,8 +160,7 @@ class TestSetPhaseParameter:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         new_value = 0.75
         set_phase_parameter(
             loaded_session, event.phases[0].id, PhaseParameter.MIN_CC, new_value
@@ -173,8 +173,7 @@ class TestSetPhaseParameter:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         set_phase_parameter(
             loaded_session, event.phases[0].id, PhaseParameter.COMPLETED, True
         )
@@ -186,8 +185,7 @@ class TestSetPhaseParameter:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # Test valid change
         new_value = Timedelta(seconds=1.5)
@@ -221,8 +219,7 @@ class TestSetPhaseParameter:
             loaded_session: The database session.
             monkeypatch: Pytest monkeypatch fixture.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         def _boom(*args: object, **kwargs: object) -> None:
             raise TypeError("not a parameter problem")
@@ -244,8 +241,7 @@ class TestSetPhaseParameter:
     ) -> None:
         """`set_phase_parameter` leaves committing to the caller."""
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             phase_id, before = (
                 event.phases[0].id,
                 event.phases[0].parameters.window_post,
@@ -273,8 +269,7 @@ class TestSetPhaseParameter:
         recoverable - widening before narrowing always validates - but only
         if the message says so.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         set_phase_parameters(
             loaded_session,
             event.phases[0].id,
@@ -312,8 +307,7 @@ class TestSetPhaseParameters:
     ) -> None:
         """A new fmin above the old fmax fails one field at a time but is fine
         as a batch (validated against the merged state)."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         event.phases[0].parameters.bandpass_fmin = 0.5
         event.phases[0].parameters.bandpass_fmax = 2.0
         loaded_session.add(event.phases[0].parameters)
@@ -338,8 +332,7 @@ class TestSetPhaseParameters:
         assert event.phases[0].parameters.bandpass_fmax == 10.0
 
     def test_empty_mapping_is_a_noop(self, loaded_session: Session) -> None:
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         before = compute_digests(loaded_session, event.phases[0].id)[
             event.phases[0].id
         ].tracked
@@ -367,8 +360,7 @@ class TestTogglePhaseCompleted:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         assert event.phases[0].parameters.completed is False
 
         result = toggle_phase_completed(loaded_session, event.phases[0].id)
@@ -382,8 +374,7 @@ class TestTogglePhaseCompleted:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         toggle_phase_completed(loaded_session, event.phases[0].id)
         result = toggle_phase_completed(loaded_session, event.phases[0].id)
@@ -412,8 +403,7 @@ class TestTogglePhaseCompleted:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         rmse = Timedelta(milliseconds=1)
         loaded_session.add(
             AimbatPhaseQuality(
@@ -433,8 +423,7 @@ class TestTogglePhaseCompleted:
     ) -> None:
         """`completed` is bookkeeping, so toggling it moves no digest and does
         not repaint or rebuild anything."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         before = compute_digests(loaded_session, event.phases[0].id)[event.phases[0].id]
 
         toggle_phase_completed(loaded_session, event.phases[0].id)
@@ -478,8 +467,7 @@ class TestGetPhaseQuality:
     """Tests for `get_phase_quality`."""
 
     def test_counts_the_rows_of_the_phase(self, loaded_session: Session) -> None:
-        phase = loaded_session.exec(select(AimbatPhase)).first()
-        assert phase is not None
+        phase = first(loaded_session, AimbatPhase)
         stats = get_phase_quality(loaded_session, phase.id)
         assert stats.phase_id == phase.id
         assert stats.phase_name == phase.name

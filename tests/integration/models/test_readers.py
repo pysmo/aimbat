@@ -13,28 +13,25 @@ from aimbat.models import (
     AimbatStationRead,
 )
 
+from testsupport.project import first
+
 
 @pytest.fixture
 def mock_station(loaded_session: Session) -> AimbatStation:
     """Returns the first station from the loaded session."""
-    station = loaded_session.exec(select(AimbatStation)).first()
-    assert station is not None
-    return station
+    return first(loaded_session, AimbatStation)
 
 
 @pytest.fixture
 def mock_seismogram(loaded_session: Session) -> AimbatSeismogram:
     """Returns the first seismogram from the loaded session."""
-    seismogram = loaded_session.exec(select(AimbatSeismogram)).first()
-    assert seismogram is not None
-    return seismogram
+    return first(loaded_session, AimbatSeismogram)
 
 
 @pytest.fixture
 def mock_snapshot(loaded_session: Session) -> AimbatSnapshot:
     """Creates and returns a snapshot for the first event."""
-    event = loaded_session.exec(select(AimbatEvent)).first()
-    assert event is not None
+    event = first(loaded_session, AimbatEvent)
     create_snapshot(loaded_session, event.phases[0].id, comment="test snapshot")
     snapshot = loaded_session.exec(select(AimbatSnapshot)).one_or_none()
     assert snapshot is not None
