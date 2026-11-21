@@ -13,13 +13,14 @@ from pandas import Timedelta, Timestamp
 from sqlalchemy import Engine
 from sqlmodel import Session, col, select
 
-from pysmo import Station
 from pysmo.classes import SAC
 
 from aimbat import actions
 from aimbat.core._validity import Validity
 from aimbat.io import DataType
 from aimbat.models import AimbatPhase, AimbatSnapshot
+
+from testsupport.project import phase_state, station_key
 
 _PHASES = ("P", "pP")
 _P_ONLY = "AV.AKRB"
@@ -32,40 +33,17 @@ def _phase_id(engine: Engine, name: str) -> uuid.UUID:
         ).one()
 
 
-def _station_key(station: Station) -> str:
-    return f"{station.network}.{station.name}"
-
-
 def _members(engine: Engine, name: str) -> set[str]:
     """`NETWORK.STATION` of each seismogram the phase has a row for."""
     with Session(engine) as session:
         phase = session.get_one(AimbatPhase, _phase_id(engine, name))
         return {
-            _station_key(row.seismogram.station) for row in phase.seismogram_parameters
+            station_key(row.seismogram.station) for row in phase.seismogram_parameters
         }
 
 
 def _state(engine: Engine, name: str) -> dict[str, Any]:
-    """Everything stored for a phase: parameters, rows, quality and snapshots."""
-    phase_id = _phase_id(engine, name)
-    with Session(engine) as session:
-        phase = session.get_one(AimbatPhase, phase_id)
-        rows = sorted(phase.seismogram_parameters, key=lambda r: str(r.id))
-        return {
-            "parameters": phase.parameters.model_dump(),
-            "quality": None if phase.quality is None else phase.quality.model_dump(),
-            "rows": [row.model_dump() for row in rows],
-            "row_quality": [
-                None if row.quality is None else row.quality.model_dump()
-                for row in rows
-            ],
-            "snapshots": sorted(
-                str(s)
-                for s in session.exec(
-                    select(AimbatSnapshot.id).where(AimbatSnapshot.phase_id == phase_id)
-                ).all()
-            ),
-        }
+    return phase_state(engine, _phase_id(engine, name))
 
 
 def _process(phase_id: uuid.UUID) -> None:
@@ -100,13 +78,13 @@ class TestImport:
             sac = SAC.from_file(path)
             for name, time in (("P", sac.timestamps.t0), ("pP", sac.timestamps.t5)):
                 if time is not None:
-                    expected[(_station_key(sac.station), name)] = time
+                    expected[(station_key(sac.station), name)] = time
 
         found: dict[tuple[str, str], Timestamp] = {}
         with Session(imported) as session:
             for phase in session.exec(select(AimbatPhase)).all():
                 for row in phase.seismogram_parameters:
-                    key = (_station_key(row.seismogram.station), phase.name)
+                    key = (station_key(row.seismogram.station), phase.name)
                     found[key] = row.initial_pick
         assert found.keys() == expected.keys()
         for key, pick in found.items():
@@ -146,7 +124,7 @@ class TestProcessing:
                     assert row.select and not row.flip
                     assert row.refined_pick is not None
                     residuals.setdefault(name, {})[
-                        _station_key(row.seismogram.station)
+                        station_key(row.seismogram.station)
                     ] = row.refined_pick - row.initial_pick
 
         assert residuals["pP"].keys() == residuals["P"].keys() - {_P_ONLY}

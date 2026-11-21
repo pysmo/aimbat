@@ -8,26 +8,13 @@ import os
 import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from aimbat._cli.shell import _build_completion_dict, _extract_event_flag
 from aimbat.app import app as aimbat_app
 
-_LOG_DIR = Path(__file__).parents[1] / ".logs"
-
-
-def _worker_logfile() -> str:
-    """Log file path unique per xdist worker (``"master"`` off a non-parallel run).
-
-    Written to the gitignored ``tests/.logs/`` directory to keep logs out of the
-    project root.
-    """
-    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-    _LOG_DIR.mkdir(exist_ok=True)
-    return str(_LOG_DIR / f"aimbat_test_{worker}.log")
-
+from testsupport.cli import project_dump, worker_logfile
 
 # ---------------------------------------------------------------------------
 # Local fixture — subprocess with stdin support
@@ -53,7 +40,7 @@ def shell_subprocess(
     ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy() | (extra_env or {})
         env["AIMBAT_DB_URL"] = f"sqlite+pysqlite:///{db_path}"
-        env["AIMBAT_LOGFILE"] = _worker_logfile()
+        env["AIMBAT_LOGFILE"] = worker_logfile()
         env["COLUMNS"] = "1000"
         return subprocess.run(
             ["uv", "run", "aimbat", "shell"],
@@ -250,8 +237,6 @@ class TestPhaseSwitch:
         Returns:
             The event's ID.
         """
-        import json
-
         aimbat_subprocess(["project", "create"])
         added = aimbat_subprocess(
             [
@@ -264,7 +249,7 @@ class TestPhaseSwitch:
             ]
         )
         assert added.returncode == 0, added.stderr
-        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        events = project_dump(aimbat_subprocess, ["event", "dump"])
         return events[0]["id"]
 
     def test_switch_follows_phase(
@@ -325,14 +310,12 @@ class TestPhaseSwitch:
         multi_event_data: list[Path],
     ) -> None:
         """Switching to an event without the shell's phase clears the phase."""
-        import json
-
         added = aimbat_subprocess(
             ["data", "add", str(multi_event_data[0]), "--unlabelled-as", "P"]
             + ["--no-progress"]
         )
         assert added.returncode == 0, added.stderr
-        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        events = project_dump(aimbat_subprocess, ["event", "dump"])
         (other,) = {e["id"] for e in events} - {event_with_two_phases}
 
         result = shell_subprocess(
@@ -351,14 +334,12 @@ class TestPhaseSwitch:
         multi_event_data: list[Path],
     ) -> None:
         """Without `phase switch`, the previous event's only phase carries over."""
-        import json
-
         added = aimbat_subprocess(
             ["data", "add", str(multi_event_data[0]), "--unlabelled-as", "P"]
             + ["--no-progress"]
         )
         assert added.returncode == 0, added.stderr
-        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        events = project_dump(aimbat_subprocess, ["event", "dump"])
         (other,) = {e["id"] for e in events} - {event_with_two_phases}
 
         result = shell_subprocess(
@@ -377,14 +358,12 @@ class TestPhaseSwitch:
         multi_event_data: list[Path],
     ) -> None:
         """An exported `DEFAULT_PHASE` is followed and cleared like `--phase`."""
-        import json
-
         added = aimbat_subprocess(
             ["data", "add", str(multi_event_data[0]), "--unlabelled-as", "P"]
             + ["--no-progress"]
         )
         assert added.returncode == 0, added.stderr
-        events = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        events = project_dump(aimbat_subprocess, ["event", "dump"])
         (other,) = {e["id"] for e in events} - {event_with_two_phases}
 
         result = shell_subprocess(
@@ -413,14 +392,12 @@ class TestPhaseSwitchOnLabelledData:
         Returns:
             The event's ID.
         """
-        import json
-
         aimbat_subprocess(["project", "create"])
         added = aimbat_subprocess(
             ["data", "add", *map(str, multi_phase_data), "--no-progress"]
         )
         assert added.returncode == 0, added.stderr
-        (event,) = json.loads(aimbat_subprocess(["event", "dump"]).stdout)
+        (event,) = project_dump(aimbat_subprocess, ["event", "dump"])
         return event["id"]
 
     def test_switch_selects_what_commands_act_on(
@@ -430,8 +407,6 @@ class TestPhaseSwitchOnLabelledData:
         shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
     ) -> None:
         """Commands act on the switched phase, checked in the project afterwards."""
-        import json
-
         result = shell_subprocess(
             f"event switch {event_id}\nphase switch pP\nalign iccs\n"
             + "phase switch P\nphase parameter set min_cc 0.42\nexit\n"
@@ -439,20 +414,19 @@ class TestPhaseSwitchOnLabelledData:
         assert result.returncode == 0, result.stderr
         assert f"ICCS ready (event {event_id[:8]}, phase pP)" in result.stdout
 
-        def dump(*command: str) -> list[dict[str, Any]]:
-            return json.loads(aimbat_subprocess(command).stdout)
-
         # Only alignment sets refined picks; building an instance on a switch
         # already writes CC values, for either phase.
         aligned = {
             row["phase_name"]
-            for row in dump("seismogram", "parameter", "dump")
+            for row in project_dump(
+                aimbat_subprocess, ["seismogram", "parameter", "dump"]
+            )
             if row["refined_pick"] is not None
         }
         assert aligned == {"pP"}
         min_cc = {
             row["phase_name"]: row["min_cc"]
-            for row in dump("phase", "parameter", "dump")
+            for row in project_dump(aimbat_subprocess, ["phase", "parameter", "dump"])
         }
         assert min_cc["P"] == pytest.approx(0.42)
         assert min_cc["pP"] != pytest.approx(0.42)

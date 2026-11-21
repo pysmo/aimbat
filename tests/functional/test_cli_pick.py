@@ -20,6 +20,8 @@ from aimbat.core import store_picks
 from aimbat.io import DataType, SourcePick
 from aimbat.models import AimbatEvent
 
+from testsupport.cli import exit_code
+
 type _CliJson = Callable[[str], list[Any] | dict[str, Any]]
 
 
@@ -45,13 +47,6 @@ def _add_pick(engine: Engine, event_id: str, label: str | None) -> str:
         return str(pick.id)
 
 
-def _status(command: str | list[str]) -> int:
-    with pytest.raises(SystemExit) as exc_info:
-        app(command)
-    code = exc_info.value.code
-    return code if isinstance(code, int) else 0
-
-
 @pytest.mark.cli
 class TestPick:
     """Tests for `pick list`, `pick dump`, `pick name` and `pick promote`."""
@@ -64,7 +59,7 @@ class TestPick:
     ) -> None:
         _add_pick(loaded_engine, event_id, None)
         capsys.readouterr()
-        assert _status(f"pick list {event_id} --unnamed") == 0
+        assert exit_code(f"pick list {event_id} --unnamed") == 0
         output = capsys.readouterr().out
         assert "unnamed" in output
         assert "extra.json" in output
@@ -87,7 +82,7 @@ class TestPick:
     ) -> None:
         pick_id = _add_pick(loaded_engine, event_id, None)
         capsys.readouterr()
-        assert _status(f"pick name S --event {event_id} --unnamed --from 0") == 0
+        assert exit_code(f"pick name S --event {event_id} --unnamed --from 0") == 0
         output = capsys.readouterr().out
         assert "Named 1 pick(s) S." in output
         assert "Promoted 1 pick(s) (S: 1)." in output
@@ -106,7 +101,7 @@ class TestPick:
         _add_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         command = f"pick name S --event {event_id} --unnamed --no-snapshot"
-        assert _status(command) == 0
+        assert exit_code(command) == 0
         output = capsys.readouterr().out
         assert "Promoted 1 pick(s) (S: 1)." in output
         assert "Snapshotted" not in output
@@ -126,7 +121,7 @@ class TestPick:
     ) -> None:
         pick_id = _add_pick(loaded_engine, event_id, "S")
         capsys.readouterr()
-        assert _status(f"pick promote --pick {pick_id}") == 0
+        assert exit_code(f"pick promote --pick {pick_id}") == 0
         output = capsys.readouterr().out
         assert "Promoted 1 pick(s) (S: 1)." in output
         assert "Phase S created" in output
@@ -139,7 +134,7 @@ class TestPick:
     ) -> None:
         pick_id = _add_pick(loaded_engine, event_id, "P")
         capsys.readouterr()
-        assert _status(f"pick promote --pick {pick_id} --replace") == 0
+        assert exit_code(f"pick promote --pick {pick_id} --replace") == 0
         output = capsys.readouterr().out
         assert "Replaced the pick of 1 row(s)." in output
         assert "No picks promoted." not in output
@@ -152,7 +147,7 @@ class TestPick:
     ) -> None:
         _add_pick(loaded_engine, event_id, "S")
         capsys.readouterr()
-        assert _status(f"pick promote --event {event_id} --phase S") == 0
+        assert exit_code(f"pick promote --event {event_id} --phase S") == 0
         assert "Promoted 1 pick(s) (S: 1)." in capsys.readouterr().out
 
     def test_promote_needs_phase_or_pick(self, loaded_engine: Engine) -> None:
@@ -180,11 +175,11 @@ class TestPickAdd:
         setattr(sac.timestamps, key, getattr(sac.timestamps, key) + Timedelta(1, "s"))
         sac.write(path)
         capsys.readouterr()
-        assert _status(["pick", "add", str(path), "--no-progress"]) == 0
+        assert exit_code(["pick", "add", str(path), "--no-progress"]) == 0
         assert "1 stored pick(s) differ from their data source." in (
             " ".join(capsys.readouterr().out.split())
         )
-        assert _status(["pick", "add", str(path), "--update", "--no-progress"]) == 0
+        assert exit_code(["pick", "add", str(path), "--update", "--no-progress"]) == 0
         assert "Updated 1 pick(s)." in capsys.readouterr().out
 
     def test_dry_run(
@@ -197,7 +192,7 @@ class TestPickAdd:
             event = session.get_one(AimbatEvent, uuid.UUID(event_id))
             path = event.seismograms[0].datasource.sourcename
         capsys.readouterr()
-        assert _status(["pick", "add", str(path), "--dry-run", "--no-progress"]) == 0
+        assert exit_code(["pick", "add", str(path), "--dry-run", "--no-progress"]) == 0
         output = capsys.readouterr().out
         assert "already present" in output
         assert "Dry run: nothing was changed." in output
@@ -220,7 +215,7 @@ class TestPickFixes:
         self, loaded_engine: Engine, capsys: pytest.CaptureFixture[str]
     ) -> None:
         capsys.readouterr()
-        assert _status("pick match --retry") == 0
+        assert exit_code("pick match --retry") == 0
         assert "Matched 0 pick(s)." in capsys.readouterr().out
 
     def test_set_replace(
@@ -236,7 +231,7 @@ class TestPickFixes:
             time = seismogram.phase_rows[0].initial_pick + Timedelta(seconds=2)
         capsys.readouterr()
         command = f"pick set {seismogram_id} P {time.isoformat()} --replace"
-        assert _status(command) == 0
+        assert exit_code(command) == 0
         assert "Replaced the pick of 1 row(s)." in capsys.readouterr().out
 
     def test_set_refuses_time_without_offset(
@@ -256,9 +251,9 @@ class TestPickFixes:
     ) -> None:
         pick_id = _add_pick(loaded_engine, event_id, None)
         capsys.readouterr()
-        assert _status(f"pick remove --event {event_id} --unnamed") == 0
+        assert exit_code(f"pick remove --event {event_id} --unnamed") == 0
         assert "Dismissed 1 pick(s). Deleted 0 row(s)." in capsys.readouterr().out
-        assert _status(f"pick restore {pick_id}") == 0
+        assert exit_code(f"pick restore {pick_id}") == 0
         assert "Restored 1 pick(s)." in capsys.readouterr().out
-        assert _status(f"pick remove {pick_id} --purge") == 0
+        assert exit_code(f"pick remove {pick_id} --purge") == 0
         assert "Deleted 1 pick(s)." in capsys.readouterr().out

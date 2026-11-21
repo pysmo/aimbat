@@ -11,14 +11,14 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from pandas import Timedelta
 from sqlalchemy import Engine
 from sqlmodel import Session, col, select
 
 from aimbat import settings
-from aimbat.core import promote_picks, store_picks
-from aimbat.io import DataType, SourcePick
 from aimbat.models import AimbatEvent, AimbatPhase, AimbatPick, AimbatSnapshot
+
+from testsupport.cli import error_text
+from testsupport.project import add_phase_from_picks
 
 type _Cli = Callable[[str | list[str]], None]
 type _CliJson = Callable[[str], list[Any] | dict[str, Any]]
@@ -34,22 +34,7 @@ def two_phases(loaded_engine: Engine, event_id: str) -> str:
     with Session(loaded_engine) as session:
         event = session.get_one(AimbatEvent, uuid.UUID(event_id))
         seismograms = sorted(event.seismograms, key=lambda s: str(s.id))[1:]
-        picks = []
-        for seismogram in seismograms:
-            picks += store_picks(
-                session,
-                [
-                    SourcePick(
-                        seismogram.phase_rows[0].initial_pick + Timedelta(seconds=1),
-                        "t9",
-                        label="PKP",
-                    )
-                ],
-                source_name=f"PKP-{seismogram.id}",
-                source_type=DataType.SAC,
-                source_seismogram=seismogram,
-            ).stored
-        promote_picks(session, picks)
+        add_phase_from_picks(session, seismograms, "PKP")
         session.commit()
     return event_id
 
@@ -77,7 +62,7 @@ def _fails(
     with pytest.raises(SystemExit) as exc_info:
         cli(command)
     assert exc_info.value.code == 1
-    return " ".join(capsys.readouterr().err.split())
+    return error_text(capsys.readouterr().err)
 
 
 @pytest.mark.cli
