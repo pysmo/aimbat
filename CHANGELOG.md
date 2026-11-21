@@ -145,6 +145,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - **(models)** Drop tests that only assert ORM wiring
 - Close raw SQLite connections in test_cli_db
 - Add tests on real two-phase data
+- Add shared test support helpers
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
