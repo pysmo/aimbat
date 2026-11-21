@@ -80,6 +80,7 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src"]
+pythonpath = ["tests"]
 markers = [
   "slow: mark slow tests that may take a long time to run",
   "cli: mark as command-line interface tests",
@@ -90,7 +91,7 @@ mpl-generate-summary = "html"
 mpl-use-full-test-name = true
 
 [tool.mypy]
-mypy_path = "src"
+mypy_path = "src:tests"
 namespace_packages = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
@@ -152,6 +153,7 @@ section-order = [
   "first-party",
   "local-folder",
 ]
+known-local-folder = ["testsupport"]
 
 [tool.ruff.lint.isort.sections]
 "pysmo-group" = ["pysmo"]

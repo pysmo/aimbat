@@ -57,7 +57,6 @@ from aimbat.core import (
     RunSummary,
     create_snapshot,
     current_instance_digest,
-    default_phase_parameters,
     get_current_revision,
     store_picks,
 )
@@ -70,6 +69,8 @@ from aimbat.models import (
     AimbatSnapshot,
 )
 from aimbat.types import SeismogramParameter
+
+from testsupport.project import add_empty_phase
 
 _TUI_SIZE = (120, 40)
 
@@ -880,8 +881,7 @@ class TestIccsAssignmentRace:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
             p_phase_id = event.phases[0].id
-            pkp = AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            event.phases.append(pkp)
+            pkp = add_empty_phase(session, event, "PKP")
             session.commit()
             event_id, pkp_id = event.id, pkp.id
 
@@ -1102,9 +1102,7 @@ class TestParametersOnSeveralPhases:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            event.phases.append(
-                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            )
+            add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = event.id
 
@@ -1142,9 +1140,7 @@ class TestParametersOnSeveralPhases:
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            event.phases.append(
-                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            )
+            add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = event.id
 
@@ -1186,9 +1182,7 @@ class TestParametersOnSeveralPhases:
         with Session(loaded_engine_from_file) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            event.phases.append(
-                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            )
+            add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = event.id
             p_phase = next(p for p in event.phases if p.name == "P")
@@ -1330,9 +1324,7 @@ class TestParametersOnSeveralPhases:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
             first, second = session.exec(select(AimbatEvent)).all()[:2]
-            second.phases.append(
-                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            )
+            add_empty_phase(session, second, "PKP")
             session.commit()
             first_id, second_id = first.id, second.id
 
@@ -1444,9 +1436,7 @@ class TestParametersOnSeveralPhases:
         _patch_engine(monkeypatch, loaded_engine_from_file)
         with Session(loaded_engine_from_file) as session:
             first, second = session.exec(select(AimbatEvent)).all()[:2]
-            first.phases.append(
-                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            )
+            add_empty_phase(session, first, "PKP")
             session.commit()
             first_id, second_id = first.id, second.id
 

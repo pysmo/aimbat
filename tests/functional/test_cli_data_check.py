@@ -13,10 +13,11 @@ from pandas import Timedelta
 from sqlalchemy import Engine
 from sqlmodel import Session
 
-from aimbat.app import app
 from aimbat.core import store_picks
 from aimbat.io import DataType, SourcePick
 from aimbat.models import AimbatEvent
+
+from testsupport.cli import exit_code
 
 type _Cli = Callable[[str | list[str]], None]
 
@@ -42,13 +43,6 @@ def _add_pick(engine: Engine, event_id: str, label: str | None) -> None:
         session.commit()
 
 
-def _status(command: str) -> int:
-    with pytest.raises(SystemExit) as exc_info:
-        app(command)
-    code = exc_info.value.code
-    return code if isinstance(code, int) else 0
-
-
 @pytest.mark.cli
 class TestDataCheck:
     """Tests for `data check`."""
@@ -57,7 +51,7 @@ class TestDataCheck:
         self, loaded_engine: Engine, capsys: pytest.CaptureFixture[str]
     ) -> None:
         capsys.readouterr()
-        assert _status("data check") == 0
+        assert exit_code("data check") == 0
         assert "Ready:" in capsys.readouterr().out
 
     def test_blocking_exits_2(
@@ -68,7 +62,7 @@ class TestDataCheck:
     ) -> None:
         _add_pick(loaded_engine, event_id, None)
         capsys.readouterr()
-        assert _status("data check") == 2
+        assert exit_code("data check") == 2
         output = capsys.readouterr().out
         assert "unnamed pick" in output
         assert "aimbat pick name PHASE --event" in output
@@ -81,9 +75,9 @@ class TestDataCheck:
         event_id: str,
     ) -> None:
         _add_pick(loaded_engine, event_id, "S")
-        assert _status(f"data check {event_id}") == 0
+        assert exit_code(f"data check {event_id}") == 0
         assert "unpromoted pick" in capsys.readouterr().out
-        assert _status(f"data check {event_id} --strict") == 2
+        assert exit_code(f"data check {event_id} --strict") == 2
 
     def test_failure_exits_1(
         self,
@@ -100,7 +94,7 @@ class TestDataCheck:
         # At INFO, handle_issues prints the panel and exits instead of raising.
         monkeypatch.setattr(aimbat.settings, "log_level", "INFO")
         capsys.readouterr()
-        assert _status("data check") == 1
+        assert exit_code("data check") == 1
         assert "check failed" in capsys.readouterr().err
 
     def test_json(
@@ -111,7 +105,7 @@ class TestDataCheck:
     ) -> None:
         _add_pick(loaded_engine, event_id, None)
         capsys.readouterr()
-        assert _status("data check --json") == 2
+        assert exit_code("data check --json") == 2
         (item,) = json.loads(capsys.readouterr().out)
         assert item["kind"] == "unnamed_pick"
         assert item["event_id"] == event_id
@@ -125,9 +119,9 @@ class TestDataCheck:
     ) -> None:
         _add_pick(loaded_engine, event_id, "S")
         capsys.readouterr()
-        assert _status("data check --phase P --json") == 0
+        assert exit_code("data check --phase P --json") == 0
         assert json.loads(capsys.readouterr().out) == []
-        assert _status("data check --phase S --json") == 0
+        assert exit_code("data check --phase S --json") == 0
         (item,) = json.loads(capsys.readouterr().out)
         assert (item["kind"], item["phase_name"]) == ("unpromoted_picks", "S")
 

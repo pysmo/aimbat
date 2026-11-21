@@ -175,8 +175,18 @@ be overridden via environment variables prefixed with `AIMBAT_` (e.g.
 - `multi_phase_engine` / `multi_phase_engine_from_file` give a project with one
     event and two phases, P and pP, from labelled picks; one station has no pP
     pick
-- Test assets (SAC files) live in `tests/assets/`; use `tmp_path_factory` copies
-    to avoid mutating them
+- Test data come from testkit (`testkit.fixtures`); use `tmp_path_factory`
+    copies to avoid mutating them
+- Helpers shared between test modules live in the `tests/testsupport/` package
+    (`testsupport.cli`, `testsupport.project`); test directories are not
+    packages, so test modules cannot import each other
+- Tests run on Linux, macOS and Windows. Follow the rules in
+    `docs/development/testing.md`: check state (dumps, actions, the database)
+    rather than printed text; assert absence only against state; never rely on
+    the order of output from different writers (shell status lines vs command
+    output); pass CLI commands containing paths as argument lists, not
+    `shlex.split()` strings; wait for workers, including ones started while
+    waiting, never sleep
 - Mirror `src/aimbat/` directory structure under `tests/` (e.g.
     `tests/unit/core/`, `tests/unit/models/`)
 - Matplotlib comparison tests use `--mpl` flag; baseline images live in

@@ -12,6 +12,8 @@ from sqlalchemy import Engine
 
 from aimbat import settings
 
+from testsupport.cli import error_text
+
 type _Cli = Callable[[str | list[str]], None]
 type _CliJson = Callable[[str], list[Any] | dict[str, Any]]
 
@@ -50,7 +52,7 @@ class TestAlign:
         with pytest.raises(SystemExit) as exc_info:
             cli(f"align iccs --event-id {event_id}")
         assert exc_info.value.code == 1
-        assert "has phases P, pP" in " ".join(capsys.readouterr().err.split())
+        assert "has phases P, pP" in error_text(capsys.readouterr().err)
 
     def test_named_phase_only(
         self, cli: _Cli, cli_json: _CliJson, event_id: str

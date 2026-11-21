@@ -16,6 +16,8 @@ from aimbat.core import create_snapshot
 from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
 from aimbat.utils import string_to_uuid
 
+from testsupport.project import add_empty_phase
+
 
 @pytest.fixture()
 def completer(loaded_engine: Engine) -> ShellCompleter:
@@ -530,15 +532,11 @@ class TestPhaseNameCompletion:
         self, completer: ShellCompleter, loaded_engine: Engine
     ) -> None:
         """Verifies `--phase` offers the names of the event typed on the line."""
-        from aimbat.core import default_phase_parameters
-        from aimbat.models import AimbatPhase
 
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            event.phases.append(
-                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            )
+            add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = str(event.id)
         completer.invalidate()
@@ -556,15 +554,11 @@ class TestPhaseNameCompletion:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Verifies `phase switch` offers the phase names of the shell's event."""
-        from aimbat.core import default_phase_parameters
-        from aimbat.models import AimbatPhase
 
         with Session(loaded_engine) as session:
             event = session.exec(select(AimbatEvent)).first()
             assert event is not None
-            event.phases.append(
-                AimbatPhase(name="PKP", parameters=default_phase_parameters("PKP"))
-            )
+            add_empty_phase(session, event, "PKP")
             session.commit()
             event_id = str(event.id)
         monkeypatch.setenv("DEFAULT_EVENT_ID", event_id)
