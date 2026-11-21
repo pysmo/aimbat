@@ -4,13 +4,15 @@ from typing import Any
 
 import pytest
 from pandas import Timedelta
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 import aimbat.plot._iccs as plot_iccs
 from aimbat.core import clear_iccs_cache, create_iccs_instance
 from aimbat.models import AimbatEvent
 from aimbat.plot import update_min_cc, update_pick
 from aimbat.types import PhaseParameter
+
+from testsupport.project import first
 
 
 class TestUpdateReturnsChanges:
@@ -25,8 +27,7 @@ class TestUpdateReturnsChanges:
             loaded_session: The database session.
             monkeypatch: The pytest monkeypatch fixture.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         before = event.phases[0].parameters.min_cc
         clear_iccs_cache()
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
@@ -54,8 +55,7 @@ class TestUpdateReturnsChanges:
             loaded_session: The database session.
             monkeypatch: The pytest monkeypatch fixture.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         clear_iccs_cache()
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         shift = Timedelta(seconds=1)

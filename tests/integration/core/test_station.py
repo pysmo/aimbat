@@ -13,6 +13,8 @@ from aimbat.core._station import (
 )
 from aimbat.models import AimbatEvent, AimbatStation
 
+from testsupport.project import first
+
 
 @pytest.fixture
 def station(loaded_session: Session) -> AimbatStation:
@@ -24,9 +26,7 @@ def station(loaded_session: Session) -> AimbatStation:
     Returns:
         The first AimbatStation in the database.
     """
-    station = loaded_session.exec(select(AimbatStation)).first()
-    assert station is not None
-    return station
+    return first(loaded_session, AimbatStation)
 
 
 class TestDeleteStation:
@@ -65,8 +65,7 @@ class TestDeleteStation:
         from aimbat.core._validity import Validity
         from aimbat.models import AimbatSeismogram
 
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_iccs_instance(loaded_session, event.phases[0].id)  # writes live iccs_cc
 
         seismograms = list(event.seismograms)  # preload the collection
@@ -92,8 +91,7 @@ class TestGetStationsInEvent:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         stations = get_stations_in_event(loaded_session, event.id)
         assert len(stations) > 0, "Expected at least one station for the given event"
 
@@ -103,8 +101,7 @@ class TestGetStationsInEvent:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         stations = get_stations_in_event(loaded_session, event.id)
         assert all(isinstance(s, AimbatStation) for s in stations), (
             "All returned items should be AimbatStation instances"
@@ -116,8 +113,7 @@ class TestGetStationsInEvent:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         result = get_stations_in_event(loaded_session, event.id, as_json=True)
         assert isinstance(result, list), "Expected a list when as_json=True"
         assert all(isinstance(item, dict) for item in result), (
@@ -130,8 +126,7 @@ class TestGetStationsInEvent:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         objects = get_stations_in_event(loaded_session, event.id, as_json=False)
         json_list = get_stations_in_event(loaded_session, event.id, as_json=True)
         assert len(objects) == len(json_list), (
@@ -144,8 +139,7 @@ class TestGetStationsInEvent:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         station_ids = {s.station_id for s in event.seismograms}
         stations = get_stations_in_event(loaded_session, event.id, as_json=False)
         returned_ids = {s.id for s in stations}

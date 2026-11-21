@@ -12,14 +12,15 @@ from aimbat.core import (
 )
 from aimbat.models import AimbatEvent, AimbatSeismogramQuality
 
+from testsupport.project import first
+
 
 class TestMccc:
     """Tests for Multi-Channel Cross-Correlation (MCCC) alignment."""
 
     def test_run_mccc_populates_quality_stats(self, loaded_session: Session) -> None:
         """Verifies that running MCCC populates quality metrics in the database."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # Ensure no MCCC stats initially
         if event.phases[0].quality:
@@ -60,8 +61,7 @@ class TestMccc:
 
     def test_run_mccc_all_seismograms(self, loaded_session: Session) -> None:
         """Verifies that MCCC can be run on all seismograms, including deselected ones."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # Deselect one seismogram
         seis_to_deselect = event.seismograms[0]
@@ -83,8 +83,7 @@ class TestMccc:
 
     def test_run_mccc_selected_only(self, loaded_session: Session) -> None:
         """Verifies that MCCC only processes selected seismograms by default."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # Deselect one seismogram
         seis_to_deselect = event.seismograms[0]
@@ -135,8 +134,7 @@ class TestWriteMcccQualityGuards:
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """CC mean is clamped to [0, 1] and CC std to >= 0 before storage."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         indices = _selected_indices(iccs)
         n = len(indices)
@@ -166,8 +164,7 @@ class TestWriteMcccQualityGuards:
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Metrics go to `ICCS.seismograms[indices[i]]`, not to position `i`."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         indices = _selected_indices(iccs)[::-1]
         n = len(indices)
@@ -193,8 +190,7 @@ class TestWriteMcccQualityGuards:
         self, loaded_session: Session, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A refused pick stores no error, but keeps its CC metrics."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         indices = _selected_indices(iccs)
         n = len(indices)

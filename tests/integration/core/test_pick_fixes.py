@@ -29,44 +29,14 @@ from aimbat.core import (
 )
 from aimbat.io import DataType, SourcePick, StationEventTarget
 from aimbat.models import (
-    AimbatDataSource,
     AimbatEvent,
     AimbatPhase,
     AimbatPick,
     AimbatSeismogram,
-    AimbatStation,
     PickOrigin,
 )
 
-_ORIGIN = Timestamp("2020-01-01T00:00:00", tz="UTC")
-_BEGIN = _ORIGIN + Timedelta(minutes=5)
-
-
-def _at(seconds: float) -> Timestamp:
-    return _BEGIN + Timedelta(seconds=seconds)
-
-
-def _seismogram(session: Session, event: AimbatEvent, name: str) -> AimbatSeismogram:
-    station = AimbatStation(
-        name=name,
-        network="XX",
-        location="00",
-        channel="BHZ",
-        latitude=10.0,
-        longitude=10.0,
-    )
-    seismogram = AimbatSeismogram(
-        begin_time=_BEGIN,
-        delta=Timedelta(seconds=0.05),
-        event=event,
-        station=station,
-    )
-    seismogram.datasource = AimbatDataSource(
-        sourcename=f"/data/{uuid.uuid4().hex}.sac", datatype=DataType.SAC
-    )
-    session.add(seismogram)
-    session.flush()
-    return seismogram
+from testsupport.project import ORIGIN, add_event, add_seismogram, at, store_pick
 
 
 def _pick(
@@ -76,14 +46,15 @@ def _pick(
     seconds: float,
     label: str | None,
 ) -> AimbatPick:
-    (pick,) = store_picks(
+    """Store a pick read from its own source, `/data/<key>.json`."""
+    return store_pick(
         session,
-        [SourcePick(_at(seconds), key, label=label)],
-        source_name=f"/data/{key}.json",
-        source_type=DataType.SAC,
-        source_seismogram=seismogram,
-    ).stored
-    return pick
+        seismogram,
+        key,
+        seconds=seconds,
+        label=label,
+        source=f"/data/{key}.json",
+    )
 
 
 @dataclass
@@ -104,10 +75,9 @@ class _Project:
 def project(engine: Engine) -> Generator[_Project]:
     """One event with two seismograms and three picks."""
     with Session(engine) as session:
-        event = AimbatEvent(time=_ORIGIN, latitude=0.0, longitude=0.0)
-        session.add(event)
-        abc = _seismogram(session, event, "ABC")
-        def_ = _seismogram(session, event, "DEF")
+        event = add_event(session)
+        abc = add_seismogram(session, event, name="ABC")
+        def_ = add_seismogram(session, event, name="DEF")
         unnamed = _pick(session, abc, "a", 30, None)
         labelled = _pick(session, def_, "b", 60, "first arrival")
         promoted = _pick(session, abc, "c", 20, "P")
@@ -156,7 +126,7 @@ class TestSelectPicks:
                 id="phase",
             ),
             pytest.param(
-                lambda p: PickSelection(time_from=_at(25), time_to=_at(40)),
+                lambda p: PickSelection(time_from=at(25), time_to=at(40)),
                 ("unnamed",),
                 id="absolute-window",
             ),
@@ -202,7 +172,7 @@ class TestSelectPicks:
     def test_relative_bound_leaves_out_unresolved_picks(
         self, project: _Project
     ) -> None:
-        stray = AimbatPick(time=_at(0), origin=PickOrigin.MANUAL, target_station="XYZ")
+        stray = AimbatPick(time=at(0), origin=PickOrigin.MANUAL, target_station="XYZ")
         project.session.add(stray)
         project.session.flush()
         picks = select_picks(
@@ -296,7 +266,7 @@ def _coded_pick(
     key: str,
     station: str,
     *,
-    event_time: Timestamp = _ORIGIN,
+    event_time: Timestamp = ORIGIN,
     label: str | None = "S",
     seconds: float = 50,
 ) -> AimbatPick:
@@ -304,13 +274,15 @@ def _coded_pick(
     target = StationEventTarget(
         network="XX", station=station, location="00", event_time=event_time
     )
-    (pick,) = store_picks(
+    return store_pick(
         session,
-        [SourcePick(_at(seconds), key, label=label, target=target)],
-        source_name=f"/data/{key}.json",
-        source_type=DataType.SAC,
-    ).stored
-    return pick
+        None,
+        key,
+        seconds=seconds,
+        label=label,
+        target=target,
+        source=f"/data/{key}.json",
+    )
 
 
 class TestMatchPick:
@@ -327,11 +299,8 @@ class TestMatchPick:
         assert "'GHI'" in warning and "'DEF'" in warning
 
     def test_seismogram_of_another_event_refused(self, project: _Project) -> None:
-        other = AimbatEvent(
-            time=_ORIGIN + Timedelta(days=1), latitude=0.0, longitude=0.0
-        )
-        project.session.add(other)
-        seismogram = _seismogram(project.session, other, "XYZ")
+        other = add_event(project.session, ORIGIN + Timedelta(days=1))
+        seismogram = add_seismogram(project.session, other, name="XYZ")
         pick = _coded_pick(project.session, "m", "GHI")
         with pytest.raises(ValueError, match="belongs to event"):
             match_pick(project.session, pick.id, seismogram.id)
@@ -339,7 +308,7 @@ class TestMatchPick:
 
     def test_pick_whose_event_is_unknown_refused(self, project: _Project) -> None:
         pick = _coded_pick(
-            project.session, "m", "GHI", event_time=_ORIGIN + Timedelta(days=3)
+            project.session, "m", "GHI", event_time=ORIGIN + Timedelta(days=3)
         )
         with pytest.raises(ValueError, match="not in the project"):
             match_pick(project.session, pick.id, project.def_.id)
@@ -357,7 +326,7 @@ class TestMatchPick:
 
     def test_retry_matches_once_the_seismogram_exists(self, project: _Project) -> None:
         pick = _coded_pick(project.session, "m", "JKL")
-        jkl = _seismogram(project.session, project.event, "JKL")
+        jkl = add_seismogram(project.session, project.event, name="JKL")
         matched, report = retry_pick_matching(
             project.session, event_id=project.event.id
         )
@@ -370,19 +339,19 @@ class TestSetInitialPick:
     """Tests for `set_initial_pick`."""
 
     def test_manual_pick_in_a_new_phase(self, project: _Project) -> None:
-        pick, report = set_initial_pick(project.session, project.def_.id, "S", _at(80))
+        pick, report = set_initial_pick(project.session, project.def_.id, "S", at(80))
         assert pick.origin is PickOrigin.MANUAL
         assert [phase.name for phase in report.phases_created] == ["S"]
         assert [row.pick_id for row in report.rows] == [pick.id]
 
     def test_existing_row_refused_without_replace(self, project: _Project) -> None:
         with pytest.raises(ValueError, match="already has a P pick"):
-            set_initial_pick(project.session, project.abc.id, "P", _at(25))
+            set_initial_pick(project.session, project.abc.id, "P", at(25))
         assert project.abc.phase_rows[0].pick_id == project.promoted.id
 
     def test_replace_takes_over_the_row(self, project: _Project) -> None:
         pick, report = set_initial_pick(
-            project.session, project.abc.id, "P", _at(25), replace_row=True
+            project.session, project.abc.id, "P", at(25), replace_row=True
         )
         assert report.replaced == [project.promoted]
         assert project.promoted.dismissed
@@ -419,7 +388,7 @@ class TestRemoveAndRestore:
         remove_picks(project.session, [project.unnamed])
         again = store_picks(
             project.session,
-            [SourcePick(_at(30), "a")],
+            [SourcePick(at(30), "a")],
             source_name="/data/a.json",
             source_type=DataType.SAC,
             source_seismogram=project.abc,
@@ -434,7 +403,7 @@ class TestRemoveAndRestore:
         assert project.session.get(AimbatPick, pick_id) is None
         again = store_picks(
             project.session,
-            [SourcePick(_at(30), "a")],
+            [SourcePick(at(30), "a")],
             source_name="/data/a.json",
             source_type=DataType.SAC,
             source_seismogram=project.abc,

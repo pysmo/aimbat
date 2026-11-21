@@ -7,16 +7,11 @@ from weakref import WeakKeyDictionary
 
 import numpy as np
 import pytest
-from sqlalchemy import create_engine
-from sqlmodel import Session
 
 from aimbat.io import _base
 from aimbat.io._data import DataType
 
-
-def _session() -> Session:
-    """A throwaway Session; these tests never touch the database through it."""
-    return Session(create_engine("sqlite://"))
+from testsupport.project import throwaway_session
 
 
 @pytest.fixture(autouse=True)
@@ -72,8 +67,8 @@ def test_staged_value_shadows_lru_for_that_session_only(
     monkeypatch.setitem(
         _base._seismogram_data_writers, DataType.SAC, lambda src, data: None
     )
-    session = _session()
-    other = _session()
+    session = throwaway_session()
+    other = throwaway_session()
 
     on_disk = _base.read_seismogram_data("x", DataType.SAC)  # populates the LRU
     _base.stage_seismogram_data(session, "x", DataType.SAC, np.array([42.0]))
@@ -91,7 +86,7 @@ def test_stage_copies_the_caller_array(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(
         _base._seismogram_data_writers, DataType.SAC, lambda src, data: None
     )
-    session = _session()
+    session = throwaway_session()
     caller = np.array([1.0, 2.0])
     _base.stage_seismogram_data(session, "x", DataType.SAC, caller)
     caller[0] = 99.0
@@ -103,7 +98,7 @@ def test_stage_copies_the_caller_array(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_stage_without_writer_raises() -> None:
     with pytest.raises(NotImplementedError):
         _base.stage_seismogram_data(
-            _session(), "x", DataType.JSON_EVENT, np.array([1.0])
+            throwaway_session(), "x", DataType.JSON_EVENT, np.array([1.0])
         )
 
 
@@ -130,7 +125,7 @@ def test_reader_receives_read_context(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(_base._seismogram_data_readers, DataType.SAC, capturing_reader)
 
     _base.read_seismogram_data("x", DataType.SAC)
-    session = _session()
+    session = throwaway_session()
     _base.read_seismogram_data("y", DataType.SAC, session=session)
 
     assert isinstance(seen[0], _base.SeismogramReadContext)
@@ -150,7 +145,7 @@ def test_clear_cache_keeps_staged_pages(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setitem(
         _base._seismogram_data_writers, DataType.SAC, lambda src, data: None
     )
-    session = _session()
+    session = throwaway_session()
     _base.stage_seismogram_data(session, "x", DataType.SAC, np.array([5.0]))
     _base.clear_seismogram_data_cache()
     assert _base.read_seismogram_data("x", DataType.SAC, session=session).tolist() == [

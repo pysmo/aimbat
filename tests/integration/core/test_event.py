@@ -15,6 +15,8 @@ from aimbat.core import (
 )
 from aimbat.models import AimbatEvent, AimbatStation
 
+from testsupport.project import first
+
 # ===================================================================
 # Deleting events
 # ===================================================================
@@ -92,8 +94,7 @@ class TestGetEventsUsingStation:
         Args:
             loaded_session: The database session.
         """
-        station = loaded_session.exec(select(AimbatStation)).first()
-        assert station is not None
+        station = first(loaded_session, AimbatStation)
 
         events = get_events_using_station(loaded_session, station.id)
         assert len(events) > 0

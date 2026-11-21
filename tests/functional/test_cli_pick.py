@@ -16,35 +16,12 @@ from sqlmodel import Session
 from pysmo.classes import SAC
 
 from aimbat.app import app
-from aimbat.core import store_picks
-from aimbat.io import DataType, SourcePick
 from aimbat.models import AimbatEvent
 
 from testsupport.cli import exit_code
+from testsupport.project import add_unpromoted_pick
 
 type _CliJson = Callable[[str], list[Any] | dict[str, Any]]
-
-
-def _add_pick(engine: Engine, event_id: str, label: str | None) -> str:
-    """Store a matched pick that is not promoted on a seismogram of the event."""
-    with Session(engine) as session:
-        event = session.get_one(AimbatEvent, uuid.UUID(event_id))
-        seismogram = sorted(event.seismograms, key=lambda s: str(s.id))[0]
-        (pick,) = store_picks(
-            session,
-            [
-                SourcePick(
-                    seismogram.phase_rows[0].initial_pick + Timedelta(seconds=5),
-                    "extra",
-                    label=label,
-                )
-            ],
-            source_name="extra.json",
-            source_type=DataType.SAC,
-            source_seismogram=seismogram,
-        ).stored
-        session.commit()
-        return str(pick.id)
 
 
 @pytest.mark.cli
@@ -57,7 +34,7 @@ class TestPick:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        _add_pick(loaded_engine, event_id, None)
+        add_unpromoted_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         assert exit_code(f"pick list {event_id} --unnamed") == 0
         output = capsys.readouterr().out
@@ -67,7 +44,7 @@ class TestPick:
     def test_dump_has_state(
         self, loaded_engine: Engine, cli_json: _CliJson, event_id: str
     ) -> None:
-        pick_id = _add_pick(loaded_engine, event_id, None)
+        pick_id = add_unpromoted_pick(loaded_engine, event_id, None)
         records = cli_json("pick dump")
         assert isinstance(records, list)
         (record,) = [r for r in records if r["id"] == pick_id]
@@ -80,7 +57,7 @@ class TestPick:
         cli_json: _CliJson,
         event_id: str,
     ) -> None:
-        pick_id = _add_pick(loaded_engine, event_id, None)
+        pick_id = add_unpromoted_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         assert exit_code(f"pick name S --event {event_id} --unnamed --from 0") == 0
         output = capsys.readouterr().out
@@ -98,7 +75,7 @@ class TestPick:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        _add_pick(loaded_engine, event_id, None)
+        add_unpromoted_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         command = f"pick name S --event {event_id} --unnamed --no-snapshot"
         assert exit_code(command) == 0
@@ -119,7 +96,7 @@ class TestPick:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        pick_id = _add_pick(loaded_engine, event_id, "S")
+        pick_id = add_unpromoted_pick(loaded_engine, event_id, "S")
         capsys.readouterr()
         assert exit_code(f"pick promote --pick {pick_id}") == 0
         output = capsys.readouterr().out
@@ -132,7 +109,7 @@ class TestPick:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        pick_id = _add_pick(loaded_engine, event_id, "P")
+        pick_id = add_unpromoted_pick(loaded_engine, event_id, "P")
         capsys.readouterr()
         assert exit_code(f"pick promote --pick {pick_id} --replace") == 0
         output = capsys.readouterr().out
@@ -145,7 +122,7 @@ class TestPick:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        _add_pick(loaded_engine, event_id, "S")
+        add_unpromoted_pick(loaded_engine, event_id, "S")
         capsys.readouterr()
         assert exit_code(f"pick promote --event {event_id} --phase S") == 0
         assert "Promoted 1 pick(s) (S: 1)." in capsys.readouterr().out
@@ -207,7 +184,7 @@ class TestPickFixes:
             app("pick match")
 
     def test_retry_takes_no_pick(self, loaded_engine: Engine, event_id: str) -> None:
-        pick_id = _add_pick(loaded_engine, event_id, None)
+        pick_id = add_unpromoted_pick(loaded_engine, event_id, None)
         with pytest.raises(ValueError, match="takes no pick"):
             app(f"pick match {pick_id} --retry")
 
@@ -249,7 +226,7 @@ class TestPickFixes:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        pick_id = _add_pick(loaded_engine, event_id, None)
+        pick_id = add_unpromoted_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         assert exit_code(f"pick remove --event {event_id} --unnamed") == 0
         assert "Dismissed 1 pick(s). Deleted 0 row(s)." in capsys.readouterr().out

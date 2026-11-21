@@ -22,11 +22,7 @@ from aimbat.models import (
     AimbatSnapshot,
 )
 
-
-def _event(session: Session) -> AimbatEvent:
-    event = session.exec(select(AimbatEvent)).first()
-    assert event is not None
-    return event
+from testsupport.project import first
 
 
 def _run_mccc(session: Session, event: AimbatEvent) -> None:
@@ -51,7 +47,7 @@ class TestStamping:
     """Values written by ICCS, MCCC and a restore match the parameters."""
 
     def test_building_iccs_stamps_iccs_cc(self, loaded_session: Session) -> None:
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         create_iccs_instance(loaded_session, event.phases[0].id)
         loaded_session.commit()
 
@@ -61,7 +57,7 @@ class TestStamping:
     def test_run_iccs_stamps_the_written_back_picks(
         self, loaded_session: Session
     ) -> None:
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         run_iccs(
             loaded_session, event.phases[0].id, iccs, autoflip=True, autoselect=True
@@ -71,7 +67,7 @@ class TestStamping:
         assert all(validity.iccs_cc(s.phase_rows[0].id) for s in event.seismograms)
 
     def test_run_mccc_records_members_and_stamps(self, loaded_session: Session) -> None:
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
         result = run_mccc(
             loaded_session, event.phases[0].id, iccs, all_seismograms=False
@@ -88,7 +84,7 @@ class TestStamping:
 
     def test_restore_stamps_the_current_digests(self, loaded_session: Session) -> None:
         """Values restored from a snapshot are valid for the restored parameters."""
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         _run_mccc(loaded_session, event)
         create_snapshot(loaded_session, event.phases[0].id)
 
@@ -107,7 +103,7 @@ class TestStamping:
         self, loaded_session: Session
     ) -> None:
         """Valid live values are kept, out-of-date ones restored."""
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         _run_mccc(loaded_session, event)
         create_snapshot(loaded_session, event.phases[0].id)
 
@@ -131,7 +127,7 @@ class TestOutOfDateValues:
     """A value that no longer matches the parameters counts as absent."""
 
     def test_readers_report_them_as_absent(self, loaded_session: Session) -> None:
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         _run_mccc(loaded_session, event)
 
         event.phases[0].parameters.window_pre -= Timedelta(seconds=1)
@@ -152,7 +148,7 @@ class TestOutOfDateValues:
         assert all(row["mccc_cc_mean"] is None for row in rows)
 
     def test_snapshot_freezes_them_as_null(self, loaded_session: Session) -> None:
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         _run_mccc(loaded_session, event)
 
         event.phases[0].parameters.window_pre -= Timedelta(seconds=1)
@@ -167,7 +163,7 @@ class TestOutOfDateValues:
         self, loaded_session: Session
     ) -> None:
         """`min_cc` is an input to nothing, so the values are still frozen."""
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         _run_mccc(loaded_session, event)
 
         event.phases[0].parameters.min_cc /= 2
@@ -183,7 +179,7 @@ class TestOutOfDateValues:
         self, loaded_session: Session
     ) -> None:
         """The parameters come back, the quality does not."""
-        event = _event(loaded_session)
+        event = first(loaded_session, AimbatEvent)
         _run_mccc(loaded_session, event)
 
         changed = event.phases[0].parameters.window_pre - Timedelta(seconds=1)

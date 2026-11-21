@@ -10,53 +10,7 @@ from pydantic import ValidationError
 from aimbat.io.json import create_event_from_json, create_station_from_json
 from aimbat.models import AimbatEvent, AimbatStation
 
-_STATION_DATA: dict[str, str | float] = {
-    "name": "ANMO",
-    "network": "IU",
-    "location": "00",
-    "channel": "BHZ",
-    "latitude": 34.9459,
-    "longitude": -106.4572,
-    "elevation": 1820.0,
-}
-
-_EVENT_DATA: dict[str, str | float] = {
-    "time": "2020-01-01T00:00:00Z",
-    "latitude": 35.0,
-    "longitude": -120.0,
-    "depth": 10.0,
-}
-
-
-@pytest.fixture()
-def station_json(tmp_path: Path) -> Path:
-    """Path to a temporary JSON file containing a station record.
-
-    Args:
-        tmp_path: The pytest tmp_path fixture.
-
-    Returns:
-        Path to the JSON station file.
-    """
-    path = tmp_path / "station.json"
-    path.write_text(json.dumps(_STATION_DATA))
-    return path
-
-
-@pytest.fixture()
-def event_json(tmp_path: Path) -> Path:
-    """Path to a temporary JSON file containing an event record.
-
-    Args:
-        tmp_path: The pytest tmp_path fixture.
-
-    Returns:
-        Path to the JSON event file.
-    """
-    path = tmp_path / "event.json"
-    path.write_text(json.dumps(_EVENT_DATA))
-    return path
-
+from testsupport.sources import EVENT_DATA, STATION_DATA
 
 # ===================================================================
 # create_station_from_json
@@ -82,13 +36,13 @@ class TestCreateStationFromJson:
             station_json: Path to a valid JSON station file.
         """
         station = create_station_from_json(station_json)
-        assert station.name == _STATION_DATA["name"]
-        assert station.network == _STATION_DATA["network"]
-        assert station.location == _STATION_DATA["location"]
-        assert station.channel == _STATION_DATA["channel"]
-        assert station.latitude == _STATION_DATA["latitude"]
-        assert station.longitude == _STATION_DATA["longitude"]
-        assert station.elevation == _STATION_DATA["elevation"]
+        assert station.name == STATION_DATA["name"]
+        assert station.network == STATION_DATA["network"]
+        assert station.location == STATION_DATA["location"]
+        assert station.channel == STATION_DATA["channel"]
+        assert station.latitude == STATION_DATA["latitude"]
+        assert station.longitude == STATION_DATA["longitude"]
+        assert station.elevation == STATION_DATA["elevation"]
 
     def test_missing_required_field_raises(self, tmp_path: Path) -> None:
         """Verifies that a JSON file missing required fields raises ValidationError.
@@ -120,7 +74,7 @@ class TestCreateStationFromJson:
     def test_utf8_content_is_read(self, tmp_path: Path) -> None:
         """Non-ASCII station names round-trip regardless of platform encoding."""
         path = tmp_path / "utf8_station.json"
-        data = {**_STATION_DATA, "name": "ÑOÑÓ"}
+        data = {**STATION_DATA, "name": "ÑOÑÓ"}
         path.write_text(json.dumps(data), encoding="utf-8")
         assert create_station_from_json(path).name == "ÑOÑÓ"
 
@@ -150,9 +104,9 @@ class TestCreateEventFromJson:
         """
         event = create_event_from_json(event_json)
         assert event.time == Timestamp("2020-01-01T00:00:00Z")
-        assert event.latitude == _EVENT_DATA["latitude"]
-        assert event.longitude == _EVENT_DATA["longitude"]
-        assert event.depth == _EVENT_DATA["depth"]
+        assert event.latitude == EVENT_DATA["latitude"]
+        assert event.longitude == EVENT_DATA["longitude"]
+        assert event.depth == EVENT_DATA["depth"]
 
     def test_missing_required_field_raises(self, tmp_path: Path) -> None:
         """Verifies that a JSON file missing required fields raises ValidationError.

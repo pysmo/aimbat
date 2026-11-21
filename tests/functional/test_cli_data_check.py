@@ -5,42 +5,15 @@ table, the JSON output and the exit status.
 """
 
 import json
-import uuid
 from collections.abc import Callable
 
 import pytest
-from pandas import Timedelta
 from sqlalchemy import Engine
-from sqlmodel import Session
-
-from aimbat.core import store_picks
-from aimbat.io import DataType, SourcePick
-from aimbat.models import AimbatEvent
 
 from testsupport.cli import exit_code
+from testsupport.project import add_unpromoted_pick
 
 type _Cli = Callable[[str | list[str]], None]
-
-
-def _add_pick(engine: Engine, event_id: str, label: str | None) -> None:
-    """Store a matched pick that is not promoted on a seismogram of the event."""
-    with Session(engine) as session:
-        event = session.get_one(AimbatEvent, uuid.UUID(event_id))
-        seismogram = sorted(event.seismograms, key=lambda s: str(s.id))[0]
-        store_picks(
-            session,
-            [
-                SourcePick(
-                    seismogram.phase_rows[0].initial_pick + Timedelta(seconds=5),
-                    "extra",
-                    label=label,
-                )
-            ],
-            source_name="extra.json",
-            source_type=DataType.SAC,
-            source_seismogram=seismogram,
-        )
-        session.commit()
 
 
 @pytest.mark.cli
@@ -60,7 +33,7 @@ class TestDataCheck:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        _add_pick(loaded_engine, event_id, None)
+        add_unpromoted_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         assert exit_code("data check") == 2
         output = capsys.readouterr().out
@@ -74,7 +47,7 @@ class TestDataCheck:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        _add_pick(loaded_engine, event_id, "S")
+        add_unpromoted_pick(loaded_engine, event_id, "S")
         assert exit_code(f"data check {event_id}") == 0
         assert "unpromoted pick" in capsys.readouterr().out
         assert exit_code(f"data check {event_id} --strict") == 2
@@ -103,7 +76,7 @@ class TestDataCheck:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        _add_pick(loaded_engine, event_id, None)
+        add_unpromoted_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         assert exit_code("data check --json") == 2
         (item,) = json.loads(capsys.readouterr().out)
@@ -117,7 +90,7 @@ class TestDataCheck:
         capsys: pytest.CaptureFixture[str],
         event_id: str,
     ) -> None:
-        _add_pick(loaded_engine, event_id, "S")
+        add_unpromoted_pick(loaded_engine, event_id, "S")
         capsys.readouterr()
         assert exit_code("data check --phase P --json") == 0
         assert json.loads(capsys.readouterr().out) == []

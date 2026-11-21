@@ -10,33 +10,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
 from aimbat.core import get_note_content, save_note
-from aimbat.models import AimbatEvent, AimbatNote, AimbatStation
+from aimbat.models import AimbatEvent, AimbatNote
 
-
-def _make_station(session: Session) -> AimbatStation:
-    sta = AimbatStation(
-        name="AAK",
-        network="II",
-        location="00",
-        channel="BHZ",
-        latitude=42.63,
-        longitude=74.49,
-    )
-    session.add(sta)
-    session.flush()
-    return sta
-
-
-def _make_event(session: Session) -> AimbatEvent:
-    ev = AimbatEvent(
-        time=Timestamp("2010-02-27T06:34:14", tz=UTC),
-        latitude=-36.12,
-        longitude=-72.90,
-    )
-    session.add(ev)
-    session.flush()
-    session.flush()
-    return ev
+from testsupport.project import add_event, add_station
 
 
 class TestAimbatNoteExactlyOneParent:
@@ -48,13 +24,13 @@ class TestAimbatNoteExactlyOneParent:
             AimbatNote.model_validate({"content": "orphan note"})
 
     def test_note_with_event_parent_is_valid(self, patched_session: Session) -> None:
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         note = AimbatNote.model_validate({"content": "event note", "event_id": ev.id})
         patched_session.add(note)
         patched_session.commit()
 
     def test_note_with_station_parent_is_valid(self, patched_session: Session) -> None:
-        sta = _make_station(patched_session)
+        sta = add_station(patched_session)
         note = AimbatNote.model_validate(
             {"content": "station note", "station_id": sta.id}
         )
@@ -105,7 +81,7 @@ class TestAimbatNoteOnePerParent:
     def test_second_note_for_same_event_is_rejected(
         self, patched_session: Session
     ) -> None:
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         patched_session.add(AimbatNote(content="first", event_id=ev.id))
         patched_session.flush()
 
@@ -116,15 +92,15 @@ class TestAimbatNoteOnePerParent:
     def test_notes_for_different_parents_are_allowed(
         self, patched_session: Session
     ) -> None:
-        ev = _make_event(patched_session)
-        sta = _make_station(patched_session)
+        ev = add_event(patched_session)
+        sta = add_station(patched_session)
 
         patched_session.add(AimbatNote(content="event note", event_id=ev.id))
         patched_session.add(AimbatNote(content="station note", station_id=sta.id))
         patched_session.commit()
 
     def test_notes_for_two_events_are_allowed(self, patched_session: Session) -> None:
-        ev1 = _make_event(patched_session)
+        ev1 = add_event(patched_session)
         ev2 = AimbatEvent(
             time=Timestamp("2011-03-11T05:46:24", tz=UTC),
             latitude=38.3,
@@ -161,7 +137,7 @@ class TestNoteCore:
         Args:
             patched_session: The database session.
         """
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         assert get_note_content(patched_session, "event", ev.id) == ""
 
         save_note(patched_session, "event", ev.id, "initial content")
@@ -174,7 +150,7 @@ class TestNoteCore:
         Args:
             patched_session: The database session.
         """
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         save_note(patched_session, "event", ev.id, "first version")
         save_note(patched_session, "event", ev.id, "second version")
 
@@ -184,7 +160,7 @@ class TestNoteCore:
         self, patched_session: Session
     ) -> None:
         """No concurrent edit: expected_previous matches what's still there."""
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         save_note(patched_session, "event", ev.id, "first version")
 
         raced = save_note(
@@ -202,7 +178,7 @@ class TestNoteCore:
         self, patched_session: Session
     ) -> None:
         """A concurrent edit changed the note after expected_previous was read."""
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         save_note(patched_session, "event", ev.id, "first version")
         save_note(patched_session, "event", ev.id, "concurrent edit")
 
@@ -221,7 +197,7 @@ class TestNoteCore:
         self, patched_session: Session
     ) -> None:
         """expected_previous of "" (no note read) but one now exists."""
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         save_note(patched_session, "event", ev.id, "concurrently created")
 
         raced = save_note(
@@ -234,7 +210,7 @@ class TestNoteCore:
         self, patched_session: Session
     ) -> None:
         """No expected_previous given: never reported as a race."""
-        ev = _make_event(patched_session)
+        ev = add_event(patched_session)
         save_note(patched_session, "event", ev.id, "first version")
         save_note(patched_session, "event", ev.id, "concurrent edit")
 

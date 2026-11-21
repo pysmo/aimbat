@@ -57,9 +57,11 @@ are cleared after each test, and no plot window opens.
 
 The test directories are not packages, so one test module cannot import from
 another. Helpers needed by more than one module live in the `tests/testsupport/`
-package instead. `testsupport.cli` runs commands and reads their output, and
-`testsupport.project` builds and reads project state. Its functions that write
-flush the session and leave the commit to the test.
+package instead. `testsupport.cli` runs commands and reads their output,
+`testsupport.project` builds and reads project state, and `testsupport.sources`
+holds the contents of data sources written by tests. Project functions that
+take a session and write flush it and leave the commit to the test. Those that
+take an engine open their own session and commit if they write.
 
 ## Rules for robust tests
 

@@ -23,7 +23,7 @@ from aimbat.core._snapshot import (
     resync_quality,
     rollback_to_snapshot,
 )
-from aimbat.core._validity import Validity, compute_digests, encode_members
+from aimbat.core._validity import Validity, compute_digests
 from aimbat.models import (
     AimbatEvent,
     AimbatPhase,
@@ -35,35 +35,7 @@ from aimbat.models import (
     AimbatSnapshot,
 )
 
-
-def _stamp(session: Session, event_id: uuid.UUID) -> None:
-    """Stamp the live quality of an event's phases as computed from their current parameters.
-
-    The MCCC run's members are taken to be the rows with MCCC values.
-    Flushes, does not commit.
-    """
-    for phase_id, digests in compute_digests(session, event_id=event_id).items():
-        rows = session.exec(
-            select(AimbatSeismogramQuality).where(
-                col(AimbatSeismogramQuality.seismogram_parameters_id).in_(
-                    list(digests.seismogram_cc)
-                )
-            )
-        ).all()
-        for row in rows:
-            row.iccs_fingerprint = digests.seismogram_cc[row.seismogram_parameters_id]
-        eq = session.exec(
-            select(AimbatPhaseQuality).where(
-                col(AimbatPhaseQuality.phase_id) == phase_id
-            )
-        ).first()
-        if eq is not None:
-            members = {
-                r.seismogram_parameters_id for r in rows if r.mccc_cc_mean is not None
-            }
-            eq.mccc_members = encode_members(members)
-            eq.mccc_fingerprint = digests.mccc(members)
-    session.flush()
+from testsupport.project import first, stamp_quality
 
 
 def _write_mock_mccc_quality(
@@ -136,7 +108,7 @@ def _write_mock_mccc_quality(
             sq.mccc_cc_std = None
         session.add(sq)
 
-    _stamp(session, event_id)
+    stamp_quality(session, event_id)
     session.commit()
 
 
@@ -150,8 +122,7 @@ def snapshot(loaded_session: Session) -> AimbatSnapshot:
     Returns:
         An AimbatSnapshot for the event.
     """
-    event = loaded_session.exec(select(AimbatEvent)).first()
-    assert event is not None
+    event = first(loaded_session, AimbatEvent)
     create_snapshot(loaded_session, event.phases[0].id)
     snapshot = loaded_session.exec(select(AimbatSnapshot)).one_or_none()
     assert snapshot is not None
@@ -168,8 +139,7 @@ class TestCreateSnapshot:
             loaded_session: The database session.
         """
         assert len(loaded_session.exec(select(AimbatSnapshot)).all()) == 0
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         assert len(loaded_session.exec(select(AimbatSnapshot)).all()) == 1
 
@@ -179,8 +149,7 @@ class TestCreateSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         assert snapshot.phase.event_id == event.id
@@ -191,8 +160,7 @@ class TestCreateSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id, comment="test comment")
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment == "test comment"
@@ -203,8 +171,7 @@ class TestCreateSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         assert snapshot.comment is None
@@ -217,8 +184,7 @@ class TestCreateSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         assert snapshot.automatic is False
@@ -229,8 +195,7 @@ class TestCreateSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id, automatic=True)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
         assert snapshot.automatic is True
@@ -243,8 +208,7 @@ class TestCreateSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         n_seismograms = len(event.seismograms)
 
         create_snapshot(loaded_session, event.phases[0].id)
@@ -260,8 +224,7 @@ class TestCreateSnapshot:
             loaded_session: The database session.
             snapshot: An AimbatSnapshot for the event.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         assert (
             snapshot.phase_parameters_snapshot.parameters_id
             == event.phases[0].parameters.id
@@ -439,8 +402,7 @@ class TestRollbackToSnapshot:
             loaded_session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         original_min_cc = snapshot.phase_parameters_snapshot.min_cc
 
         # Mutate the parameter after taking the snapshot
@@ -462,8 +424,7 @@ class TestRollbackToSnapshot:
             loaded_session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         original_select = snapshot.seismogram_parameters_snapshots[0].select
 
@@ -485,8 +446,7 @@ class TestRollbackToSnapshot:
             loaded_session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         params = event.phases[0].parameters
         snap = snapshot.phase_parameters_snapshot
 
@@ -525,8 +485,7 @@ class TestRollbackToSnapshot:
             loaded_session: The database session.
             snapshot: An AimbatSnapshot capturing the original parameters.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         params = seismogram.phase_rows[0]
         snap = next(
@@ -555,8 +514,7 @@ class TestRollbackToSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         seis_ids = [s.id for s in event.seismograms]
         select_flags = [s.phase_rows[0].select for s in event.seismograms]
@@ -596,8 +554,7 @@ class TestRollbackToSnapshot:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         seis_ids = [s.id for s in event.seismograms]
         select_flags = [s.phase_rows[0].select for s in event.seismograms]
@@ -657,8 +614,7 @@ class TestRollbackToSnapshot:
         parameter row to restore into; rollback must skip it, not crash."""
         from aimbat.core import delete_seismogram
 
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
@@ -684,8 +640,7 @@ class TestGetSnapshots:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         assert len(get_snapshots(loaded_session, event_id=event.id)) == 0
 
     def test_get_snapshots_for_event(
@@ -697,8 +652,7 @@ class TestGetSnapshots:
             loaded_session: The database session.
             snapshot: An AimbatSnapshot for the event.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         snapshots = get_snapshots(loaded_session, event_id=event.id)
         assert len(snapshots) == 1
         assert snapshots[0].id == snapshot.id
@@ -721,8 +675,7 @@ class TestGetSnapshots:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id, comment="first")
         create_snapshot(loaded_session, event.phases[0].id, comment="second")
         assert len(get_snapshots(loaded_session, event_id=event.id)) == 2
@@ -737,8 +690,7 @@ class TestSnapshotSequence:
     ) -> None:
         """Two `create_snapshot` calls in immediate succession must not collide
         (the old microsecond-unique `time` column could)."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         for _ in range(5):
             create_snapshot(loaded_session, event.phases[0].id)
         snaps = get_snapshots(loaded_session, event_id=event.id)
@@ -819,8 +771,7 @@ class TestRestore:
     """`resync_quality` restores out-of-date live quality from a matching snapshot."""
 
     def test_restores_out_of_date_values(self, loaded_session: Session) -> None:
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _seed_quality(loaded_session, event, iccs_cc=0.75)
         create_snapshot(loaded_session, event.phases[0].id)
         _make_out_of_date(loaded_session, event.id)
@@ -832,8 +783,7 @@ class TestRestore:
 
     def test_keeps_valid_values(self, loaded_session: Session) -> None:
         """Valid live values are not replaced by an older snapshot's."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _seed_quality(loaded_session, event, iccs_cc=0.75)
         create_snapshot(loaded_session, event.phases[0].id)
         for row in loaded_session.exec(select(AimbatSeismogramQuality)).all():
@@ -849,8 +799,7 @@ class TestRestore:
         self, loaded_session: Session
     ) -> None:
         """A rollback restores the snapshot it rolls back to when it matches."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _seed_quality(loaded_session, event, iccs_cc=0.75)
         create_snapshot(loaded_session, event.phases[0].id)
         preferred = max(
@@ -874,8 +823,7 @@ class TestRestore:
     ) -> None:
         """Restoring one out-of-date `iccs_cc` leaves the valid ones alone, and a
         value the snapshot did not freeze never blanks a valid one."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         kept = event.seismograms[0].phase_rows[0].id
         stale = event.seismograms[1].phase_rows[0].id
         _seed_quality(loaded_session, event, iccs_cc=0.75)
@@ -913,8 +861,7 @@ class TestRestore:
         assert validity.iccs_cc(kept) and validity.iccs_cc(stale)
 
     def test_no_match_restores_nothing(self, loaded_session: Session) -> None:
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _seed_quality(loaded_session, event, iccs_cc=0.75)
         _make_out_of_date(loaded_session, event.id)
 
@@ -922,15 +869,14 @@ class TestRestore:
 
     def test_iccs_only_snapshot_restores_iccs_cc(self, loaded_session: Session) -> None:
         """A snapshot that froze no MCCC results still restores `iccs_cc`."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         for seismogram in event.seismograms:
             loaded_session.add(
                 AimbatSeismogramQuality(
                     parameters=seismogram.phase_rows[0], iccs_cc=0.75
                 )
             )
-        _stamp(loaded_session, event.id)
+        stamp_quality(loaded_session, event.id)
         loaded_session.commit()
         create_snapshot(loaded_session, event.phases[0].id)
         _make_out_of_date(loaded_session, event.id)
@@ -946,8 +892,7 @@ class TestRestore:
     ) -> None:
         """Selection is in the instance digest, so `iccs_cc` measured under
         another selection is never restored."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         event.seismograms[0].phase_rows[0].select = False
         loaded_session.commit()
         _seed_quality(loaded_session, event, iccs_cc=0.75)
@@ -966,8 +911,7 @@ class TestRestore:
     def test_restores_without_a_live_event_quality_row(
         self, loaded_session: Session
     ) -> None:
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _seed_quality(loaded_session, event, iccs_cc=0.75)
         create_snapshot(loaded_session, event.phases[0].id)
         loaded_session.delete(
@@ -1004,8 +948,7 @@ class TestRestore:
     ) -> None:
         """The digests are taken from stored values, so a pick finer than the
         database stores does not stop the snapshot from matching."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         picked = event.seismograms[0]
         picked.phase_rows[0].refined_pick = picked.phase_rows[
             0
@@ -1028,8 +971,7 @@ class TestDumpSnapshotTable:
         self, loaded_session: Session, snapshot: AimbatSnapshot
     ) -> None:
         """Verifies that a list is returned."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         result = dump_snapshot_table(loaded_session, event_id=event.id)
         assert isinstance(result, list)
         assert len(result) == 1
@@ -1063,8 +1005,7 @@ class TestDumpSnapshotTable:
         self, loaded_session: Session, snapshot: AimbatSnapshot
     ) -> None:
         """Verifies that all events returns at least as many snapshots as single event only."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         default_only = dump_snapshot_table(loaded_session, event_id=event.id)
         all_events = dump_snapshot_table(loaded_session)
         assert len(all_events) >= len(default_only)
@@ -1096,8 +1037,7 @@ class TestDumpEventParameterSnapshotTable:
         self, loaded_session: Session, snapshot: AimbatSnapshot
     ) -> None:
         """Test dump_phase_parameter_snapshot_table filtering by event_id."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         result = dump_phase_parameter_snapshot_table(loaded_session, event_id=event.id)
         assert len(result) == 1
         assert result[0]["parameters_id"] == str(event.phases[0].parameters.id)
@@ -1146,8 +1086,7 @@ class TestDumpEventQualitySnapshotTable:
         self, loaded_session: Session
     ) -> None:
         """Test dump_phase_quality_snapshot_table filtering by event_id."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -1166,8 +1105,7 @@ class TestDumpEventQualitySnapshotTable:
 
     def test_dump_phase_quality_snapshot_table(self, loaded_session: Session) -> None:
         """Test dump_phase_quality_snapshot_table with quality data."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -1191,8 +1129,7 @@ class TestDumpSeismogramQualitySnapshotTable:
         self, loaded_session: Session
     ) -> None:
         """Test dump_seismogram_quality_snapshot_table filtering by event_id."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -1214,8 +1151,7 @@ class TestDumpSeismogramQualitySnapshotTable:
         self, loaded_session: Session
     ) -> None:
         """Test dump_seismogram_quality_snapshot_table with exclude."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -1233,8 +1169,7 @@ class TestDumpSeismogramQualitySnapshotTable:
         self, loaded_session: Session
     ) -> None:
         """Test dump_seismogram_quality_snapshot_table with quality data."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         _write_mock_mccc_quality(
             loaded_session,
             event.id,
@@ -1262,8 +1197,7 @@ class TestSnapshotMcccQualityRecords:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         # Deselect one seismogram so the distinction between modes is meaningful.
         event.seismograms[0].phase_rows[0].select = False
         loaded_session.commit()
@@ -1290,8 +1224,7 @@ class TestSnapshotMcccQualityRecords:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         # Deselect one seismogram.
         event.seismograms[0].phase_rows[0].select = False
         loaded_session.commit()
@@ -1324,8 +1257,7 @@ class TestLiveQualityTable:
         from aimbat.core._iccs import clear_iccs_cache, create_iccs_instance
 
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_iccs_instance(loaded_session, event.phases[0].id)
 
         for seis in event.seismograms:
@@ -1345,8 +1277,7 @@ class TestLiveQualityTable:
         from aimbat.core._iccs import clear_iccs_cache, create_iccs_instance
 
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         create_iccs_instance(loaded_session, event.phases[0].id)
         seis = event.seismograms[0]
@@ -1370,8 +1301,7 @@ class TestLiveQualityTable:
         from aimbat.core._iccs import clear_iccs_cache, create_iccs_instance
 
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # Write ICCS stats to the live quality table first.
         create_iccs_instance(loaded_session, event.phases[0].id)
@@ -1402,8 +1332,7 @@ class TestLiveQualityTable:
         from aimbat.core._iccs import clear_iccs_cache
 
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # Create snapshot with no prior ICCS run (live table is empty).
         create_snapshot(loaded_session, event.phases[0].id)
@@ -1420,8 +1349,7 @@ class TestDumpSnapshotResults:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
@@ -1436,8 +1364,7 @@ class TestDumpSnapshotResults:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
@@ -1463,8 +1390,7 @@ class TestDumpSnapshotResults:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
@@ -1493,8 +1419,7 @@ class TestDumpSnapshotResults:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
@@ -1511,8 +1436,7 @@ class TestDumpSnapshotResults:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
@@ -1532,8 +1456,7 @@ class TestDumpSnapshotResults:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seis_ids = [s.id for s in event.seismograms]
         select_flags = [s.phase_rows[0].select for s in event.seismograms]
         _write_mock_mccc_quality(
@@ -1566,8 +1489,7 @@ class TestDumpSnapshotResults:
         Args:
             loaded_session: The database session.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
 
@@ -1619,8 +1541,7 @@ class TestResyncQuality:
         )
         from aimbat.types import PhaseParameter, SeismogramParameter
 
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         seismogram = event.seismograms[0]
         phase_id = event.phases[0].id
         window_pre = event.phases[0].parameters.window_pre

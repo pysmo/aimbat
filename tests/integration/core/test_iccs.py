@@ -30,6 +30,8 @@ from aimbat.models import (
     AimbatSnapshot,
 )
 
+from testsupport.project import first
+
 
 class TestIccsMcccInterplay:
     """Tests for ICCS alignment affecting MCCC quality stats."""
@@ -40,8 +42,7 @@ class TestIccsMcccInterplay:
         """Verifies that running ICCS leaves MCCC stats out of date if t1 changed."""
         from pandas import Timedelta
 
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # 1. Run MCCC to populate quality stats
         iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
@@ -92,8 +93,7 @@ class TestIccsMcccInterplay:
 
         from aimbat.models import AimbatPhaseQuality
 
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # 1. Run ICCS first to ensure alignment
         iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
@@ -159,8 +159,7 @@ class TestIccsMcccInterplay:
         """
         from pandas import Timedelta
 
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         # 1. Run ICCS to populate iccs_cc
         iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
@@ -199,8 +198,7 @@ class TestIccsMcccInterplay:
         stack change), so `run_iccs` must refresh the autoselect threshold on
         the instance before running - otherwise an autoselect run uses the
         stale value baked in at construction."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         assert iccs_bound.iccs.min_cc == event.phases[0].parameters.min_cc
@@ -234,8 +232,7 @@ class TestCcStats:
         """Verifies n_all/n_selected track the ICCS instance's seismograms
         and that deselecting one drops it from the selected stats only.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         iccs = iccs_bound.iccs
@@ -255,8 +252,7 @@ class TestCcStats:
 
     def test_sem_is_none_for_single_value(self, loaded_session: Session) -> None:
         """Verifies SEM is None when fewer than two values are available."""
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         iccs_bound = create_iccs_instance(loaded_session, event.phases[0].id)
         iccs = iccs_bound.iccs
@@ -376,8 +372,7 @@ class TestCachedInstanceAfterWriteBack:
 
     def test_run_keeps_the_cached_instance(self, loaded_session: Session) -> None:
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         bound = create_iccs_instance(loaded_session, event.phases[0].id)
 
         run_iccs(
@@ -394,8 +389,7 @@ class TestCachedInstanceAfterWriteBack:
         """Rolling back to the parameters the instance was built from must not
         return the instance with the aligned picks."""
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         bound = create_iccs_instance(loaded_session, event.phases[0].id)
         create_snapshot(loaded_session, event.phases[0].id)
         snapshot = loaded_session.exec(select(AimbatSnapshot)).one()
@@ -422,8 +416,7 @@ class TestCachedInstanceAfterWriteBack:
         """A parameter changed behind the instance's back keeps it stale after
         a write-back."""
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         bound = create_iccs_instance(loaded_session, event.phases[0].id)
         event.phases[0].parameters.window_pre = event.phases[
             0
@@ -448,8 +441,7 @@ class TestCachedInstanceAfterInitialPickEdit:
     @pytest.mark.parametrize("refined", [False, True], ids=["unrefined", "refined"])
     def test_edit(self, loaded_session: Session, refined: bool) -> None:
         clear_iccs_cache()
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         row = event.seismograms[0].phase_rows[0]
         if refined:
             row.refined_pick = row.initial_pick
@@ -480,8 +472,7 @@ class TestBuildIccsFromSnapshot:
         """
         from pandas import Timedelta
 
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         original_window_pre = event.phases[0].parameters.window_pre
 
@@ -509,8 +500,7 @@ class TestBuildIccsFromSnapshot:
         Args:
             loaded_session: The database session with data loaded.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
 
         seis = event.seismograms[0]
         original_select = seis.phase_rows[0].select
@@ -543,8 +533,7 @@ class TestSyncIccsParameters:
         Args:
             loaded_session: The database session with data loaded.
         """
-        event = loaded_session.exec(select(AimbatEvent)).first()
-        assert event is not None
+        event = first(loaded_session, AimbatEvent)
         iccs = create_iccs_instance(loaded_session, event.phases[0].id).iccs
 
         seis = event.seismograms[0]
@@ -580,8 +569,7 @@ class TestQualityWriteTransaction:
         """
         clear_iccs_cache()
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             create_iccs_instance(session, event.phases[0].id)
             assert any(
                 q.iccs_cc is not None
@@ -610,8 +598,7 @@ class TestQualityWriteTransaction:
 
         clear_iccs_cache()
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             create_iccs_instance(session, event.phases[0].id)
             assert event.phases[0].id in core_iccs._iccs_cache
             session.rollback()
@@ -636,8 +623,7 @@ class TestQualityWriteTransaction:
 
         clear_iccs_cache()
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             create_iccs_instance(session, event.phases[0].id)
             session.commit()
             session.rollback()
@@ -660,8 +646,7 @@ class TestQualityWriteTransaction:
 
         clear_iccs_cache()
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             create_iccs_instance(session, event.phases[0].id)
             session.commit()
             before = {
@@ -680,15 +665,13 @@ class TestQualityWriteTransaction:
 
         clear_iccs_cache()
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             iccs = create_iccs_instance(session, event.phases[0].id).iccs
             with pytest.raises(RuntimeError, match="quality write failed"):
                 run_mccc(session, event.phases[0].id, iccs, all_seismograms=True)
 
         with Session(loaded_engine) as session:
-            event = session.exec(select(AimbatEvent)).first()
-            assert event is not None
+            event = first(session, AimbatEvent)
             assert {
                 s.id: s.phase_rows[0].refined_pick for s in event.seismograms
             } == picks_before
