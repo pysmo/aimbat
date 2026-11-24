@@ -30,6 +30,7 @@ from ._picks import (
     _is_promoted,
     _phase_of,
     _row_of,
+    _warn_nonstandard_phase,
     find_event,
     pick_states,
     promote_picks,
@@ -293,7 +294,8 @@ def name_picks(
     """Give picks a phase name, and promote those that are matched.
 
     Phases missing for the picks are created. The labels the picks were read
-    with are kept.
+    with are kept. A name that is not a standard phase name is accepted with
+    a warning.
 
     Args:
         session: Database session.
@@ -321,7 +323,9 @@ def name_picks(
         pick.phase_name = name
         session.add(pick)
     session.flush()
-    return promote_picks(session, picks)
+    report = promote_picks(session, picks)
+    _warn_nonstandard_phase(report, name)
+    return report
 
 
 def promote_phase_picks(
@@ -486,7 +490,8 @@ def match_pick(session: Session, pick_id: UUID, seismogram_id: UUID) -> Promotio
     session.add(pick)
     session.flush()
     report = promote_picks(session, [pick])
-    return replace(report, warnings=_code_warnings(pick, seismogram))
+    report.warnings.extend(_code_warnings(pick, seismogram))
+    return report
 
 
 def retry_pick_matching(

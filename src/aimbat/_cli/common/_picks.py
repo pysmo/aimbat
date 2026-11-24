@@ -84,6 +84,7 @@ def print_pick_summary(picks: PickSummary, snapshotted_phases: int) -> None:
         + "."
         for event_id, names in created.items()
     )
+    lines.extend(f"Warning: {warning}" for warning in picks.warnings)
     if snapshotted_phases:
         lines.append(f"Snapshotted {snapshotted_phases} phase(s).")
 

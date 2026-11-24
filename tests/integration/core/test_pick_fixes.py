@@ -298,6 +298,16 @@ class TestMatchPick:
         (warning,) = report.warnings
         assert "'GHI'" in warning and "'DEF'" in warning
 
+    def test_code_warning_kept_with_a_phase_name_warning(
+        self, project: _Project
+    ) -> None:
+        pick = _coded_pick(project.session, "m", "GHI", label="Pdiff")
+        report = match_pick(project.session, pick.id, project.def_.id)
+        assert [phase.name for phase in report.phases_created] == ["Pdiff"]
+        phase_warning, code_warning = report.warnings
+        assert "'Pdiff'" in phase_warning
+        assert "'GHI'" in code_warning and "'DEF'" in code_warning
+
     def test_seismogram_of_another_event_refused(self, project: _Project) -> None:
         other = add_event(project.session, ORIGIN + Timedelta(days=1))
         seismogram = add_seismogram(project.session, other, name="XYZ")

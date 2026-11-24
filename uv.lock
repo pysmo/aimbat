@@ -2303,8 +2303,8 @@ wheels = [
 
 [[package]]
 name = "pysmo"
-version = "1.0.0.dev273+g325a5c088"
-source = { git = "https://github.com/pysmo/pysmo?rev=main#325a5c0886673c860cada2dac0ef589edc52e227" }
+version = "1.0.0.dev280+geabecd4fc"
+source = { git = "https://github.com/pysmo/pysmo?rev=main#eabecd4fc2c2a3a74581d787d44d5f1734ebce78" }
 dependencies = [
     { name = "annotated-types" },
     { name = "attrs" },

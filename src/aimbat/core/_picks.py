@@ -20,6 +20,8 @@ from uuid import UUID
 from pandas import Timedelta, Timestamp
 from sqlmodel import Session, col, or_, select
 
+from pysmo.tools.traveltime import is_standard_phase
+
 from aimbat import settings
 from aimbat.io import (
     DataType,
@@ -895,7 +897,9 @@ def promote_picks(
     Picks are taken in order of source, then key. `phases` sets the phases
     that may gain rows: every phase if `True`, only existing phases if
     `False`, or only the phases named. A missing phase that is allowed is
-    created. A pick that fails `validate_pick` is not promoted. A pick whose
+    created, with a warning if its name is not a standard phase name
+    ([`is_standard_phase`][pysmo.tools.traveltime.is_standard_phase]). A
+    pick that fails `validate_pick` is not promoted. A pick whose
     seismogram already has a row for the phase is redundant if that row's
     pick has the same time, and a conflict otherwise.
 
@@ -947,6 +951,7 @@ def promote_picks(
             )
             session.add(phase)
             report.phases_created.append(phase)
+            _warn_nonstandard_phase(report, pick.phase_name)
         phases_seen[phase_key] = phase
 
         row_key = (seismogram.id, phase.id)
@@ -964,6 +969,16 @@ def promote_picks(
 
     session.flush()
     return report
+
+
+def _warn_nonstandard_phase(report: PromotionReport, phase_name: str) -> None:
+    """Warn in the report and the log, once, if pysmo does not list the phase name."""
+    if is_standard_phase(phase_name):
+        return
+    message = f"Phase name {phase_name!r} is not in the IASPEI standard phase list."
+    if message not in report.warnings:
+        logger.warning(message)
+        report.warnings.append(message)
 
 
 # ----------------------------------------------------------------------------

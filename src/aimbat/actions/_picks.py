@@ -101,6 +101,8 @@ class PickSummary:
     """Picks not promoted because their phase is not among those allowed."""
     invalid: list[UUID] = field(default_factory=list)
     """Picks not promoted because they fail the pick checks."""
+    warnings: list[str] = field(default_factory=list)
+    """Things the caller should know about, which did not stop the change."""
 
     @property
     def total_promoted(self) -> int:
@@ -142,6 +144,7 @@ class PickSummary:
             conflicts=[p.id for p in promotion.conflicts],
             unpromoted=[p.id for p in promotion.unpromoted],
             invalid=[p.id for p in promotion.invalid],
+            warnings=list(promotion.warnings),
         )
 
 
