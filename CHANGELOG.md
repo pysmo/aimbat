@@ -133,6 +133,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - [**breaking**] Process each phase of an event separately
 - **(tui)** Select a phase of the selected event
 - Warn on phase names not in the IASPEI standard list
+- Unique station codes and one seismogram per station and event
 
 ### 🧪 Testing
 
