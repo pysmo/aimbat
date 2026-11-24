@@ -67,14 +67,13 @@ def cli_project_info(
     from rich.panel import Panel
     from rich.table import Table
     from sqlalchemy.exc import NoResultFound
-    from sqlmodel import Session, func, select
+    from sqlmodel import Session, col, func, select
 
     from aimbat.core import (
         AmbiguousPhaseError,
         get_completed_events,
         get_completed_phases,
         get_selected_rows,
-        get_stations_in_event,
         resolve_event,
         resolve_phase,
     )
@@ -88,7 +87,7 @@ def cli_project_info(
         )
 
     def _count(
-        model: type[AimbatEvent | AimbatPhase | AimbatSeismogram | AimbatStation],
+        model: type[AimbatEvent | AimbatPhase | AimbatSeismogram],
     ) -> int:
         return session.exec(select(func.count()).select_from(model)).one()
 
@@ -106,11 +105,19 @@ def cli_project_info(
         completed_events = len(get_completed_events(session))
         phases = _count(AimbatPhase)
         completed_phases = len(get_completed_phases(session))
-        stations = _count(AimbatStation)
+        sites = session.exec(
+            select(
+                func.count(
+                    func.distinct(
+                        col(AimbatStation.network) + "." + col(AimbatStation.name)
+                    )
+                )
+            )
+        ).one()
         seismograms = _count(AimbatSeismogram)
 
         target_event_id = None
-        active_stations = None
+        active_sites = None
         seismograms_in_event = None
         phase_name = None
         seismograms_in_phase = None
@@ -118,7 +125,7 @@ def cli_project_info(
         try:
             target_event = resolve_event(session, event_id)
             target_event_id = target_event.id
-            active_stations = len(get_stations_in_event(session, target_event.id))
+            active_sites = target_event.site_count
             seismograms_in_event = len(target_event.seismograms)
             target_phase = resolve_phase(session, target_event.id, phase)
             phase_name = target_phase.name
@@ -141,8 +148,8 @@ def cli_project_info(
         grid.add_row("Selected Event ID: ", _fmt(target_event_id))
         grid.add_row("Selected Phase: ", _fmt(phase_name))
         grid.add_row(
-            "Number of Stations in Project (total/selected event): ",
-            f"({stations}/{_fmt(active_stations)})",
+            "Number of Sites in Project (total/selected event): ",
+            f"({sites}/{_fmt(active_sites)})",
         )
         grid.add_row(
             "Number of Seismograms in Project (total/selected event): ",

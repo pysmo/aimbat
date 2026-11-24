@@ -672,6 +672,44 @@ class TestUniqueConstraints:
         events = patched_session.exec(select(AimbatEvent)).all()
         assert len(events) == 2
 
+    def test_duplicate_station_codes_rejected(self, patched_session: Session) -> None:
+        """Two stations with the same four codes raise an IntegrityError."""
+        from sqlalchemy.exc import IntegrityError
+
+        for _ in range(2):
+            patched_session.add(
+                AimbatStation(
+                    name="ABC",
+                    network="XX",
+                    location="00",
+                    channel="BHZ",
+                    latitude=0.0,
+                    longitude=0.0,
+                )
+            )
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
+    def test_second_seismogram_of_a_station_rejected(
+        self, patched_session: Session
+    ) -> None:
+        """Two seismograms of one event and station raise an IntegrityError."""
+        from sqlalchemy.exc import IntegrityError
+
+        event = _make_event(patched_session)
+        station = add_station(patched_session)
+        for _ in range(2):
+            patched_session.add(
+                AimbatSeismogram(
+                    begin_time=Timestamp("2010-02-27T06:30:00", tz=UTC),
+                    delta=Timedelta(seconds=0.05),
+                    event=event,
+                    station=station,
+                )
+            )
+        with pytest.raises(IntegrityError):
+            patched_session.flush()
+
 
 class TestOneToOneLinkConstraints:
     """The parameters/quality tables are one row per parent - a unique index
@@ -796,7 +834,7 @@ class TestCountColumnPropertiesMatchTypeCheckingStubs:
         [
             (
                 AimbatEvent,
-                {"seismogram_count", "station_count", "phase_count", "snapshot_count"},
+                {"seismogram_count", "site_count", "phase_count", "snapshot_count"},
             ),
             (AimbatPhase, {"snapshot_count"}),
             (AimbatStation, {"seismogram_count", "event_count"}),

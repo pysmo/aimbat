@@ -1,6 +1,7 @@
 """Integration tests for count properties and cascade deletes in AIMBAT models."""
 
 import pytest
+from sqlalchemy import Engine
 from sqlmodel import Session, select
 
 from aimbat.core._snapshot import create_snapshot
@@ -14,7 +15,7 @@ from aimbat.models import (
     AimbatSnapshot,
 )
 
-from testsupport.project import first
+from testsupport.project import add_event, add_seismogram, first
 
 
 @pytest.fixture
@@ -72,14 +73,29 @@ class TestEventCounts:
         """
         assert event.seismogram_count == len(event.seismograms)
 
-    def test_event_station_count(self, event: AimbatEvent) -> None:
-        """Verifies that station_count reflects the number of unique stations.
+    def test_event_site_count(self, event: AimbatEvent) -> None:
+        """Verifies that site_count reflects the number of sites.
 
         Args:
             event: An AimbatEvent instance.
         """
-        unique_stations = {s.station_id for s in event.seismograms}
-        assert event.station_count == len(unique_stations)
+        sites = {(s.station.network, s.station.name) for s in event.seismograms}
+        assert event.site_count == len(sites)
+
+
+class TestSiteCount:
+    """`site_count` counts sites, not channels."""
+
+    def test_three_components_are_one_site(self, engine: Engine) -> None:
+        with Session(engine) as session:
+            event = add_event(session)
+            for channel in ("BHZ", "BHN", "BHE"):
+                add_seismogram(session, event, name="ABC", channel=channel)
+            add_seismogram(session, event, name="DEF")
+            session.commit()
+            session.refresh(event)
+            assert event.seismogram_count == 4
+            assert event.site_count == 2
 
 
 class TestSnapshotCounts:

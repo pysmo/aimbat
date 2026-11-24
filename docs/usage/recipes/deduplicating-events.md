@@ -12,7 +12,8 @@ beyond `event_duplicate_raise_tolerance`, silently creates a separate
 times that differ by more than that, they end up as separate records. The
 script below detects such near-duplicates, merges their seismograms into the
 record with the most data, averages the location and depth, and removes the
-extras.
+extras. An event holds one seismogram per station, so a seismogram of a station
+the kept record already holds is removed with its event.
 
 ```python
 --8<-- "docs/snippets/api_deduplicate.py"

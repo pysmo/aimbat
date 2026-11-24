@@ -69,6 +69,46 @@ class TestAddDataToProject:
             ).one()
             assert seismogram_filename == str(sac_file_good)
 
+    def test_copy_of_a_source_refused(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """A second source for a station and event already held is refused."""
+        add_data_to_project(patched_session, [sac_file_good], data_type=DataType.SAC)
+        copy = tmp_path / "copy.sac"
+        shutil.copy(sac_file_good, copy)
+        with pytest.raises(ValueError, match="one seismogram per station") as excinfo:
+            add_data_to_project(patched_session, [copy], data_type=DataType.SAC)
+        assert str(sac_file_good) in str(excinfo.value)
+        assert str(copy) in str(excinfo.value)
+        assert len(patched_session.exec(select(AimbatSeismogram)).all()) == 1
+
+    def test_copy_refused_in_a_new_session(
+        self, sac_file_good: Path, patched_engine: Engine, tmp_path: Path
+    ) -> None:
+        """The refusal also holds when the existing seismogram is not loaded yet."""
+        with Session(patched_engine) as session:
+            add_data_to_project(session, [sac_file_good], data_type=DataType.SAC)
+            session.commit()
+        copy = tmp_path / "copy.sac"
+        shutil.copy(sac_file_good, copy)
+        with (
+            Session(patched_engine) as session,
+            pytest.raises(ValueError, match="one seismogram per station") as excinfo,
+        ):
+            add_data_to_project(session, [copy], data_type=DataType.SAC)
+        assert str(sac_file_good) in str(excinfo.value)
+
+    def test_copy_in_the_same_call_refused(
+        self, sac_file_good: Path, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """Two sources for one station and event in one call are refused."""
+        copy = tmp_path / "copy.sac"
+        shutil.copy(sac_file_good, copy)
+        with pytest.raises(ValueError, match="one seismogram per station"):
+            add_data_to_project(
+                patched_session, [sac_file_good, copy], data_type=DataType.SAC
+            )
+
     def test_add_multiple_sac_files(
         self, multi_event_data: list[Path], patched_session: Session
     ) -> None:
@@ -321,6 +361,9 @@ class TestNearDuplicateEventDetection:
     ) -> Path:
         """Copy `source` to `tmp_path/name`, shifting its event time.
 
+        The copy gets another station code, so a reused event does not hold
+        two seismograms of one station.
+
         Args:
             source: Path to the SAC file to copy.
             tmp_path: Directory to copy into.
@@ -334,6 +377,7 @@ class TestNearDuplicateEventDetection:
         shutil.copy(source, new_path)
         sac = SAC.from_file(new_path)
         sac.event.time = sac.event.time + Timedelta(seconds=shift_seconds)
+        sac.station.name = "COPY"
         sac.write(new_path)
         return new_path
 
@@ -1223,12 +1267,31 @@ class TestAddSeismogramsToProject:
     ) -> None:
         """Two triples for the same station reuse one AimbatStation row."""
         first = self._triple(begin_time=Timestamp("2020-01-01T00:00:00Z"))
-        second = self._triple(begin_time=Timestamp("2020-01-01T01:00:00Z"))
+        second = self._triple(
+            begin_time=Timestamp("2020-01-01T01:00:00Z"),
+            event=MiniEvent(
+                time=Timestamp("2020-07-01T00:00:00Z"),
+                latitude=35.0,
+                longitude=-120.0,
+                depth=10.0,
+            ),
+        )
 
         add_seismograms_to_project(patched_session, [first, second], data_dir=tmp_path)
 
         assert len(patched_session.exec(select(AimbatStation)).all()) == 1
         assert len(patched_session.exec(select(AimbatSeismogram)).all()) == 2
+
+    def test_second_triple_of_a_station_refused(
+        self, patched_session: Session, tmp_path: Path
+    ) -> None:
+        """Two triples for one station and event are refused."""
+        first = self._triple(begin_time=Timestamp("2020-01-01T00:00:00Z"))
+        second = self._triple(begin_time=Timestamp("2020-01-01T01:00:00Z"))
+        with pytest.raises(ValueError, match="one seismogram per station"):
+            add_seismograms_to_project(
+                patched_session, [first, second], data_dir=tmp_path
+            )
 
     def test_two_triples_sharing_event_link_to_one_event(
         self, patched_session: Session, tmp_path: Path

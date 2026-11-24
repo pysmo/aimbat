@@ -106,15 +106,6 @@ GOLDEN_STACK_PAYLOAD = (
 
 def _golden_event(*, with_seismograms: bool = True) -> AimbatEvent:
     """Build the ORM objects that store as `GOLDEN_INPUTS`."""
-    station = AimbatStation(
-        name="STA",
-        network="NW",
-        location="00",
-        channel="BHZ",
-        latitude=10.0,
-        longitude=20.0,
-        elevation=30.0,
-    )
     event = AimbatEvent(
         time=Timestamp("2011-03-11T05:46:24Z"),
         latitude=38.3,
@@ -147,7 +138,15 @@ def _golden_event(*, with_seismograms: bool = True) -> AimbatEvent:
             begin_time=Timestamp("2011-03-11T05:50:00Z"),
             delta=Timedelta(seconds=0.05),
         )
-        seismogram.station = station
+        seismogram.station = AimbatStation(
+            name=f"STA{row_id.hex[-1]}",
+            network="NW",
+            location="00",
+            channel="BHZ",
+            latitude=10.0,
+            longitude=20.0,
+            elevation=30.0,
+        )
         pick = AimbatPick(
             time=Timestamp("2011-03-11T05:58:00Z"),
             phase_name="P",
