@@ -16,6 +16,7 @@ from aimbat import actions
 from aimbat.core import PickNaming, PickSelection, store_picks
 from aimbat.core._validity import compute_digests
 from aimbat.io import DataType, SourcePick
+from aimbat.logger import logger
 from aimbat.models import (
     AimbatEvent,
     AimbatPhase,
@@ -72,6 +73,7 @@ class TestNamePicks:
         assert sorted(result.picks) == sorted(ids)
         assert result.promoted == {"S": len(ids)}
         assert [phase.name for phase in result.phases_created] == ["S"]
+        assert result.warnings == []
         assert result.snapshotted_phase_ids == [result.phases_created[0].phase_id]
         assert _count(loaded_engine, AimbatSnapshot) == snapshots + 1
         with Session(loaded_engine) as session:
@@ -105,6 +107,23 @@ class TestNamePicks:
         with Session(loaded_engine) as session:
             assert all(session.get_one(AimbatPick, i).phase_name is None for i in ids)
 
+    def test_nonstandard_name_warned_once(self, loaded_engine: Engine) -> None:
+        event_id, ids = _add_picks(loaded_engine, None)
+        messages: list[str] = []
+        sink = logger.add(messages.append, level="WARNING", format="{message}")
+        try:
+            result = actions.name_picks(
+                PickSelection(event_id=event_id, unnamed=True),
+                "Pdiff",
+                engine=loaded_engine,
+            )
+        finally:
+            logger.remove(sink)
+        assert result.promoted == {"Pdiff": len(ids)}
+        assert len(result.warnings) == 1
+        assert "'Pdiff'" in result.warnings[0]
+        assert [m.strip() for m in messages] == result.warnings
+
     def test_promoted_picks_refused(self, loaded_engine: Engine) -> None:
         event_id, _ = _add_picks(loaded_engine, None)
         with pytest.raises(ValueError, match="Promoted picks keep"):
@@ -122,6 +141,14 @@ class TestPromote:
         assert sorted(result.picks) == sorted(ids)
         assert len(result.phases_created) == 1
         assert result.snapshotted_phase_ids == [result.phases_created[0].phase_id]
+        assert result.warnings == []
+
+    def test_nonstandard_phase_warned(self, loaded_engine: Engine) -> None:
+        _add_picks(loaded_engine, "Pdiff")
+        result = actions.promote_phase_picks("all", "Pdiff", engine=loaded_engine)
+        assert len(result.phases_created) == 1
+        assert len(result.warnings) == 1
+        assert "'Pdiff'" in result.warnings[0]
 
     def test_unknown_event_refused(self, loaded_engine: Engine) -> None:
         with pytest.raises(NoResultFound):
@@ -266,6 +293,15 @@ class TestAddPicks:
         assert result.picks.promoted == {"S": 1}
         assert [phase.name for phase in result.picks.phases_created] == ["S"]
         assert len(result.snapshotted_phase_ids) == 1
+        assert result.picks.warnings == []
+
+    def test_nonstandard_phase_warned(self, loaded_engine: Engine) -> None:
+        source = _first_source(loaded_engine)
+        _add_header(source.path, "t5", Timedelta(seconds=40), "Pdiff")
+        result = actions.add_picks([source.path], engine=loaded_engine)
+        assert result.picks.promoted == {"Pdiff": 1}
+        assert len(result.picks.warnings) == 1
+        assert "'Pdiff'" in result.picks.warnings[0]
 
     def test_dry_run_changes_nothing(self, loaded_engine: Engine) -> None:
         source = _first_source(loaded_engine)

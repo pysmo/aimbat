@@ -29,6 +29,11 @@ to an initial pick in a phase of that name, which happens during an import (see
 identifies the same seismic phase in every event, so `P` names the P phase of
 each event that has one.
 
+Any phase name is accepted. A name missing from the IASPEI standard phase list
+([`is_standard_phase`][pysmo.tools.traveltime.is_standard_phase]) produces a
+warning when a phase is created with it, or when `aimbat pick name` gives it to
+picks.
+
 A new phase takes its parameters from the current AIMBAT settings, the same for
 every phase name. A setting changed in the configuration therefore applies to
 phases created afterwards, not to existing ones. The settings and their defaults
