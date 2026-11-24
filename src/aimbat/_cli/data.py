@@ -270,7 +270,9 @@ def cli_data_add(
     the end.
 
     Station and event deduplication is automatic: if a matching record already
-    exists it is reused. Re-running `data add` on the same files is safe.
+    exists it is reused. Re-running `data add` on the same files is safe. An
+    event holds one seismogram per station, so a second data source for the
+    same station and event is refused.
 
     Use `--dry-run` to preview what would be added without touching the
     database. Use `--no-snapshot` to skip the automatic post-ingestion

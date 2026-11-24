@@ -94,7 +94,16 @@ def first[T: SQLModel](session: Session, model: type[T]) -> T:
 def add_station(
     session: Session, *, name: str = "ABC", channel: str = "BHZ"
 ) -> AimbatStation:
-    """Add station `name` of network XX, location 00."""
+    """Add station `name` of network XX, location 00, or return the one stored."""
+    existing = session.exec(
+        select(AimbatStation)
+        .where(AimbatStation.network == "XX")
+        .where(AimbatStation.name == name)
+        .where(AimbatStation.location == "00")
+        .where(AimbatStation.channel == channel)
+    ).one_or_none()
+    if existing is not None:
+        return existing
     station = AimbatStation(
         name=name,
         network="XX",

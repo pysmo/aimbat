@@ -243,6 +243,38 @@ def _refuse_relink_with_rows(seismogram: AimbatSeismogram, event: AimbatEvent) -
         )
 
 
+def _refuse_second_source(
+    session: Session,
+    seismogram: AimbatSeismogram,
+    station: AimbatStation,
+    event: AimbatEvent,
+    sourcename: str,
+) -> None:
+    """Raise if the event already has a seismogram of the station from another source."""
+    # The new seismogram is pending without station and event, so any flush,
+    # including one from a lazy load, would fail.
+    with session.no_autoflush:
+        existing = session.exec(
+            select(AimbatSeismogram.id, AimbatDataSource.sourcename)
+            .join(AimbatDataSource)
+            .where(AimbatSeismogram.event_id == event.id)
+            .where(AimbatSeismogram.station_id == station.id)
+            .where(AimbatSeismogram.id != seismogram.id)
+        ).first()
+        if existing is None:
+            return
+        existing_id, existing_source = existing
+        stream = (
+            f"{station.network}.{station.name}.{station.location}.{station.channel}"
+        )
+        message = (
+            f"Seismogram {existing_id} from {existing_source} already holds "
+            + f"{stream} for event {event.time}, so {sourcename} is not added. "
+            + "An event has one seismogram per station."
+        )
+    raise ValueError(message)
+
+
 @dataclass(frozen=True, slots=True)
 class IngestReport:
     """What an ingestion call added or reused, and what became of its picks."""
@@ -418,7 +450,8 @@ def _process_datasource(
             falls in the "ambiguous gap" band between
             `settings.event_duplicate_tolerance` and
             `settings.event_duplicate_raise_tolerance` (raised regardless of
-            `dry_run`).
+            `dry_run`), or if the event already has a seismogram of the
+            station from another data source.
     """
 
     duplicate_warning: str | None = None
@@ -486,6 +519,9 @@ def _process_datasource(
 
     aimbat_seismogram = _link_seismogram(session, records.seismogram, str(datasource))
     _refuse_relink_with_rows(aimbat_seismogram, aimbat_event)
+    _refuse_second_source(
+        session, aimbat_seismogram, aimbat_station, aimbat_event, str(datasource)
+    )
     # TODO: perhaps updating station/event info from the source should be optional
     aimbat_seismogram.station = aimbat_station
     aimbat_seismogram.event = aimbat_event
@@ -615,8 +651,9 @@ def add_data_to_project(
 
     Raises:
         ValueError: If a near-duplicate event falls in the "ambiguous gap"
-            band (see above), or a name in `phases` is not a valid phase
-            name.
+            band (see above), a name in `phases` is not a valid phase name,
+            or a data source gives a station for which the event already has
+            a seismogram from another data source.
 
     Anything raised while a data source is being processed carries a
     `Data source: <name>` note identifying it, which
@@ -801,8 +838,9 @@ def add_seismograms_to_project(
 
     Raises:
         ValueError: If a near-duplicate event falls in the "ambiguous gap"
-            band (see `add_data_to_project`), or a name in `phases` is not a
-            valid phase name.
+            band (see `add_data_to_project`), a name in `phases` is not a
+            valid phase name, or a triple gives a station for which the event
+            already has a seismogram.
 
     Note:
         Miniseed files are written to `data_dir` before the caller commits.
@@ -875,6 +913,9 @@ def add_seismograms_to_project(
                     session, new_aimbat_seismogram, sourcename
                 )
                 _refuse_relink_with_rows(aimbat_seismogram, aimbat_event)
+                _refuse_second_source(
+                    session, aimbat_seismogram, aimbat_station, aimbat_event, sourcename
+                )
                 aimbat_seismogram.station = aimbat_station
                 aimbat_seismogram.event = aimbat_event
 

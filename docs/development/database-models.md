@@ -15,7 +15,12 @@ erDiagram
 ```
 
 - An event is identified by its origin time, which is unique within a project.
-- A seismogram belongs to exactly one event and one station.
+- A station is one recording stream, identified by its network, station,
+    location and channel codes, which are unique together. The stations that
+    share a network and station code form a site, which has no table of its
+    own; `site_count` counts them.
+- A seismogram belongs to exactly one event and one station. An event has at
+    most one seismogram per station, which a unique constraint enforces.
 - `AimbatDataSource` records where the waveform of a seismogram is stored and in
     which format. A data source is used by one seismogram only, which a unique
     index enforces.

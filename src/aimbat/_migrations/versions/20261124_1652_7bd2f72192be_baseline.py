@@ -1,8 +1,8 @@
 """baseline
 
-Revision ID: 29f732b647c6
+Revision ID: 7bd2f72192be
 Revises:
-Create Date: 2026-11-18 23:07:44.704483+00:00
+Create Date: 2026-11-24 16:52:37.693892+00:00
 
 """
 
@@ -15,7 +15,7 @@ from alembic import op
 import aimbat.types
 
 # revision identifiers, used by Alembic.
-revision: str = "29f732b647c6"
+revision: str = "7bd2f72192be"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -45,6 +45,13 @@ def upgrade() -> None:
         sa.Column("longitude", sa.Float(), nullable=False),
         sa.Column("elevation", sa.Float(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "network",
+            "name",
+            "location",
+            "channel",
+            name="uq_aimbatstation_network_name_location_channel",
+        ),
     )
     op.create_table(
         "aimbatphase",
@@ -69,12 +76,10 @@ def upgrade() -> None:
             ["station_id"], ["aimbatstation.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "event_id", "station_id", name="uq_aimbatseismogram_event_id_station_id"
+        ),
     )
-    with op.batch_alter_table("aimbatseismogram", schema=None) as batch_op:
-        batch_op.create_index(
-            batch_op.f("ix_aimbatseismogram_event_id"), ["event_id"], unique=False
-        )
-
     op.create_table(
         "aimbatdatasource",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -464,9 +469,6 @@ def downgrade() -> None:
         batch_op.drop_index("ix_aimbatdatasource_seismogram_id")
 
     op.drop_table("aimbatdatasource")
-    with op.batch_alter_table("aimbatseismogram", schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f("ix_aimbatseismogram_event_id"))
-
     op.drop_table("aimbatseismogram")
     op.drop_table("aimbatphase")
     op.drop_table("aimbatstation")

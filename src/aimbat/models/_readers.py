@@ -411,9 +411,12 @@ class AimbatEventRead(BaseModel):
         title="Seismograms",
         description="Number of seismograms associated with this event",
     )
-    station_count: int = Field(
-        title="Stations",
-        description="Number of stations associated with this event",
+    site_count: int = Field(
+        title="Sites",
+        description=(
+            "Number of sites (network and station code) with seismograms for "
+            + "this event"
+        ),
     )
     snapshot_count: int = Field(
         title="Snapshots",
@@ -436,7 +439,7 @@ class AimbatEventRead(BaseModel):
                 and all(phase.parameters.completed for phase in event.phases),
                 "phases": sorted(phase.name for phase in event.phases),
                 "seismogram_count": event.seismogram_count or 0,
-                "station_count": event.station_count or 0,
+                "site_count": event.site_count or 0,
                 "snapshot_count": event.snapshot_count or 0,
             }
         )
@@ -845,6 +848,8 @@ class AimbatSeismogramRead(BaseModel):
     )
     name: str = Field(title="Name", description="Name of the seismogram.")
 
+    location: str = Field(title="Location", description="Station location code.")
+
     channel: str = Field(
         title="Channel",
         description="Seismogram channel.",
@@ -955,6 +960,7 @@ class AimbatSeismogramRead(BaseModel):
             id=seismogram.id,
             short_id=short_id,
             name=name,
+            location=seismogram.station.location,
             channel=seismogram.station.channel,
             select=row.select if row is not None else None,
             flip=row.flip if row is not None else None,
@@ -1141,6 +1147,7 @@ class SnapshotSeismogramResult(BaseModel):
         },
     )
     name: str = Field(title="Name", description="Station network and name.")
+    location: str = Field(title="Location", description="Station location code.")
     channel: str = Field(title="Channel", description="Station channel code.")
     select: bool = Field(
         title="Select",
@@ -1202,13 +1209,16 @@ class SnapshotSeismogramResult(BaseModel):
         if live_seismogram is not None:
             station = live_seismogram.station
             name = (f"{station.network}." if station.network else "") + station.name
+            location = station.location
             channel = station.channel
         else:
             name = "(deleted)"
+            location = ""
             channel = ""
         return cls(
             seismogram_id=param_snap.seismogram_id,
             name=name,
+            location=location,
             channel=channel,
             select=param_snap.select,
             flip=param_snap.flip,

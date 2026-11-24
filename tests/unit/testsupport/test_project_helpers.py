@@ -16,6 +16,7 @@ from aimbat.models import (
 
 from testsupport.project import (
     BEGIN,
+    ORIGIN,
     add_event,
     add_seismogram,
     add_station,
@@ -55,9 +56,10 @@ class TestAddSeismogram:
     def test_uses_a_given_station(self, engine: Engine) -> None:
         with Session(engine) as session:
             station = add_station(session)
-            event = add_event(session)
-            one = add_seismogram(session, event, station=station)
-            two = add_seismogram(session, event, station=station)
+            one = add_seismogram(session, add_event(session), station=station)
+            two = add_seismogram(
+                session, add_event(session, ORIGIN + Timedelta(days=1)), station=station
+            )
             assert one.station_id == two.station_id == station.id
             assert one.datasource.sourcename != two.datasource.sourcename
             assert len(session.exec(select(AimbatStation)).all()) == 1

@@ -86,6 +86,13 @@ aimbat data add *.sac          # first run: imports everything
 aimbat data add *.sac          # second run: no-op, all files already known
 ```
 
+An event holds one seismogram per station, where a station is one stream with
+its network, station, location and channel codes. A second data source for the
+same station and event, such as a copy of a file in another directory, is
+refused with a message naming the data source already in the project. The
+stations that share a network and station code form a site, so a
+three-component recording is three stations at one site.
+
 ### Initial picks
 
 AIMBAT reads every pick stored in a SAC file, in the `A` and `T0`–`T9` headers.

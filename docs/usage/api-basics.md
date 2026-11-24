@@ -128,7 +128,7 @@ them costs nothing extra:
 
 ```python
 event.seismogram_count      # seismograms belonging to this event
-event.station_count         # distinct stations recording this event
+event.site_count            # sites (network and station code) recording this event
 station.seismogram_count    # seismograms recorded at this station
 ```
 

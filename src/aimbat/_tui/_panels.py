@@ -504,8 +504,12 @@ class ProjectPanel(Widget):
                     None,
                 )
                 if active is not None:
-                    _sc_key = tui_display_title(AimbatEventRead, "station_count")
-                    st.border_title = f"Stations  [dim]{active.get(_sc_key, '?')} in active event[/dim]"
+                    seis_key = tui_display_title(AimbatEventRead, "seismogram_count")
+                    site_key = tui_display_title(AimbatEventRead, "site_count")
+                    st.border_title = (
+                        f"Stations  [dim]{active.get(seis_key, '?')} in active "
+                        + f"event · {active.get(site_key, '?')} sites[/dim]"
+                    )
 
             _populate_rows(
                 et,

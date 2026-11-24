@@ -50,6 +50,8 @@ def deduplicate_events(session: Session, tolerance: Timedelta = TIME_TOLERANCE) 
 
     For each cluster the record with the most seismograms is kept as the
     canonical entry; its location and depth are updated to the group mean.
+    An event holds one seismogram per station, so a seismogram of a station
+    the canonical entry already holds is removed with its event.
 
     Returns the number of duplicate records removed.
     """
@@ -79,9 +81,13 @@ def deduplicate_events(session: Session, tolerance: Timedelta = TIME_TOLERANCE) 
         canonical.longitude = _mean([e.longitude for e in cluster])
         canonical.depth = _mean_opt([e.depth for e in cluster])
 
+        held = {seis.station_id for seis in canonical.seismograms}
         for dup in duplicates:
             for seis in list(dup.seismograms):
-                seis.event_id = canonical.id
+                if seis.station_id in held:
+                    continue
+                seis.event = canonical
+                held.add(seis.station_id)
                 session.add(seis)
             session.flush()  # apply FK changes before deleting the row
             session.delete(dup)

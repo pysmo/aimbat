@@ -804,6 +804,11 @@ class AimbatSeismogram(SQLModel, table=True):
         alias_generator=to_camel,
         populate_by_name=True,
     )
+    __table_args__ = (
+        UniqueConstraint(
+            "event_id", "station_id", name="uq_aimbatseismogram_event_id_station_id"
+        ),
+    )
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -839,7 +844,6 @@ class AimbatSeismogram(SQLModel, table=True):
         default=None,
         foreign_key="aimbatevent.id",
         ondelete="CASCADE",
-        index=True,
         title="Event ID",
         description="Foreign key referencing the parent event.",
     )
@@ -908,11 +912,20 @@ class AimbatSeismogram(SQLModel, table=True):
 
 
 class AimbatStation(SQLModel, table=True):
-    """Recording station with network, location, and channel metadata."""
+    """One recording stream, identified by its network, station, location and channel codes."""
 
     model_config = SQLModelConfig(
         alias_generator=to_camel,
         populate_by_name=True,
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "network",
+            "name",
+            "location",
+            "channel",
+            name="uq_aimbatstation_network_name_location_channel",
+        ),
     )
 
     id: uuid.UUID = Field(
@@ -999,7 +1012,7 @@ class AimbatEvent(SQLModel, table=True):
     if TYPE_CHECKING:
         # Column properties defined below, but add same default values for type checking purposes
         seismogram_count: int = 0
-        station_count: int = 0
+        site_count: int = 0
         phase_count: int = 0
         snapshot_count: int = 0
 
@@ -1025,14 +1038,21 @@ AimbatEvent.seismogram_count = column_property(  # type: ignore[assignment]
 )
 "Number of seismograms for this event."
 
-AimbatEvent.station_count = column_property(  # type: ignore[assignment]
-    select(func.count(func.distinct(col(AimbatSeismogram.station_id))))
+# "." occurs in neither code, so the joined pair is unambiguous.
+AimbatEvent.site_count = column_property(  # type: ignore[assignment]
+    select(
+        func.count(
+            func.distinct(col(AimbatStation.network) + "." + col(AimbatStation.name))
+        )
+    )
+    .select_from(AimbatSeismogram)
+    .join(AimbatStation)
     .where(col(AimbatSeismogram.event_id) == col(AimbatEvent.id))
-    .correlate_except(AimbatSeismogram)
+    .correlate_except(AimbatSeismogram, AimbatStation)
     .scalar_subquery(),
     deferred=True,
 )
-"Number of unique stations for this event."
+"Number of sites (network and station code) with seismograms for this event."
 
 AimbatEvent.phase_count = column_property(  # type: ignore[assignment]
     select(func.count(col(AimbatPhase.id)))

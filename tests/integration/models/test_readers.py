@@ -12,6 +12,7 @@ from aimbat.models import (
     AimbatStation,
     AimbatStationRead,
 )
+from aimbat.models._readers import SnapshotSeismogramResult
 
 from testsupport.project import first
 
@@ -83,3 +84,26 @@ def test_snapshot_read_short_id(
     )
     assert read_with_session.short_id is not None
     assert len(read_with_session.short_id) >= 2
+
+
+def test_seismogram_read_location(
+    loaded_session: Session, mock_seismogram: AimbatSeismogram
+) -> None:
+    """Rows carry the location code, so streams at one site can be told apart."""
+    mock_seismogram.station.location = "10"
+    read = AimbatSeismogramRead.from_seismogram(
+        mock_seismogram, Validity.read(loaded_session)
+    )
+    assert read.location == "10"
+
+
+def test_snapshot_seismogram_result_location(mock_snapshot: AimbatSnapshot) -> None:
+    """Snapshot rows read the location from the live station, empty once deleted."""
+    param_snap = mock_snapshot.seismogram_parameters_snapshots[0]
+    assert param_snap.parameters is not None
+    seismogram = param_snap.parameters.seismogram
+    seismogram.station.location = "10"
+    live = SnapshotSeismogramResult.from_snapshot_records(param_snap, None, seismogram)
+    deleted = SnapshotSeismogramResult.from_snapshot_records(param_snap, None, None)
+    assert live.location == "10"
+    assert deleted.location == ""
