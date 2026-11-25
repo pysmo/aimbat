@@ -149,6 +149,7 @@ All notable changes to the **AIMBAT** project will be documented in this file.
 - Add tests on real two-phase data
 - Add shared test support helpers
 - Merge remaining duplicate test helpers
+- Add three-component data tests
 
 ## [2.0.0.dev0](https://github.com/pysmo/aimbat/compare/v1.0.7...v2.0.0.dev0) - 2026-08-12
 
