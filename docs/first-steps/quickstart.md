@@ -35,10 +35,13 @@ aimbat data add sample-data/*/*/*.BHZ
 
 The shell expands the glob before AIMBAT runs. Each SAC file carries its
 station, event, and initial picks in its header, each pick labelled with its
-phase. Every event has a `P` pick. The deep event of 2014-11-01 in the Fiji
-region also has a `pP` pick, so it has two phases. `--dry-run` reports which
-stations, events, and seismograms would be created without touching the
-database. Import also deduplicates, so re-running the real command is safe. See
+phase. The glob selects the vertical channels. Five events have a `P` pick on
+them. The deep event of 2014-11-01 in the Fiji region also has a `pP` pick, so
+it has two phases. The event of 2014-08-24 in Peru has only an `SKS` pick on
+the horizontal channels, so its vertical seismograms have no pick and the
+event gets no phase to process. `--dry-run` reports which stations, events,
+seismograms and phases would be created without touching the database.
+Import also deduplicates, so re-running the real command is safe. See
 [Adding Data](../usage/data.md) for JSON sources, subset selection, and what
 `--dry-run` catches.
 
