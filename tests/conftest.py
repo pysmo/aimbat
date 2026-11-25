@@ -20,7 +20,11 @@ import pytest
 from pandas import Timedelta
 from sqlalchemy import Connection, Engine, event, text
 from sqlmodel import Session, create_engine
-from testkit.fixtures import ICCS_EVENTS_DIR, MULTI_PHASE_EVENTS_DIR
+from testkit.fixtures import (
+    ICCS_EVENTS_DIR,
+    MULTI_PHASE_EVENTS_DIR,
+    THREE_COMPONENT_EVENTS_DIR,
+)
 
 from pysmo.classes import SAC
 
@@ -228,6 +232,36 @@ def multi_phase_data(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
         A list of paths to the temporary SAC files.
     """
     return _copy_event_files(MULTI_PHASE_EVENTS_DIR, tmp_path_factory.mktemp("aimbat"))
+
+
+@pytest.fixture
+def three_component_data(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, list[Path]]:
+    """Paths to temporary copies of testkit's three-component SAC files.
+
+    Keyed by event label, and by `special/<property>` for the files with one
+    property each. SAC files are those named by channel code (`.BHZ`), so
+    the miniSEED and StationXML files are left out.
+
+    Args:
+        tmp_path_factory: The pytest tmp_path_factory fixture.
+
+    Returns:
+        The SAC files of each directory.
+    """
+    root = tmp_path_factory.mktemp("aimbat") / "three_component_events"
+    shutil.copytree(THREE_COMPONENT_EVENTS_DIR, root)
+    data: dict[str, list[Path]] = {}
+    for directory in sorted(path for path in root.rglob("*") if path.is_dir()):
+        files = sorted(
+            path
+            for path in directory.iterdir()
+            if path.is_file() and path.suffix[1:].isupper()
+        )
+        if files:
+            data[directory.relative_to(root).as_posix()] = files
+    return data
 
 
 # ---------------------------------------------------------------------------
