@@ -3,9 +3,11 @@
 A phase is one seismic phase of an event (e.g. P or PKP), and the unit of
 processing: parameters, quality, snapshots and the processing state of each
 seismogram belong to a phase. Phases are created when initial picks are
-added. Commands that act on one phase take `--phase NAME`, or the
-`DEFAULT_PHASE` environment variable, which may be omitted when the event has
-only one phase.
+added, one for each phase name and component. Commands that act on one
+phase take `--phase NAME` and `--component COMPONENT`, or the `DEFAULT_PHASE`
+and `DEFAULT_COMPONENT` environment variables. Either may be omitted when the
+other selects one phase of the event, and both when the event has only one
+phase.
 """
 
 import uuid
@@ -18,17 +20,22 @@ from aimbat.models import AimbatEvent
 from aimbat.types import PhaseParameter
 
 from .common import (
+    DebugParameter,
     JsonDumpParameters,
     PhaseDebugParameters,
     TableParameters,
+    component_parameter,
     confirm_or_abort,
+    default_component,
     event_parameter_is_all,
     event_parameter_with_all,
     handle_issues,
     id_label,
     phase_filter_parameter,
+    phase_parameter,
     print_json_dump,
     print_quality_table,
+    resolve_phase_option,
 )
 
 __all__ = [
@@ -145,60 +152,174 @@ def cli_phase_completed(*, phase_parameters: PhaseDebugParameters) -> None:
 @app.command(name="rename")
 @handle_issues
 def cli_phase_rename(name: str, *, phase_parameters: PhaseDebugParameters) -> None:
-    """Rename a phase.
+    """Rename a phase on every component.
 
-    Picks of the event named for the phase are renamed with it. The new
-    name must not be used by another phase of the event.
+    Picks carry a phase name but no component, so the phase is renamed on
+    every component of the event, and the picks of the event named for it
+    with it. The event must not have a phase of the new name on any of
+    those components.
 
     Args:
         name: New name of the phase.
         phase_parameters: Event, phase and debug mode.
     """
-    from aimbat.actions import rename_phase
+    from rich.console import Console
 
-    rename_phase(phase_parameters.phase_id(), name)
+    from aimbat.actions import rename_phase
+    from aimbat.core import get_phases, resolve_phase
+    from aimbat.db import engine
+    from aimbat.models import phase_label
+    from aimbat.utils.formatters import fmt_timestamp
+
+    # Any phase of the name stands for all of them, so no component is needed.
+    event_id, old = phase_parameters.event_id, phase_parameters.phase
+    with Session(engine) as session:
+        phases = get_phases(session, event_id, old)
+        if len({p.name for p in phases}) == 1:
+            phase_id = phases[0].id
+        else:
+            phase_id = resolve_phase(session, event_id, old).id
+    report = rename_phase(phase_id, name)
+    renamed = ", ".join(
+        f"{phase_label(report.old_name, c)} to {phase_label(report.new_name, c)}"
+        for c in report.components
+    )
+    Console().print(
+        f"Renamed {renamed} of event {fmt_timestamp(report.event_time)}, "
+        + f"with {report.picks} pick(s)."
+    )
 
 
 @app.command(name="remove")
 @handle_issues
 def cli_phase_remove(
     *,
-    phase_parameters: PhaseDebugParameters,
+    event_id: Annotated[uuid.UUID | Literal["all"], event_parameter_with_all()],
+    phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
+    dry_run: Annotated[
+        bool,
+        Parameter(name="dry-run", help="Show what would be removed without saving it."),
+    ] = False,
     yes: Annotated[
         bool,
         Parameter(
             name=["--yes", "-y"], help="Skip the confirmation prompt.", negative=()
         ),
     ] = False,
+    _: DebugParameter = DebugParameter(),
 ) -> None:
-    """Remove a phase of an event.
+    """Remove a phase of an event on one component.
 
     The initial picks, parameters, quality and snapshots of the phase are
-    deleted with it. Picks of the event named for the phase are dismissed,
-    and `aimbat pick restore` brings them back.
+    deleted with it. Picks of the event named for the phase on seismograms
+    of its component are dismissed, and `aimbat pick restore` brings them
+    back. Unmatched picks of the name are dismissed only when the event has
+    no phase of the name on another component.
+
+    With `--event all`, the phase of that name and component is removed
+    from every event that has it, and both `--phase` and `--component` are
+    needed. Events without it are skipped.
+
+    Args:
+        event_id: Event of the phase, or "all" for every event.
+        phase: Name of the phase.
+        component: Component of the phase.
+        dry_run: Show what would be removed without saving it.
+        yes: Skip the confirmation prompt.
     """
     from rich.console import Console
+    from sqlmodel import col, select
 
-    from aimbat.actions import RemovePhaseResult, remove_phase
+    from aimbat.actions import RemovePhaseResult, remove_phases
+    from aimbat.db import engine
+    from aimbat.models import AimbatPhase, phase_label
     from aimbat.utils.formatters import fmt_timestamp
 
-    def confirm(result: RemovePhaseResult) -> bool:
-        confirm_or_abort(
-            f"Remove phase {result.phase_name} of event "
-            + f"{fmt_timestamp(result.event_time)}, with {result.rows} initial "
-            + f"pick(s) and {result.snapshots} snapshot(s), and dismiss "
-            + f"{result.dismissed_picks} pick(s)?",
-            yes=yes,
+    if event_parameter_is_all(event_id):
+        component = default_component(phase, component)
+        if phase is None or component is None:
+            raise ValueError(
+                "`--phase` and `--component` are needed with `--event all`."
+            )
+        with Session(engine) as session:
+            phase_ids = list(
+                session.exec(
+                    select(AimbatPhase.id)
+                    .join(AimbatEvent)
+                    .where(col(AimbatPhase.name) == phase)
+                    .where(col(AimbatPhase.component) == component)
+                    .order_by(col(AimbatEvent.time))
+                ).all()
+            )
+        if not phase_ids:
+            raise ValueError(f"No event has a phase {phase_label(phase, component)}.")
+    else:
+        phase_ids = [resolve_phase_option(event_id, phase, component)]
+
+    def picks(result: RemovePhaseResult) -> str:
+        text = f"{result.dismissed_picks} pick(s)"
+        if result.dismissed_unmatched:
+            text += f" and {result.dismissed_unmatched} unmatched pick(s)"
+        return text
+
+    def kept(result: RemovePhaseResult) -> str:
+        if not result.kept_unmatched:
+            return ""
+        others = ", ".join(
+            phase_label(result.phase_name, c) for c in result.other_components
         )
+        return f" {result.kept_unmatched} unmatched pick(s) are kept for {others}."
+
+    def kept_in_all(results: list[RemovePhaseResult]) -> str:
+        count = sum(r.kept_unmatched for r in results)
+        if not count:
+            return ""
+        name = results[0].phase_name
+        others = ", ".join(
+            phase_label(name, c)
+            for c in sorted(
+                {c for r in results if r.kept_unmatched for c in r.other_components}
+            )
+        )
+        return f" {count} unmatched pick(s) are kept for {others}."
+
+    def line(result: RemovePhaseResult) -> str:
+        verb = "Removed" if result.removed else "Would remove"
+        return (
+            f"{verb} phase {phase_label(result.phase_name, result.component)} of "
+            + f"event {fmt_timestamp(result.event_time)}: {result.rows} initial "
+            + f"pick(s) and {result.snapshots} snapshot(s) deleted, {picks(result)} "
+            + f"dismissed.{kept(result)}"
+        )
+
+    def confirm(results: list[RemovePhaseResult]) -> bool:
+        if dry_run:
+            return False
+        if len(results) == 1:
+            (result,) = results
+            question = (
+                f"Remove phase {phase_label(result.phase_name, result.component)} "
+                + f"of event {fmt_timestamp(result.event_time)}, with "
+                + f"{result.rows} initial pick(s) and {result.snapshots} "
+                + f"snapshot(s), and dismiss {picks(result)}?{kept(result)}"
+            )
+        else:
+            first = results[0]
+            question = (
+                f"Remove phase {phase_label(first.phase_name, first.component)} "
+                + f"of {len(results)} events, with "
+                + f"{sum(r.rows for r in results)} initial pick(s) and "
+                + f"{sum(r.snapshots for r in results)} snapshot(s), and dismiss "
+                + f"{sum(r.dismissed_picks + r.dismissed_unmatched for r in results)}"
+                + f" pick(s)?{kept_in_all(results)}"
+            )
+        confirm_or_abort(question, yes=yes)
         return True
 
-    result = remove_phase(phase_parameters.phase_id(), confirm=confirm)
-    Console().print(
-        f"Removed phase {result.phase_name} of event "
-        + f"{fmt_timestamp(result.event_time)}: {result.rows} initial pick(s) and "
-        + f"{result.snapshots} snapshot(s) deleted, {result.dismissed_picks} "
-        + "pick(s) dismissed."
-    )
+    console = Console()
+    for result in remove_phases(phase_ids, confirm=confirm):
+        console.print(line(result))
 
 
 @_parameter.command(name="get")
@@ -212,13 +333,12 @@ def cli_phase_parameter_get(
         name: Phase parameter name.
         phase_parameters: Event, phase and debug mode.
     """
-    from aimbat.core import resolve_phase
     from aimbat.db import engine
+    from aimbat.models import AimbatPhase
 
+    phase_id = phase_parameters.phase_id()
     with Session(engine) as session:
-        parameters = resolve_phase(
-            session, phase_parameters.event_id, phase_parameters.phase
-        ).parameters
+        parameters = session.get_one(AimbatPhase, phase_id).parameters
         print(parameters.model_dump(mode="json").get(name))
 
 
@@ -266,7 +386,7 @@ def cli_phase_parameter_list(
     """
     from aimbat.core import dump_phase_parameter_table
     from aimbat.db import engine
-    from aimbat.models import AimbatPhaseParameters
+    from aimbat.models import AimbatPhaseParameters, phase_label
     from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
 
@@ -277,7 +397,10 @@ def cli_phase_parameter_list(
     with Session(engine) as session:
         title, filter_id = _event_title(session, "Phase parameters", event_id, raw=raw)
         data = dump_phase_parameter_table(session, event_id=filter_id, name=phase)
-        phase_names = {row["phase_id"]: row["phase_name"] for row in data}
+        phase_names = {
+            row["phase_id"]: phase_label(row["phase_name"], row["phase_component"])
+            for row in data
+        }
 
         json_to_table(
             model=AimbatPhaseParameters,

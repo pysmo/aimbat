@@ -467,3 +467,33 @@ class TestRemovePhase:
         with Session(loaded_engine) as session:
             assert session.get(AimbatPhase, phase_id) is None
             assert session.get_one(AimbatPick, pick_id).dismissed
+
+
+class TestRemovePhases:
+    """Tests for `actions.remove_phases`."""
+
+    def _phase_ids(self, engine: Engine) -> list[uuid.UUID]:
+        with Session(engine) as session:
+            return list(session.exec(select(AimbatPhase.id)).all())
+
+    def test_removes_all_together(self, loaded_engine: Engine) -> None:
+        ids = self._phase_ids(loaded_engine)
+        assert len(ids) > 1
+        results = actions.remove_phases(ids, engine=loaded_engine)
+        assert [r.phase_id for r in results] == ids
+        assert all(r.removed for r in results)
+        assert self._phase_ids(loaded_engine) == []
+
+    def test_declined_keeps_every_phase(self, loaded_engine: Engine) -> None:
+        ids = self._phase_ids(loaded_engine)
+        results = actions.remove_phases(
+            ids, confirm=lambda pending: False, engine=loaded_engine
+        )
+        assert not any(r.removed for r in results)
+        assert sorted(self._phase_ids(loaded_engine)) == sorted(ids)
+
+    def test_unknown_phase_changes_nothing(self, loaded_engine: Engine) -> None:
+        ids = self._phase_ids(loaded_engine)
+        with pytest.raises(NoResultFound):
+            actions.remove_phases([*ids, uuid.uuid4()], engine=loaded_engine)
+        assert sorted(self._phase_ids(loaded_engine)) == sorted(ids)

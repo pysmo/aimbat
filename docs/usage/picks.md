@@ -19,7 +19,8 @@ its label. Before a pick can serve as an initial pick, it needs two things:
 
 A pick that is named and matched is *promoted*: it becomes the initial pick of
 its seismogram in the phase of that name, and the event gains the
-[phase](phases.md) if it does not have it yet. Picks that cannot be promoted stay stored, so nothing read
+[phase](phases.md) if it does not have it yet. The phase is the one of that
+name on the [component](components.md) of the seismogram. Picks that cannot be promoted stay stored, so nothing read
 from a data source is lost, and they can be completed later.
 
 `aimbat pick list` shows the stored picks of an event with their state.
@@ -34,7 +35,7 @@ Items are of two kinds:
 - **Blocking items** prevent processing of the phases they cover. Unnamed picks
   and a phase without any initial pick are examples.
 - **Notices** may need attention but do not prevent processing, for example a
-  seismogram without an initial pick in any phase.
+  seismogram without any pick.
 
 === "CLI"
 

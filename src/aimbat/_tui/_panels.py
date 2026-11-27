@@ -36,7 +36,6 @@ from aimbat.core import (
     get_phase_quality,
     get_snapshot_quality,
     get_station_quality,
-    resolve_phase,
 )
 from aimbat.db import engine
 from aimbat.models import (
@@ -51,14 +50,15 @@ from aimbat.models import (
 from aimbat.utils.formatters import fmt_float_sem
 
 from ._format import format_quality_panel, tui_cell, tui_display_title
+from ._iccs_lifecycle import PhaseKey, resolve_key
 from ._widgets import NoteWidget, SeismogramPlotWidget, VimDataTable
 from .modals import ActionMenuModal, SnapshotActionMenuModal
 
 __all__ = ["ProjectPanel", "SeismogramPanel", "SnapshotPanel"]
 
 _EVENT_TABLE_EXCLUDE: set[str] = set()
-_STATION_TABLE_EXCLUDE: set[str] = {"event_count"}
-_SEISMOGRAM_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
+_STATION_TABLE_EXCLUDE: set[str] = {"event_count", "component"}
+_SEISMOGRAM_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id", "component"}
 _SNAPSHOT_TABLE_EXCLUDE: set[str] = {"event_id", "short_event_id"}
 
 
@@ -215,16 +215,16 @@ def _update_note(
 
 
 def _event_quality(
-    session: Session, event_id: uuid.UUID, phase_name: str | None
+    session: Session, event_id: uuid.UUID, key: PhaseKey | None
 ) -> SeismogramQualityStats:
-    """Quality statistics of the named phase of an event, or of its only phase.
+    """Quality statistics of a phase of an event, or of its only phase.
 
     Raises:
         NoResultFound: If the event does not exist or has no such phase.
-        AmbiguousPhaseError: If `phase_name` is `None` and the event has
-            several phases.
+        AmbiguousPhaseError: If `key` is `None` and the event has several
+            phases.
     """
-    return get_phase_quality(session, resolve_phase(session, event_id, phase_name).id)
+    return get_phase_quality(session, resolve_key(session, event_id, key).id)
 
 
 def _update_quality_panel(
@@ -244,7 +244,7 @@ def _update_quality_panel(
                 stats = quality_fn(session, uuid.UUID(item_id))
         except AmbiguousPhaseError as exc:
             panel.update(
-                f"[dim]Phases {', '.join(exc.names)}. Statistics are shown for "
+                f"[dim]Phases {', '.join(exc.labels)}. Statistics are shown for "
                 + "the selected phase of the selected event.[/dim]"
             )
             panel.border_subtitle = ""
@@ -418,7 +418,7 @@ class ProjectPanel(Widget):
         self._highlighted_event_id: str | None = None
         self._highlighted_station_id: str | None = None
         self._current_event_id: uuid.UUID | None = None
-        self._current_phase_name: str | None = None
+        self._current_phase: PhaseKey | None = None
         self._quality_source: Literal["event", "station"] = "event"
         self._refreshing: bool = False
         _setup_table(
@@ -441,7 +441,7 @@ class ProjectPanel(Widget):
         self,
         session: Session,
         current_event_id: uuid.UUID | None,
-        current_phase_name: str | None = None,
+        current_phase: PhaseKey | None = None,
     ) -> None:
         """Reload the event and station tables from the database.
 
@@ -456,11 +456,11 @@ class ProjectPanel(Widget):
                 panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
                 if no event is selected.
-            current_phase_name: Name of the selected phase of the active
-                event, whose statistics the quality panel shows for it.
+            current_phase: Name and component of the selected phase of the
+                active event, whose statistics the quality panel shows for it.
         """
         self._current_event_id = current_event_id
-        self._current_phase_name = current_phase_name
+        self._current_phase = current_phase
         et = self.query_one("#project-event-table", DataTable)
         st = self.query_one("#project-station-table", DataTable)
         et_saved, st_saved = et.cursor_row, st.cursor_row
@@ -614,8 +614,8 @@ class ProjectPanel(Widget):
         self, session: Session, event_id: uuid.UUID
     ) -> SeismogramQualityStats:
         """Statistics of the selected phase for the active event, else of the only phase."""
-        name = self._current_phase_name if event_id == self._current_event_id else None
-        return _event_quality(session, event_id, name)
+        key = self._current_phase if event_id == self._current_event_id else None
+        return _event_quality(session, event_id, key)
 
     def _update_station_quality(self, item_id: str | None) -> None:
         """Refresh the quality panel and note widget for the given station."""
@@ -683,7 +683,7 @@ class SeismogramPanel(Widget):
         self,
         session: Session,
         current_event_id: uuid.UUID | None,
-        phase_name: str | None,
+        phase_id: uuid.UUID | None,
         bound_iccs: BoundICCS | None,
     ) -> None:
         """Reload the seismogram table from the database and cache the bound ICCS instance.
@@ -700,7 +700,7 @@ class SeismogramPanel(Widget):
                 panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
                 if no event or phase is selected.
-            phase_name: Name of the current phase, whose rows are shown.
+            phase_id: ID of the current phase, whose rows are shown.
             bound_iccs: Current ICCS instance for the current phase, or
                 `None` if it is not ready.
         """
@@ -730,7 +730,7 @@ class SeismogramPanel(Widget):
                     by_title=True,
                     exclude=_SEISMOGRAM_TABLE_EXCLUDE,
                     event_id=event.id,
-                    phase_name=phase_name,
+                    phase_id=phase_id,
                 )
                 if event is not None
                 else None
@@ -945,7 +945,7 @@ class SnapshotPanel(Widget):
         self,
         session: Session,
         current_event_id: uuid.UUID | None,
-        phase_name: str | None,
+        phase_id: uuid.UUID | None,
     ) -> None:
         """Reload the snapshot table for the current phase from the database.
 
@@ -958,7 +958,7 @@ class SnapshotPanel(Widget):
                 panels refreshed in the same pass.
             current_event_id: ID of the currently active event, or `None`
                 if no event or phase is selected.
-            phase_name: Name of the current phase, whose snapshots are shown.
+            phase_id: ID of the current phase, whose snapshots are shown.
         """
         table = self.query_one("#snapshot-table", DataTable)
         saved_row = table.cursor_row
@@ -973,7 +973,7 @@ class SnapshotPanel(Widget):
                         by_title=True,
                         exclude=_SNAPSHOT_TABLE_EXCLUDE,
                         event_id=event.id,
-                        phase_name=phase_name,
+                        phase_id=phase_id,
                     )
                     _populate_rows(table, snapshots, AimbatSnapshotRead)
         self._refreshing = True

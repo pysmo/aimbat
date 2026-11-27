@@ -92,14 +92,14 @@ def first[T: SQLModel](session: Session, model: type[T]) -> T:
 
 
 def add_station(
-    session: Session, *, name: str = "ABC", channel: str = "BHZ"
+    session: Session, *, name: str = "ABC", channel: str = "BHZ", location: str = "00"
 ) -> AimbatStation:
-    """Add station `name` of network XX, location 00, or return the one stored."""
+    """Add station `name` of network XX, or return the one stored."""
     existing = session.exec(
         select(AimbatStation)
         .where(AimbatStation.network == "XX")
         .where(AimbatStation.name == name)
-        .where(AimbatStation.location == "00")
+        .where(AimbatStation.location == location)
         .where(AimbatStation.channel == channel)
     ).one_or_none()
     if existing is not None:
@@ -107,7 +107,7 @@ def add_station(
     station = AimbatStation(
         name=name,
         network="XX",
-        location="00",
+        location=location,
         channel=channel,
         latitude=10.0,
         longitude=10.0,
@@ -124,17 +124,19 @@ def add_seismogram(
     station: AimbatStation | None = None,
     name: str = "ABC",
     channel: str = "BHZ",
+    location: str = "00",
+    delta: float = 0.05,
 ) -> AimbatSeismogram:
-    """Add a seismogram of `event` beginning at `BEGIN`, sampled at 20 Hz.
+    """Add a seismogram of `event` beginning at `BEGIN`, sampled every `delta` s.
 
-    Without `station`, a new station is built from `name` and `channel`. The
-    SAC data source gets a unique name.
+    Without `station`, a new station is built from `name`, `channel` and
+    `location`. The SAC data source gets a unique name.
     """
     if station is None:
-        station = add_station(session, name=name, channel=channel)
+        station = add_station(session, name=name, channel=channel, location=location)
     seismogram = AimbatSeismogram(
         begin_time=BEGIN,
-        delta=Timedelta(seconds=0.05),
+        delta=Timedelta(seconds=delta),
         event=event,
         station=station,
     )
@@ -167,9 +169,15 @@ def store_pick(
     return pick
 
 
-def add_empty_phase(session: Session, event: AimbatEvent, name: str) -> AimbatPhase:
+def add_empty_phase(
+    session: Session, event: AimbatEvent, name: str, component: str = ""
+) -> AimbatPhase:
     """Add a phase with default parameters and no seismograms to `event`."""
-    phase = AimbatPhase(name=name, parameters=default_phase_parameters(name))
+    phase = AimbatPhase(
+        name=name,
+        component=component,
+        parameters=default_phase_parameters(name, component),
+    )
     event.phases.append(phase)
     session.flush()
     return phase

@@ -14,16 +14,22 @@ from prompt_toolkit.completion import (
 )
 from prompt_toolkit.document import Document
 
-from .common import PhaseNameConverter, UuidConverter, describe_records
+from .common import (
+    ComponentConverter,
+    PhaseNameConverter,
+    UuidConverter,
+    describe_records,
+)
 
 if TYPE_CHECKING:
     from aimbat.models import AimbatTypes
 
 __all__ = ["ShellCompleter"]
 
-# What an argument's value is completed from: an ID lookup, the names of
-# phases, or fixed choices.
-type _Values = UuidConverter | PhaseNameConverter | tuple[str, ...]
+# What an argument's value is completed from: an ID lookup, the names or
+# components of phases, or fixed choices.
+type _Converter = UuidConverter | PhaseNameConverter | ComponentConverter
+type _Values = _Converter | tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -67,23 +73,22 @@ class ShellCompleter(Completer):
         self,
         app: App,
         nested: NestedCompleter,
-        shell_only: dict[tuple[str, ...], UuidConverter | PhaseNameConverter]
-        | None = None,
+        shell_only: dict[tuple[str, ...], tuple[_Converter, ...]] | None = None,
     ) -> None:
         """Create the completer.
 
         Args:
             app: The AIMBAT cyclopts app, used to find which arguments take IDs.
             nested: Completer for the subcommands of command groups.
-            shell_only: The argument (an ID or a phase name) of commands that
-                exist only in the shell, keyed by command path (e.g.
-                `("event", "switch")`).
+            shell_only: The positional arguments (an ID, a phase name or a
+                component) of commands that exist only in the shell, keyed by
+                command path (e.g. `("event", "switch")`).
         """
         self._app = app
         self._nested = nested
         self._shell_only = shell_only or {}
         self._cache: dict[type, list[_IdChoice]] = {}
-        self._phase_cache: dict[str | None, list[str]] = {}
+        self._phase_cache: dict[tuple[str | None, str], list[str]] = {}
 
     def invalidate(self) -> None:
         """Forget cached IDs and names, so the next completion reads them again."""
@@ -105,9 +110,14 @@ class ShellCompleter(Completer):
         words, quote = split
         word = _Word(words[-1], len(text) - _word_start(text), quote)
 
-        for path, converter in self._shell_only.items():
-            if tuple(words[:-1]) == path and not words[-1].startswith("-"):
-                yield from self._value_completions(converter, word)
+        for path, converters in self._shell_only.items():
+            position = len(words) - 1 - len(path)
+            if (
+                tuple(words[: len(path)]) == path
+                and 0 <= position < len(converters)
+                and not words[-1].startswith("-")
+            ):
+                yield from self._value_completions(converters[position], word)
                 return
 
         # cyclopts' completion engine parses the line as the CLI would, so the
@@ -151,7 +161,9 @@ class ShellCompleter(Completer):
         self, values: _Values, word: _Word, event: str | None = None
     ) -> Iterator[Completion]:
         if isinstance(values, PhaseNameConverter):
-            values = tuple(self._phase_names(event))
+            values = tuple(self._phase_values(event, "name"))
+        elif isinstance(values, ComponentConverter):
+            values = tuple(self._phase_values(event, "component"))
         if isinstance(values, tuple):
             for name in values:
                 if name.startswith(word.value):
@@ -178,16 +190,17 @@ class ShellCompleter(Completer):
                 self._cache[model_class] = []
         return self._cache[model_class]
 
-    def _phase_names(self, event: str | None) -> list[str]:
-        if event not in self._phase_cache:
+    def _phase_values(self, event: str | None, column: str) -> list[str]:
+        key = (event, column)
+        if key not in self._phase_cache:
             try:
-                self._phase_cache[event] = _read_phase_names(event)
+                self._phase_cache[key] = _read_phase_values(event, column)
             except Exception as e:
                 from aimbat.logger import logger
 
-                logger.debug(f"No phase names to complete: {e}")
-                self._phase_cache[event] = []
-        return self._phase_cache[event]
+                logger.debug(f"No phase {column}s to complete: {e}")
+                self._phase_cache[key] = []
+        return self._phase_cache[key]
 
 
 def _word_start(text: str) -> int:
@@ -211,7 +224,7 @@ def _word_start(text: str) -> int:
 def _values(arg: Argument) -> _Values | None:
     """Return what `arg`'s value is completed from, if anything."""
     converter = arg.parameter.converter
-    if isinstance(converter, (UuidConverter, PhaseNameConverter)):
+    if isinstance(converter, (UuidConverter, PhaseNameConverter, ComponentConverter)):
         return converter
     # `force`: choices hidden from help (`show_choices=False`) still complete.
     return arg.get_choices(force=True) or None
@@ -247,8 +260,10 @@ def _typed_event(arguments: Iterable[Argument]) -> str | None:
     return None
 
 
-def _read_phase_names(event: str | None) -> list[str]:
-    """Read the phase names of an event, or of every event, sorted.
+def _read_phase_values(event: str | None, column: str) -> list[str]:
+    """Read the phase names or components of an event, or of every event, sorted.
+
+    `column` is `"name"` or `"component"`. Empty components are left out.
 
     `event` is as typed on the line. Without it the shell's event context
     is used, and every event's phases without that.
@@ -270,10 +285,10 @@ def _read_phase_names(event: str | None) -> list[str]:
                 event_id = uuid.UUID(event)
             except ValueError:
                 event_id = string_to_uuid(session, event, AimbatEvent)
-        statement = select(AimbatPhase.name).distinct()
+        statement = select(getattr(AimbatPhase, column)).distinct()
         if event_id is not None:
             statement = statement.where(col(AimbatPhase.event_id) == event_id)
-        return sorted(session.exec(statement).all())
+        return sorted(v for v in session.exec(statement).all() if v)
 
 
 def _shell_event_id() -> uuid.UUID | None:

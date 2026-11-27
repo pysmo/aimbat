@@ -32,6 +32,7 @@ from .common import (
     id_label,
     print_json_dump,
     print_pick_summary,
+    print_readiness_counts,
     print_warning,
 )
 
@@ -277,12 +278,7 @@ def cli_pick_add(
         print_warning(
             f"Could not create an automatic snapshot for phase {failed_id}: {error}"
         )
-    if result.blocking_items:
-        n = result.blocking_items
-        print_warning(
-            f"Not ready: {n} blocking item{'' if n == 1 else 's'}. "
-            + "Run `aimbat data check`."
-        )
+    print_readiness_counts(result.readiness)
 
 
 @app.command(name="list")
@@ -617,6 +613,29 @@ def cli_pick_remove(
     label: Annotated[
         str | None, Parameter(help="Only picks read with this label.")
     ] = None,
+    seismogram_ids: Annotated[
+        list[uuid.UUID] | None,
+        _ids_parameter(
+            AimbatSeismogram,
+            "seismogram",
+            "Only picks matched to these seismograms: UUIDs (or unique prefixes).",
+        ),
+    ] = None,
+    station_ids: Annotated[
+        list[uuid.UUID] | None,
+        _ids_parameter(
+            AimbatStation,
+            "station",
+            "Only picks matched to seismograms of these stations: UUIDs (or "
+            + "unique prefixes).",
+        ),
+    ] = None,
+    phase: Annotated[
+        str | None,
+        Parameter(
+            help="Only picks with this phase name.", converter=PhaseNameConverter()
+        ),
+    ] = None,
     purge: Annotated[
         bool,
         Parameter(
@@ -633,6 +652,10 @@ def cli_pick_remove(
     check`, and `aimbat pick restore` brings it back. With `--purge`, the
     picks are deleted. A deleted pick of a data source is stored again when
     the source is read again.
+
+    A station is one stream of a site, so `--station` selects the picks of
+    that stream in every phase and event. `--phase` and `--event` narrow the
+    selection.
     """
     from rich.console import Console
 
@@ -642,6 +665,9 @@ def cli_pick_remove(
     selection = PickSelection(
         pick_ids=tuple(pick_ids or ()),
         event_id=event_id,
+        seismogram_ids=tuple(seismogram_ids or ()),
+        station_ids=tuple(station_ids or ()),
+        phase_name=phase,
         label=label,
         unnamed=unnamed,
         unmatched=unmatched,

@@ -252,6 +252,7 @@ def cli_seismogram_parameter_list(
         AimbatEvent,
         AimbatSeismogram,
         AimbatSeismogramParameters,
+        phase_label,
     )
     from aimbat.models._format import RichColSpec
     from aimbat.utils import uuid_shortener
@@ -273,7 +274,10 @@ def cli_seismogram_parameter_list(
         data = dump_seismogram_parameter_table(
             session, event_id=event.id if event else None, phase_name=phase
         )
-        phase_names = {row["phase_id"]: row["phase_name"] for row in data}
+        phase_names = {
+            row["phase_id"]: phase_label(row["phase_name"], row["phase_component"])
+            for row in data
+        }
 
         json_to_table(
             data=data,

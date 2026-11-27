@@ -23,6 +23,7 @@ from aimbat.core import (
 from aimbat.io import DataType
 from aimbat.models import AimbatPick, AimbatSeismogram
 
+from ._readiness import ReadinessCounts, _count_items
 from ._session import open_session
 
 __all__ = [
@@ -50,11 +51,14 @@ class CreatedPhase:
     event_time: Timestamp
     phase_id: UUID
     name: str
+    component: str
 
 
 def _created_phases(report: PromotionReport) -> list[CreatedPhase]:
     return [
-        CreatedPhase(phase.event_id, phase.event.time, phase.id, phase.name)
+        CreatedPhase(
+            phase.event_id, phase.event.time, phase.id, phase.name, phase.component
+        )
         for phase in report.phases_created
     ]
 
@@ -160,8 +164,8 @@ class AddPicksResult:
     """Phases that gained rows and were snapshotted."""
     snapshot_failures: list[tuple[UUID, str]]
     """Phase ID and error message for each automatic snapshot that failed."""
-    blocking_items: int
-    """Blocking readiness items of the events of the picks stored or updated.
+    readiness: ReadinessCounts
+    """Readiness items of the events of the picks stored or updated.
 
     Not counted in a dry run.
     """
@@ -235,15 +239,11 @@ def add_picks(
         )
         names = [str(source) for source in sources]
         if dry_run:
-            return AddPicksResult(names, picks, [], [], 0, dry_run=True)
+            return AddPicksResult(names, picks, [], [], ReadinessCounts(), dry_run=True)
 
         events = _events_of(session, [*report.stored.stored, *report.updated.updated])
         session.commit()
-        blocking = sum(
-            item.blocking
-            for event_id in events
-            for item in core.readiness(session, event_id=event_id, read_data=False)
-        )
+        counts = _count_items(session, events)
         snapshotted: list[UUID] = []
         failures: list[tuple[UUID, str]] = []
         if auto_snapshot:
@@ -251,7 +251,7 @@ def add_picks(
                 session, picks.phase_rows
             )
             session.commit()
-    return AddPicksResult(names, picks, snapshotted, failures, blocking, dry_run=False)
+    return AddPicksResult(names, picks, snapshotted, failures, counts, dry_run=False)
 
 
 @dataclass(frozen=True)

@@ -1,11 +1,12 @@
 """Actions that check whether the data are ready for processing."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import Engine
-from sqlmodel import col, select
+from sqlmodel import Session, col, select
 
 from aimbat import core
 from aimbat.core import ReadinessItem
@@ -13,7 +14,7 @@ from aimbat.models import AimbatEvent, AimbatPhase
 
 from ._session import open_session
 
-__all__ = ["ReadinessReport", "check_data"]
+__all__ = ["ReadinessCounts", "ReadinessReport", "check_data"]
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,25 @@ class ReadinessReport:
     def blocking(self) -> list[ReadinessItem]:
         """The items that prevent processing."""
         return [item for item in self.items if item.blocking]
+
+
+@dataclass(frozen=True)
+class ReadinessCounts:
+    """Number of readiness items of the events an action changed."""
+
+    blocking: int = 0
+    notices: int = 0
+
+
+def _count_items(session: Session, event_ids: Iterable[UUID]) -> ReadinessCounts:
+    """Count the readiness items of events, without reading seismogram data."""
+    items = [
+        item
+        for event_id in dict.fromkeys(event_ids)
+        for item in core.readiness(session, event_id=event_id, read_data=False)
+    ]
+    blocking = sum(item.blocking for item in items)
+    return ReadinessCounts(blocking=blocking, notices=len(items) - blocking)
 
 
 def check_data(

@@ -31,8 +31,9 @@ AIMBAT reads three data types, selected with `--type`:
 
 `--type` defaults to `sac`, so it only needs to be given for JSON. Both JSON
 variants use the `.json` extension, so `--type` is what tells them apart. The TUI
-file picker filters by extension (`.sac`, `.bhz`, `.bhn`, `.bhe` for SAC); the
-CLI reads whatever paths it is given as the requested type.
+file picker filters by extension: for SAC, `.sac` or a three-character channel
+code such as `.BHZ` or `.BHT`. The CLI reads whatever paths it is given as the
+requested type.
 
 See [`aimbat data add`][aimbat._cli.data.cli_data_add] for the full set of flags,
 including `--use-event`, `--use-station`, `--dry-run`, and `--no-snapshot`.

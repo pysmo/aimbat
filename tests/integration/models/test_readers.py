@@ -107,3 +107,21 @@ def test_snapshot_seismogram_result_location(mock_snapshot: AimbatSnapshot) -> N
     deleted = SnapshotSeismogramResult.from_snapshot_records(param_snap, None, None)
     assert live.location == "10"
     assert deleted.location == ""
+
+
+def test_read_models_carry_the_component(
+    loaded_session: Session, mock_snapshot: AimbatSnapshot
+) -> None:
+    param_snap = mock_snapshot.seismogram_parameters_snapshots[0]
+    seismogram = loaded_session.get_one(AimbatSeismogram, param_snap.seismogram_id)
+    validity = Validity.read(loaded_session)
+
+    station_read = AimbatStationRead.from_station(seismogram.station, validity)
+    seismogram_read = AimbatSeismogramRead.from_seismogram(seismogram, validity)
+    snapshot_read = SnapshotSeismogramResult.from_snapshot_records(
+        param_snap, None, seismogram
+    )
+
+    assert station_read.component == "Z"
+    assert seismogram_read.component == "Z"
+    assert snapshot_read.component == "Z"

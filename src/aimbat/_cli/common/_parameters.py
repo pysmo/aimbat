@@ -1,5 +1,6 @@
 """Common parameters and functions for the AIMBAT CLI."""
 
+import os
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Literal, TypeIs, get_origin
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CAUSAL_DEFAULTS",
+    "ComponentConverter",
     "ConfirmParameters",
     "DebugParameter",
     "EventDebugParameters",
@@ -26,6 +28,8 @@ __all__ = [
     "TableParameters",
     "UuidConverter",
     "causal",
+    "component_parameter",
+    "default_component",
     "event_parameter",
     "event_parameter_is_all",
     "event_parameter_with_all",
@@ -153,6 +157,57 @@ def phase_parameter(help: str | None = None) -> Parameter:
     )
 
 
+@dataclass(frozen=True)
+class ComponentConverter:
+    """Cyclopts converter that upper-cases a component letter.
+
+    `aimbat shell` recognises this converter to complete components.
+    """
+
+    def __call__(self, hint: type, tokens: tuple[Token, ...]) -> str:
+        (token,) = tokens
+        return token.value.strip().upper()
+
+
+def component_parameter(help: str | None = None) -> Parameter:
+    """Return a cyclopts `Parameter` for selecting a phase by component.
+
+    `DEFAULT_COMPONENT` is applied by `default_component`, not by cyclopts,
+    so that it only accompanies the phase name it was set with.
+
+    Args:
+        help: Custom help string; falls back to a generic prompt.
+    """
+    return Parameter(
+        name="component",
+        help=help
+        or (
+            "Component of the phase to process (Z, T, Q, ...). Not needed when"
+            + " the phase name has only one component. Defaults to"
+            + " `DEFAULT_COMPONENT` when no phase name or `DEFAULT_PHASE` is"
+            + " given."
+        ),
+        converter=ComponentConverter(),
+    )
+
+
+def default_component(name: str | None, component: str | None) -> str | None:
+    """Return the component given, else `DEFAULT_COMPONENT` where it applies.
+
+    `DEFAULT_COMPONENT` applies without a phase name, or with the name in
+    `DEFAULT_PHASE`. A different name given with `--phase` does not take
+    the component of another phase.
+    """
+    if component is not None:
+        return component
+    value = os.environ.get("DEFAULT_COMPONENT")
+    if value is None:
+        return None
+    if name is not None and name != os.environ.get("DEFAULT_PHASE"):
+        return None
+    return value.strip().upper()
+
+
 def phase_filter_parameter() -> Parameter:
     """Return a cyclopts `Parameter` for listing only the phases of one name.
 
@@ -166,45 +221,52 @@ def phase_filter_parameter() -> Parameter:
     )
 
 
-def resolve_phase_option(event_id: UUID, name: str | None = None) -> UUID:
-    """Return the ID of the named phase of an event, or of its only phase.
+def resolve_phase_option(
+    event_id: UUID, name: str | None = None, component: str | None = None
+) -> UUID:
+    """Return the ID of the phase of an event selected by name and component.
 
     Raises:
-        NoResultFound: If the event does not exist, has no phase of that
-            name, or has no phase.
-        AmbiguousPhaseError: If no name is given and the event has several
-            phases.
+        NoResultFound: If the event does not exist, or no phase of it
+            matches.
+        AmbiguousPhaseError: If several phases of the event match.
     """
     from sqlmodel import Session
 
     from aimbat.core import resolve_phase
     from aimbat.db import engine
 
+    component = default_component(name, component)
     with Session(engine) as session:
-        return resolve_phase(session, event_id, name).id
+        return resolve_phase(session, event_id, name, component).id
 
 
 def resolve_seismogram_phase(seismogram_id: UUID, name: str | None = None) -> UUID:
-    """Return the ID of the named phase of a seismogram's event, or of its only phase.
+    """Return the ID of the phase of a seismogram's event on its component.
+
+    Without a name, the only phase of the event on the seismogram's
+    component.
 
     Raises:
         NoResultFound: If the seismogram does not exist, or its event has no
-            phase of that name, or no phase.
+            matching phase on its component.
         AmbiguousPhaseError: If no name is given and the event has several
-            phases.
+            phases on the seismogram's component.
     """
     from sqlalchemy.exc import NoResultFound
     from sqlmodel import Session
 
     from aimbat.core import resolve_phase
     from aimbat.db import engine
-    from aimbat.models import AimbatSeismogram
+    from aimbat.models import AimbatSeismogram, phase_component
 
     with Session(engine) as session:
         seismogram = session.get(AimbatSeismogram, seismogram_id)
         if seismogram is None:
             raise NoResultFound(f"No seismogram found with ID {seismogram_id}.")
-        return resolve_phase(session, seismogram.event_id, name).id
+        return resolve_phase(
+            session, seismogram.event_id, name, phase_component(seismogram.station)
+        ).id
 
 
 def event_parameter_with_all(help: str | None = None) -> Parameter:
@@ -414,9 +476,10 @@ class _EventContextTrait:
 
 @dataclass
 class _PhaseContextTrait:
-    """Mixin that adds an optional `--phase` argument to a CLI command."""
+    """Mixin that adds optional `--phase` and `--component` arguments to a CLI command."""
 
     phase: Annotated[str | None, phase_parameter()] = None
+    component: Annotated[str | None, component_parameter()] = None
 
 
 @dataclass
@@ -467,7 +530,7 @@ class PhaseDebugParameters(_DebugTrait, _PhaseContextTrait, _EventContextTrait):
 
     def phase_id(self) -> UUID:
         """Resolve the event and phase given to the ID of the phase."""
-        return resolve_phase_option(self.event_id, self.phase)
+        return resolve_phase_option(self.event_id, self.phase, self.component)
 
 
 @Parameter(name="*")

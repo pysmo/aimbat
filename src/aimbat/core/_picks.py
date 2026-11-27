@@ -39,6 +39,7 @@ from aimbat.models import (
     AimbatSeismogramParameters,
     AimbatStation,
     PickOrigin,
+    phase_component,
 )
 from aimbat.utils.formatters import fmt_timedelta
 
@@ -762,10 +763,15 @@ def rematch_picks(
 # ----------------------------------------------------------------------------
 
 
-def _phase_of(session: Session, event_id: UUID, name: str) -> AimbatPhase | None:
+def _phase_for(
+    session: Session, seismogram: AimbatSeismogram, name: str
+) -> AimbatPhase | None:
+    """Return the phase a seismogram's pick named `name` belongs to, if it exists."""
     return session.exec(
         select(AimbatPhase).where(
-            col(AimbatPhase.event_id) == event_id, col(AimbatPhase.name) == name
+            col(AimbatPhase.event_id) == seismogram.event_id,
+            col(AimbatPhase.name) == name,
+            col(AimbatPhase.component) == phase_component(seismogram.station),
         )
     ).one_or_none()
 
@@ -850,7 +856,7 @@ def validate_pick(
     conflict: AimbatSeismogramParameters | None = None
     redundant = False
     if pick.phase_name is not None:
-        phase = _phase_of(session, seismogram.event_id, pick.phase_name)
+        phase = _phase_for(session, seismogram, pick.phase_name)
         row = _row_of(session, seismogram.id, phase.id) if phase else None
         if row is not None and row.pick_id != pick.id:
             if _same_time(row.pick.time, pick.time):
@@ -898,10 +904,12 @@ def promote_picks(
     that may gain rows: every phase if `True`, only existing phases if
     `False`, or only the phases named. A missing phase that is allowed is
     created, with a warning if its name is not a standard phase name
-    ([`is_standard_phase`][pysmo.tools.traveltime.is_standard_phase]). A
-    pick that fails `validate_pick` is not promoted. A pick whose
-    seismogram already has a row for the phase is redundant if that row's
-    pick has the same time, and a conflict otherwise.
+    ([`is_standard_phase`][pysmo.tools.traveltime.is_standard_phase]).
+    Phases are per event, name and component: a pick belongs to the phase of
+    its name on its seismogram's component (`phase_component`). A pick that
+    fails `validate_pick` is not promoted. A pick whose seismogram
+    already has a row for the phase is redundant if that row's pick has the
+    same time, and a conflict otherwise.
 
     Args:
         session: Database session.
@@ -913,7 +921,7 @@ def promote_picks(
     """
     report = PromotionReport()
     allowed = None if isinstance(phases, bool) else set(phases)
-    phases_seen: dict[tuple[UUID, str], AimbatPhase] = {}
+    phases_seen: dict[tuple[UUID, str, str], AimbatPhase] = {}
     rows: dict[tuple[UUID, UUID], AimbatSeismogramParameters] = {}
 
     ordered = sorted(picks, key=lambda p: (p.source_name or "", p.source_key or ""))
@@ -935,8 +943,12 @@ def promote_picks(
         if allowed is not None and pick.phase_name not in allowed:
             report.unpromoted.append(pick)
             continue
-        phase_key = (seismogram.event_id, pick.phase_name)
-        phase = phases_seen.get(phase_key) or _phase_of(session, *phase_key)
+        component = phase_component(seismogram.station)
+        phase_key = (seismogram.event_id, pick.phase_name, component)
+        phase = phases_seen.get(phase_key) or _phase_for(
+            session, seismogram, pick.phase_name
+        )
+
         if phase is None:
             if phases is False:
                 report.unpromoted.append(pick)
@@ -947,7 +959,8 @@ def promote_picks(
                 event_id=seismogram.event_id,
                 event=seismogram.event,
                 name=pick.phase_name,
-                parameters=default_phase_parameters(pick.phase_name),
+                component=component,
+                parameters=default_phase_parameters(pick.phase_name, component),
             )
             session.add(phase)
             report.phases_created.append(phase)
@@ -1072,12 +1085,11 @@ def pick_states(
         elif pick.phase_name is None:
             states[pick.id] = PickState.UNNAMED
         else:
-            seismogram = session.get(AimbatSeismogram, pick.seismogram_id)
-            check = (
-                validate_pick(session, pick, seismogram)
-                if seismogram is not None
-                else PickCheck()
-            )
+            own = session.get(AimbatSeismogram, pick.seismogram_id)
+            if own is None:
+                states[pick.id] = PickState.UNPROMOTED
+                continue
+            check = validate_pick(session, pick, own)
             if check.redundant:
                 states[pick.id] = PickState.REDUNDANT
             elif check.conflict is not None:

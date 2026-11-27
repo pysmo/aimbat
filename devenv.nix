@@ -34,5 +34,23 @@
 
     # The multi-phase event's P and pP picks are labelled.
     uv run aimbat data add "$multi_phase_events_dir"/*/*.BHZ --no-progress
+
+    # Prepared three-component data, every pick on every channel: the
+    # transverse channels of the events already added, the verticals of the
+    # Fiji sites the multi-phase event lacks (the others would be second
+    # sources), and every channel of the SKS event. PAX LH is left out, as it
+    # repeats the BH streams of one sensor. Each component gives a phase.
+    # P and pP are kept on Z, S on T, SKS on Q and T, and the phases on the
+    # other components are removed.
+    prepared_dir=$(uv run python -c "from testkit.fixtures import THREE_COMPONENT_EVENTS_DIR; print(THREE_COMPONENT_EVENTS_DIR / 'prepared')")
+    uv run aimbat data add \
+      "$prepared_dir"/{fiji_region,solomon_islands}/*.BHT \
+      "$prepared_dir"/fiji_region/{AK.GRNC.--.BHZ,IU.COLA.*.BHZ,TA.TOLK.01.BHZ} \
+      "$prepared_dir"/central_peru/* --no-progress
+    uv run aimbat phase remove --event all --phase P --component T --yes
+    uv run aimbat phase remove --event all --phase pP --component T --yes
+    uv run aimbat phase remove --event all --phase S --component Z --yes
+    uv run aimbat phase remove --event all --phase SKS --component Z --yes
+    uv run aimbat phase remove --event all --phase SKS --component L --yes
   '';
 }

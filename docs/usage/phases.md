@@ -1,8 +1,10 @@
 # Phases
 
-A phase is one seismic phase of an event, such as P or PKP, and the unit of
-processing in AIMBAT. An event recorded with picks for P and PKP has two
-phases, and each is aligned, checked and snapshotted on its own.
+A phase is one seismic phase of an event on one component, such as P on Z or
+SKS on Q, and the unit of processing in AIMBAT. An event recorded with picks
+for P and PKP on the vertical has two phases, and each is aligned, checked
+and snapshotted on its own. SKS picked on Q and on T gives two phases as well
+(see [Components and Phases](components.md)).
 
 ## What belongs to a phase
 
@@ -23,11 +25,12 @@ in P. The waveform data are shared, since they belong to the seismogram.
 ## How phases are created
 
 Phases are not created directly. An event gains a phase when a pick is promoted
-to an initial pick in a phase of that name, which happens during an import (see
+to an initial pick in a phase of that name on the component of the pick's
+seismogram, which happens during an import (see
 [Initial picks](data.md#initial-picks)) or later with `aimbat pick name` and
-`aimbat pick promote` (see [Picks and Readiness](picks.md)). A phase name
-identifies the same seismic phase in every event, so `P` names the P phase of
-each event that has one.
+`aimbat pick promote` (see [Picks and Readiness](picks.md)). A phase name and
+component identify the same seismic phase in every event, so `P (Z)` names
+the P phase on the vertical of each event that has one.
 
 Any phase name is accepted. A name missing from the IASPEI standard phase list
 ([`is_standard_phase`][pysmo.tools.traveltime.is_standard_phase]) produces a
@@ -73,8 +76,8 @@ How commands select one phase is described in
 
 | Command | Effect |
 |---|---|
-| `aimbat phase rename` | Renames a phase, together with the picks of the event named for it. |
-| `aimbat phase remove` | Deletes a phase with its rows, parameters, quality and snapshots. The picks named for it are dismissed. |
+| `aimbat phase rename` | Renames a phase on every component of the event, together with the picks of the event named for it. |
+| `aimbat phase remove` | Deletes a phase on one component, with its rows, parameters, quality and snapshots. The picks named for it on seismograms of that component are dismissed, and the unmatched ones when no other component of the phase remains. |
 | `aimbat phase completed` | Marks a phase as completed, or clears the mark. |
 
 Removing a phase does not delete any picks. `aimbat pick restore` brings the
@@ -83,7 +86,8 @@ parameters from the current settings. The parameters, quality and snapshots of
 the removed phase are lost.
 
 The completed flag is bookkeeping only and does not affect processing. An event
-counts as completed when all of its phases are.
+counts as completed when all of its phases are, so removing a phase changes
+what completion of its event requires.
 
 The matching functions in [`aimbat.actions`][aimbat.actions] are
 [`rename_phase`][aimbat.actions.rename_phase],

@@ -14,6 +14,7 @@ from cyclopts import App, Parameter
 
 from .common import (
     DebugParameter,
+    component_parameter,
     event_parameter,
     handle_issues,
     phase_parameter,
@@ -57,6 +58,7 @@ def cli_iccs_run(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     autoselect: Annotated[
         bool,
         Parameter(
@@ -90,7 +92,7 @@ def cli_iccs_run(
 
     with _summarised_warnings():
         run = run_iccs(
-            resolve_phase_option(event_id, phase),
+            resolve_phase_option(event_id, phase, component),
             autoflip=autoflip,
             autoselect=autoselect,
         )
@@ -103,6 +105,7 @@ def cli_mccc_run(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     all_seismograms: Annotated[
         bool,
         Parameter(
@@ -125,7 +128,8 @@ def cli_mccc_run(
 
     with _summarised_warnings():
         run = run_mccc(
-            resolve_phase_option(event_id, phase), all_seismograms=all_seismograms
+            resolve_phase_option(event_id, phase, component),
+            all_seismograms=all_seismograms,
         )
     _print_run_summary(run.summary)
 

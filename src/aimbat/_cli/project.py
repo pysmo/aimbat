@@ -16,7 +16,9 @@ from cyclopts import App
 from .common import (
     ConfirmParameters,
     DebugParameter,
+    component_parameter,
     confirm_or_abort,
+    default_component,
     event_parameter,
     handle_issues,
     phase_parameter,
@@ -59,6 +61,7 @@ def cli_project_info(
     event_id: Annotated[UUID | None, event_parameter()] = None,
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Show information on an existing project."""
@@ -79,7 +82,13 @@ def cli_project_info(
     )
     from aimbat.core._project import _project_exists
     from aimbat.db import engine
-    from aimbat.models import AimbatEvent, AimbatPhase, AimbatSeismogram, AimbatStation
+    from aimbat.models import (
+        AimbatEvent,
+        AimbatPhase,
+        AimbatSeismogram,
+        AimbatStation,
+        phase_label,
+    )
 
     if not _project_exists(engine):
         raise RuntimeError(
@@ -127,8 +136,10 @@ def cli_project_info(
             target_event_id = target_event.id
             active_sites = target_event.site_count
             seismograms_in_event = len(target_event.seismograms)
-            target_phase = resolve_phase(session, target_event.id, phase)
-            phase_name = target_phase.name
+            target_phase = resolve_phase(
+                session, target_event.id, phase, default_component(phase, component)
+            )
+            phase_name = phase_label(target_phase.name, target_phase.component)
             seismograms_in_phase = len(target_phase.seismogram_parameters)
             selected_in_phase = len(get_selected_rows(session, target_phase.id))
         except (NoResultFound, AmbiguousPhaseError, ValueError, RuntimeError):

@@ -82,7 +82,7 @@ class TestResolvePhase:
             event = _event(session, "S", "P")
             with pytest.raises(AmbiguousPhaseError) as raised:
                 resolve_phase(session, event.id)
-            assert raised.value.names == ("P", "S")
+            assert raised.value.labels == ("P", "S")
 
     def test_no_phase(self, engine: Engine) -> None:
         with Session(engine) as session:
@@ -94,6 +94,88 @@ class TestResolvePhase:
         with Session(engine) as session:
             with pytest.raises(NoResultFound, match="No event"):
                 resolve_phase(session, uuid.uuid4())
+
+
+def _components(session: Session, *pairs: tuple[str, str]) -> AimbatEvent:
+    event = _event(session)
+    for name, component in pairs:
+        event.phases.append(
+            AimbatPhase(
+                name=name,
+                component=component,
+                parameters=default_phase_parameters(name, component),
+            )
+        )
+    session.add(event)
+    session.commit()
+    return event
+
+
+class TestResolvePhaseByComponent:
+    """Tests for `resolve_phase` with phases on several components."""
+
+    _PAIRS = (("SKS", "Q"), ("SKS", "T"), ("P", "Z"))
+
+    @pytest.mark.parametrize(
+        ("name", "component", "expected"),
+        [
+            ("SKS", "T", ("SKS", "T")),
+            ("P", None, ("P", "Z")),
+            (None, "Z", ("P", "Z")),
+            (None, "Q", ("SKS", "Q")),
+        ],
+    )
+    def test_selects_one(
+        self,
+        engine: Engine,
+        name: str | None,
+        component: str | None,
+        expected: tuple[str, str],
+    ) -> None:
+        with Session(engine) as session:
+            event = _components(session, *self._PAIRS)
+            phase = resolve_phase(session, event.id, name, component)
+            assert (phase.name, phase.component) == expected
+
+    def test_name_on_several_components(self, engine: Engine) -> None:
+        with Session(engine) as session:
+            event = _components(session, *self._PAIRS)
+            with pytest.raises(AmbiguousPhaseError) as raised:
+                resolve_phase(session, event.id, "SKS")
+            assert raised.value.labels == ("SKS (Q)", "SKS (T)")
+            assert raised.value.by == "component"
+
+    def test_component_of_several_names(self, engine: Engine) -> None:
+        with Session(engine) as session:
+            event = _components(session, ("P", "Z"), ("PKP", "Z"), ("S", "T"))
+            with pytest.raises(AmbiguousPhaseError) as raised:
+                resolve_phase(session, event.id, component="Z")
+            assert raised.value.labels == ("P (Z)", "PKP (Z)")
+            assert raised.value.by == "name"
+
+    def test_neither_with_one_name(self, engine: Engine) -> None:
+        with Session(engine) as session:
+            event = _components(session, ("SKS", "Q"), ("SKS", "T"))
+            with pytest.raises(AmbiguousPhaseError) as raised:
+                resolve_phase(session, event.id)
+            assert raised.value.by == "component"
+
+    @pytest.mark.parametrize(
+        ("name", "component", "message"),
+        [
+            ("SKS", "Z", "no phase SKS \\(Z\\)"),
+            ("S", None, "no phase 'S'"),
+            (None, "L", "no phase on component 'L'"),
+        ],
+    )
+    def test_no_match_lists_phases(
+        self, engine: Engine, name: str | None, component: str | None, message: str
+    ) -> None:
+        with Session(engine) as session:
+            event = _components(session, *self._PAIRS)
+            with pytest.raises(NoResultFound, match=message) as raised:
+                resolve_phase(session, event.id, name, component)
+            assert "Its phases: P (Z), SKS (Q), SKS (T)." in str(raised.value)
 
 
 class TestDefaultPhaseParameters:
@@ -507,7 +589,7 @@ class TestRenamePhase:
     def test_name_taken_by_another_phase(self, engine: Engine) -> None:
         with Session(engine) as session:
             event = _event(session, "P", "S")
-            with pytest.raises(ValueError, match="already has a phase 'S'"):
+            with pytest.raises(ValueError, match=r"already has phase S\."):
                 rename_phase(session, event.phases[0].id, "S")
 
     def test_invalid_name(self, engine: Engine) -> None:
@@ -543,14 +625,20 @@ class TestDumpPhaseTables:
         assert {"min_cc", "window_pre", "phase_id", "phase_name"} <= result[0].keys()
         keys = list(result[0])
         assert keys.index("phase_name") == keys.index("phase_id") + 1
+        assert keys.index("phase_component") == keys.index("phase_id") + 2
+        assert result[0]["phase_component"] == "Z"
 
     def test_parameters_with_alias(self, loaded_session: Session) -> None:
         result = dump_phase_parameter_table(loaded_session, by_alias=True)
-        assert {"minCc", "windowPre", "phaseId", "phaseName"} <= result[0].keys()
+        assert {"minCc", "windowPre", "phaseId", "phaseName", "phaseComponent"} <= (
+            result[0].keys()
+        )
         assert "min_cc" not in result[0]
 
     def test_quality_per_phase(self, loaded_session: Session) -> None:
         result = dump_phase_quality_table(loaded_session)
         assert len(result) == len(loaded_session.exec(select(AimbatPhase)).all())
-        assert {"phase_id", "phase_name", "event_id"} <= result[0].keys()
+        assert {"phase_id", "phase_name", "phase_component", "event_id"} <= (
+            result[0].keys()
+        )
         assert "station_id" not in result[0]

@@ -28,8 +28,11 @@ from textual_fspicker import FileOpen, FileSave, Filters
 
 from aimbat import actions, settings
 from aimbat._tui._iccs_lifecycle import (
+    PhaseKey,
     _IccsLifecycleMixin,
-    phase_names,
+    carry_key,
+    phase_keys,
+    resolve_key,
     several_phases_notice,
 )
 from aimbat._tui._panels import ProjectPanel, SeismogramPanel, SnapshotPanel
@@ -56,15 +59,14 @@ from aimbat.core import (
     dump_snapshot_results,
     get_current_revision,
     get_seismogram_parameters,
-    resolve_phase,
     upgrade_project,
 )
 from aimbat.core._migrations import SchemaMismatchError, _build_staleness_warning
 from aimbat.core._project import _project_exists
 from aimbat.db import engine
 from aimbat.io import (
-    DATATYPE_SUFFIXES,
     DataType,
+    has_datatype_suffix,
     supports_event_creation,
     supports_seismogram_creation,
     supports_station_creation,
@@ -76,6 +78,7 @@ from aimbat.models import (
     AimbatPhaseParametersBase,
     AimbatSnapshot,
     AimbatStation,
+    phase_label,
 )
 from aimbat.plot import plot_matrix_image, plot_seismograms, plot_stack
 from aimbat.types import SeismogramParameter
@@ -173,7 +176,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """
         self._init_iccs_lifecycle()
         self._current_event_id: uuid.UUID | None = None
-        self._current_phase_name: str | None = None
+        self._current_phase: PhaseKey | None = None
         self._active_tab: str = "tab-project"
 
         self.theme = _DEFAULT_THEME
@@ -325,22 +328,22 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if event is not None:
                 return event
             self._current_event_id = None
-            self._current_phase_name = None
+            self._current_phase = None
         raise NoResultFound("No event selected")
 
     def _get_current_phase(self, session: Session) -> AimbatPhase:
         """Return the selected phase of the current event.
 
-        Without a selected phase name, returns the event's only phase.
+        Without a selected phase, returns the event's only phase.
 
         Raises:
             NoResultFound: If no event is selected, or it has no phase of
-                the selected name, or no phase at all.
-            AmbiguousPhaseError: If no phase name is selected and the event
-                has several phases.
+                the selected name and component, or no phase at all.
+            AmbiguousPhaseError: If no phase is selected and the event has
+                several phases.
         """
-        return resolve_phase(
-            session, self._get_current_event(session).id, self._current_phase_name
+        return resolve_key(
+            session, self._get_current_event(session).id, self._current_phase
         )
 
     # ------------------------------------------------------------------
@@ -407,10 +410,11 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         with Session(engine) as session:
             phase = self._resolved_phase(session)
             event_id = None if phase is None else phase.event_id
-            phase_name = None if phase is None else phase.name
+            phase_id = None if phase is None else phase.id
+            key = None if phase is None else (phase.name, phase.component)
             self._refresh_event_bar(session, phase)
             self.query_one(ProjectPanel).refresh_data(
-                session, self._current_event_id, phase_name
+                session, self._current_event_id, key
             )
             # While an alignment changes the instance, the table shows the
             # stored CC values instead of reading it.
@@ -418,9 +422,9 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 None if self._iccs_lifecycle.aligning else self._iccs_lifecycle.bound
             )
             self.query_one(SeismogramPanel).refresh_data(
-                session, event_id, phase_name, bound
+                session, event_id, phase_id, bound
             )
-            self.query_one(SnapshotPanel).refresh_data(session, event_id, phase_name)
+            self.query_one(SnapshotPanel).refresh_data(session, event_id, phase_id)
 
     def _resolved_phase(self, session: Session) -> AimbatPhase | None:
         """Return the current phase, or `None` while there is none to process."""
@@ -453,7 +457,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             lat = f"{event.latitude:.3f}°"
             lon = f"{event.longitude:.3f}°"
             phase_str = (
-                phase.name
+                phase_label(phase.name, phase.component)
                 if phase is not None
                 else "[yellow]select a phase (p)[/yellow]"
             )
@@ -551,21 +555,26 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
     def _select_event(self, item_id: str) -> None:
         """Make the given event the active event and rebuild its ICCS instance.
 
-        The current phase name, whether selected or the previous event's
-        only phase, is kept if the event has a phase of that name, and
-        cleared otherwise. An event with several phases and no kept name
-        opens the phase picker before any instance is built.
+        The current phase, whether selected or the previous event's only
+        phase, is kept if the event has a phase of that name and component.
+        Otherwise the event's only phase of that name is selected, if there
+        is one. An event with several phases and no kept phase opens the
+        phase picker before any instance is built.
         """
         logger.debug(f"User selected event {item_id[:8]}.")
         event_id = uuid.UUID(item_id)
         with Session(engine) as session:
             previous = self._resolved_phase(session)
-            names = phase_names(session, event_id)
-        carried = self._current_phase_name if previous is None else previous.name
+            keys = phase_keys(session, event_id)
+        carried = (
+            self._current_phase
+            if previous is None
+            else (previous.name, previous.component)
+        )
         self._current_event_id = event_id
-        self._current_phase_name = carried if carried in names else None
+        self._current_phase = carry_key(carried, keys)
         self.notify("Event selected", timeout=2)
-        if self._current_phase_name is None and len(names) > 1:
+        if self._current_phase is None and len(keys) > 1:
             self._iccs_lifecycle.clear()
             self.refresh_all()
             self.push_screen(PhaseSelectModal(event_id), self._on_phase_chosen)
@@ -578,30 +587,43 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         if self._current_event_id is None or isinstance(self.screen, ModalScreen):
             return
         with Session(engine) as session:
-            if not phase_names(session, self._current_event_id):
+            if not phase_keys(session, self._current_event_id):
                 self.notify("The event has no phases.", severity="warning")
                 return
             phase = self._resolved_phase(session)
         self.push_screen(
             PhaseSelectModal(
-                self._current_event_id, None if phase is None else phase.name
+                self._current_event_id, None if phase is None else phase.id
             ),
             self._on_phase_chosen,
         )
 
-    def _on_phase_chosen(self, name: str | None) -> None:
-        """Make the chosen phase the current phase and rebuild its ICCS instance."""
-        if name is None:
+    def _on_phase_chosen(self, phase_id: str | None) -> None:
+        """Make the chosen phase the current phase and rebuild its ICCS instance.
+
+        Args:
+            phase_id: ID of the chosen phase, or `None` if none was chosen.
+        """
+        if phase_id is None:
             return
-        logger.debug(f"User selected phase {name!r}.")
         with Session(engine) as session:
             current = self._resolved_phase(session)
-        self._current_phase_name = name
-        if current is not None and current.name == name and self._iccs_lifecycle.ready:
+            chosen = session.get(AimbatPhase, uuid.UUID(phase_id))
+            if chosen is None:
+                return
+            key = (chosen.name, chosen.component)
+        label = phase_label(*key)
+        logger.debug(f"User selected phase {label}.")
+        self._current_phase = key
+        if (
+            current is not None
+            and current.id == chosen.id
+            and self._iccs_lifecycle.ready
+        ):
             return
         self._create_iccs()
         self.refresh_all()
-        self.notify(f"Phase {name} selected", timeout=2)
+        self.notify(f"Phase {label} selected", timeout=2)
 
     def _toggle_event_completed(self, item_id: str) -> None:
         """Flip the `completed` flag of a phase of the given event.
@@ -612,12 +634,13 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
         """
         logger.debug(f"User toggled completed flag for event {item_id[:8]}.")
         event_id = uuid.UUID(item_id)
-        name = self._current_phase_name if event_id == self._current_event_id else None
+        key = self._current_phase if event_id == self._current_event_id else None
 
-        def toggle(phase_name: str | None) -> None:
+        def toggle(phase_id: uuid.UUID | None) -> None:
             try:
-                with Session(engine) as session:
-                    phase_id = resolve_phase(session, event_id, phase_name).id
+                if phase_id is None:
+                    with Session(engine) as session:
+                        phase_id = resolve_key(session, event_id, key).id
                 actions.toggle_phase_completed(phase_id)
                 self.refresh_all()
                 self.notify("Completed flag toggled", timeout=2)
@@ -625,16 +648,16 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                 self.notify(str(exc), severity="error")
 
         with Session(engine) as session:
-            phase_count = len(phase_names(session, event_id))
-        if name is None and phase_count > 1:
+            phase_count = len(phase_keys(session, event_id))
+        if key is None and phase_count > 1:
 
             def on_chosen(chosen: str | None) -> None:
                 if chosen is not None:
-                    toggle(chosen)
+                    toggle(uuid.UUID(chosen))
 
             self.push_screen(PhaseSelectModal(event_id), on_chosen)
             return
-        toggle(name)
+        toggle(None)
 
     def _view_seismograms(self, tab: str, item_id: str) -> None:
         """Suspend the TUI and show a matplotlib plot of seismograms for an event or station.
@@ -744,7 +767,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     actions.delete_events([uuid.UUID(item_id)])
                     if self._current_event_id == uuid.UUID(item_id):
                         self._current_event_id = None
-                        self._current_phase_name = None
+                        self._current_phase = None
                         self._iccs_lifecycle.clear()
                     self.refresh_all()
                     self.notify("Event deleted", timeout=2)
@@ -907,7 +930,6 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
             if selected is None:
                 return
             data_type = DataType(selected)
-            suffixes = DATATYPE_SUFFIXES[data_type]
             label = data_type.name.replace("_", " ")
 
             def on_file(path: Path | None) -> None:
@@ -938,7 +960,7 @@ class AimbatTUI(_IccsLifecycleMixin, App[None]):
                     ".",
                     title=f"Add {label}",
                     filters=Filters(
-                        (f"{label} files", lambda p: p.suffix.lower() in suffixes),
+                        (f"{label} files", lambda p: has_datatype_suffix(p, data_type)),
                         ("All files", lambda _: True),
                     ),
                 ),

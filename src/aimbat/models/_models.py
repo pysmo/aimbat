@@ -10,6 +10,7 @@ from pandas import Timestamp
 from pydantic import model_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func, text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import class_mapper, column_property, object_session, undefer
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel._compat import SQLModelConfig
@@ -48,8 +49,25 @@ __all__ = [
     "AimbatStation",
     "AimbatTypes",
     "PickOrigin",
+    "channel_component",
+    "phase_component",
+    "phase_label",
     "undefer_counts",
 ]
+
+
+def channel_component(channel: str) -> str | None:
+    """Return the component letter of a SEED channel code, upper case.
+
+    `None` when `channel` is not three letters or digits.
+    """
+    if len(channel) != 3 or not channel.isalnum() or not channel.isascii():
+        return None
+    return channel[-1].upper()
+
+
+# A fixed length, so a longer `DataType` member needs no migration.
+_DATATYPE_COLUMN = SAEnum(DataType, length=32, name="datatype")
 
 
 class _AimbatDataSourceCreate(SQLModel):
@@ -99,6 +117,7 @@ class AimbatDataSource(SQLModel, table=True):
     )
     datatype: DataType = Field(
         default=DataType.SAC,
+        sa_type=_DATATYPE_COLUMN,
         title="Data type",
         description="Data type of the data source.",
     )
@@ -212,6 +231,7 @@ class AimbatPick(SQLModel, table=True):
     )
     source_type: DataType | None = Field(
         default=None,
+        sa_type=_DATATYPE_COLUMN,
         title="Source type",
         description="Data type of the source the pick was read from.",
     )
@@ -324,7 +344,12 @@ class AimbatPhase(SQLModel, table=True):
     )
 
     __table_args__ = (
-        UniqueConstraint("event_id", "name", name="uq_aimbatphase_event_id_name"),
+        UniqueConstraint(
+            "event_id",
+            "name",
+            "component",
+            name="uq_aimbatphase_event_id_name_component",
+        ),
     )
 
     id: uuid.UUID = Field(
@@ -345,7 +370,17 @@ class AimbatPhase(SQLModel, table=True):
     name: str = Field(
         max_length=32,
         title="Name",
-        description="Phase name, unique within the event.",
+        description="Phase name, unique within the event together with the component.",
+    )
+    component: str = Field(
+        default="",
+        max_length=32,
+        sa_column_kwargs={"server_default": ""},
+        title="Component",
+        description=(
+            "Component of the seismograms of the phase (`phase_component`), "
+            + "empty when their channel codes have none."
+        ),
     )
     event: "AimbatEvent" = Relationship(back_populates="phases")
     "The event this phase belongs to."
@@ -965,10 +1000,33 @@ class AimbatStation(SQLModel, table=True):
     )
     "Seismograms recorded at this station."
 
+    @property
+    def component(self) -> str | None:
+        """Component letter of the channel code (Z, N, E, 1, 2, R, T, ...).
+
+        `None` when the channel code is not three letters or digits.
+        """
+        return channel_component(self.channel)
+
     if TYPE_CHECKING:
         # Column properties defined below, but add same default values for type checking purposes
         seismogram_count: int = 0
         event_count: int = 0
+
+
+def phase_component(station: AimbatStation) -> str:
+    """Return the component of the phases a station's seismograms belong to.
+
+    Seismograms of one event, phase name and component share a phase. The
+    component is the station's `component`, or empty when its channel code
+    has none.
+    """
+    return station.component or ""
+
+
+def phase_label(name: str, component: str) -> str:
+    """Return a phase's name and component for display: `SKS (Q)`, or `SKS` without a component."""
+    return f"{name} ({component})" if component else name
 
 
 class AimbatEvent(SQLModel, table=True):

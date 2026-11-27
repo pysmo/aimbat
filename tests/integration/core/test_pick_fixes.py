@@ -14,6 +14,7 @@ from aimbat.core import (
     PickSelection,
     create_snapshot,
     dump_pick_table,
+    get_completed_events,
     match_pick,
     name_picks,
     promote_existing_picks,
@@ -21,12 +22,15 @@ from aimbat.core import (
     promote_picks,
     remove_phase,
     remove_picks,
+    rename_phase,
     restore_picks,
     retry_pick_matching,
     select_picks,
     set_initial_pick,
     store_picks,
+    toggle_phase_completed,
 )
+from aimbat.core._validity import compute_digests
 from aimbat.io import DataType, SourcePick, StationEventTarget
 from aimbat.models import (
     AimbatEvent,
@@ -435,3 +439,120 @@ class TestRemovePhase:
         assert project.session.get_one(AimbatPick, project.promoted.id).dismissed
         assert project.session.get_one(AimbatPick, conflict.id).dismissed
         assert not project.session.get_one(AimbatPick, project.unnamed.id).dismissed
+
+
+@dataclass
+class _TwoComponents:
+    session: Session
+    event: AimbatEvent
+    vertical: AimbatPhase
+    transverse: AimbatPhase
+    on_z: AimbatPick
+    on_t: AimbatPick
+    unmatched: AimbatPick
+
+
+@pytest.fixture
+def two_components(engine: Engine) -> Generator[_TwoComponents]:
+    """SKS on Z and on T at one site, snapshotted, and an unmatched SKS pick."""
+    with Session(engine) as session:
+        event = add_event(session)
+        z = add_seismogram(session, event, channel="BHZ")
+        t = add_seismogram(session, event, channel="BHT")
+        on_z = _pick(session, z, "z", 20, "SKS")
+        on_t = _pick(session, t, "t", 20, "SKS")
+        promote_picks(session, [on_z, on_t])
+        (vertical,) = [p for p in event.phases if p.component == "Z"]
+        (transverse,) = [p for p in event.phases if p.component == "T"]
+        create_snapshot(session, vertical.id)
+        create_snapshot(session, transverse.id)
+        unmatched = AimbatPick(
+            time=at(20),
+            phase_name="SKS",
+            origin=PickOrigin.MANUAL,
+            event_id=event.id,
+        )
+        session.add(unmatched)
+        session.flush()
+        yield _TwoComponents(
+            session, event, vertical, transverse, on_z, on_t, unmatched
+        )
+
+
+class TestPhasesPerComponent:
+    """Removing and renaming a phase measured on two components."""
+
+    def test_remove_leaves_the_other_component(
+        self, two_components: _TwoComponents
+    ) -> None:
+        tc = two_components
+        before = compute_digests(tc.session, tc.transverse.id)
+        report = remove_phase(tc.session, tc.vertical.id)
+        assert report.component == "Z"
+        assert (report.dismissed_picks, report.dismissed_unmatched) == (1, 0)
+        assert (report.kept_unmatched, report.other_components) == (1, ("T",))
+        assert tc.on_z.dismissed
+        assert not tc.on_t.dismissed
+        assert not tc.unmatched.dismissed
+        assert [p.id for p in tc.event.phases] == [tc.transverse.id]
+        (row,) = tc.transverse.seismogram_parameters
+        assert row.pick_id == tc.on_t.id
+        assert len(tc.transverse.snapshots) == 1
+        assert compute_digests(tc.session, tc.transverse.id) == before
+
+    def test_remove_the_last_component_dismisses_unmatched(
+        self, two_components: _TwoComponents
+    ) -> None:
+        tc = two_components
+        remove_phase(tc.session, tc.vertical.id)
+        report = remove_phase(tc.session, tc.transverse.id)
+        assert (report.dismissed_picks, report.dismissed_unmatched) == (1, 1)
+        assert (report.kept_unmatched, report.other_components) == (0, ())
+        assert tc.unmatched.dismissed
+
+    def test_rename_renames_every_component(
+        self, two_components: _TwoComponents
+    ) -> None:
+        tc = two_components
+        report = rename_phase(tc.session, tc.vertical.id, "SKKS")
+        assert report.components == ("T", "Z")
+        assert report.picks == 3
+        assert {p.name for p in tc.event.phases} == {"SKKS"}
+        assert {tc.on_z.phase_name, tc.on_t.phase_name, tc.unmatched.phase_name} == {
+            "SKKS"
+        }
+
+    def test_rename_refused_on_a_taken_component(
+        self, two_components: _TwoComponents
+    ) -> None:
+        tc = two_components
+        s = add_seismogram(tc.session, tc.event, name="DEF", channel="BHT")
+        promote_picks(tc.session, [_pick(tc.session, s, "s", 30, "S")])
+        with pytest.raises(ValueError, match=r"already has phase S \(T\)"):
+            rename_phase(tc.session, tc.vertical.id, "S")
+        assert {p.name for p in tc.event.phases} == {"SKS", "S"}
+
+    def test_rename_allowed_beside_another_component(
+        self, two_components: _TwoComponents
+    ) -> None:
+        tc = two_components
+        remove_phase(tc.session, tc.transverse.id)
+        s = add_seismogram(tc.session, tc.event, name="DEF", channel="BHT")
+        promote_picks(tc.session, [_pick(tc.session, s, "s", 30, "S")])
+        rename_phase(tc.session, tc.vertical.id, "S")
+        assert sorted((p.name, p.component) for p in tc.event.phases) == [
+            ("S", "T"),
+            ("S", "Z"),
+        ]
+
+
+class TestEventCompletion:
+    def test_removing_a_phase_changes_what_completion_requires(
+        self, two_components: _TwoComponents
+    ) -> None:
+        tc = two_components
+        toggle_phase_completed(tc.session, tc.transverse.id)
+        tc.session.flush()
+        assert get_completed_events(tc.session) == []
+        remove_phase(tc.session, tc.vertical.id)
+        assert get_completed_events(tc.session) == [tc.event]

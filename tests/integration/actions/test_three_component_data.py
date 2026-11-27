@@ -19,9 +19,10 @@ from pysmo import Station
 from pysmo.classes import SAC
 
 from aimbat import actions
+from aimbat.core import PickSelection
 from aimbat.core._validity import Validity
 from aimbat.io import DataType
-from aimbat.models import AimbatEvent, AimbatPhase, AimbatSeismogram
+from aimbat.models import AimbatEvent, AimbatPhase, AimbatSeismogram, AimbatStation
 
 _EVENTS = ("fiji_region", "central_peru", "solomon_islands")
 _HEADERS = {"P": "t0", "pP": "t5", "S": "t6", "SKS": "t7"}
@@ -155,7 +156,20 @@ class TestProcessing:
         raise LookupError((label, name))
 
     def test_p_at_mixed_rates(self, imported: Engine) -> None:
-        """Channels of one site agree, whatever their location code or rate."""
+        """Channels of one site agree, whatever their location code or rate.
+
+        The BH and LH streams of PAX are one sensor, which blocks
+        processing, so the BH picks are removed first.
+        """
+        with Session(imported) as session:
+            station_ids = session.exec(
+                select(AimbatStation.id)
+                .where(col(AimbatStation.name) == "PAX")
+                .where(col(AimbatStation.channel).startswith("BH"))
+            ).all()
+        actions.remove_picks(
+            PickSelection(station_ids=tuple(station_ids)), engine=imported
+        )
         phase_id = self._phase_id(imported, "fiji_region", "P")
         actions.run_iccs(phase_id, autoflip=True, autoselect=True)
         actions.run_mccc(phase_id)
@@ -177,7 +191,7 @@ class TestProcessing:
 
         assert deltas == {Timedelta(seconds=s) for s in (0.025, 0.05, 1)}
         shared = {site: r for site, r in residuals.items() if len(r) > 1}
-        assert shared.keys() == {"AK.PAX", "IU.COLA", "TA.TOLK"}
+        assert shared.keys() == {"IU.COLA", "TA.TOLK"}
         for site, (first, *others) in shared.items():
             for other in others:
                 assert abs(other - first) < Timedelta(seconds=0.25), site

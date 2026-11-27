@@ -14,6 +14,7 @@ from aimbat.core import PickNaming, PruneReport
 from aimbat.io import DataType
 
 from ._picks import PickSummary
+from ._readiness import ReadinessCounts, _count_items
 from ._session import open_session
 
 __all__ = [
@@ -59,8 +60,8 @@ class AddDataResult:
     """Phases that gained rows and were snapshotted."""
     snapshot_failures: list[tuple[UUID, str]]
     """Phase ID and error message for each automatic snapshot that failed."""
-    blocking_items: int
-    """Blocking readiness items of the events the data sources belong to.
+    readiness: ReadinessCounts
+    """Readiness items of the events the data sources belong to.
 
     Not counted in a dry run. Initial picks are not checked against the end
     of their seismogram here (see `aimbat.core.readiness`).
@@ -140,14 +141,12 @@ def add_data(
         )
         warnings = report.duplicate_warnings
         if dry_run:
-            return AddDataResult(sources, warnings, picks, [], [], 0, dry_run=True)
+            return AddDataResult(
+                sources, warnings, picks, [], [], ReadinessCounts(), dry_run=True
+            )
 
         session.commit()
-        blocking = sum(
-            item.blocking
-            for event_id in dict.fromkeys(s.event_id for s in sources)
-            for item in core.readiness(session, event_id=event_id, read_data=False)
-        )
+        counts = _count_items(session, (s.event_id for s in sources))
         snapshotted: list[UUID] = []
         failures: list[tuple[UUID, str]] = []
         if auto_snapshot:
@@ -156,7 +155,7 @@ def add_data(
             )
             session.commit()
     return AddDataResult(
-        sources, warnings, picks, snapshotted, failures, blocking, dry_run=False
+        sources, warnings, picks, snapshotted, failures, counts, dry_run=False
     )
 
 

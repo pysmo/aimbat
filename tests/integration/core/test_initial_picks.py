@@ -18,6 +18,7 @@ from aimbat.core import (
     pick_states,
     promote_picks,
     rematch_picks,
+    set_initial_pick,
     store_picks,
     validate_phase_name,
     validate_pick,
@@ -30,6 +31,7 @@ from aimbat.models import (
     AimbatSeismogram,
     AimbatSeismogramParameters,
     PickOrigin,
+    phase_component,
 )
 
 from testsupport.project import (
@@ -514,6 +516,21 @@ class TestPromotePicks:
         assert report.rows == []
         assert report.phases_created == []
 
+    def test_invalid_pick_of_another_phase_is_invalid(self, session: Session) -> None:
+        """Validation comes before the filter by phase name."""
+        seismogram = add_seismogram(session, add_event(session))
+        early = AimbatPick(
+            time=at(-1),
+            phase_name="S",
+            origin=PickOrigin.MANUAL,
+            seismogram=seismogram,
+        )
+        session.add(early)
+        session.flush()
+        report = promote_picks(session, [early], phases=["P"])
+        assert report.invalid == [early]
+        assert report.unpromoted == []
+
     def test_promoted_pick_ignored(self, session: Session) -> None:
         seismogram = add_seismogram(session, add_event(session))
         pick = _named_pick(session, seismogram, 30, "t0")
@@ -527,6 +544,67 @@ class TestPromotePicks:
         report = promote_picks(session, [later, earlier])
         assert report.rows[0].pick is earlier
         assert report.conflicts == [later]
+
+
+class TestComponents:
+    """Tests for phases per event, name and component."""
+
+    def test_one_phase_per_component(self, session: Session) -> None:
+        event = add_event(session)
+        vertical = add_seismogram(session, event)
+        transverse = add_seismogram(session, event, channel="BHT")
+        report = promote_picks(
+            session,
+            [
+                _named_pick(session, vertical, 30, "z"),
+                _named_pick(session, transverse, 30, "t"),
+            ],
+        )
+        assert sorted(p.component for p in report.phases_created) == ["T", "Z"]
+        for phase in event.phases:
+            (row,) = phase.seismogram_parameters
+            assert phase_component(row.seismogram.station) == phase.component
+
+    def test_channel_without_component(self, session: Session) -> None:
+        seismogram = add_seismogram(session, add_event(session), channel="BH-")
+        report = promote_picks(session, [_named_pick(session, seismogram, 30, "a")])
+        (phase,) = report.phases_created
+        assert phase.component == ""
+
+    def test_phase_of_another_component_not_filled(self, session: Session) -> None:
+        event = add_event(session)
+        promote_picks(
+            session, [_named_pick(session, add_seismogram(session, event), 30, "z")]
+        )
+        transverse = add_seismogram(session, event, channel="BHT")
+        pick = _named_pick(session, transverse, 30, "t")
+        report = promote_picks(session, [pick], phases=False)
+        assert report.unpromoted == [pick]
+        assert pick_states(session, pick_ids=[pick.id]) == {
+            pick.id: PickState.UNPROMOTED
+        }
+
+    def test_no_conflict_across_components(self, session: Session) -> None:
+        event = add_event(session)
+        vertical = add_seismogram(session, event)
+        promote_picks(session, [_named_pick(session, vertical, 30, "z")])
+        transverse = add_seismogram(session, event, channel="BHT")
+        check = validate_pick(
+            session, _named_pick(session, transverse, 40, "t"), transverse
+        )
+        assert check.conflict is None
+        assert not check.redundant
+
+    def test_initial_pick_set_on_its_component(self, session: Session) -> None:
+        event = add_event(session)
+        promote_picks(
+            session, [_named_pick(session, add_seismogram(session, event), 30, "z")]
+        )
+        transverse = add_seismogram(session, event, channel="BHT")
+        _, report = set_initial_pick(session, transverse.id, "P", at(40))
+        (phase,) = report.phases_created
+        assert (phase.name, phase.component) == ("P", "T")
+        assert len(event.phases) == 2
 
 
 class TestValidatePick:

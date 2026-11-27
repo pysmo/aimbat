@@ -28,7 +28,7 @@ from aimbat.utils import check_field_name_flags, dump_models
 from ._picks import (
     PromotionReport,
     _is_promoted,
-    _phase_of,
+    _phase_for,
     _row_of,
     _warn_nonstandard_phase,
     find_event,
@@ -562,7 +562,7 @@ def set_initial_pick(
     check = validate_pick(session, pick, seismogram)
     if check.errors:
         raise ValueError(" ".join(check.errors))
-    phase = _phase_of(session, seismogram.event_id, name)
+    phase = _phase_for(session, seismogram, name)
     row = _row_of(session, seismogram.id, phase.id) if phase else None
     if row is not None and not replace_row:
         raise ValueError(

@@ -21,6 +21,8 @@ from aimbat.models import (
     AimbatSeismogram,
     AimbatSeismogramParameters,
     SeismogramQualityStats,
+    phase_component,
+    phase_label,
     undefer_counts,
 )
 from aimbat.models._parameters import AimbatPhaseParametersBase
@@ -30,6 +32,7 @@ from aimbat.utils import check_field_name_flags, dump_models, rel
 __all__ = [
     "AmbiguousPhaseError",
     "PhaseRemovalReport",
+    "PhaseRenameReport",
     "default_phase_parameters",
     "dump_phase_parameter_table",
     "dump_phase_quality_table",
@@ -63,70 +66,99 @@ type PhaseParameterTimedelta = Literal[
 
 
 class AmbiguousPhaseError(ValueError):
-    """Raised when a phase is not named and the event has several.
+    """Raised when the name or component given selects several phases of an event.
 
     Attributes:
-        names: Names of the event's phases, sorted.
+        labels: The phases selected, as `phase_label` shows them, sorted.
+        by: What selects one of them: `"name"` or `"component"`.
     """
 
-    def __init__(self, event_id: UUID, names: Sequence[str]) -> None:
-        self.names = tuple(sorted(names))
+    def __init__(
+        self,
+        event_id: UUID,
+        labels: Sequence[str],
+        by: Literal["name", "component"] = "name",
+    ) -> None:
+        self.labels = tuple(sorted(labels))
+        self.by = by
         super().__init__(
-            f"Event {event_id} has phases {', '.join(self.names)}. Select one "
-            + "by name."
+            f"Event {event_id} has phases {', '.join(self.labels)}. Select one "
+            + f"by {by}."
         )
 
 
 def resolve_phase(
-    session: Session, event_id: UUID, name: str | None = None
+    session: Session,
+    event_id: UUID,
+    name: str | None = None,
+    component: str | None = None,
 ) -> AimbatPhase:
-    """Return the named phase of an event, or its only phase when `name` is `None`.
+    """Return the phase of an event selected by name and component.
+
+    With both given, the phase of that name on that component. With one,
+    the event's only phase of that name, or on that component. With
+    neither, the event's only phase.
 
     Args:
         session: Database session.
         event_id: ID of the event.
-        name: Name of the phase, or `None` for the event's only phase.
+        name: Name of the phase.
+        component: Component of the phase (`phase_component`).
 
     Returns:
         The phase.
 
     Raises:
-        NoResultFound: If the event does not exist, has no phase of that
-            name, or has no phase.
-        AmbiguousPhaseError: If `name` is `None` and the event has several
-            phases.
+        NoResultFound: If the event does not exist, or no phase of it
+            matches.
+        AmbiguousPhaseError: If several phases of the event match.
     """
     if session.get(AimbatEvent, event_id) is None:
         raise NoResultFound(f"No event found with ID {event_id}.")
     phases = session.exec(
         select(AimbatPhase)
         .where(col(AimbatPhase.event_id) == event_id)
-        .order_by(col(AimbatPhase.name))
+        .order_by(col(AimbatPhase.name), col(AimbatPhase.component))
     ).all()
-    if name is not None:
-        for phase in phases:
-            if phase.name == name:
-                return phase
-        known = ", ".join(p.name for p in phases) or "none"
-        raise NoResultFound(
-            f"Event {event_id} has no phase {name!r}. Its phases: {known}."
-        )
     if not phases:
         raise NoResultFound(f"Event {event_id} has no phases.")
-    if len(phases) > 1:
-        raise AmbiguousPhaseError(event_id, [p.name for p in phases])
-    return phases[0]
+    matching = [
+        p
+        for p in phases
+        if (name is None or p.name == name)
+        and (component is None or p.component == component)
+    ]
+    if not matching:
+        wanted = (
+            phase_label(name, component)
+            if name is not None and component is not None
+            else repr(name)
+            if name is not None
+            else f"on component {component!r}"
+        )
+        known = ", ".join(phase_label(p.name, p.component) for p in phases)
+        raise NoResultFound(
+            f"Event {event_id} has no phase {wanted}. Its phases: {known}."
+        )
+    if len(matching) > 1:
+        one_name = len({p.name for p in matching}) == 1
+        by: Literal["name", "component"] = "component" if one_name else "name"
+        raise AmbiguousPhaseError(
+            event_id, [phase_label(p.name, p.component) for p in matching], by
+        )
+    return matching[0]
 
 
-def default_phase_parameters(name: str) -> AimbatPhaseParameters:
-    """Return new parameters for a phase called `name`.
+def default_phase_parameters(name: str, component: str = "") -> AimbatPhaseParameters:
+    """Return new parameters for the phase `name` on `component`.
 
-    The values come from the current settings, the same for every name.
+    The values come from the current settings, the same for every phase.
 
     Args:
         name: Name of the phase.
+        component: Component of the phase (`phase_component`).
     """
-    del name
+    del name, component
     return AimbatPhaseParameters(
         completed=False,
         ramp_width=settings.ramp_width,
@@ -182,7 +214,7 @@ def get_phases(
         with_counts: Whether to load the deferred counts in the same query.
 
     Returns:
-        The phases, ordered by event time and name.
+        The phases, ordered by event time, name and component.
     """
     logger.debug(f"Getting phases ({event_id=}, {name=}).")
 
@@ -192,7 +224,7 @@ def get_phases(
     if name is not None:
         statement = statement.where(col(AimbatPhase.name) == name)
     statement = statement.order_by(
-        col(AimbatEvent.time), col(AimbatPhase.name)
+        col(AimbatEvent.time), col(AimbatPhase.name), col(AimbatPhase.component)
     ).options(*_phase_loads(), *(undefer_counts(AimbatPhase) if with_counts else ()))
     return session.exec(statement).all()
 
@@ -245,53 +277,92 @@ def get_phase_quality(session: Session, phase_id: UUID) -> SeismogramQualityStat
     return SeismogramQualityStats.from_phase(phase, Validity.read(session, phase_id))
 
 
-def _picks_named(session: Session, phase: AimbatPhase) -> Sequence[AimbatPick]:
-    """Picks of the phase's event named for the phase."""
+def _picks_named(session: Session, event_id: UUID, name: str) -> Sequence[AimbatPick]:
+    """Picks of an event named `name`: matched to its seismograms, or assigned to it."""
     seismogram_ids = select(AimbatSeismogram.id).where(
-        col(AimbatSeismogram.event_id) == phase.event_id
+        col(AimbatSeismogram.event_id) == event_id
     )
     return session.exec(
         select(AimbatPick)
-        .where(col(AimbatPick.phase_name) == phase.name)
+        .where(col(AimbatPick.phase_name) == name)
         .where(
             or_(
                 col(AimbatPick.seismogram_id).in_(seismogram_ids),
-                col(AimbatPick.event_id) == phase.event_id,
+                col(AimbatPick.event_id) == event_id,
             )
         )
     ).all()
 
 
-def rename_phase(session: Session, phase_id: UUID, name: str) -> None:
-    """Rename a phase, and the picks of its event named for it.
+@dataclass(frozen=True, slots=True)
+class PhaseRenameReport:
+    """What `rename_phase` renamed."""
+
+    event_id: UUID
+    event_time: Timestamp
+    old_name: str
+    new_name: str
+    components: tuple[str, ...]
+    """Components of the phases renamed, sorted."""
+    picks: int
+    """Picks of the event renamed with them."""
+
+
+def rename_phase(session: Session, phase_id: UUID, name: str) -> PhaseRenameReport:
+    """Rename a phase on every component, and the picks of its event named for it.
+
+    Picks carry a phase name but no component, so every phase of the event
+    with the old name is renamed.
 
     Args:
         session: Database session.
-        phase_id: ID of the phase.
+        phase_id: ID of one of the phases.
         name: New name.
+
+    Returns:
+        The phases and picks renamed.
 
     Raises:
         NoResultFound: If no phase with the given ID is found.
-        ValueError: If the name is not a valid phase name, or another phase
-            of the event already has it.
+        ValueError: If the name is not a valid phase name, or the event
+            already has a phase of that name on one of the components.
     """
     from ._picks import validate_phase_name
 
     phase = _phase(session, phase_id)
     name = validate_phase_name(name)
-    if name == phase.name:
-        return
-    if any(other.name == name for other in phase.event.phases):
-        raise ValueError(f"The event already has a phase {name!r}.")
+    old_name = phase.name
+    renamed = sorted(
+        (p for p in phase.event.phases if p.name == old_name),
+        key=lambda p: p.component,
+    )
+    components = tuple(p.component for p in renamed)
+    if name == old_name:
+        return PhaseRenameReport(
+            phase.event_id, phase.event.time, old_name, name, components, 0
+        )
+    taken = sorted(
+        p.component
+        for p in phase.event.phases
+        if p.name == name and p.component in components
+    )
+    if taken:
+        labels = ", ".join(phase_label(name, c) for c in taken)
+        raise ValueError(f"The event already has phase {labels}.")
 
-    logger.info(f"Renaming phase {phase.name!r} of event {phase.event_id} to {name!r}.")
+    logger.info(f"Renaming phase {old_name!r} of event {phase.event_id} to {name!r}.")
 
-    for pick in _picks_named(session, phase):
+    picks = _picks_named(session, phase.event_id, old_name)
+    for pick in picks:
         pick.phase_name = name
         session.add(pick)
-    phase.name = name
-    session.add(phase)
+    for each in renamed:
+        each.name = name
+        session.add(each)
     session.flush()
+    return PhaseRenameReport(
+        phase.event_id, phase.event.time, old_name, name, components, len(picks)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,19 +372,28 @@ class PhaseRemovalReport:
     event_id: UUID
     event_time: Timestamp
     phase_name: str
+    component: str
     rows: int
     """Rows of the phase deleted."""
     snapshots: int
     """Snapshots of the phase deleted."""
     dismissed_picks: int
-    """Picks of the event named for the phase that were dismissed."""
+    """Picks named for the phase on the component's seismograms that were dismissed."""
+    dismissed_unmatched: int
+    """Unmatched picks of the event named for the phase that were dismissed."""
+    kept_unmatched: int
+    """Unmatched picks named for the phase kept for its other components."""
+    other_components: tuple[str, ...]
+    """Components on which the event keeps a phase of the name, sorted."""
 
 
 def remove_phase(session: Session, phase_id: UUID) -> PhaseRemovalReport:
-    """Delete a phase, and dismiss the picks of its event named for it.
+    """Delete a phase, and dismiss the picks of its event named for it on its component.
 
     The rows, parameters, quality and snapshots of the phase are deleted
-    with it.
+    with it. Picks on seismograms of other components are left alone.
+    Unmatched picks of the name are dismissed only when no phase of the
+    name remains in the event.
 
     Args:
         session: Database session.
@@ -328,21 +408,47 @@ def remove_phase(session: Session, phase_id: UUID) -> PhaseRemovalReport:
     from ._session import flush_deletes
 
     phase = _phase(session, phase_id)
-    dismissed = 0
-    for pick in _picks_named(session, phase):
-        if not pick.dismissed:
-            pick.dismissed = True
-            session.add(pick)
+    others = tuple(
+        sorted(
+            p.component
+            for p in phase.event.phases
+            if p.name == phase.name and p.id != phase.id
+        )
+    )
+    dismissed = dismissed_unmatched = kept_unmatched = 0
+    for pick in _picks_named(session, phase.event_id, phase.name):
+        if pick.dismissed:
+            continue
+        if pick.seismogram_id is None:
+            if others:
+                kept_unmatched += 1
+                continue
+            dismissed_unmatched += 1
+        else:
+            seismogram = session.get(AimbatSeismogram, pick.seismogram_id)
+            if (
+                seismogram is None
+                or seismogram.event_id != phase.event_id
+                or phase_component(seismogram.station) != phase.component
+            ):
+                continue
             dismissed += 1
+        pick.dismissed = True
+        session.add(pick)
     report = PhaseRemovalReport(
         event_id=phase.event_id,
         event_time=phase.event.time,
         phase_name=phase.name,
+        component=phase.component,
         rows=len(phase.seismogram_parameters),
         snapshots=len(phase.snapshots),
         dismissed_picks=dismissed,
+        dismissed_unmatched=dismissed_unmatched,
+        kept_unmatched=kept_unmatched,
+        other_components=others,
     )
-    logger.info(f"Removing phase {phase.name!r} of event {phase.event_id}.")
+    label = phase_label(phase.name, phase.component)
+    logger.info(f"Removing phase {label!r} of event {phase.event_id}.")
     session.delete(phase)
     flush_deletes(session)
     return report
@@ -350,27 +456,29 @@ def remove_phase(session: Session, phase_id: UUID) -> PhaseRemovalReport:
 
 def _with_phase_names(
     data: list[dict[str, Any]],
-    names: Iterable[str],
+    phases: Iterable[AimbatPhase],
     *,
     by_alias: bool,
     by_title: bool,
 ) -> list[dict[str, Any]]:
-    """Add the phase name to each dumped record, after its phase ID."""
-    id_key, name_key = (
-        ("phaseId", "phaseName")
+    """Add the phase name and component to each dumped record, after its phase ID."""
+    id_key, name_key, component_key = (
+        ("phaseId", "phaseName", "phaseComponent")
         if by_alias
-        else ("Phase ID", "Phase")
+        else ("Phase ID", "Phase", "Component")
         if by_title
-        else ("phase_id", "phase_name")
+        else ("phase_id", "phase_name", "phase_component")
     )
     result = []
-    for record, name in zip(data, names, strict=True):
+    for record, phase in zip(data, phases, strict=True):
         out: dict[str, Any] = {}
         for key, value in record.items():
             out[key] = value
             if key == id_key:
-                out[name_key] = name
-        out.setdefault(name_key, name)
+                out[name_key] = phase.name
+                out[component_key] = phase.component
+        out.setdefault(name_key, phase.name)
+        out.setdefault(component_key, phase.component)
         result.append(out)
     return result
 
@@ -428,7 +536,8 @@ def dump_phase_parameter_table(
 ) -> list[dict[str, Any]]:
     """Dump the phase parameters to a JSON-serialisable list of dicts.
 
-    Each record carries the name of its phase next to the phase ID.
+    Each record carries the name and component of its phase next to the
+    phase ID.
 
     Args:
         session: Database session.
@@ -454,9 +563,7 @@ def dump_phase_parameter_table(
         by_title=by_title,
         exclude=exclude,
     )
-    return _with_phase_names(
-        data, (p.name for p in phases), by_alias=by_alias, by_title=by_title
-    )
+    return _with_phase_names(data, phases, by_alias=by_alias, by_title=by_title)
 
 
 def dump_phase_quality_table(

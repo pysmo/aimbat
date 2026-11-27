@@ -99,7 +99,8 @@ class TestRules:
         pick = store_pick(session, None, "lost", target=_by_codes())
         item = _only(readiness(session), ReadinessKind.UNMATCHED_PICK)
         assert item.blocking
-        assert item.phase_id == event.phases[0].id
+        assert (item.phase_id, item.component) == (None, None)
+        assert item.covers(event.phases[0])
         assert item.fixes[0] == f"aimbat pick match {pick.id} SEISMOGRAM"
 
     def test_r2_unmatched_notice_without_phase(self, session: Session) -> None:
@@ -204,6 +205,33 @@ class TestRules:
         assert item.severity is ReadinessSeverity.NOTICE
         assert item.seismogram_ids == (bare.id,)
 
+    def test_r8_ignores_seismograms_with_unpromoted_picks(
+        self, session: Session
+    ) -> None:
+        """A seismogram whose pick is not an initial pick has a pick."""
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        store_pick(session, add_seismogram(session, event, name="DEF"), "t5", label="S")
+        kinds = {i.kind for i in readiness(session)}
+        assert ReadinessKind.SEISMOGRAM_WITHOUT_PICKS not in kinds
+        assert ReadinessKind.UNPROMOTED_PICKS in kinds
+
+    def test_components_of_a_site_are_separate_phases(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _promoted(session, add_seismogram(session, event, channel="BHN"), "n0")
+        assert sorted(p.component for p in event.phases) == ["N", "Z"]
+        assert readiness(session) == []
+
+    def test_r8_counts_only_dismissed_picks_as_none(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        other = add_seismogram(session, event, name="DEF")
+        store_pick(session, other, "t5").dismissed = True
+        session.flush()
+        item = _only(readiness(session), ReadinessKind.SEISMOGRAM_WITHOUT_PICKS)
+        assert item.seismogram_ids == (other.id,)
+
     def test_r9_pick_after_end(self, session: Session) -> None:
         seismogram = add_seismogram(session, add_event(session))
         pick = _promoted(session, seismogram, "t0")
@@ -214,6 +242,175 @@ class TestRules:
         assert item.pick_ids == (pick.id,)
         assert item.seismogram_ids == (seismogram.id,)
         assert readiness(session, read_data=False) == []
+
+
+def _bandpass(phase: AimbatPhase, fmax: float | None) -> None:
+    """Turn the bandpass of `phase` off, or on up to `fmax`."""
+    phase.parameters.bandpass_apply = fmax is not None
+    if fmax is not None:
+        phase.parameters.bandpass_fmax = fmax
+
+
+class TestComponents:
+    """Tests for items of phases that share a name."""
+
+    def test_unmatched_covers_every_component(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _promoted(session, add_seismogram(session, event, channel="BHN"), "n0")
+        store_pick(session, None, "lost", target=_by_codes())
+        item = _only(readiness(session), ReadinessKind.UNMATCHED_PICK)
+        assert item.blocking
+        assert all(item.covers(phase) for phase in event.phases)
+
+    def test_unpromoted_names_its_component(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        north = store_pick(session, add_seismogram(session, event, channel="BHN"), "n0")
+        promote_picks(session, [north], phases=False)
+        item = _only(readiness(session), ReadinessKind.UNPROMOTED_PICKS)
+        assert (item.phase_id, item.phase_name, item.component) == (None, "P", "N")
+        assert "P (N)" in item.message
+        assert not any(item.covers(phase) for phase in event.phases)
+
+    def test_fix_gives_an_empty_component_beside_others(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _phase(session, event, "P")
+        item = _only(readiness(session), ReadinessKind.EMPTY_PHASE)
+        assert item.component == ""
+        assert item.fixes[1] == (
+            f"aimbat phase remove --event {event.id} --phase P --component ''"
+        )
+
+    def test_fix_leaves_out_an_empty_component_alone(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _phase(session, event, "PKP")
+        item = _only(readiness(session), ReadinessKind.EMPTY_PHASE)
+        assert item.fixes[1] == f"aimbat phase remove --event {event.id} --phase PKP"
+
+    def test_empty_phase_fix_selects_the_component(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _phase(session, event, "PKP").component = "T"
+        session.flush()
+        item = _only(readiness(session), ReadinessKind.EMPTY_PHASE)
+        assert item.component == "T"
+        assert item.fixes[1] == (
+            f"aimbat phase remove --event {event.id} --phase PKP --component T"
+        )
+
+
+class TestStreams:
+    """Tests for several streams of one sensor and several sensors of a site."""
+
+    def test_streams_of_one_sensor_block(self, session: Session) -> None:
+        event = add_event(session)
+        broadband = add_seismogram(session, event)
+        long_period = add_seismogram(session, event, channel="LHZ", delta=1.0)
+        _promoted(session, add_seismogram(session, event, name="DEF"), "d0")
+        _promoted(session, broadband, "t0")
+        _promoted(session, long_period, "l0")
+        items = readiness(session)
+        item = _only(items, ReadinessKind.DUPLICATE_SENSOR_STREAMS)
+        assert item.blocking
+        assert set(item.seismogram_ids) == {broadband.id, long_period.id}
+        assert item.sites == (("XX", "ABC"),)
+        assert item.count == 1
+        assert "XX.ABC.00 (BHZ at 20 Hz, LHZ at 1 Hz)" in item.message
+        assert "1 site with initial picks of phase P (Z) on several streams" in (
+            item.message
+        )
+        assert item.fixes == (
+            "aimbat pick remove --seismogram SEISMOGRAM",
+            "aimbat pick remove --station STATION",
+        )
+        assert ReadinessKind.MULTIPLE_SENSORS_PER_SITE not in {i.kind for i in items}
+        with pytest.raises(NotReadyError):
+            require_ready(session, event.phases[0].id)
+
+    def test_sensors_of_one_site_are_a_notice(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _promoted(session, add_seismogram(session, event, location="10"), "t1")
+        items = readiness(session)
+        item = _only(items, ReadinessKind.MULTIPLE_SENSORS_PER_SITE)
+        assert item.severity is ReadinessSeverity.NOTICE
+        assert item.sites == (("XX", "ABC"),)
+        assert "XX.ABC (00.BHZ at 20 Hz, 10.BHZ at 20 Hz)" in item.message
+        assert ReadinessKind.DUPLICATE_SENSOR_STREAMS not in {i.kind for i in items}
+
+
+class TestRates:
+    """Tests for sampling rates against the bandpass of a phase."""
+
+    @pytest.fixture
+    def mixed(self, session: Session) -> AimbatPhase:
+        """A phase on one site at 20 Hz and two at 40 Hz."""
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _promoted(
+            session, add_seismogram(session, event, name="DEF", delta=0.025), "d0"
+        )
+        _promoted(
+            session, add_seismogram(session, event, name="GHI", delta=0.025), "g0"
+        )
+        (phase,) = event.phases
+        return phase
+
+    def test_mixed_without_bandpass(self, session: Session, mixed: AimbatPhase) -> None:
+        _bandpass(mixed, None)
+        item = _only(readiness(session), ReadinessKind.MIXED_SAMPLING_RATES)
+        assert item.severity is ReadinessSeverity.NOTICE
+        assert "2 sampling rates (2 at 40 Hz, 1 at 20 Hz)" in item.message
+        assert item.sites == (("XX", "ABC"),)
+        (fix,) = item.fixes
+        assert fix.index("bandpass_fmax FMAX") < fix.index("bandpass_apply true")
+
+    def test_mixed_below_the_passband(
+        self, session: Session, mixed: AimbatPhase
+    ) -> None:
+        _bandpass(mixed, 8.0)
+        assert readiness(session) == []
+
+    def test_mixed_above_the_passband(
+        self, session: Session, mixed: AimbatPhase
+    ) -> None:
+        _bandpass(mixed, 9.0)
+        item = _only(readiness(session), ReadinessKind.MIXED_SAMPLING_RATES)
+        assert item.fixes == (
+            "aimbat phase parameter set bandpass_fmax FMAX "
+            + f"--event {mixed.event_id} --phase P --component Z",
+        )
+
+    def test_fmax_at_nyquist_blocks(self, session: Session, mixed: AimbatPhase) -> None:
+        _bandpass(mixed, 10.0)
+        items = readiness(session)
+        item = _only(items, ReadinessKind.FMAX_ABOVE_NYQUIST)
+        assert item.blocking
+        assert "Nyquist frequency (10 Hz) of the seismograms at 20 Hz of 1 site: " in (
+            item.message
+        )
+        assert item.fixes[1] == f"aimbat pick remove {item.pick_ids[0]}"
+        assert ReadinessKind.MIXED_SAMPLING_RATES not in {i.kind for i in items}
+
+    def test_deselected_seismograms_count(
+        self, session: Session, mixed: AimbatPhase
+    ) -> None:
+        _bandpass(mixed, 10.0)
+        coarse = next(
+            r for r in mixed.seismogram_parameters if r.seismogram.station.name == "ABC"
+        )
+        coarse.select = False
+        session.flush()
+        _only(readiness(session), ReadinessKind.FMAX_ABOVE_NYQUIST)
+
+    def test_one_rate_below_nyquist(self, session: Session) -> None:
+        event = add_event(session)
+        _promoted(session, add_seismogram(session, event), "t0")
+        _bandpass(event.phases[0], 9.0)
+        assert readiness(session) == []
 
 
 class TestScope:

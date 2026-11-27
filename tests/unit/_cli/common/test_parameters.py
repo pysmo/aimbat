@@ -12,6 +12,7 @@ from aimbat._cli.common import (
     IccsPlotParameters,
     TableParameters,
     UuidConverter,
+    default_component,
     handle_issues,
 )
 from aimbat.core._migrations import SchemaStaleWarning
@@ -428,3 +429,32 @@ class TestOpenInEditor:
 
         assert result == "edited content"
         warning.assert_not_called()
+
+
+class TestDefaultComponent:
+    """Tests for applying `DEFAULT_COMPONENT` with its phase name only."""
+
+    @pytest.fixture(autouse=True)
+    def _environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEFAULT_PHASE", "SKS")
+        monkeypatch.setenv("DEFAULT_COMPONENT", "q")
+
+    def test_given_component_wins(self) -> None:
+        assert default_component("P", "T") == "T"
+
+    def test_without_a_name(self) -> None:
+        assert default_component(None, None) == "Q"
+
+    def test_with_the_default_name(self) -> None:
+        assert default_component("SKS", None) == "Q"
+
+    def test_not_with_another_name(self) -> None:
+        assert default_component("P", None) is None
+
+    def test_empty_is_kept(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEFAULT_COMPONENT", "")
+        assert default_component("SKS", None) == ""
+
+    def test_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEFAULT_COMPONENT")
+        assert default_component(None, None) is None

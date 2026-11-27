@@ -88,7 +88,7 @@ class TestPhaseSelection:
             monkeypatch,
             f"phase parameter set min_cc 0.42 --event-id {two_phases}",
         )
-        assert "has phases P, PKP" in error
+        assert "has phases P (Z), PKP (Z)" in error
 
     def test_option_selects_the_phase(
         self, loaded_engine: Engine, cli: _Cli, two_phases: str
@@ -118,7 +118,7 @@ class TestPhaseSelection:
         error = _fails(
             cli, capsys, monkeypatch, f"align iccs --event-id {two_phases} --phase S"
         )
-        assert "Its phases: P, PKP" in error
+        assert "Its phases: P (Z), PKP (Z)" in error
 
     def test_snapshot_of_the_named_phase(
         self,

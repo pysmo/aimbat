@@ -32,18 +32,20 @@ def shell_subprocess(
 
     Returns:
         A callable that accepts stdin text, and optionally extra environment
-        variables, and returns the completed process.
+        variables and shell arguments, and returns the completed process.
     """
 
     def _run(
-        stdin: str, extra_env: dict[str, str] | None = None
+        stdin: str,
+        extra_env: dict[str, str] | None = None,
+        args: Sequence[str] = (),
     ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy() | (extra_env or {})
         env["AIMBAT_DB_URL"] = f"sqlite+pysqlite:///{db_path}"
         env["AIMBAT_LOGFILE"] = worker_logfile()
         env["COLUMNS"] = "1000"
         return subprocess.run(
-            ["uv", "run", "aimbat", "shell"],
+            ["uv", "run", "aimbat", "shell", *args],
             input=stdin,
             capture_output=True,
             text=True,
@@ -275,8 +277,8 @@ class TestPhaseSwitch:
             + "exit\n"
         )
         assert result.returncode == 0, result.stderr
-        ready = result.stdout.index("phase P)")
-        assert result.stdout.index("has phases P, PKP", ready) > ready
+        ready = result.stdout.index("phase P (Z))")
+        assert result.stdout.index("has phases P (Z), PKP (Z)", ready) > ready
 
     def test_unknown_phase_is_refused(
         self,
@@ -290,7 +292,7 @@ class TestPhaseSwitch:
         assert result.returncode == 0, result.stderr
         output = result.stdout + result.stderr
         assert "has no phase 'S'" in output
-        assert "P, PKP" in output
+        assert "P (Z), PKP (Z)" in output
 
     def test_needs_an_event(
         self,
@@ -323,7 +325,7 @@ class TestPhaseSwitch:
             + f"event switch {other}\nexit\n"
         )
         assert result.returncode == 0, result.stderr
-        assert "no phase 'PKP'" in result.stdout
+        assert "has no phase PKP (Z) to switch to" in result.stdout
         assert f"ICCS ready (event {other[:8]})" in result.stdout
 
     def test_event_switch_keeps_the_previous_event_only_phase(
@@ -346,7 +348,7 @@ class TestPhaseSwitch:
             f"event switch {other}\nevent switch {event_with_two_phases}\nexit\n"
         )
         assert result.returncode == 0, result.stderr
-        assert f"ICCS ready (event {event_with_two_phases[:8]}, phase P)" in (
+        assert f"ICCS ready (event {event_with_two_phases[:8]}, phase P (Z))" in (
             result.stdout
         )
 
@@ -372,7 +374,7 @@ class TestPhaseSwitch:
         )
         assert result.returncode == 0, result.stderr
         assert "phase PKP" in result.stdout
-        assert "no phase 'PKP'" in result.stdout
+        assert "has no phase PKP (Z) to switch to" in result.stdout
         assert f"ICCS ready (event {other[:8]})" in result.stdout
 
 
@@ -412,7 +414,7 @@ class TestPhaseSwitchOnLabelledData:
             + "phase switch P\nphase parameter set min_cc 0.42\nexit\n"
         )
         assert result.returncode == 0, result.stderr
-        assert f"ICCS ready (event {event_id[:8]}, phase pP)" in result.stdout
+        assert f"ICCS ready (event {event_id[:8]}, phase pP (Z))" in result.stdout
 
         # Only alignment sets refined picks; building an instance on a switch
         # already writes CC values, for either phase.
@@ -430,3 +432,106 @@ class TestPhaseSwitchOnLabelledData:
         }
         assert min_cc["P"] == pytest.approx(0.42)
         assert min_cc["pP"] != pytest.approx(0.42)
+
+
+@pytest.mark.slow
+class TestPhaseSwitchByComponent:
+    """`phase switch` on testkit's prepared data, with every phase on Z and T."""
+
+    @pytest.fixture()
+    def event_ids(
+        self,
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        three_component_data: dict[str, list[Path]],
+    ) -> dict[str, str]:
+        """Add the prepared Fiji and Solomon Islands events.
+
+        The PAX LH streams are left out, as they repeat the BH streams of
+        one sensor and so block processing.
+
+        Returns:
+            The event IDs, by testkit label.
+        """
+        aimbat_subprocess(["project", "create"])
+        ids: dict[str, str] = {}
+        for label in ("fiji_region", "solomon_islands"):
+            files = [
+                f
+                for f in three_component_data[f"prepared/{label}"]
+                if not f.name.startswith("AK.PAX.--.LH")
+            ]
+            added = aimbat_subprocess(
+                ["data", "add", *map(str, files), "--no-progress"]
+            )
+            assert added.returncode == 0, added.stderr
+            known = set(ids.values())
+            (new,) = [
+                e["id"]
+                for e in project_dump(aimbat_subprocess, ["event", "dump"])
+                if e["id"] not in known
+            ]
+            ids[label] = new
+        return ids
+
+    def test_switch_takes_a_component_and_carries_it(
+        self,
+        event_ids: dict[str, str],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        fiji, solomon = event_ids["fiji_region"], event_ids["solomon_islands"]
+        result = shell_subprocess(
+            f"event switch {fiji}\nphase switch S\nphase switch S t\n"
+            + f"event switch {solomon}\nexit\n"
+        )
+        assert result.returncode == 0, result.stderr
+        output = result.stdout + result.stderr
+        assert "S (T), S (Z)" in output
+        assert f"ICCS ready (event {fiji[:8]}, phase S (T))" in result.stdout
+        assert f"ICCS ready (event {solomon[:8]}, phase S (T))" in result.stdout
+
+    def test_starts_when_the_phase_is_ambiguous(
+        self,
+        event_ids: dict[str, str],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        fiji = event_ids["fiji_region"]
+        result = shell_subprocess("exit\n", args=["--event", fiji, "--phase", "S"])
+        assert result.returncode == 0, result.stderr
+        assert "no single phase S" in result.stdout
+
+    def test_pending_phase_reaches_commands_with_an_event(
+        self,
+        event_ids: dict[str, str],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        """`--phase` without an event serves commands that name one."""
+        solomon = event_ids["solomon_islands"]
+        result = shell_subprocess(
+            f"phase parameter get min_cc --event {solomon}\nexit\n",
+            args=["--phase", "S", "--component", "T"],
+        )
+        assert result.returncode == 0, result.stderr
+        assert "has phases" not in result.stdout + result.stderr
+        assert any(
+            line.strip().replace(".", "", 1).isdigit()
+            for line in result.stdout.splitlines()
+        )
+
+    def test_exported_component_alone_selects_on_switch(
+        self,
+        event_ids: dict[str, str],
+        aimbat_subprocess: Callable[[Sequence[str]], subprocess.CompletedProcess[str]],
+        shell_subprocess: Callable[..., subprocess.CompletedProcess[str]],
+    ) -> None:
+        """Without P (T), the component alone selects S (T)."""
+        solomon = event_ids["solomon_islands"]
+        removed = aimbat_subprocess(
+            ["phase", "remove", "--event", solomon, "--phase", "P"]
+            + ["--component", "T", "--yes"]
+        )
+        assert removed.returncode == 0, removed.stderr
+        result = shell_subprocess(
+            f"event switch {solomon}\nexit\n", {"DEFAULT_COMPONENT": "T"}
+        )
+        assert result.returncode == 0, result.stderr
+        assert f"ICCS ready (event {solomon[:8]}, phase S (T))" in result.stdout

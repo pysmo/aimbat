@@ -10,7 +10,7 @@ frontend (e.g. a Qt GUI) would reuse `IccsLifecycle` behind its own adapter
 using its own threading/notification primitives.
 
 Mixed into `AimbatTUI`, which provides `_current_event_id`,
-`_current_phase_name`, `_get_current_event`, `_get_current_phase` and
+`_current_phase`, `_get_current_event`, `_get_current_phase` and
 `refresh_all` (declared below
 only for the type checker; the real implementations live on the host class).
 """
@@ -29,27 +29,58 @@ from aimbat.core import (
     IccsLifecycle,
     NoSeismogramsError,
     NotReadyError,
+    resolve_phase,
 )
 from aimbat.core._validity import compute_digests
 from aimbat.db import engine
 from aimbat.logger import logger
-from aimbat.models import AimbatEvent, AimbatPhase
+from aimbat.models import AimbatEvent, AimbatPhase, phase_label
+
+type PhaseKey = tuple[str, str]
+"""Name and component of a phase, the same across events."""
 
 
-def phase_names(session: Session, event_id: uuid.UUID) -> list[str]:
-    """Names of the phases of an event, without loading their rows."""
-    return list(
-        session.exec(
-            select(AimbatPhase.name)
+def phase_keys(session: Session, event_id: uuid.UUID) -> list[PhaseKey]:
+    """Names and components of the phases of an event, without loading their rows."""
+    return [
+        (name, component)
+        for name, component in session.exec(
+            select(AimbatPhase.name, AimbatPhase.component)
             .where(AimbatPhase.event_id == event_id)
-            .order_by(col(AimbatPhase.name))
+            .order_by(col(AimbatPhase.name), col(AimbatPhase.component))
         ).all()
-    )
+    ]
+
+
+def resolve_key(
+    session: Session, event_id: uuid.UUID, key: PhaseKey | None
+) -> AimbatPhase:
+    """The phase of an event with that name and component, or its only phase.
+
+    Raises:
+        NoResultFound: If the event does not exist or has no such phase.
+        AmbiguousPhaseError: If `key` is `None` and the event has several
+            phases.
+    """
+    if key is None:
+        return resolve_phase(session, event_id)
+    return resolve_phase(session, event_id, *key)
+
+
+def carry_key(carried: PhaseKey | None, keys: list[PhaseKey]) -> PhaseKey | None:
+    """The phase to keep on another event with the phases `keys`.
+
+    The same name and component, else the only phase of that name, else none.
+    """
+    if carried is None or carried in keys:
+        return carried
+    same_name = [key for key in keys if key[0] == carried[0]]
+    return same_name[0] if len(same_name) == 1 else None
 
 
 def several_phases_notice(error: AmbiguousPhaseError) -> str:
     """The notice shown when processing is refused because no phase is selected."""
-    return f"This event has phases {', '.join(error.names)}. Press p to select one."
+    return f"This event has phases {', '.join(error.labels)}. Press p to select one."
 
 
 class _IccsLifecycleMixin(App[None]):
@@ -69,7 +100,7 @@ class _IccsLifecycleMixin(App[None]):
     # Provided by AimbatTUI; declared here only so the type checker accepts
     # the calls below - the host class's own definitions take precedence.
     _current_event_id: uuid.UUID | None
-    _current_phase_name: str | None
+    _current_phase: PhaseKey | None
 
     def _get_current_event(self, session: Session) -> AimbatEvent:
         raise NotImplementedError
@@ -280,25 +311,26 @@ class _IccsLifecycleMixin(App[None]):
         return True
 
     def _drop_missing_phase(self) -> bool:
-        """Clear a selected phase name that the active event no longer has.
+        """Clear a selected phase that the active event no longer has.
 
         A phase can be renamed or removed from another process. The event's
         only phase, if it has just one, is then used again.
 
         Returns:
-            Whether the name was cleared.
+            Whether the selection was cleared.
         """
-        event_id, name = self._current_event_id, self._current_phase_name
-        if event_id is None or name is None:
+        event_id, key = self._current_event_id, self._current_phase
+        if event_id is None or key is None:
             return False
         with Session(engine) as session:
             if session.get(AimbatEvent, event_id) is None:
                 return False
-            if name in phase_names(session, event_id):
+            if key in phase_keys(session, event_id):
                 return False
-        self._current_phase_name = None
+        self._current_phase = None
         self.notify(
-            f"The event has no phase {name} any more. The phase selection is cleared.",
+            f"The event has no phase {phase_label(*key)} any more. The phase "
+            + "selection is cleared.",
             severity="warning",
         )
         self._create_iccs()

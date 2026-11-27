@@ -26,6 +26,7 @@ from cyclopts import App
 from .common import (
     DebugParameter,
     IccsPlotParameters,
+    component_parameter,
     event_parameter,
     handle_issues,
     phase_parameter,
@@ -41,6 +42,7 @@ def cli_seismogram_plot(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Plot the input seismograms of a phase sorted by epicentral distance.
@@ -57,7 +59,7 @@ def cli_seismogram_plot(
 
     with Session(engine) as session:
         fig, _axes = plot_seismograms(
-            resolve_phase(session, event_id, phase), return_fig=True
+            resolve_phase(session, event_id, phase, component), return_fig=True
         )
 
     show_figure(fig)
@@ -69,6 +71,7 @@ def cli_plot_stack(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     _: DebugParameter = DebugParameter(),
 ) -> None:
@@ -82,7 +85,7 @@ def cli_plot_stack(
     from aimbat.plot import plot_stack
 
     plot_stack(
-        prepare_iccs(resolve_phase_option(event_id, phase)).iccs,
+        prepare_iccs(resolve_phase_option(event_id, phase, component)).iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         return_fig=False,
@@ -95,6 +98,7 @@ def cli_plot_matrix_image(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     _: DebugParameter = DebugParameter(),
 ) -> None:
@@ -110,7 +114,7 @@ def cli_plot_matrix_image(
     from aimbat.plot import plot_matrix_image
 
     plot_matrix_image(
-        prepare_iccs(resolve_phase_option(event_id, phase)).iccs,
+        prepare_iccs(resolve_phase_option(event_id, phase, component)).iccs,
         iccs_plot_parameters.context,
         all_seismograms=iccs_plot_parameters.all_seismograms,
         return_fig=False,
