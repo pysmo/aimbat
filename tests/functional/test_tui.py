@@ -892,7 +892,7 @@ class TestIccsAssignmentRace:
                     lambda self, phase_id, is_retry=False: started.append(phase_id),
                 )
                 app._current_event_id = event_id
-                app._current_phase_name = "PKP"
+                app._current_phase = ("PKP", "")
 
                 app._assign_iccs(stale_bound)
 
@@ -1116,7 +1116,7 @@ class TestParametersOnSeveralPhases:
 
         assert len(notifications) == 1
         message, severity = notifications[0]
-        assert "This event has phases P, PKP" in message
+        assert "This event has phases P (Z), PKP" in message
         assert "Press p to select one" in message
         assert severity == "warning"
 
@@ -1150,7 +1150,7 @@ class TestParametersOnSeveralPhases:
                 await pilot.press("escape")
                 await _wait_for_iccs_worker(app)
 
-                assert app._current_phase_name is None
+                assert app._current_phase is None
                 assert not app._iccs_lifecycle.ready
                 bar = app.query_one("#event-bar", Static)
                 assert "select a phase (p)" in str(bar.render())
@@ -1159,7 +1159,7 @@ class TestParametersOnSeveralPhases:
         asyncio.run(_run())
 
         notices = [m for m, s in notifications if s == "warning"]
-        assert notices == ["This event has phases P, PKP. Press p to select one."]
+        assert notices == ["This event has phases P (Z), PKP. Press p to select one."]
 
     def test_choosing_a_phase_filters_the_tabs(
         self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
@@ -1188,7 +1188,7 @@ class TestParametersOnSeveralPhases:
                 await _wait_for_iccs_worker(app)
                 await pilot.pause()
 
-                assert app._current_phase_name == "P"
+                assert app._current_phase == ("P", "Z")
                 assert app._iccs_lifecycle.ready
                 table = app.query_one("#seismogram-table", DataTable)
                 snapshots = app.query_one("#snapshot-table", DataTable)
@@ -1203,7 +1203,7 @@ class TestParametersOnSeveralPhases:
                 await pilot.press("down", "enter")
                 await _wait_for_iccs_worker(app)
                 await pilot.pause()
-                assert app._current_phase_name == "PKP"
+                assert app._current_phase == ("PKP", "")
                 assert table.row_count == 0
                 assert snapshots.row_count == 0
                 assert "|  PKP " in str(app.query_one("#event-bar", Static).render())
@@ -1220,14 +1220,14 @@ class TestParametersOnSeveralPhases:
                 app = cast(AimbatTUI, pilot.app)
                 await _wait_for_iccs_worker(app)
                 app._current_event_id = uuid.uuid4()
-                app._current_phase_name = "P"
+                app._current_phase = ("P", "Z")
 
                 with Session(loaded_engine_from_file) as session:
                     with pytest.raises(NoResultFound):
                         app._get_current_event(session)
 
                 assert app._current_event_id is None
-                assert app._current_phase_name is None
+                assert app._current_phase is None
 
         asyncio.run(_run())
 
@@ -1287,12 +1287,12 @@ class TestParametersOnSeveralPhases:
                 )
                 # As if PKP was selected, then renamed from the CLI.
                 app._current_event_id = event_id
-                app._current_phase_name = "PKP"
+                app._current_phase = ("PKP", "")
 
                 app._check_iccs_staleness()
                 await _wait_for_iccs_worker(app)
 
-                assert app._current_phase_name is None
+                assert app._current_phase is None
                 assert app._iccs_lifecycle.ready
 
         asyncio.run(_run())
@@ -1323,7 +1323,7 @@ class TestParametersOnSeveralPhases:
                 await pilot.pause()
 
                 assert not isinstance(app.screen, PhaseSelectModal)
-                assert app._current_phase_name == "P"
+                assert app._current_phase == ("P", "Z")
 
         asyncio.run(_run())
 
@@ -1334,6 +1334,8 @@ class TestParametersOnSeveralPhases:
         with Session(loaded_engine_from_file) as session:
             event = first(session, AimbatEvent)
             event_id = event.id
+            (phase,) = event.phases
+            phase_id = phase.id
 
         async def _run() -> None:
             async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
@@ -1344,7 +1346,7 @@ class TestParametersOnSeveralPhases:
                 bound = app._iccs_lifecycle.bound
                 assert bound is not None
 
-                app._on_phase_chosen("P")
+                app._on_phase_chosen(str(phase_id))
                 await _wait_for_iccs_worker(app)
 
                 assert app._iccs_lifecycle.bound is bound
@@ -1397,11 +1399,11 @@ class TestParametersOnSeveralPhases:
                     lambda message, **kwargs: notifications.append(message),
                 )
                 app._current_event_id = event_id
-                app._current_phase_name = "PKP"  # renamed from the CLI since
+                app._current_phase = ("PKP", "")  # renamed from the CLI since
 
                 assert app._require_iccs() is False
 
-                assert app._current_phase_name is None
+                assert app._current_phase is None
                 await _wait_for_iccs_worker(app)
 
         asyncio.run(_run())
@@ -1425,17 +1427,17 @@ class TestParametersOnSeveralPhases:
                 app = cast(AimbatTUI, pilot.app)
                 await _wait_for_iccs_worker(app)
 
-                app._current_phase_name = "P"
+                app._current_phase = ("P", "Z")
                 app._select_event(str(first_id))
                 await pilot.pause()
                 assert not isinstance(app.screen, PhaseSelectModal)
-                assert app._current_phase_name == "P"
+                assert app._current_phase == ("P", "Z")
 
-                app._current_phase_name = "PKP"
+                app._current_phase = ("PKP", "")
                 app._select_event(str(second_id))
                 await pilot.pause()
                 assert not isinstance(app.screen, PhaseSelectModal)
-                assert app._current_phase_name is None
+                assert app._current_phase is None
                 await _wait_for_iccs_worker(app)
                 assert app._iccs_lifecycle.ready
 
@@ -2648,7 +2650,9 @@ class TestPhaseSelectorOnLabelledData:
                 app._select_event(str(event_id))
                 await pilot.pause()
                 assert isinstance(app.screen, PhaseSelectModal)
-                assert [key for key, _ in app.screen._actions] == ["P", "pP"]
+                assert [key for key, _ in app.screen._actions] == [
+                    str(phase_ids[name]) for name in ("P", "pP")
+                ]
 
                 for keys, name, rows in (
                     (("down", "enter"), "pP", 13),
@@ -2658,7 +2662,7 @@ class TestPhaseSelectorOnLabelledData:
                     await _wait_for_iccs_worker(app)
                     await pilot.pause()
 
-                    assert app._current_phase_name == name
+                    assert app._current_phase == (name, "Z")
                     bound = app._iccs_lifecycle.bound
                     assert bound is not None
                     assert bound.phase_id == phase_ids[name]
@@ -2666,5 +2670,52 @@ class TestPhaseSelectorOnLabelledData:
                     assert table.row_count == rows
                     bar = str(app.query_one("#event-bar", Static).render())
                     assert f"|  {name} " in bar
+
+        asyncio.run(_run())
+
+
+class TestPhaseSelectorByComponent:
+    """The phase picker with one phase name on two components."""
+
+    def test_each_component_is_its_own_phase(
+        self, loaded_engine_from_file: Engine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _patch_engine(monkeypatch, loaded_engine_from_file)
+        with Session(loaded_engine_from_file) as session:
+            event = first(session, AimbatEvent)
+            (vertical,) = event.phases
+            rows = len(vertical.seismogram_parameters)
+            transverse = add_empty_phase(session, event, "P", "T")
+            session.commit()
+            event_id = event.id
+            phase_ids = {"T": transverse.id, "Z": vertical.id}
+
+        async def _run() -> None:
+            async with AimbatTUI().run_test(size=_TUI_SIZE) as pilot:
+                app = cast(AimbatTUI, pilot.app)
+                await _wait_for_iccs_worker(app)
+                table = app.query_one("#seismogram-table", DataTable)
+
+                app._select_event(str(event_id))
+                await pilot.pause()
+                assert isinstance(app.screen, PhaseSelectModal)
+                assert [key for key, _ in app.screen._actions] == [
+                    str(phase_ids["T"]),
+                    str(phase_ids["Z"]),
+                ]
+
+                await pilot.press("down", "enter")
+                await _wait_for_iccs_worker(app)
+                await pilot.pause()
+                assert app._current_phase == ("P", "Z")
+                assert table.row_count == rows
+                assert "|  P (Z) " in str(app.query_one("#event-bar", Static).render())
+
+                await pilot.press("p", "up", "enter")
+                await _wait_for_iccs_worker(app)
+                await pilot.pause()
+                assert app._current_phase == ("P", "T")
+                assert table.row_count == 0
+                assert "|  P (T) " in str(app.query_one("#event-bar", Static).render())
 
         asyncio.run(_run())

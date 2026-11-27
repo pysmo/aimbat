@@ -74,6 +74,7 @@ from .common import (
     phase_filter_parameter,
     print_json_dump,
     print_pick_summary,
+    print_readiness_counts,
     print_warning,
     use_event_parameter,
     use_station_parameter,
@@ -317,12 +318,7 @@ def cli_data_add(
         print_warning(
             f"Could not create an automatic snapshot for phase {failed_id}: {error}"
         )
-    if result.blocking_items:
-        n = result.blocking_items
-        print_warning(
-            f"Not ready: {n} blocking item{'' if n == 1 else 's'}. "
-            + "Run `aimbat data check`."
-        )
+    print_readiness_counts(result.readiness)
 
 
 @app.command(name="dump")
@@ -404,6 +400,10 @@ _PROBLEMS = {
     "unresolved_event": "unknown event",
     "seismogram_without_picks": "seismogram without pick",
     "pick_after_end": "pick after end",
+    "duplicate_sensor_streams": "sensor on several streams",
+    "multiple_sensors_per_site": "site with several sensors",
+    "fmax_above_nyquist": "bandpass above Nyquist",
+    "mixed_sampling_rates": "mixed sampling rates",
 }
 
 
@@ -413,7 +413,13 @@ def _print_readiness(report: ReadinessReport, *, raw: bool) -> None:
     from rich.table import Table
 
     from aimbat.db import engine
-    from aimbat.models import AimbatEvent, AimbatPick, AimbatSeismogram, AimbatTypes
+    from aimbat.models import (
+        AimbatEvent,
+        AimbatPick,
+        AimbatSeismogram,
+        AimbatTypes,
+        phase_label,
+    )
     from aimbat.utils.formatters import fmt_timestamp
 
     from .common import id_label
@@ -431,7 +437,11 @@ def _print_readiness(report: ReadinessReport, *, raw: bool) -> None:
                     time = session.get_one(AimbatEvent, item.event_id).time
                     label = id_label(session, AimbatEvent, item.event_id, raw=raw)
                     event = f"{fmt_timestamp(time)} ({label})"
-                    phase = item.phase_name or "(all)"
+                    phase = (
+                        "(all)"
+                        if item.phase_name is None
+                        else phase_label(item.phase_name, item.component or "")
+                    )
                 fixes = "\n".join(item.fixes)
                 if not raw:
                     ids: list[tuple[type[AimbatTypes], uuid.UUID]] = (

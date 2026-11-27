@@ -6,15 +6,35 @@ import uuid
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from aimbat.actions import PickSummary
+    from aimbat.actions import PickSummary, ReadinessCounts
 
-__all__ = ["print_pick_summary"]
+__all__ = ["print_pick_summary", "print_readiness_counts"]
+
+
+def print_readiness_counts(counts: ReadinessCounts) -> None:
+    """Print the readiness items an ingestion call left, if there are any."""
+    from ._decorators import print_warning
+
+    def items(n: int, noun: str) -> str:
+        return f"{n} {noun}{'' if n == 1 else 's'}"
+
+    if counts.blocking:
+        found = items(counts.blocking, "blocking item")
+        if counts.notices:
+            found += f", {items(counts.notices, 'notice')}"
+        print_warning(f"Not ready: {found}. Run `aimbat data check`.")
+    elif counts.notices:
+        print_warning(
+            f"Ready, with {items(counts.notices, 'notice')}. "
+            + "Run `aimbat data check`."
+        )
 
 
 def print_pick_summary(picks: PickSummary, snapshotted_phases: int) -> None:
     """Print what became of the picks of an ingestion call, if there were any."""
     from rich.console import Console
 
+    from aimbat.models import phase_label
     from aimbat.utils.formatters import fmt_timestamp
 
     if not (
@@ -73,16 +93,16 @@ def print_pick_summary(picks: PickSummary, snapshotted_phases: int) -> None:
     if any(left_out):
         lines.append("Not promoted: " + ", ".join(c for c in left_out if c) + ".")
 
-    created: dict[uuid.UUID, list[str]] = {}
+    created: dict[uuid.UUID, list[tuple[str, str]]] = {}
     event_times = {}
     for phase in picks.phases_created:
-        created.setdefault(phase.event_id, []).append(phase.name)
+        created.setdefault(phase.event_id, []).append((phase.name, phase.component))
         event_times[phase.event_id] = phase.event_time
     lines.extend(
         f"Phases created for event {fmt_timestamp(event_times[event_id])}: "
-        + ", ".join(sorted(names))
+        + ", ".join(phase_label(*phase) for phase in sorted(phases))
         + "."
-        for event_id, names in created.items()
+        for event_id, phases in created.items()
     )
     lines.extend(f"Warning: {warning}" for warning in picks.warnings)
     if snapshotted_phases:

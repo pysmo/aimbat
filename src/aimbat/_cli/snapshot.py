@@ -21,6 +21,7 @@ from .common import (
     IccsPlotParameters,
     JsonDumpParameters,
     TableParameters,
+    component_parameter,
     confirm_or_abort,
     event_parameter,
     event_parameter_is_all,
@@ -56,6 +57,7 @@ def cli_snapshot_create(
     comment: str | None = None,
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Create a new snapshot of current processing parameters.
@@ -67,10 +69,11 @@ def cli_snapshot_create(
         event_id: UUID (or unique prefix) of the event whose phase to snapshot.
         comment: Optional description to help identify this snapshot later.
         phase: Name of the phase to snapshot.
+        component: Component of the phase to snapshot.
     """
     from aimbat.actions import create_snapshot
 
-    create_snapshot(resolve_phase_option(event_id, phase), comment)
+    create_snapshot(resolve_phase_option(event_id, phase, component), comment)
 
 
 @app.command(name="rollback")

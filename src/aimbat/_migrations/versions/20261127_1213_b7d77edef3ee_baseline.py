@@ -1,8 +1,8 @@
 """baseline
 
-Revision ID: 7bd2f72192be
+Revision ID: b7d77edef3ee
 Revises:
-Create Date: 2026-11-24 16:52:37.693892+00:00
+Create Date: 2026-11-27 12:13:23.068261+00:00
 
 """
 
@@ -15,7 +15,7 @@ from alembic import op
 import aimbat.types
 
 # revision identifiers, used by Alembic.
-revision: str = "7bd2f72192be"
+revision: str = "b7d77edef3ee"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -58,9 +58,20 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(length=32), nullable=False),
+        sa.Column(
+            "component",
+            sqlmodel.sql.sqltypes.AutoString(length=32),
+            server_default="",
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["event_id"], ["aimbatevent.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("event_id", "name", name="uq_aimbatphase_event_id_name"),
+        sa.UniqueConstraint(
+            "event_id",
+            "name",
+            "component",
+            name="uq_aimbatphase_event_id_name_component",
+        ),
     )
     op.create_table(
         "aimbatseismogram",
@@ -86,7 +97,9 @@ def upgrade() -> None:
         sa.Column("sourcename", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column(
             "datatype",
-            sa.Enum("SAC", "JSON_EVENT", "JSON_STATION", "MSEED", name="datatype"),
+            sa.Enum(
+                "SAC", "JSON_EVENT", "JSON_STATION", "MSEED", name="datatype", length=32
+            ),
             nullable=False,
         ),
         sa.Column("seismogram_id", sa.Uuid(), nullable=False),
@@ -156,7 +169,9 @@ def upgrade() -> None:
         sa.Column("source_name", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column(
             "source_type",
-            sa.Enum("SAC", "JSON_EVENT", "JSON_STATION", "MSEED", name="datatype"),
+            sa.Enum(
+                "SAC", "JSON_EVENT", "JSON_STATION", "MSEED", name="datatype", length=32
+            ),
             nullable=True,
         ),
         sa.Column("source_key", sqlmodel.sql.sqltypes.AutoString(), nullable=True),

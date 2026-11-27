@@ -61,14 +61,18 @@ __all__ = [
 
 
 def _row_for(
-    seismogram: AimbatSeismogram, phase_name: str | None
+    seismogram: AimbatSeismogram,
+    phase_name: str | None,
+    phase_id: UUID | None = None,
 ) -> AimbatSeismogramParameters | None:
-    """The seismogram's row for the named phase, or its only row without a name.
+    """The seismogram's row for the given phase, or its only row without one.
 
-    `None` if there is no such row, or no name is given and the seismogram
+    `None` if there is no such row, or no phase is given and the seismogram
     has several.
     """
     rows = seismogram.phase_rows
+    if phase_id is not None:
+        return next((row for row in rows if row.phase_id == phase_id), None)
     if phase_name is None:
         return rows[0] if len(rows) == 1 else None
     return next((row for row in rows if row.phase.name == phase_name), None)
@@ -105,6 +109,7 @@ class SeismogramQualityStats(BaseModel):
         },
     )
     phase_name: str | None = Field(default=None, title="Phase")
+    phase_component: str | None = Field(default=None, title="Component")
     snapshot_id: UUID | None = Field(
         default=None,
         title="Snapshot ID",
@@ -223,6 +228,7 @@ class SeismogramQualityStats(BaseModel):
             event_id=phase.event_id,
             phase_id=phase.id,
             phase_name=phase.name,
+            phase_component=phase.component,
             count=len(rows),
             cc_mean=cc_mean,
             cc_mean_sem=cc_mean_sem,
@@ -329,6 +335,7 @@ class SeismogramQualityStats(BaseModel):
             event_id=snapshot.phase.event_id,
             phase_id=snapshot.phase_id,
             phase_name=snapshot.phase.name,
+            phase_component=snapshot.phase.component,
             snapshot_id=snapshot.id,
             count=snapshot.seismogram_count,
             cc_mean=cc_mean,
@@ -474,6 +481,11 @@ class AimbatPhaseRead(BaseModel):
         },
     )
     name: str = Field(title="Phase", description="Name of the phase")
+    component: str = Field(
+        default="",
+        title="Component",
+        description="Component of the phase, empty when its channels have none",
+    )
     event_time: PydanticTimestamp = Field(
         title="Event time",
         description="Origin time of the phase's event",
@@ -550,6 +562,7 @@ class AimbatPhaseRead(BaseModel):
             id=phase.id,
             short_id=short_id,
             name=phase.name,
+            component=phase.component,
             event_time=phase.event.time,
             completed=phase.parameters.completed,
             seismogram_count=len(rows),
@@ -746,6 +759,11 @@ class AimbatStationRead(BaseModel):
     name: str = Field(title="Name", description="Station name")
     location: str = Field(title="Location", description="Station location code")
     channel: str = Field(title="Channel", description="Station channel code")
+    component: str | None = Field(
+        default=None,
+        title="Component",
+        description="Component letter of the channel code",
+    )
     latitude: float = Field(title="Latitude", description="Station latitude")
     longitude: float = Field(title="Longitude", description="Station longitude")
     elevation: float | None = Field(
@@ -795,6 +813,7 @@ class AimbatStationRead(BaseModel):
             session: Session for the short ID and the CC statistics.
         """
         data = station.model_dump()
+        data["component"] = station.component
 
         if session is not None:
             from aimbat.utils import uuid_shortener
@@ -853,6 +872,12 @@ class AimbatSeismogramRead(BaseModel):
     channel: str = Field(
         title="Channel",
         description="Seismogram channel.",
+    )
+
+    component: str | None = Field(
+        default=None,
+        title="Component",
+        description="Component letter of the channel code.",
     )
 
     select: bool | None = Field(
@@ -920,18 +945,21 @@ class AimbatSeismogramRead(BaseModel):
         validity: Validity,
         session: Session | None = None,
         phase_name: str | None = None,
+        phase_id: UUID | None = None,
     ) -> Self:
         """Create an AimbatSeismogramRead from an AimbatSeismogram ORM instance.
 
         The processing columns (`select`, `flip`, picks and quality) come
-        from the seismogram's row for the named phase, or from its only row
-        when no name is given. They are empty when there is no such row.
+        from the seismogram's row for the given phase, or from its only row
+        when no phase is given. They are empty when there is no such row.
 
         Args:
             seismogram: The seismogram.
             validity: Validity covering the phases of the seismogram's event.
             session: Session for the short IDs.
             phase_name: Name of the phase whose processing state is shown.
+            phase_id: ID of the phase whose processing state is shown, taking
+                precedence over `phase_name`.
         """
         name = (
             f"{seismogram.station.network}." if seismogram.station.network else ""
@@ -945,7 +973,7 @@ class AimbatSeismogramRead(BaseModel):
             short_id = uuid_shortener(session, seismogram)
             short_event_id = uuid_shortener(session, seismogram.event)
 
-        row = _row_for(seismogram, phase_name)
+        row = _row_for(seismogram, phase_name, phase_id)
         delta_t = (
             row.refined_pick - row.initial_pick
             if row is not None and row.refined_pick
@@ -962,6 +990,7 @@ class AimbatSeismogramRead(BaseModel):
             name=name,
             location=seismogram.station.location,
             channel=seismogram.station.channel,
+            component=seismogram.station.component,
             select=row.select if row is not None else None,
             flip=row.flip if row is not None else None,
             delta_t=delta_t,
@@ -1006,6 +1035,12 @@ class AimbatSnapshotRead(BaseModel):
     phase_name: str = Field(
         title="Phase",
         description="Name of the phase the snapshot was taken of",
+    )
+
+    phase_component: str = Field(
+        default="",
+        title="Component",
+        description="Component of the phase the snapshot was taken of",
     )
 
     sequence: int = Field(
@@ -1106,6 +1141,7 @@ class AimbatSnapshotRead(BaseModel):
             id=snapshot.id,
             short_id=short_id,
             phase_name=snapshot.phase.name,
+            phase_component=snapshot.phase.component,
             sequence=snapshot.sequence,
             time=snapshot.time,
             comment=snapshot.comment,
@@ -1149,6 +1185,11 @@ class SnapshotSeismogramResult(BaseModel):
     name: str = Field(title="Name", description="Station network and name.")
     location: str = Field(title="Location", description="Station location code.")
     channel: str = Field(title="Channel", description="Station channel code.")
+    component: str | None = Field(
+        default=None,
+        title="Component",
+        description="Component letter of the channel code.",
+    )
     select: bool = Field(
         title="Select",
         description="Whether this seismogram was selected at snapshot time.",
@@ -1206,6 +1247,8 @@ class SnapshotSeismogramResult(BaseModel):
         Returns:
             Assembled result record.
         """
+        from ._models import channel_component
+
         if live_seismogram is not None:
             station = live_seismogram.station
             name = (f"{station.network}." if station.network else "") + station.name
@@ -1220,6 +1263,7 @@ class SnapshotSeismogramResult(BaseModel):
             name=name,
             location=location,
             channel=channel,
+            component=channel_component(channel),
             select=param_snap.select,
             flip=param_snap.flip,
             refined_pick=param_snap.refined_pick,
@@ -1252,6 +1296,7 @@ class SnapshotResults(BaseModel):
     snapshot_comment: str | None = Field(default=None, title="Snapshot comment")
     phase_id: UUID = Field(title="Phase ID")
     phase_name: str = Field(title="Phase")
+    phase_component: str = Field(default="", title="Component")
     event_id: UUID = Field(title="Event ID")
     event_time: PydanticTimestamp = Field(title="Event time")
     event_latitude: float = Field(title="Event latitude")

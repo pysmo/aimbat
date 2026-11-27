@@ -12,8 +12,8 @@ from sqlmodel import Session, select
 from aimbat._cli._shell_completer import ShellCompleter
 from aimbat._cli.shell import _shell_completer
 from aimbat.app import app as aimbat_app
-from aimbat.core import create_snapshot
-from aimbat.models import AimbatEvent, AimbatSeismogram, AimbatSnapshot
+from aimbat.core import create_snapshot, default_phase_parameters
+from aimbat.models import AimbatEvent, AimbatPhase, AimbatSeismogram, AimbatSnapshot
 from aimbat.utils import string_to_uuid
 
 from testsupport.project import add_empty_phase, first
@@ -563,3 +563,33 @@ class TestPhaseNameCompletion:
         assert _ids(completer, "phase switch ") == ["P", "PKP"]
         assert _ids(completer, "phase switch PK") == ["PKP"]
         assert "switch" in {c.text for c in _complete(completer, "phase ")}
+
+
+class TestComponentCompletion:
+    """Tests for the completion of `--component` and of `phase switch`."""
+
+    def test_components_of_the_project(self, completer: ShellCompleter) -> None:
+        assert _ids(completer, "align iccs --component ") == ["Z"]
+
+    def test_phase_switch_offers_components_after_the_name(
+        self,
+        completer: ShellCompleter,
+        loaded_engine: Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with Session(loaded_engine) as session:
+            event = first(session, AimbatEvent)
+            event.phases.append(
+                AimbatPhase(
+                    name="P",
+                    component="T",
+                    parameters=default_phase_parameters("P", "T"),
+                )
+            )
+            session.commit()
+            event_id = str(event.id)
+        monkeypatch.setenv("DEFAULT_EVENT_ID", event_id)
+        completer.invalidate()
+
+        assert _ids(completer, "phase switch P ") == ["T", "Z"]
+        assert _ids(completer, "phase switch P T ") == []

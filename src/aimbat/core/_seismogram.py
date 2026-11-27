@@ -113,6 +113,7 @@ def dump_seismogram_table(
     exclude: set[str] | None = None,
     event_id: UUID | None = None,
     phase_name: str | None = None,
+    phase_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Dump the AimbatSeismogram table to json serialisable list of dicts.
 
@@ -129,6 +130,7 @@ def dump_seismogram_table(
             processing state in the read model. Without it, every seismogram
             is dumped, showing its only row (see
             `AimbatSeismogramRead.from_seismogram`).
+        phase_id: Phase whose seismograms are dumped, as for `phase_name`.
 
     Returns:
         List of dicts representing the seismograms, built from the read
@@ -149,19 +151,18 @@ def dump_seismogram_table(
     else:
         statement = select(AimbatSeismogram)
 
-    if phase_name is not None:
-        statement = (
-            statement.join(
-                AimbatSeismogramParameters,
-                col(AimbatSeismogramParameters.seismogram_id)
-                == col(AimbatSeismogram.id),
-            )
-            .join(
-                AimbatPhase,
-                col(AimbatPhase.id) == col(AimbatSeismogramParameters.phase_id),
-            )
-            .where(AimbatPhase.name == phase_name)
+    if phase_name is not None or phase_id is not None:
+        statement = statement.join(
+            AimbatSeismogramParameters,
+            col(AimbatSeismogramParameters.seismogram_id) == col(AimbatSeismogram.id),
+        ).join(
+            AimbatPhase,
+            col(AimbatPhase.id) == col(AimbatSeismogramParameters.phase_id),
         )
+    if phase_name is not None:
+        statement = statement.where(AimbatPhase.name == phase_name)
+    if phase_id is not None:
+        statement = statement.where(AimbatPhase.id == phase_id)
 
     statement = statement.options(
         selectinload(rel(AimbatSeismogram.station)),
@@ -175,7 +176,7 @@ def dump_seismogram_table(
         validity = Validity.read(session, event_id=event_id)
         seismogram_reads = [
             AimbatSeismogramRead.from_seismogram(
-                s, validity, session=session, phase_name=phase_name
+                s, validity, session=session, phase_name=phase_name, phase_id=phase_id
             )
             for s in seismograms
         ]
@@ -435,7 +436,8 @@ def dump_seismogram_parameter_table(
 ) -> list[dict[str, Any]]:
     """Dump the seismogram parameter table data to json serialisable list of dicts.
 
-    Each record carries the name of its phase next to the phase ID.
+    Each record carries the name and component of its phase next to the
+    phase ID.
 
     Args:
         session: Database session.
@@ -475,7 +477,7 @@ def dump_seismogram_parameter_table(
     )
     return _with_phase_names(
         data,
-        (row.phase.name for row in parameters),
+        (row.phase for row in parameters),
         by_alias=by_alias,
         by_title=by_title,
     )

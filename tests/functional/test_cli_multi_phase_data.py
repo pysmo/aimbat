@@ -52,7 +52,7 @@ class TestAlign:
         with pytest.raises(SystemExit) as exc_info:
             cli(f"align iccs --event-id {event_id}")
         assert exc_info.value.code == 1
-        assert "has phases P, pP" in error_text(capsys.readouterr().err)
+        assert "has phases P (Z), pP (Z)" in error_text(capsys.readouterr().err)
 
     def test_named_phase_only(
         self, cli: _Cli, cli_json: _CliJson, event_id: str

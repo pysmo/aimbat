@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from pandas import Timedelta
 from pydantic import ValidationError
+from rich.markup import escape
 from sqlalchemy.exc import NoResultFound
 from sqlmodel import Session
 from textual import on
@@ -24,7 +25,7 @@ from aimbat._tui._widgets import VimDataTable
 from aimbat.actions import set_phase_parameters
 from aimbat.core import get_phases
 from aimbat.db import engine
-from aimbat.models import AimbatPhase
+from aimbat.models import AimbatPhase, phase_label
 from aimbat.models._parameters import AimbatPhaseParametersBase
 from aimbat.types import PhaseParameter
 from aimbat.utils import format_validation_error
@@ -526,22 +527,23 @@ class ActionMenuModal(ModalScreen[str | None]):
 class PhaseSelectModal(ActionMenuModal):
     """Menu of the phases of an event.
 
-    Dismisses with the chosen phase name, or None on cancel.
+    Dismisses with the ID of the chosen phase, or None on cancel.
     """
 
-    def __init__(self, event_id: uuid.UUID, current: str | None = None) -> None:
+    def __init__(self, event_id: uuid.UUID, current: uuid.UUID | None = None) -> None:
         """Initialise the modal.
 
         Args:
             event_id: ID of the event whose phases are listed.
-            current: Name of the phase the cursor starts on.
+            current: ID of the phase the cursor starts on.
         """
         with Session(engine) as session:
             phases = get_phases(session, event_id)
             rows = [
                 (
-                    phase.name,
-                    f"{phase.name}  [dim]{len(phase.seismogram_parameters)} "
+                    str(phase.id),
+                    f"{escape(phase_label(phase.name, phase.component))}  "
+                    + f"[dim]{len(phase.seismogram_parameters)} "
                     + "seismograms"
                     + (", completed" if phase.parameters.completed else "")
                     + "[/dim]",
@@ -549,14 +551,14 @@ class PhaseSelectModal(ActionMenuModal):
                 for phase in phases
             ]
         super().__init__("Select phase", rows)
-        self._current = current
+        self._current = None if current is None else str(current)
 
     def on_mount(self) -> None:
         """Move the cursor to the current phase once the table is populated."""
         # Textual also runs `ActionMenuModal.on_mount`, after this one.
-        names = [key for key, _ in self._actions]
-        if self._current in names:
-            row = names.index(self._current)
+        ids = [key for key, _ in self._actions]
+        if self._current in ids:
+            row = ids.index(self._current)
             self.call_after_refresh(
                 lambda: self.query_one(DataTable).move_cursor(row=row)
             )

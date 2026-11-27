@@ -23,6 +23,7 @@ nav = [
     { "Project" = "usage/project.md" },
     { "Adding Data" = "usage/data.md" },
     { "Phases" = "usage/phases.md" },
+    { "Components and Phases" = "usage/components.md" },
     { "Picks and Readiness" = "usage/picks.md" },
     { "Selecting an Event" = "usage/event-selection.md" },
     { "Initial Inspection" = "usage/inspection.md" },

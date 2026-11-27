@@ -99,7 +99,7 @@ test = [
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.17.4" },
-    { name = "testkit", git = "https://github.com/pysmo/testkit?tag=v0.5.0" },
+    { name = "testkit", git = "https://github.com/pysmo/testkit?tag=v0.6.0" },
 ]
 
 [[package]]
@@ -2303,8 +2303,8 @@ wheels = [
 
 [[package]]
 name = "pysmo"
-version = "1.0.0.dev280+geabecd4fc"
-source = { git = "https://github.com/pysmo/pysmo?rev=main#eabecd4fc2c2a3a74581d787d44d5f1734ebce78" }
+version = "1.0.0.dev286+gad9930b3f"
+source = { git = "https://github.com/pysmo/pysmo?rev=main#ad9930b3ffb912c2f68cd2df16838c23ff74270d" }
 dependencies = [
     { name = "annotated-types" },
     { name = "attrs" },
@@ -2672,8 +2672,8 @@ wheels = [
 
 [[package]]
 name = "testkit"
-version = "0.5.0"
-source = { git = "https://github.com/pysmo/testkit?tag=v0.5.0#2a655144802166c1a09bd2defd77923e02546a03" }
+version = "0.6.0"
+source = { git = "https://github.com/pysmo/testkit?tag=v0.6.0#615bea52d4e71a8552467c625389ff90798ba753" }
 
 [[package]]
 name = "textual"

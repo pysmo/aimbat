@@ -1374,6 +1374,8 @@ class TestDumpSnapshotResults:
             "snapshot_id",
             "snapshot_time",
             "snapshot_comment",
+            "phase_name",
+            "phase_component",
             "event_id",
             "event_time",
             "event_latitude",
@@ -1383,6 +1385,7 @@ class TestDumpSnapshotResults:
             "seismograms",
         ):
             assert field in result, f"Expected field '{field}' in result envelope"
+        assert result["phase_component"] == event.phases[0].component == "Z"
 
     def test_contains_expected_seismogram_fields(self, loaded_session: Session) -> None:
         """Verifies that each seismogram entry contains the required fields.

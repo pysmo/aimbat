@@ -272,5 +272,5 @@ def dump_station_quality_table(
         by_alias=by_alias,
         by_title=by_title,
         exclude=(exclude or set())
-        | {"event_id", "phase_id", "phase_name", "snapshot_id"},
+        | {"event_id", "phase_id", "phase_name", "phase_component", "snapshot_id"},
     )

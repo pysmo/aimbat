@@ -6,6 +6,7 @@ table, the JSON output and the exit status.
 
 import json
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 from sqlalchemy import Engine
@@ -14,6 +15,11 @@ from testsupport.cli import exit_code
 from testsupport.project import add_unpromoted_pick
 
 type _Cli = Callable[[str | list[str]], None]
+
+
+def _without_rates(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Leave out the notice that the AK array's 40 and 50 Hz streams give."""
+    return [i for i in items if i["kind"] != "mixed_sampling_rates"]
 
 
 @pytest.mark.cli
@@ -79,7 +85,7 @@ class TestDataCheck:
         add_unpromoted_pick(loaded_engine, event_id, None)
         capsys.readouterr()
         assert exit_code("data check --json") == 2
-        (item,) = json.loads(capsys.readouterr().out)
+        (item,) = _without_rates(json.loads(capsys.readouterr().out))
         assert item["kind"] == "unnamed_pick"
         assert item["event_id"] == event_id
         assert event_id in item["fixes"][0]
@@ -93,9 +99,9 @@ class TestDataCheck:
         add_unpromoted_pick(loaded_engine, event_id, "S")
         capsys.readouterr()
         assert exit_code("data check --phase P --json") == 0
-        assert json.loads(capsys.readouterr().out) == []
+        assert _without_rates(json.loads(capsys.readouterr().out)) == []
         assert exit_code("data check --phase S --json") == 0
-        (item,) = json.loads(capsys.readouterr().out)
+        (item,) = _without_rates(json.loads(capsys.readouterr().out))
         assert (item["kind"], item["phase_name"]) == ("unpromoted_picks", "S")
 
 
@@ -109,3 +115,23 @@ def test_data_add_reports_blocking_items(
     capsys.readouterr()
     cli(["data", "add", "--no-progress", *map(str, multi_event_data[:2])])
     assert "Run `aimbat data check`" in capsys.readouterr().err
+
+
+@pytest.mark.cli
+def test_data_add_reports_notices(
+    patched_engine: Engine,
+    cli: _Cli,
+    capsys: pytest.CaptureFixture[str],
+    three_component_data: dict[str, list[object]],
+) -> None:
+    """COLA and TOLK, with two sensors each, give a notice for each phase."""
+    capsys.readouterr()
+    files = [
+        f
+        for f in three_component_data["prepared/fiji_region"]
+        if not str(f).endswith(("AK.PAX.--.LHZ", "AK.PAX.--.LHT"))
+    ]
+    cli(["data", "add", "--no-progress", *map(str, files)])
+    err = capsys.readouterr().err
+    assert "Ready, with" in err
+    assert "Run `aimbat data check`" in err

@@ -20,6 +20,7 @@ from .common import (
     CAUSAL_DEFAULTS,
     DebugParameter,
     IccsPlotParameters,
+    component_parameter,
     event_parameter,
     handle_issues,
     phase_parameter,
@@ -41,6 +42,7 @@ def cli_update_bandpass(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image_param()] = False,
     _: DebugParameter = DebugParameter(),
@@ -54,7 +56,7 @@ def cli_update_bandpass(
     from aimbat.actions import prepare_iccs, set_phase_parameters
     from aimbat.plot import update_bandpass
 
-    bound = prepare_iccs(resolve_phase_option(event_id, phase))
+    bound = prepare_iccs(resolve_phase_option(event_id, phase, component))
     changes = update_bandpass(
         bound.iccs,
         context=iccs_plot_parameters.context,
@@ -71,6 +73,7 @@ def cli_update_pick(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image_param()] = False,
     causal: Annotated[bool, causal_param()] = CAUSAL_DEFAULTS["pick"],
@@ -85,7 +88,7 @@ def cli_update_pick(
     from aimbat.actions import prepare_iccs, set_refined_picks
     from aimbat.plot import update_pick
 
-    bound = prepare_iccs(resolve_phase_option(event_id, phase))
+    bound = prepare_iccs(resolve_phase_option(event_id, phase, component))
     picks = update_pick(
         bound.iccs,
         context=iccs_plot_parameters.context,
@@ -103,6 +106,7 @@ def cli_pick_timewindow(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image_param()] = False,
     causal: Annotated[bool, causal_param()] = CAUSAL_DEFAULTS["window"],
@@ -117,7 +121,7 @@ def cli_pick_timewindow(
     from aimbat.actions import prepare_iccs, set_phase_parameters
     from aimbat.plot import update_timewindow
 
-    bound = prepare_iccs(resolve_phase_option(event_id, phase))
+    bound = prepare_iccs(resolve_phase_option(event_id, phase, component))
     changes = update_timewindow(
         bound.iccs,
         iccs_plot_parameters.context,
@@ -135,6 +139,7 @@ def cli_pick_min_cc(
     event_id: Annotated[UUID, event_parameter()],
     *,
     phase: Annotated[str | None, phase_parameter()] = None,
+    component: Annotated[str | None, component_parameter()] = None,
     iccs_plot_parameters: IccsPlotParameters = IccsPlotParameters(),
     use_matrix_image: Annotated[bool, use_matrix_image_param()] = True,
     causal: Annotated[bool, causal_param()] = CAUSAL_DEFAULTS["cc"],
@@ -149,7 +154,7 @@ def cli_pick_min_cc(
     from aimbat.actions import prepare_iccs, set_phase_parameters
     from aimbat.plot import update_min_cc
 
-    bound = prepare_iccs(resolve_phase_option(event_id, phase))
+    bound = prepare_iccs(resolve_phase_option(event_id, phase, component))
     changes = update_min_cc(
         bound.iccs,
         iccs_plot_parameters.context,

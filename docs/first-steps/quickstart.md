@@ -29,21 +29,46 @@ point AIMBAT at a different one.
 Preview the import first with `--dry-run`, then run it for real:
 
 ```bash
-aimbat data add --dry-run sample-data/*/*/*.BHZ
-aimbat data add sample-data/*/*/*.BHZ
+aimbat data add --dry-run sample-data/*/*/*.BH?
+aimbat data add sample-data/*/*/*.BH?
 ```
 
 The shell expands the glob before AIMBAT runs. Each SAC file carries its
 station, event, and initial picks in its header, each pick labelled with its
-phase. The glob selects the vertical channels. Five events have a `P` pick on
-them. The deep event of 2014-11-01 in the Fiji region also has a `pP` pick, so
-it has two phases. The event of 2014-08-24 in Peru has only an `SKS` pick on
-the horizontal channels, so its vertical seismograms have no pick and the
-event gets no phase to process. `--dry-run` reports which stations, events,
-seismograms and phases would be created without touching the database.
-Import also deduplicates, so re-running the real command is safe. See
+phase. Five events have `P`, and the deep event of 2014-11-01 in the Fiji
+region also has `pP`. Four of them have `S`, and the event of 2014-08-24 in
+Peru has `SKS`. The data are prepared as AIMBAT expects them: the horizontals
+are rotated, to the transverse component (`BHT`) for the S events and to
+`BHL`, `BHQ` and `BHT` for Peru, and every pick of a station is on every one
+of its channels. `--dry-run` reports which stations, events, seismograms and
+phases would be created without touching the database. Import also
+deduplicates, so re-running the real command is safe. See
 [Adding Data](../usage/data.md) for JSON sources, subset selection, and what
 `--dry-run` catches.
+
+## Choose the components
+
+A phase is measured on one component, so the import creates a phase for each
+component a pick is on: `P (Z)` and `P (T)`, `SKS (L)`, `SKS (Q)`, `SKS (T)`
+and `SKS (Z)`. P and pP are measured on the vertical and S on the
+transverse. SKS is kept on Q and on T, as two phases. The other phases are
+removed from every event:
+
+```bash
+aimbat phase remove --event all --phase P --component T
+aimbat phase remove --event all --phase pP --component T
+aimbat phase remove --event all --phase S --component Z
+aimbat phase remove --event all --phase SKS --component Z
+aimbat phase remove --event all --phase SKS --component L
+aimbat data check
+```
+
+`--dry-run` previews each removal. A removal deletes the phase with its
+initial picks and snapshots, so it is best done before any processing.
+`aimbat data check` then reports nothing that blocks processing, and lists the
+Z and L seismograms of the Peru event, which no phase uses any more. See
+[Components and Phases](../usage/components.md) for how phases follow the
+components.
 
 ## Open the TUI
 

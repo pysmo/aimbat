@@ -623,7 +623,10 @@ def get_snapshots(
         statement = statement.where(col(AimbatPhase.name) == phase_name)
 
     statement = statement.order_by(
-        col(AimbatPhase.event_id), col(AimbatPhase.name), col(AimbatSnapshot.sequence)
+        col(AimbatPhase.event_id),
+        col(AimbatPhase.name),
+        col(AimbatPhase.component),
+        col(AimbatSnapshot.sequence),
     ).options(
         selectinload(rel(AimbatSnapshot.phase)).selectinload(rel(AimbatPhase.event)),
         selectinload(rel(AimbatSnapshot.phase_parameters_snapshot)),
@@ -645,6 +648,7 @@ def dump_snapshot_table(
     by_title: bool = False,
     exclude: set[str] | None = None,
     phase_name: str | None = None,
+    phase_id: UUID | None = None,
 ) -> list[dict[str, Any]]:
     """Dump snapshot metadata as a list of dicts.
 
@@ -659,6 +663,7 @@ def dump_snapshot_table(
             applicable when from_read_model is True). Mutually exclusive with by_alias.
         exclude: Set of field names to exclude from the output.
         phase_name: Phase name to filter snapshots by, across events.
+        phase_id: Phase ID to filter snapshots by.
 
     Returns:
         List of dicts representing the snapshots, built from the read model
@@ -673,7 +678,11 @@ def dump_snapshot_table(
     check_field_name_flags(by_alias, by_title, from_read_model)
 
     snapshots = get_snapshots(
-        session, event_id, with_counts=from_read_model, phase_name=phase_name
+        session,
+        event_id,
+        with_counts=from_read_model,
+        phase_id=phase_id,
+        phase_name=phase_name,
     )
 
     if from_read_model:
@@ -1016,6 +1025,7 @@ def dump_snapshot_results(
         snapshot_comment=snapshot.comment,
         phase_id=snapshot.phase_id,
         phase_name=snapshot.phase.name,
+        phase_component=snapshot.phase.component,
         event_id=event.id,
         event_time=event.time,
         event_latitude=event.latitude,

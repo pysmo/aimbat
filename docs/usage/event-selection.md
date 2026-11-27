@@ -71,37 +71,49 @@ same for the session and shows the ID in the prompt.
 ### Selecting a phase
 
 Commands that process data (`align`, `tool`, `plot`, `snapshot create`, and
-the `phase parameter` and `seismogram parameter` commands) also select a phase
-of the event, by name:
+the `phase` commands) also select a phase of the event, by name and
+component:
 
 ```bash
 aimbat align iccs 6a4a --phase PKP
+aimbat align iccs 6a4a --phase SKS --component Q
 ```
 
-The name is not needed when the event has only one phase, which is then used.
-For an event with several phases, a command without a name fails and lists the
-phases of the event.
+A phase is identified by its name and component (see
+[Components and Phases](components.md)). Either is enough when it selects one
+phase of the event, and neither is needed when the event has only one phase.
+A command whose selection matches several phases fails and lists them, for
+example `SKS (Q), SKS (T)`. A phase without a component is selected with
+`--component ''` when its name also has phases on components. The
+`seismogram parameter` commands take the component from the seismogram, so
+they select by name only.
 
-`DEFAULT_PHASE` serves the phase as `DEFAULT_EVENT_ID` serves the event. Phase
-names are the same across events, so one value covers a whole project:
+`DEFAULT_PHASE` and `DEFAULT_COMPONENT` serve the phase as `DEFAULT_EVENT_ID`
+serves the event, and count as given when set, an empty `DEFAULT_COMPONENT`
+included. `DEFAULT_COMPONENT` applies without `--phase`, or with the name in
+`DEFAULT_PHASE`, so another name given with `--phase` does not take its
+component. Phase names and components are the same
+across events, so one value of each covers a whole project:
 
 ```bash
-export DEFAULT_PHASE=P
+export DEFAULT_PHASE=SKS
+export DEFAULT_COMPONENT=Q
 ```
 
-Like `DEFAULT_EVENT_ID`, it is a plain environment variable and not an AIMBAT
-setting. In the shell, `phase switch <NAME>` does the same for the session,
-and the prompt then shows the phase after the event ID:
+Like `DEFAULT_EVENT_ID`, they are plain environment variables and not AIMBAT
+settings. In the shell, `phase switch <NAME> [<COMPONENT>]` does the same for
+the session, and the prompt then shows the phase after the event ID:
 
 ```
-aimbat [6a4a]> phase switch PKP
-aimbat [6a4a/PKP]> align iccs
+aimbat [6a4a]> phase switch SKS Q
+aimbat [6a4a/SKS (Q)]> align iccs
 ```
 
 The phase must belong to the event of the shell. `phase switch` without a name
 clears the phase, so the event's only phase is used again. `event switch` keeps
 the phase, or the previous event's only phase, when the new event has a phase
-of that name, and clears it otherwise.
+of that name and component. Otherwise it keeps the phase of that name when the
+new event has it on one component only, and clears the phase when it does not.
 
 Listings that can cover several phases, such as `phase list` and
 `snapshot list`, read `--phase` as a filter by name. They do not read
@@ -118,18 +130,22 @@ of the screen, is marked `▶` in the table, and populates the **Live data** and
 **Snapshots** tabs.
 
 An event with only one phase needs no further selection. Selecting an event
-with several phases opens a list of its phases, and `p` switches phase. The
-bar shows the current phase. The **Live data** and **Snapshots** tabs show
-that phase only, and stay empty until a phase is chosen. Selecting another
-event keeps the current phase, chosen or the previous event's only phase, when
-the event has a phase of that name, and clears it otherwise.
+with several phases opens a list of its phases, such as `SKS (Q)` and
+`SKS (T)`, and `p` switches phase. The bar shows the current phase. The
+**Live data** and **Snapshots** tabs show that phase only, and stay empty
+until a phase is chosen. Selecting another event keeps the current phase,
+chosen or the previous event's only phase, when the event has a phase of that
+name and component. Otherwise it keeps the phase of that name when the event
+has it on one component only, and opens the list of phases when the event has
+several.
 
 ## Python API
 
 Processing functions in `aimbat.core` and `aimbat.actions` take the ID of a
 phase, so there is no `DEFAULT_EVENT_ID` or `DEFAULT_PHASE` equivalent to set.
 [`resolve_phase`][aimbat.core.resolve_phase] returns the phase of an event by
-name, or the only phase of the event when no name is given:
+name and component, by either when it selects one phase, or the only phase of
+the event when neither is given:
 
 ```python
 from sqlmodel import Session, select

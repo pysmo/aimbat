@@ -5,7 +5,7 @@ and IDs, Ctrl+D or type `exit` to leave.
 
 Shell-only commands:
   event switch [ID]    Switch the shell's event context.
-  phase switch [NAME]  Switch the shell's phase context.
+  phase switch [NAME] [COMPONENT]  Switch the shell's phase context.
 """
 
 import uuid
@@ -15,6 +15,8 @@ from cyclopts import App
 
 from .common import (
     DebugParameter,
+    component_parameter,
+    default_component,
     event_parameter,
     handle_issues,
     phase_parameter,
@@ -70,7 +72,7 @@ def _shell_completer(cyclopts_app: App) -> "ShellCompleter":
     from aimbat.models import AimbatEvent
 
     from ._shell_completer import ShellCompleter
-    from .common import PhaseNameConverter, UuidConverter
+    from .common import ComponentConverter, PhaseNameConverter, UuidConverter
 
     completion_dict = _build_completion_dict(cyclopts_app)
     completion_dict.pop("shell", None)
@@ -90,8 +92,8 @@ def _shell_completer(cyclopts_app: App) -> "ShellCompleter":
         cyclopts_app,
         NestedCompleter.from_nested_dict(completion_dict),
         shell_only={
-            ("event", "switch"): UuidConverter(AimbatEvent),
-            ("phase", "switch"): PhaseNameConverter(),
+            ("event", "switch"): (UuidConverter(AimbatEvent),),
+            ("phase", "switch"): (PhaseNameConverter(), ComponentConverter()),
         },
     )
 
@@ -127,30 +129,60 @@ def _parse_event_id(value: str) -> uuid.UUID:
             return string_to_uuid(session, value, AimbatEvent)
 
 
-def _has_phase(event_id: uuid.UUID, name: str) -> bool:
-    """Return whether an event has a phase of that name."""
-    from sqlalchemy.exc import NoResultFound
-
-    try:
-        resolve_phase_option(event_id, name)
-    except NoResultFound:
-        return False
-    return True
+type _PhasePair = tuple[str, str]
+"""Name and component of the shell's phase."""
 
 
-def _only_phase_name(event_id: uuid.UUID) -> str | None:
-    """Return the name of an event's only phase, or None if it has none or several."""
-    from sqlalchemy.exc import NoResultFound
+def _resolve_pair(
+    event_id: uuid.UUID, name: str | None = None, component: str | None = None
+) -> _PhasePair:
+    """Return the name and component of the phase of an event that matches.
+
+    Raises:
+        NoResultFound: If no phase of the event matches.
+        AmbiguousPhaseError: If several phases of the event match.
+    """
     from sqlmodel import Session
 
-    from aimbat.core import AmbiguousPhaseError, resolve_phase
+    from aimbat.core import resolve_phase
     from aimbat.db import engine
 
+    with Session(engine) as session:
+        phase = resolve_phase(session, event_id, name, component)
+        return phase.name, phase.component
+
+
+def _try_pair(
+    event_id: uuid.UUID, name: str | None = None, component: str | None = None
+) -> _PhasePair | None:
+    """Return `_resolve_pair`, or None if no phase or several match."""
+    from sqlalchemy.exc import NoResultFound
+
+    from aimbat.core import AmbiguousPhaseError
+
     try:
-        with Session(engine) as session:
-            return resolve_phase(session, event_id).name
+        return _resolve_pair(event_id, name, component)
     except (NoResultFound, AmbiguousPhaseError):
         return None
+
+
+def _carried_pair(
+    new_event_id: uuid.UUID,
+    current: _PhasePair | None,
+    old_event_id: uuid.UUID | None,
+) -> _PhasePair | None:
+    """Return the phase the shell keeps when it switches to another event.
+
+    The same name and component if the new event has them, else the only
+    phase of the name there. Without a current phase, the old event's only
+    phase is carried the same way.
+    """
+    if current is None and old_event_id is not None:
+        current = _try_pair(old_event_id)
+    if current is None:
+        return None
+    name, component = current
+    return _try_pair(new_event_id, name, component) or _try_pair(new_event_id, name)
 
 
 def _check_iccs(
@@ -181,17 +213,19 @@ def _check_iccs(
     from sqlalchemy.exc import NoResultFound
 
     from aimbat.actions import prepare_iccs
+    from aimbat.models import phase_label
 
     try:
         if event_id is None:
             raise NoResultFound("No event specified.")
         phase = os.environ.get("DEFAULT_PHASE") or None
-        bound = prepare_iccs(resolve_phase_option(event_id, phase))
+        component = default_component(phase, None)
+        bound = prepare_iccs(resolve_phase_option(event_id, phase, component))
         changed = prev is None or prev.phase_id != bound.phase_id or bound is not prev
         if startup or changed:
             where = f"event {str(event_id)[:8]}"
             if phase is not None:
-                where += f", phase {phase}"
+                where += f", phase {phase_label(phase, component or '')}"
             console.print(f"[green]ICCS ready[/green] ({where})")
         return bound
     except Exception as exc:
@@ -223,6 +257,15 @@ def cli_shell(
             )
         ),
     ] = None,
+    component: Annotated[
+        str | None,
+        component_parameter(
+            help=(
+                "Start the shell in the context of the phase on that component."
+                + " Not needed when the phase name has only one component."
+            )
+        ),
+    ] = None,
     _: DebugParameter = DebugParameter(),
 ) -> None:
     """Start an interactive AIMBAT shell."""
@@ -236,30 +279,60 @@ def cli_shell(
     from rich.console import Console
 
     from aimbat.app import app as aimbat_app
+    from aimbat.models import phase_label
 
     console = Console()
 
     # Shell-local event and phase context, None if not specified.
     # Modified by `event switch` and `phase switch`.
     shell_event_id: uuid.UUID | None = event_id
-    shell_phase: str | None = phase
+    shell_phase: _PhasePair | None = None
+    # A phase or component given without an event, resolved by the first
+    # `event switch`.
+    pending: tuple[str | None, str | None] | None = None
 
     # Propagate the shell event context to commands via the DEFAULT_EVENT_ID env
     # var, which all event_parameter() / event_parameter_with_all() converters
     # pick up as a fallback.  Explicit --event flags always take precedence.
     _prev_default_event = os.environ.get("DEFAULT_EVENT_ID")
     _prev_default_phase = os.environ.get("DEFAULT_PHASE")
+    _prev_default_component = os.environ.get("DEFAULT_COMPONENT")
 
-    def _set_shell_phase(name: str | None) -> None:
-        nonlocal shell_phase
-        shell_phase = name
-        if name is not None:
-            os.environ["DEFAULT_PHASE"] = name
-        else:
+    def _set_shell_phase(pair: _PhasePair | None) -> None:
+        nonlocal shell_phase, pending
+        shell_phase = pair
+        pending = None
+        if pair is None:
             os.environ.pop("DEFAULT_PHASE", None)
+            os.environ.pop("DEFAULT_COMPONENT", None)
+            return
+        name, component = pair
+        os.environ["DEFAULT_PHASE"] = name
+        # Empty selects the phase without a component.
+        os.environ["DEFAULT_COMPONENT"] = component
 
-    if phase is not None:
-        _set_shell_phase(phase)
+    component = default_component(phase, component)
+    if event_id is not None and (phase is not None or component is not None):
+        start = _try_pair(event_id, phase, component)
+        if start is None:
+            selection = (
+                phase_label(phase, component or "")
+                if phase is not None
+                else f"on component {component}"
+            )
+            console.print(
+                f"[dim]The event has no single phase {selection}. The shell starts"
+                + " without a phase context.[/dim]"
+            )
+        _set_shell_phase(start)
+    elif phase is not None or component is not None:
+        # Exported until `event switch` resolves them, for commands that
+        # name an event.
+        if phase is not None:
+            os.environ["DEFAULT_PHASE"] = phase
+        if component is not None:
+            os.environ["DEFAULT_COMPONENT"] = component
+        pending = (phase, component)
 
     def _set_shell_event(eid: uuid.UUID | None) -> None:
         nonlocal shell_event_id
@@ -294,7 +367,7 @@ def cli_shell(
             return "aimbat> "
         context = str(shell_event_id)[:8]
         if shell_phase is not None:
-            context += f"/{shell_phase}"
+            context += f"/{phase_label(*shell_phase)}"
         return f"aimbat [{context}]> "
 
     try:
@@ -343,20 +416,29 @@ def cli_shell(
                 else:
                     try:
                         new_event_id = _parse_event_id(tokens[2])
-                        if shell_phase is not None:
-                            if not _has_phase(new_event_id, shell_phase):
-                                console.print(
-                                    f"[dim]The event has no phase {shell_phase!r}."
-                                    + " The phase context is cleared.[/dim]"
-                                )
-                                _set_shell_phase(None)
-                        elif shell_event_id is not None:
-                            # The previous event's only phase carries over too.
-                            carried = _only_phase_name(shell_event_id)
-                            if carried is not None and _has_phase(
-                                new_event_id, carried
-                            ):
-                                _set_shell_phase(carried)
+                        wanted: str | None = None
+                        if pending is not None:
+                            name, given = pending
+                            carried = _try_pair(new_event_id, name, given)
+                            if carried is None and name is not None:
+                                carried = _try_pair(new_event_id, name)
+                            wanted = (
+                                phase_label(name, given or "")
+                                if name is not None
+                                else f"on component {given}"
+                            )
+                        else:
+                            carried = _carried_pair(
+                                new_event_id, shell_phase, shell_event_id
+                            )
+                            if shell_phase is not None:
+                                wanted = phase_label(*shell_phase)
+                        if wanted is not None and carried is None:
+                            console.print(
+                                f"[dim]The event has no phase {wanted} to "
+                                + "switch to. The phase context is cleared.[/dim]"
+                            )
+                        _set_shell_phase(carried)
                         _set_shell_event(new_event_id)
                         current_bound = _check_iccs(
                             console, None, startup=True, event_id=shell_event_id
@@ -376,9 +458,11 @@ def cli_shell(
                             + " `event switch` sets the event first."
                         )
                     else:
-                        # Raises with the event's phases if it has no such phase.
-                        resolve_phase_option(shell_event_id, tokens[2])
-                        _set_shell_phase(tokens[2])
+                        # Raises with the event's phases if none or several match.
+                        component = tokens[3].upper() if len(tokens) > 3 else None
+                        _set_shell_phase(
+                            _resolve_pair(shell_event_id, tokens[2], component)
+                        )
                     current_bound = _check_iccs(
                         console, None, startup=True, event_id=shell_event_id
                     )
@@ -416,3 +500,7 @@ def cli_shell(
             os.environ["DEFAULT_PHASE"] = _prev_default_phase
         else:
             os.environ.pop("DEFAULT_PHASE", None)
+        if _prev_default_component is not None:
+            os.environ["DEFAULT_COMPONENT"] = _prev_default_component
+        else:
+            os.environ.pop("DEFAULT_COMPONENT", None)
